@@ -10,7 +10,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type JSX, type ReactNode } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.js';
@@ -271,10 +271,11 @@ describe('Sheet (web)', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Open' }));
     });
 
-    it('holds 85% of the viewport height from sm at size full, and grows with content at size content', async () => {
+    it('holds 85% of the visible height from sm at size full, and grows with content at size content', async () => {
         // ⛔ EXACTLY ONE `sm:h-` utility per size. Two height utilities for one variant are decided by the order
         // Tailwind emits them, not the order they appear in the class string, so a shared `sm:h-auto` would win over
-        // `sm:h-[85vh]` and make `full` a content-height dialog with every class-text check still green.
+        // the `full` height and make `full` a content-height sheet with every class-text check still green.
+        // CL-394: the 85% is of the VISIBLE height (a keyboard shrinks it), no longer `85vh`.
         const heights = (): readonly string[] =>
             screen
                 .getByRole('dialog')
@@ -282,7 +283,7 @@ describe('Sheet (web)', () => {
                 .filter((utility) => utility.startsWith('sm:h-'));
         const user = await openHost(<Host overrides={{ size: 'full' }} />);
 
-        expect(heights()).toStrictEqual(['sm:h-[85vh]']);
+        expect(heights()).toStrictEqual(['sm:h-[calc(var(--sheet-visible-height,100dvh)*0.85)]']);
 
         await user.keyboard('{Escape}');
         cleanup();
@@ -304,11 +305,13 @@ describe('Sheet (web)', () => {
                 .className.split(/\s+/u)
                 .filter((utility) => utility.startsWith(prefix));
 
-        it('takes the whole visible height from sm, and widens to the detail column', async () => {
+        // CL-394 (designer spec section 2): from `sm` a page sheet leaves a 2 rem strip of the page behind, so it reads
+        // as a sheet and not a new page. It was the whole visible height, with a matching `max-h-`.
+        it('takes the visible height less 2 rem from sm, and widens to the detail column', async () => {
             await openHost(<Host overrides={{ size: 'page' }} />);
 
-            expect(smUtilities('sm:h-')).toStrictEqual(['sm:h-[var(--sheet-visible-height,100dvh)]']);
-            expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[var(--sheet-visible-height,100dvh)]']);
+            expect(smUtilities('sm:h-')).toStrictEqual(['sm:h-[calc(var(--sheet-visible-height,100dvh)-2rem)]']);
+            expect(smUtilities('sm:max-h-')).toStrictEqual([]);
             expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-6xl']);
         });
 
@@ -322,18 +325,98 @@ describe('Sheet (web)', () => {
             expect(classes.some((utility) => utility.startsWith('bottom-'))).toBe(false);
         });
 
-        it('leaves full at 85% of the viewport and one house dialog width, and content at its own box', async () => {
+        // CL-394 (designer spec section 2): `content` and `full` share one 560 px (35 rem) cap, and `content` is capped at
+        // 85% of the visible height, where `full` IS 85% (a fixed height). They were the house dialog, `max-w-lg`.
+        it('gives full and content one width cap of 35 rem, and caps only content at 85% of the visible height', async () => {
             const user = await openHost(<Host overrides={{ size: 'full' }} />);
 
-            expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))]']);
-            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+            expect(smUtilities('sm:max-h-')).toStrictEqual([]);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-[35rem]']);
 
             await user.keyboard('{Escape}');
             cleanup();
             await openHost(<Host />);
 
+            expect(smUtilities('sm:max-h-')).toStrictEqual([
+                'sm:max-h-[calc(var(--sheet-visible-height,100dvh)*0.85)]',
+            ]);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-[35rem]']);
+        });
+    });
+
+    /**
+     * CL-394 (designer spec sections 1 and 2, P61, owner ruling 2026-11-17): a sheet is a bottom sheet at EVERY width,
+     * anchored to the foot of the visible box and centred horizontally by `mx-auto`; only a dialog is centred in the box.
+     * Every geometry property is ONE utility per cell (emission order, not class order, decides two of one variant).
+     */
+    describe('from sm (CL-394)', () => {
+        const FOOT = 'bottom-[calc(100%-var(--sheet-visible-top,0px)-var(--sheet-visible-height,100%))]';
+        const classesOf = (): readonly string[] => screen.getByRole('dialog').className.split(/\s+/u);
+        const smUtilities = (prefix: string): readonly string[] =>
+            classesOf().filter((utility) => utility.startsWith(prefix));
+
+        it.each(['content', 'full', 'page'] as const)(
+            'draws a %s sheet as a bottom sheet, never centred in the window',
+            async (size) => {
+                await openHost(<Host overrides={{ size }} />);
+
+                const classes = classesOf();
+
+                expect(classes).not.toContain('sm:left-1/2');
+                expect(classes.filter((utility) => /^sm:-?translate-/u.test(utility))).toStrictEqual([]);
+                expect(classes.filter((utility) => /^sm:top-\[calc\(.*\/2\)\]$/u.test(utility))).toStrictEqual([]);
+                expect(classes).not.toContain('sm:bottom-auto');
+                expect(classes).toEqual(expect.arrayContaining(['sm:mx-auto', 'sm:rounded-t-xl', 'sm:shadow-lg']));
+                expect(classes).not.toContain('sm:rounded-xl');
+            },
+        );
+
+        it('anchors a content sheet to the foot of the visible box with the one phone utility', async () => {
+            await openHost(<Host />);
+
+            expect(classesOf()).toContain(FOOT);
+            expect(smUtilities('sm:bottom-')).toStrictEqual([]);
+            expect(smUtilities('sm:h-')).toStrictEqual(['sm:h-auto']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-[35rem]']);
+        });
+
+        it.each(['full', 'page'] as const)(
+            'takes a %s sheet off the top and anchors it to the same foot, so the keyboard lifts it',
+            async (size) => {
+                await openHost(<Host overrides={{ size }} />);
+
+                expect(classesOf()).toContain('sm:top-auto');
+                expect(smUtilities('sm:bottom-')).toStrictEqual([`sm:${FOOT}`]);
+            },
+        );
+
+        it('keeps a dialog centred in the visible box, 448 px wide, as tall as its content', async () => {
+            await openHost(<Host overrides={{ presentation: 'dialog' }} />);
+
+            const classes = classesOf();
+
+            expect(classes).toEqual(
+                expect.arrayContaining([
+                    'sm:inset-x-auto',
+                    'sm:left-1/2',
+                    'sm:-translate-x-1/2',
+                    'sm:-translate-y-1/2',
+                    'sm:bottom-auto',
+                    'sm:rounded-xl',
+                    'sm:shadow-lg',
+                ]),
+            );
+            expect(smUtilities('sm:h-')).toStrictEqual(['sm:h-auto']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-md']);
             expect(smUtilities('sm:max-h-')).toStrictEqual(['sm:max-h-[min(85vh,var(--sheet-visible-height,85vh))]']);
-            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+        });
+
+        // The union makes the one illegal combination unrepresentable: a dialog is only ever `content`.
+        it('types a dialog as size content only', () => {
+            type Dialog = Extract<SheetProps, { readonly presentation: 'dialog' }>;
+
+            expectTypeOf<Dialog['size']>().toEqualTypeOf<'content'>();
+            expectTypeOf<SheetProps['size']>().toEqualTypeOf<'content' | 'full' | 'page'>();
         });
     });
 
@@ -367,10 +450,11 @@ describe('Sheet (web)', () => {
             expect(smUtilities('bottom-')).toHaveLength(1);
         });
 
-        it('leaves the default presentation at the house dialog width', async () => {
+        // CL-394: the default presentation is a bottom sheet at 35 rem, no longer the house dialog width.
+        it('leaves the default presentation a bottom sheet at 35 rem', async () => {
             await openHost(<Host />);
 
-            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-lg']);
+            expect(smUtilities('sm:max-w-')).toStrictEqual(['sm:max-w-[35rem]']);
         });
     });
 
@@ -387,7 +471,7 @@ describe('Sheet (web)', () => {
         expect(classes).toContain('bottom-[calc(100%-var(--sheet-visible-top,0px)-var(--sheet-visible-height,100%))]');
         expect(classes).toContain('max-h-[calc(var(--sheet-visible-height,100dvh)-2rem)]');
         expect(classes).toContain('rounded-t-xl');
-        expect(classes).toContain('sm:bottom-auto');
+        expect(classes).not.toContain('sm:bottom-auto');
         expect(classes.filter((utility) => /^(?:h|top)-/u.test(utility))).toStrictEqual([]);
     });
 
@@ -542,18 +626,27 @@ describe('Sheet (web)', () => {
             expect(screen.getByRole('dialog').style.getPropertyValue('--sheet-visible-top')).toBe('');
         });
 
-        it('pins the top to the visible box below sm, and centres inside the visible box from sm', async () => {
-            await openHost(<Host overrides={{ size: 'full' }} />);
+        // CL-394: from `sm` only a dialog centres, on the visible box's centre; a sheet stays on the box's foot.
+        it('pins the top to the visible box below sm, and centres a dialog inside the visible box from sm', async () => {
+            const user = await openHost(<Host overrides={{ size: 'full' }} />);
 
             const classes = screen.getByRole('dialog').className.split(/\s+/u);
 
             // Below sm the full-screen sheet starts where the visible box starts, which follows an iOS pan.
             expect(classes).toContain('top-[var(--sheet-visible-top,0px)]');
             expect(classes).not.toContain('top-0');
+            expect(classes).not.toContain('sm:-translate-y-1/2');
+
+            await user.keyboard('{Escape}');
+            cleanup();
+            await openHost(<Host overrides={{ presentation: 'dialog' }} />);
+
+            const dialog = screen.getByRole('dialog').className.split(/\s+/u);
+
             // From sm the centre is the visible box's centre; with no keyboard the fallbacks give the window's 50%.
-            expect(classes).toContain('sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)]');
-            expect(classes).not.toContain('sm:top-1/2');
-            expect(classes).toContain('sm:-translate-y-1/2');
+            expect(dialog).toContain('sm:top-[calc(var(--sheet-visible-top,0px)+var(--sheet-visible-height,100%)/2)]');
+            expect(dialog).not.toContain('sm:top-1/2');
+            expect(dialog).toContain('sm:-translate-y-1/2');
         });
     });
 });

@@ -163,4 +163,15 @@ describe('PublishOpenChoicesSheet (web)', () => {
         expect(footer?.className.split(' ')).toEqual(expect.arrayContaining(['flex-col', 'nav:flex-row']));
         expect(footer?.className).not.toContain('reverse');
     });
+
+    // CL-394 (designer D77): this ask stops the action just taken until the cook chooses, so it stays a centred dialog
+    // from `sm`; every other sheet is a bottom sheet at every width.
+    it('is a centred dialog at most 448 px wide from sm', () => {
+        renderSheet();
+
+        const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+        expect(classes).toContain('sm:max-w-md');
+        expect(classes).not.toContain('sm:max-w-[35rem]');
+    });
 });

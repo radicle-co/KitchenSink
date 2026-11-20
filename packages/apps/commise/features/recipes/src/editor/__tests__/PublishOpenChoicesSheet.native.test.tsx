@@ -5,14 +5,25 @@
  * nutrition then reads "4 of 9 counted". Choose now and Publish anyway are the two ways on; closing does neither.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { PublishOpenChoicesSheet } from '../PublishOpenChoicesSheet.native.js';
 import { render } from '@commise/ui/testing/tamagui';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(document.documentElement, 'clientWidth');
+});
+
+/** Resize the window: react-native-web's `Dimensions` reads the root element's width on a resize event. */
+function windowWidth(width: number): void {
+    Object.defineProperty(document.documentElement, 'clientWidth', { value: width, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
 
 const FACTS = {
     openNames: ['Milk', 'day-old bread', 'salt', 'Grandma’s spice mix'],
@@ -112,5 +123,26 @@ describe('PublishOpenChoicesSheet (native)', () => {
 
         expect(chooseNow.compareDocumentPosition(publish) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
         expect(row === null || row === undefined ? undefined : getComputedStyle(row).flexDirection).toBe('column');
+    });
+
+    // CL-394 (designer D77): this ask stops the action just taken until the cook chooses, so from 600 dp it is a centred
+    // dialog 448 dp wide; on a phone it is a bottom sheet.
+    it('is a centred dialog 448 dp wide from 600 dp, and a bottom sheet below it', () => {
+        windowWidth(834);
+        renderSheet();
+        const dialog = screen
+            .getByRole('heading', { name: '4 ingredients have no food yet' })
+            .closest('[role="dialog"]');
+
+        expect(dialog === null ? undefined : getComputedStyle(dialog).maxWidth).toBe('448px');
+        cleanup();
+
+        windowWidth(390);
+        renderSheet();
+        const phone = screen
+            .getByRole('heading', { name: '4 ingredients have no food yet' })
+            .closest('[role="dialog"]');
+
+        expect(phone === null ? undefined : getComputedStyle(phone).maxWidth).not.toBe('448px');
     });
 });

@@ -48,6 +48,7 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             title={l.title}
             closeLabel={l.close}
             size="content"
+            presentation="dialog"
             footer={
                 <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
                     <Button variant="secondary" icon="chevronLeft" onPress={onKeepReviewing}>

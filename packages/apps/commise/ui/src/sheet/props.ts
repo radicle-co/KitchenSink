@@ -16,7 +16,8 @@ export interface SheetToolbar {
     readonly controls: ReactNode;
 }
 
-export interface SheetProps {
+/** Every prop of a sheet that does not depend on how it is presented. */
+interface SheetBaseProps {
     readonly open: boolean;
     /**
      * The host has set the sheet aside for a moment (a question is up) and will bring it back as it was. `open` stays true.
@@ -58,19 +59,6 @@ export interface SheetProps {
     readonly describedBy?: readonly string[];
     /** The accessible name of the icon-only close control. House form: "Close {thing}". */
     readonly closeLabel: string;
-    /**
-     * `content`: as tall as its content, up to the available height. `full`: always the available height (web: an 85%
-     * dialog from `sm`). `page`: a page-sized sheet: the available height at every width, and on web from `sm` as wide
-     * as the detail column (72 rem). Native has no wider-than-phone variant, so there it is the same as `full`.
-     */
-    readonly size: 'content' | 'full' | 'page';
-    /**
-     * `sheet` (the default): the sheet at its own width. `dialog`: a bottom sheet on a phone and, from the tablet width
-     * (native 600 dp, web `sm`), a CENTRED dialog at most 448 wide (owner ruling 2026-10-26, from the platform guidelines:
-     * Apple HIG alerts and sheets, Material 3 dialogs). For an ask that is a decision, not a task. Only `size="content"`
-     * is centred; the other sizes keep their own geometry.
-     */
-    readonly presentation?: 'sheet' | 'dialog';
     /** Pinned under the title, outside the scroll region. ⛔ With a toolbar, `children` holds no text input. */
     readonly toolbar?: SheetToolbar;
     /**
@@ -86,3 +74,27 @@ export interface SheetProps {
      */
     readonly footer?: ReactNode;
 }
+
+/**
+ * How a sheet is presented, and the size that goes with it: the one illegal pair, a dialog that is not `content`, cannot
+ * be written.
+ */
+export type SheetShape =
+    | {
+          /**
+           * `sheet` (the default): a bottom sheet at every width, at most 560 dp (native) or 35 rem (web) wide. `dialog`:
+           * a bottom sheet on a phone and, from the tablet width (native 600 dp, web `sm`), a CENTRED dialog at most 448
+           * wide (owner rulings 2026-10-26 and 2026-11-17: a centred modal only for an ask that stops the action just
+           * taken until the cook chooses). A dialog is only ever `content`.
+           */
+          readonly presentation?: 'sheet';
+          /**
+           * `content`: as tall as its content, up to 85% of the available height. `full`: always 85% of it. `page`: a
+           * page-sized sheet, the available height less a small gap on web, and as wide as the detail column (72 rem)
+           * from `sm`. Native has no wider-than-phone variant, so there `page` is the same as `full`.
+           */
+          readonly size: 'content' | 'full' | 'page';
+      }
+    | { readonly presentation: 'dialog'; readonly size: 'content' };
+
+export type SheetProps = SheetBaseProps & SheetShape;

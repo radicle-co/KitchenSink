@@ -34,6 +34,7 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
             title={copy.title}
             closeLabel={copy.close}
             size="content"
+            presentation="dialog"
             footer={
                 <View style={styles.actions}>
                     <Button variant="secondary" icon="list" width="fill" onPress={onChooseNow}>

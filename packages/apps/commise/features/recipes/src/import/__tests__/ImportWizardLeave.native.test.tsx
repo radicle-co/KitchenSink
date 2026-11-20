@@ -3,7 +3,7 @@
  * `ImportWizardLeave.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 vi.mock('react-native', async (importOriginal) => {
@@ -19,7 +19,18 @@ import { render } from '@commise/ui/testing/tamagui';
 
 const l = importMessages.en.leave;
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(document.documentElement, 'clientWidth');
+});
+
+/** Resize the window: react-native-web's `Dimensions` reads the root element's width on a resize event. */
+function windowWidth(width: number): void {
+    Object.defineProperty(document.documentElement, 'clientWidth', { value: width, configurable: true });
+    act(() => {
+        window.dispatchEvent(new Event('resize'));
+    });
+}
 
 describe('ImportWizardLeave (native)', () => {
     it('says what happens to every recipe, then Keep reviewing or Save and leave', () => {
@@ -87,5 +98,30 @@ describe('ImportWizardLeave (native)', () => {
         );
 
         expect(screen.queryByText(l.title)).toBeNull();
+    });
+
+    // CL-394 (designer D77): leaving the wizard stops the action just taken until the cook chooses, so from 600 dp it is
+    // a centred dialog 448 dp wide; on a phone it is a bottom sheet.
+    it('is a centred dialog 448 dp wide from 600 dp, and a bottom sheet below it', () => {
+        const props = {
+            open: true,
+            reviewed: 14,
+            total: 309,
+            resumeAt: 15,
+            onKeepReviewing: vi.fn(),
+            onConfirm: vi.fn(),
+        };
+        windowWidth(834);
+        render(<ImportWizardLeave {...props} />);
+        const dialog = screen.getByText(l.title).closest('[role="dialog"]');
+
+        expect(dialog === null ? undefined : getComputedStyle(dialog).maxWidth).toBe('448px');
+        cleanup();
+
+        windowWidth(390);
+        render(<ImportWizardLeave {...props} />);
+        const phone = screen.getByText(l.title).closest('[role="dialog"]');
+
+        expect(phone === null ? undefined : getComputedStyle(phone).maxWidth).not.toBe('448px');
     });
 });

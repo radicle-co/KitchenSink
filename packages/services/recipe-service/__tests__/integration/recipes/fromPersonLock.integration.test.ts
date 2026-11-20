@@ -280,6 +280,7 @@ describe('past attestation: "I wrote this" over a past "From another person" att
 
             // Not the lock's refusal: the first statement is accepted and written, and nothing made the recipe public.
             expect(response.status).not.toBe(403);
+
             // The sheet asks for Public, which "From another person" cannot have, so only the two PATCH routes write the statement.
             if (!route.name.includes('set-visibility')) {
                 expect(insertMany).toHaveBeenCalled();

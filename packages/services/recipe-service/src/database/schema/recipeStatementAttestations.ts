@@ -14,7 +14,15 @@ import { recipes } from './recipes.js';
 export const ATTESTATION_MODES = ['explicit', 'implicit'] as const;
 
 /** What the cook said. `cleared` is a removed statement; `publicConfirm` is the implicit one. Mirrored from the SQL CHECK. */
-export const ATTESTATION_CHOICES = ['authored', 'publicWeb', 'book', 'fromPerson', 'cleared', 'publicConfirm'] as const;
+export const ATTESTATION_CHOICES = [
+    'authored',
+    'publicWeb',
+    'book',
+    'paidSite',
+    'fromPerson',
+    'cleared',
+    'publicConfirm',
+] as const;
 
 /** The write an attestation rode on. Mirrored from the SQL CHECK. */
 export const ATTESTATION_ACTIONS = ['create', 'update', 'setVisibility'] as const;

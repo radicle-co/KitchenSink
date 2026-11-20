@@ -17,8 +17,8 @@
  *  5. Hard-deleting the recipe KEEPS its rows (migration 0090: `recipe_id` becomes NULL, `recipe_ref` stays); so does a soft delete.
  *  6. A clone has NO attestation rows: they are the acts of the cook who made them. The one exception, the "from another person"
  *     fact of a held source, is asserted in `recipeProvenanceHardening.e2e.test.ts`.
- *  7. The widened capture CHECK accepts `editorCitation` with a book citation, and refuses it without a citation or on a
- *     web source.
+ *  7. The widened capture CHECK accepts `editorCitation` with a book or a paid-site citation (0091 added the paid site), and
+ *     refuses it without a citation or on a web source. A `paidSite` attestation is accepted and an unknown choice is not.
  */
 import { randomUUID } from 'node:crypto';
 
@@ -181,6 +181,29 @@ describe('recipe_statement_attestations (migrations 0088 and 0090)', () => {
 
         await expect(attest(input)).rejects.toMatchObject({ code: CHECK_VIOLATION });
         expect(await attestationCount(RECIPE_ID)).toBe(0);
+    });
+
+    it('accepts a paidSite attestation, and still refuses a choice outside the list', async () => {
+        await insertRecipe();
+        await attest({
+            mode: 'explicit',
+            choice: 'paidSite',
+            wordingVersion: 'statementPaidSite.v1',
+            locale: 'en',
+            action: 'create',
+        });
+
+        expect(await attestationCount(RECIPE_ID)).toBe(1);
+        await expect(
+            attest({
+                mode: 'explicit',
+                choice: 'bogus',
+                wordingVersion: 'statementBogus.v1',
+                locale: 'en',
+                action: 'create',
+            }),
+        ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+        expect(await attestationCount(RECIPE_ID)).toBe(1);
     });
 
     it('accepts a locale at each bound (2 and 35 characters)', async () => {
@@ -509,6 +532,22 @@ describe('recipe_statement_attestations (migrations 0088 and 0090)', () => {
             const { rows } = await pool.query(`SELECT 1 FROM recipe_source_evidence WHERE recipe_id = $1`, [RECIPE_ID]);
 
             expect(rows).toHaveLength(1);
+        });
+
+        it('accepts editorCitation for a paid site with a citation, and still refuses it with no citation', async () => {
+            await insertRecipe();
+            await evidence({
+                capture: 'editorCitation',
+                sourceKind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+            });
+
+            const { rows } = await pool.query(`SELECT 1 FROM recipe_source_evidence WHERE recipe_id = $1`, [RECIPE_ID]);
+
+            expect(rows).toHaveLength(1);
+            await expect(
+                evidence({ capture: 'editorCitation', sourceKind: 'paid_site', citation: null }),
+            ).rejects.toMatchObject({ code: CHECK_VIOLATION });
         });
 
         it('refuses editorCitation with no citation, and on a web source', async () => {

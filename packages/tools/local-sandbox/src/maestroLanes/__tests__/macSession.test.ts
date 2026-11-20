@@ -12,8 +12,13 @@ interface Call {
     readonly args: readonly string[];
 }
 
-function recorder(answers: Record<string, string> = {}) {
+function recorder(answers: Record<string, string> = {}, probes: Record<number, string[]> = {}) {
     const calls: Call[] = [];
+    let asked = 0;
+    let exitTunnel: (code: number) => void = () => undefined;
+    const exited = new Promise<number>((resolve) => {
+        exitTunnel = resolve;
+    });
     const files = new Map<string, string>();
     const links: [string, string][] = [];
     const tunnels: string[][] = [];
@@ -22,6 +27,25 @@ function recorder(answers: Record<string, string> = {}) {
         run: (command, args) => {
             calls.push({ command, args });
             const line = [command, ...args].join(' ');
+            const probed = /127\.0\.0\.1:(\d+)\/health/u.exec(line);
+
+            if (probed !== null) {
+                asked += 1;
+
+                // A missing deadline fails here at once, where it would otherwise spin until the suite times out.
+                if (asked > 50) {
+                    return Promise.reject(new Error('the probe asked more than 50 times: it has no deadline'));
+                }
+
+                const queue = probes[Number(probed[1])] ?? ['200'];
+
+                if (queue[0] === 'REJECT') {
+                    return Promise.reject(new Error('ssh: connect to host mac port 22: Connection refused'));
+                }
+
+                return Promise.resolve(queue.length > 1 ? (queue.shift() ?? '200') : (queue[0] ?? '200'));
+            }
+
             const hit = Object.entries({ 'printenv HOME': '/Users/x\n', ...answers }).find(([needle]) =>
                 line.includes(needle),
             );
@@ -37,6 +61,7 @@ function recorder(answers: Record<string, string> = {}) {
 
                     return Promise.resolve();
                 },
+                exited,
             };
         },
         writeFile: (file, content) => {
@@ -51,13 +76,49 @@ function recorder(answers: Record<string, string> = {}) {
         },
     };
 
-    return { shell, calls, files, links, tunnels, stopped: () => stopped };
+    return { shell, calls, files, links, tunnels, exitTunnel, asked: () => asked, stopped: () => stopped };
 }
 
-const make = (shell: MacShell, env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' }) =>
-    new MacSession({ shell, env, repoRoot: '/repo' });
+/**
+ * A session on a fake clock: `sleep` moves the clock by the wait, and every command to the Mac moves it by `replyMs`,
+ * as a real ssh round trip would. So no test waits and none reads the wall clock.
+ */
+const make = (
+    shell: MacShell,
+    env: Record<string, string | undefined> = { LOCAL_MAESTRO_IOS_HOST: 'me@mac' },
+    sleeps: number[] = [],
+    replyMs = 0,
+) => {
+    let clock = 0;
+    const timed: MacShell = {
+        ...shell,
+        run: (command, args, runEnv) => {
+            clock += replyMs;
+
+            return shell.run(command, args, runEnv);
+        },
+    };
+
+    return new MacSession({
+        shell: timed,
+        env,
+        repoRoot: '/repo',
+        now: () => clock,
+        sleep: (ms) => {
+            sleeps.push(ms);
+            clock += ms;
+
+            return Promise.resolve();
+        },
+    });
+};
 
 const run = { runId: 'r', stateDir: '/s', repoRoot: '/repo' };
+
+const FORWARDS = [
+    { origin: 'recipeOrigin', macPort: 3000, localPort: 3000 },
+    { origin: 'identityOrigin', macPort: 3001, localPort: 3001 },
+] as const;
 
 describe('MacSession', () => {
     it('refuses to be built without a Mac host', () => {
@@ -122,10 +183,7 @@ describe('MacSession', () => {
         const rec = recorder();
         const session = make(rec.shell);
         await session.open(run);
-        session.openTunnel([
-            { origin: 'recipeOrigin', macPort: 3000, localPort: 3000 },
-            { origin: 'identityOrigin', macPort: 3001, localPort: 3001 },
-        ]);
+        await session.openTunnel(FORWARDS);
         const tunnel = rec.tunnels[0]?.join(' ') ?? '';
 
         expect(tunnel).toContain('-R 3000:localhost:3000');
@@ -133,6 +191,182 @@ describe('MacSession', () => {
         expect(tunnel).toContain('ExitOnForwardFailure=yes');
         await session.close();
         expect(rec.stopped()).toBe(1);
+    });
+
+    describe('the tunnel (S81)', () => {
+        it('owns its ssh connection, so its forwards die with it and not with the shared master', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            const tunnel = rec.tunnels[0]?.join(' ') ?? '';
+
+            expect(tunnel).toContain('-o ControlMaster=no');
+            expect(tunnel).toContain('-o ControlPath=none');
+        });
+
+        it('asks every forwarded Mac port for /health before it returns', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            const asked = rec.calls.map((c) => [c.command, ...c.args].join(' ')).filter((l) => l.includes('/health'));
+
+            expect(asked).toHaveLength(2);
+            expect(asked[0]).toContain('127.0.0.1:3000/health');
+            expect(asked[1]).toContain('127.0.0.1:3001/health');
+        });
+
+        it('retries a port that does not answer yet (000) and passes when it answers 200', async () => {
+            const rec = recorder({}, { 3000: ['000', '000', '200'] });
+            const session = make(rec.shell);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).resolves.toBeUndefined();
+        });
+
+        it('refuses, naming the port and the code, when a port never answers before the deadline', async () => {
+            const rec = recorder({}, { 3001: ['000'] });
+            const session = make(rec.shell);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Mac port 3001 answered \/health with 000/u);
+        });
+
+        it('refuses at once on any other code, naming the port and the code', async () => {
+            const rec = recorder({}, { 3000: ['401'] });
+            const session = make(rec.shell);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Mac port 3000 answered \/health with 401/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(1);
+        });
+
+        it('probes the second port too: 200 on the first and 401 on the second names the second', async () => {
+            const rec = recorder({}, { 3000: ['200'], 3001: ['401'] });
+            const session = make(rec.shell);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Mac port 3001 answered \/health with 401/u);
+        });
+
+        it('refuses at once on an empty or non-numeric reply, quoting it, and never retries it as 000', async () => {
+            for (const reply of ['', 'bash: curl: command not found']) {
+                const rec = recorder({}, { 3000: [reply] });
+                const session = make(rec.shell);
+                await session.open(run);
+
+                await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/not an HTTP code/u);
+                await expect(session.openTunnel(FORWARDS)).rejects.toThrow(
+                    reply === '' ? /answered ""/u : /answered "bash: curl: command not found"/u,
+                );
+                expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(2);
+            }
+        });
+
+        it('rejects with the ssh error when the probe call itself fails, and does not retry it', async () => {
+            const rec = recorder({}, { 3000: ['REJECT'] });
+            const session = make(rec.shell);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Connection refused/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(1);
+        });
+
+        it('gives up at 10 s of wall time even when each reply is slow, long before 20 attempts', async () => {
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell, undefined, [], 4_000);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/answered \/health with 000/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health')).length).toBeLessThan(5);
+        });
+
+        it('shares one 10 s deadline across the ports, so a slow first port leaves one try', async () => {
+            const rec = recorder({}, { 3000: ['200'], 3001: ['000'] });
+            const session = make(rec.shell, undefined, [], 6_000);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/Mac port 3001 answered \/health with 000/u);
+            expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3001/health'))).toHaveLength(1);
+        });
+
+        it('gives up when 10 s of waiting have passed, not before and not long after', async () => {
+            const sleeps: number[] = [];
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell, undefined, sleeps);
+            await session.open(run);
+
+            await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/answered \/health with 000/u);
+            expect(sleeps.reduce((sum, ms) => sum + ms, 0)).toBeGreaterThanOrEqual(10_000);
+            expect(sleeps.reduce((sum, ms) => sum + ms, 0)).toBeLessThanOrEqual(10_500);
+        });
+
+        it('keeps a loss that happened before anyone asked: lost() asked late still resolves', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            await expect(session.lost()).resolves.toEqual(
+                new Error('the tunnel ssh exited with code 255 during the run'),
+            );
+        });
+
+        it('stops asking once the tunnel has exited: no probe command goes out after the refusal', async () => {
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell);
+            await session.open(run);
+            const opening = session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+            await expect(opening).rejects.toThrow(/exited with code 255 before/u);
+            const askedAtRefusal = rec.asked();
+            await new Promise((resolve) => setTimeout(resolve, 0));
+
+            // One ask may already have been on its way when the tunnel ended. None may follow it.
+            expect(rec.asked() - askedAtRefusal).toBeLessThanOrEqual(1);
+        });
+
+        it('refuses with the exit code when the tunnel ssh exits before the probe passes', async () => {
+            const rec = recorder({}, { 3000: ['000'] });
+            const session = make(rec.shell);
+            await session.open(run);
+            const opening = session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+
+            await expect(opening).rejects.toThrow(/tunnel ssh exited with code 255 before the run used it/u);
+        });
+
+        it('reports a loss, with the exit code, when the tunnel exits after it opened', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            const lost = session.lost();
+            rec.exitTunnel(255);
+
+            await expect(lost).resolves.toEqual(new Error('the tunnel ssh exited with code 255 during the run'));
+        });
+
+        it('does not report a loss for an exit that close() caused', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            let settled = false;
+            void session.lost().then(() => {
+                settled = true;
+            });
+            await session.close();
+            rec.exitTunnel(143);
+            await Promise.resolve();
+            await Promise.resolve();
+
+            expect(settled).toBe(false);
+        });
     });
 
     it('links a shim by name into the run shim folder', async () => {

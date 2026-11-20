@@ -9,6 +9,7 @@ import { mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import type { IosShell } from './iosAdapter.js';
+import { exitOf } from './laneProcess.js';
 
 export function createIosShell(): IosShell {
     return {
@@ -29,20 +30,18 @@ export function createIosShell(): IosShell {
             }),
         background: (command, args) => {
             const child = spawn(command, [...args], { stdio: 'ignore', detached: true });
-            const exited = new Promise<void>((resolve) => {
-                child.once('exit', () => {
-                    resolve();
-                });
-            });
+            const exited = exitOf(child);
 
             return {
                 stop: async () => {
-                    if (child.pid !== undefined && child.exitCode === null) {
+                    // A child killed by a signal has no exit code but is gone: its group no longer exists to signal.
+                    if (child.pid !== undefined && child.exitCode === null && child.signalCode === null) {
                         process.kill(-child.pid, 'SIGTERM');
                     }
 
                     await exited;
                 },
+                exited,
             };
         },
         writeFile: async (file, content) => {

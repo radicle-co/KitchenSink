@@ -9,6 +9,7 @@
  * @pattern Presentation model — one pure projection of the state and the copy, rendered by two leaves
  */
 import type { RadioListOption } from '@commise/ui/radio-list';
+import { SOURCE_LINK_MAX_LENGTH } from '@kitchensink/recipe-core';
 
 import type { EditorMessages } from '../editor/messages.js';
 import type { SourceStatementMessages } from './messages.js';
@@ -32,6 +33,8 @@ interface StatementFieldView {
     readonly focusRequested: boolean;
     readonly inputMode: 'url' | 'text';
     readonly autoCapitalize: 'none' | 'sentences';
+    /** The most the field takes: the server's citation bound, so a longer one cannot be typed or pasted. */
+    readonly maxLength?: number;
 }
 
 /**
@@ -142,6 +145,7 @@ function fieldViewOf(
             value: state.paidSite,
             inputMode: 'text',
             autoCapitalize: 'sentences',
+            maxLength: SOURCE_LINK_MAX_LENGTH,
             ...shown,
         };
     }
@@ -153,6 +157,7 @@ function fieldViewOf(
             value: state.bookTitle,
             inputMode: 'text',
             autoCapitalize: 'sentences',
+            maxLength: SOURCE_LINK_MAX_LENGTH,
             ...shown,
         };
     }

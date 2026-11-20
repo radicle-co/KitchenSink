@@ -197,6 +197,21 @@ describe('statementFieldErrorOf', () => {
         expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: 'Sam' })).toBeUndefined();
     });
 
+    it('refuses a citation past the length the server takes, for a book and a paid site, and takes the longest one', () => {
+        const longest = 'a'.repeat(2_000);
+        const tooLong = `${longest}a`;
+
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: longest })).toBeUndefined();
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: tooLong })).toEqual({
+            field: 'paidSite',
+            reason: 'invalid',
+        });
+        expect(statementFieldErrorOf('book', { link: '', bookTitle: tooLong, paidSite: '' })).toEqual({
+            field: 'bookTitle',
+            reason: 'invalid',
+        });
+    });
+
     it('keeps what was typed for one answer when the cook looks at another', () => {
         const state = (['choose:paidSite', 'text:Sam', 'choose:book'] as const).reduce(
             (current, step): StatementSheetState =>

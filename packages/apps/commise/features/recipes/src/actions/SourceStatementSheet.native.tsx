@@ -117,6 +117,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                             invalid={field.error !== undefined}
                             {...(field.error === undefined ? {} : { error: field.error })}
                             inputMode={field.inputMode}
+                            {...(field.maxLength === undefined ? {} : { maxLength: field.maxLength })}
                             autoCapitalize={field.autoCapitalize}
                             {...(field.kind === 'link' ? { autoCorrect: false } : {})}
                             disabled={view.busy}

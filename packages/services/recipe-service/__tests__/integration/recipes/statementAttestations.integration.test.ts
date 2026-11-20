@@ -243,6 +243,7 @@ beforeAll(async () => {
                             contentPastedAt: row.contentPastedAt,
                             firstPublishedAt: row.firstPublishedAt,
                             clonedFromId: row.clonedFromId,
+                            sourceAttribution: row.sourceAttribution,
                         };
                     },
                     setVisibility: async (
@@ -941,6 +942,30 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         });
         expect(await refusalOf(publicPaid)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
         expect(insertMany).not.toHaveBeenCalled();
+    });
+
+    it('the identical paid website again, on PATCH and on set-visibility, is applied as nothing and records nothing', async () => {
+        stored = rowOf({
+            status: 'draft',
+            sourceType: 'imported_paid',
+            sourceKind: 'paid_site',
+            statementKind: 'source',
+            sourceAttribution: PAID_SITE.citation,
+        });
+
+        const patched = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: PAID_SITE,
+        });
+        const visibility = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'private',
+            statement: PAID_SITE,
+        });
+
+        expect(patched.status).toBe(200);
+        expect(visibility.status).toBe(200);
+        expect(insertEvidence).not.toHaveBeenCalled();
+        expect(recorded()).toEqual([]);
     });
 
     it('"from another person" with Public is a contradiction: 400 FROM_PERSON_PRIVATE_ONLY, nothing written; with Private it is recorded', async () => {

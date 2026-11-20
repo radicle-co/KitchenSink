@@ -16,6 +16,7 @@
 import { servedLocaleOf } from '@commise/i18n';
 import {
     parseSourceLink,
+    SOURCE_LINK_MAX_LENGTH,
     PUBLIC_CONFIRM_WORDINGS,
     RecipeSourceType,
     RecipeVisibility,
@@ -185,6 +186,17 @@ export interface StatementFieldError {
     readonly reason: 'required' | 'invalid' | 'ownSite';
 }
 
+/** A citation field's problem: empty, or past the length the server takes (a longer one would fail every write). Pure. */
+function citationErrorOf(field: 'bookTitle' | 'paidSite', text: string): StatementFieldError | undefined {
+    const length = text.trim().length;
+
+    if (length === 0) {
+        return { field, reason: 'required' };
+    }
+
+    return length > SOURCE_LINK_MAX_LENGTH ? { field, reason: 'invalid' } : undefined;
+}
+
 /**
  * Whether the chosen answer's revealed field is usable. The link is read by the Source field's own reading, so the sheet's
  * "not a link" and the server's `400` are one rule.
@@ -198,11 +210,11 @@ export function statementFieldErrorOf(
     fields: StatementFields,
 ): StatementFieldError | undefined {
     if (answer === 'book') {
-        return fields.bookTitle.trim() === '' ? { field: 'bookTitle', reason: 'required' } : undefined;
+        return citationErrorOf('bookTitle', fields.bookTitle);
     }
 
     if (answer === 'paidSite') {
-        return fields.paidSite.trim() === '' ? { field: 'paidSite', reason: 'required' } : undefined;
+        return citationErrorOf('paidSite', fields.paidSite);
     }
 
     if (answer !== 'publicWeb') {

@@ -304,6 +304,12 @@ describe('SourceStatementSheet — paid website', () => {
         expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
     });
 
+    it('caps the citation field at the length the server takes', () => {
+        renderSheet({ state: { answer: 'paidSite' } });
+
+        expect(screen.getByLabelText('Website name or address').getAttribute('maxlength')).toBe('2000');
+    });
+
     it('shows the citation error under the field, and none before Confirm', () => {
         renderSheet({ state: { answer: 'paidSite', attempted: true } });
 

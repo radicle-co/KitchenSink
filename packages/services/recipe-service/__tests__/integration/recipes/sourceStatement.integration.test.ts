@@ -186,6 +186,8 @@ beforeAll(async () => {
                             sourceKind: row.sourceKind,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
+                            clonedFromId: row.clonedFromId,
+                            sourceAttribution: row.sourceAttribution,
                         };
                     },
                     setVisibility,
@@ -945,6 +947,19 @@ describe('a paid-site statement on the recipe routes (#374, #376)', () => {
                 ...PAID_ROW,
                 sourceUrl: null,
             });
+        });
+
+        it('the identical statement again is a 200 and writes nothing: a resend does not meet the lock', async () => {
+            stored = makeRecipeRow({ ...stored, sourceAttribution: CITATION });
+
+            const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+                expectedVersion: 1,
+                statement: PAID,
+            });
+
+            expect(response.status).toBe(200);
+            expect(insertEvidence).not.toHaveBeenCalled();
+            expect(stored).toMatchObject(PAID_ROW);
         });
 
         it.each([

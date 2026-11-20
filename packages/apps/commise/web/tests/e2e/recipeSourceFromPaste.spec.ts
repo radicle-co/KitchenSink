@@ -215,17 +215,21 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         await sheetOf(page)
             .getByRole('radio', { name: /From a paid website/u })
             .click();
-        await expect(sheetOf(page).getByText('Once you confirm, this answer is locked.')).toBeVisible();
+        await expect(sheetOf(page).getByRole('radio', { name: /From a paid website/u })).toContainText(
+            'Once you confirm, this answer is locked.',
+        );
         await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
 
-        await expect(sheetOf(page).getByText('Add the website’s name or address.')).toBeVisible();
-        await expect(sheetOf(page).getByLabel('Website name or address')).toBeFocused();
+        const citation = sheetOf(page).getByLabel('Website name or address');
+
+        await expect(citation).toHaveAccessibleDescription('Add the website’s name or address.');
+        await expect(citation).toBeFocused();
         expect(published(writes)).toEqual([]);
 
         await sheetOf(page).getByLabel('Website name or address').fill('Sam’s Subscription Kitchen');
         await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
 
-        await expect(page.getByText('Recipe published.')).toBeVisible();
+        await expect(page.getByRole('status').filter({ hasText: 'Recipe published.' })).toBeVisible();
         expect(published(writes)[0]?.body).toMatchObject({
             statement: {
                 kind: 'paid_site',

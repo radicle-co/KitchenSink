@@ -46,6 +46,8 @@ export type StoredSource = CorrectableSourceFacts & {
     readonly sourceKind: RecipeSourceKind | null;
     /** What the cook stated (`recipes.statement_kind`), or `null`. The database CHECK keeps it to the known vocabulary. */
     readonly statementKind: RecipeStatementKind | null;
+    /** The stored citation (`recipes.source_attribution`), or `null`: what a paid site stated again is compared with. */
+    readonly sourceAttribution?: string | null;
 };
 
 /**
@@ -105,6 +107,17 @@ export function evaluateSourceCorrection(input: {
     const { statement, stored } = input;
 
     if (statement === undefined) {
+        return { kind: 'unchanged' };
+    }
+
+    // The same paid site stated again took no effect, so it is `unchanged` BEFORE the lock: a paid-site answer rides every
+    // write until the server holds it, so a resend (a lost response, a retry after a 409) must not meet the lock it made.
+    // Any other statement over a paid site stays `locked`.
+    if (
+        statement?.kind === 'paid_site' &&
+        stored.sourceKind === 'paid_site' &&
+        stored.sourceAttribution === statement.citation.trim()
+    ) {
         return { kind: 'unchanged' };
     }
 

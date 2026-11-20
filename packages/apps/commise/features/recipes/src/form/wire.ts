@@ -147,7 +147,7 @@ const sheetStatementOf = (
     }
 
     // A paid site locks at the confirm (it cannot be changed after), so it rides the next write of any kind until the server
-    // holds it. A held one is locked, and the server refuses even the same statement again.
+    // holds it. After that the write has nothing to add, so it is left out.
     if (statement.kind === 'paid_site') {
         return recipe?.sourceKind === 'paid_site' ? undefined : { statement };
     }

@@ -724,14 +724,14 @@ jobs:
 
             # The `turbo boundaries` ratchet and its baseline now live in this repository (`tooling/codeQuality`) and run in
             # `codeQuality` below (owner ruling 2026-11-19). The earlier decision to keep them in the agent's user-level
-            # skill, and its warning not to add a CI copy, is superseded by ADR-0097.
+            # skill, and its warning not to add a CI copy, is superseded by ADR-0098.
 
     # ── The code-quality scanners, run once per PR where a person or an agent cannot skip them ────────────────────
     #
     # @pattern Pipeline — scan.mjs (Adapter over eight scanners) → status.json + findings.jsonl → runVerdict.mjs (Policy)
     # @pattern Ratchet  — the boundaries baseline and the repoGuards baselines may only shrink.
     #
-    # ADR-0097. This job is the deterministic half of the GATE: the `GATE` status (gate.yml) judges the evidence this
+    # ADR-0098. This job is the deterministic half of the GATE: the `GATE` status (gate.yml) judges the evidence this
     # job uploads as `scq-<sha>`. ONLY CHANGED FILES (owner ruling 2026-11-20): each tool runs only when the change holds
     # a file of its kind, pointed at those files, and otherwise reports NOT_APPLICABLE (scanScope.mjs). The job has NO
     # paths filter on purpose: a skipped check is not a passed one, and scanVerdict.mjs tells a tool with nothing to do

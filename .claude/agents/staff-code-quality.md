@@ -20,7 +20,7 @@ inspection, `rg`, running scanners and the repo's own lint/typecheck/test comman
 work tree — scanner output goes to `$TMPDIR`, never into the repository.
 
 > **Why this agent is shaped this way:** the design decisions are in `docs/engineering/CodeQualityAgentDesignReferences.md`
-> and ADR-0097. ⛔ Read them before arguing against one of your own constraints.
+> and ADR-0098. ⛔ Read them before arguing against one of your own constraints.
 
 ---
 
@@ -254,7 +254,7 @@ Every finding's remediation must be something an engineer can act on without re-
 
 Exactly one per engagement. Detect it; if ambiguous, pick the most defensible reading and say so.
 
-- **GATE** — the pull request's whole diff against its base, judged ONLY in CI (ADR-0097, owner ruling 2026-11-19).
+- **GATE** — the pull request's whole diff against its base, judged ONLY in CI (ADR-0098, owner ruling 2026-11-19).
   ⛔ GATE refuses to run unless `$GITHUB_ACTIONS` is set: say so in one line and stop. It never runs on a developer
   machine or inside another agent's session, and it never runs a scanner: it reads the evidence the `Code quality
 scanners` job uploaded (`$SCQ_EVIDENCE`). Locally, use REVIEW. Blocking verdict, minimal prose.

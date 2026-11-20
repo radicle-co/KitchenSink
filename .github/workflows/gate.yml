@@ -1,4 +1,4 @@
-# GATE: the staff-code-quality review of a pull request, run only here (ADR-0097).
+# GATE: the staff-code-quality review of a pull request, run only here (ADR-0098).
 #
 # @pattern Pipeline — draft check → judge from BASE → wait for the `Code quality scanners` evidence → LLM judgement →
 #          verdict step that turns the structured result into the `GATE` commit status.
@@ -8,7 +8,7 @@
 # draft PR gets `pending` and nothing else runs. A ready PR is judged once per push by the agent in `.claude/` AS IT IS
 # ON THE BASE BRANCH: the judge never comes from the head, because a PR that edited its own judge would grade itself.
 #
-# ONLY CHANGED FILES (owner ruling 2026-11-20, ADR-0097). The judge is given the files whose content changed since the
+# ONLY CHANGED FILES (owner ruling 2026-11-20, ADR-0098). The judge is given the files whose content changed since the
 # last GATE verdict on this PR and the diff of those files, once. Every verdict is stored per file, with the file's blob
 # id, in the artifact `gate-<sha>`; a rerun judges only the files whose blob id has no verdict yet, an unchanged file
 # keeps its earlier verdict (a BLOCK on it stays until it changes), and a push that changes nothing new reuses the earlier

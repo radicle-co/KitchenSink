@@ -20,7 +20,7 @@ depth, and what the reader needs to do next.
 **Reader:** the PR author, through the `GATE` commit status and one review comment. It needs a verdict and a short list
 it can act on.
 
-⛔ **GATE runs only in CI** (`gate.yml`, ADR-0097). If `$GITHUB_ACTIONS` is not set, say so in one line and stop: do not
+⛔ **GATE runs only in CI** (`gate.yml`, ADR-0098). If `$GITHUB_ACTIONS` is not set, say so in one line and stop: do not
 run it, and do not stand in for it, on a machine or inside another agent's session.
 
 **Scope:** the PR's whole diff against its base, `git diff <base>...<head>`.

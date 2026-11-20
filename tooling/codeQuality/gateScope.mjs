@@ -1,4 +1,4 @@
-// What the GATE judge is asked to look at (ADR-0097; owner ruling 2026-11-20, "We should only run on files that
+// What the GATE judge is asked to look at (ADR-0098; owner ruling 2026-11-20, "We should only run on files that
 // change"): the files whose content changed since the last verdict, the diff of those files, nothing else.
 //
 // @pattern Policy — pure scope rules; gateRun.mjs (Adapter) does the git and file I/O around them.

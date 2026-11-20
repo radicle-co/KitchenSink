@@ -1,4 +1,4 @@
-# 0097: The GATE runs only in CI, and its scanners are CI jobs
+# 0098: The GATE runs only in CI, and its scanners are CI jobs
 
 - **Status:** Accepted
 - **Date:** 2026-11-20

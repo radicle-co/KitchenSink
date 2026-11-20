@@ -1,4 +1,4 @@
-// Per-file GATE verdicts: what was judged, what can be reused, and how the verdicts merge (ADR-0097; owner ruling
+// Per-file GATE verdicts: what was judged, what can be reused, and how the verdicts merge (ADR-0098; owner ruling
 // 2026-11-20, "We should only run on files that change").
 //
 // @pattern Policy — pure rules for reuse and merge. gateRun.mjs (Adapter) reads git and the earlier artifacts.

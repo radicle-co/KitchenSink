@@ -1,4 +1,4 @@
-// Which scanner applies to which changed files, and what each is pointed at (ADR-0097; owner ruling 2026-11-20,
+// Which scanner applies to which changed files, and what each is pointed at (ADR-0098; owner ruling 2026-11-20,
 // "We should only run on files that change").
 //
 // @pattern Policy — pure rules shared by scan.mjs (which runs the tools) and scanVerdict.mjs (which judges that they

@@ -368,3 +368,56 @@ test.describe('removing a saved source (ADR-0095)', () => {
         await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();
     });
 });
+
+/**
+ * A recipe stored as "From another person" is locked for the cook (P7, ADR-0097, AE8): the cook answers it on the Publish sheet,
+ * the recipe saves private, and reopened in the editor the Source row says the answer and why it cannot change, with no field to
+ * type a link into and no Remove control. The recipes API is intercepted (`utils/recipeApi`, which stores the answer as the
+ * service does); the service's own lock is covered by its integration and LOCAL e2e suites.
+ */
+test.describe('a recipe stored as "From another person" reopens with its Source locked', () => {
+    test('answer it on the Publish sheet, save, reopen: the row names the answer and the reason, with no field and no Remove', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Gran Stew');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await page.getByRole('button', { name: 'Paste steps' }).click();
+        await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Simmer the stock.');
+        await page.getByRole('button', { name: 'Add 1 step' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        const sheet = page.getByRole('dialog', { name: 'Where is this recipe from?' });
+
+        await sheet.getByRole('radio', { name: 'From another person' }).click();
+        await sheet.getByRole('button', { name: 'Publish', exact: true }).click();
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+
+        const published = writes.filter((write) => write.body?.['status'] === 'published');
+
+        expect(published[0]?.body).toMatchObject({ statement: { kind: 'fromPerson' } });
+
+        // Reopen: the editor reads the stored recipe, not the draft.
+        await page.waitForURL(/\/recipes\/[0-9a-f-]{36}/u);
+        const recipeId = /\/recipes\/([0-9a-f-]{36})/u.exec(page.url())?.[1] ?? '';
+
+        await openRecipeEditor(page, recipeId);
+        const section = editorSection(page, 'Photos & publish');
+
+        await expect(section.getByText('From another person', { exact: true })).toBeVisible();
+        await expect(section.getByText('The source of this recipe can’t be changed.')).toBeVisible();
+        await expect(section.getByRole('textbox', { name: 'Source' })).toHaveCount(0);
+        await expect(section.getByRole('button', { name: 'Remove source' })).toHaveCount(0);
+    });
+});

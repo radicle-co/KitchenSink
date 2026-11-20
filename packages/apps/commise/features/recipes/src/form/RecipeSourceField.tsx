@@ -23,6 +23,7 @@ import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
 import { describedByOf, sourceFieldId } from './fieldIds.js';
+import { lockedAnswerLabel } from './sourceLink.js';
 import type { RecipeSourceFieldProps } from './sourceFieldProps.js';
 
 /** The Source row. */
@@ -53,12 +54,16 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({ row, onChange, o
         );
     }
 
-    if (row.kind === 'lockedCitation') {
+    if (row.kind === 'lockedAnswer') {
         return (
             <div className="flex flex-col gap-1">
                 <span className="text-label text-ink-muted">{m.label}</span>
-                <span className="text-body-sm font-medium text-ink">{answers.answerPaidSite}</span>
-                <span className="min-w-0 break-words text-caption text-ink-muted">{row.citation}</span>
+                {row.answer === undefined ? null : (
+                    <span className="text-body-sm font-medium text-ink">{lockedAnswerLabel(row.answer, answers)}</span>
+                )}
+                {row.citation === undefined ? null : (
+                    <span className="min-w-0 break-words text-caption text-ink-muted">{row.citation}</span>
+                )}
                 <p className="text-caption text-ink-muted">{m.locked}</p>
             </div>
         );

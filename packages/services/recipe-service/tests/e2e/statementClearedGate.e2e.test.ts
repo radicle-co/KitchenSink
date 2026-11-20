@@ -1,11 +1,11 @@
 /**
- * A past "from another person" survives a later statement and a clear (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a; migration
- * 0090 and ADR-0095 section 4), over HTTP against a REAL database.
+ * A past "from another person" is locked for the cook (LOCAL e2e, `docs/CODING_STANDARDS.md` §7.1a; migration 0090, ADR-0095
+ * section 4 and ADR-0097), over HTTP against a REAL database.
  *
- * A cook says a recipe is from another person, replaces that with "I wrote this", then clears the statement. The stored statement
- * is now empty, but the cook once attested "from another person", so Public is still refused. That refusal reads the attestation
- * table (`RecipeStatementAttestationsDal.hasFromPerson`), which a mocked data layer cannot prove: only the database says whether the
- * rows were written in the same transaction as each statement, and whether the read finds them.
+ * Once a recipe stores "from another person", no cook write replaces or clears it (owner ruling 2026-11-19). A recipe cleared before the lock existed
+ * (no stored statement, a past `fromPerson` attestation row) is locked on the server too (cleared before the lock existed). Those states can no longer be
+ * reached through the API, so the tests put the row in them directly as the owner. The refusals read the attestation table
+ * (`RecipeStatementAttestationsDal.hasFromPerson`) under the row lock, which a mocked data layer cannot prove.
  */
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import pg from 'pg';
@@ -78,31 +78,72 @@ afterAll(async () => {
     await food?.close();
 });
 
-describe('Public after "from another person", "I wrote this" and a clear (e2e)', () => {
-    it('refuses Public with FROM_PERSON_PRIVATE_ONLY, and the record holds all three acts', async () => {
-        const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
-            title: `${SCOPE} pesto`,
-            cuisine: 'Thai',
-            servings: 2,
-            prepTimeMinutes: 5,
-            cookTimeMinutes: 0,
-            totalTimeMinutes: 5,
-            ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
-            steps: [{ instruction: 'Blend.' }],
-            visibility: 'private',
-            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
-        });
+const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
-        expect(created.visibility).toBe('private');
+/** Creates a private recipe stated "from another person"; the record holds one `fromPerson` row. */
+async function fromPersonRecipe(title: string): Promise<RecipeBody> {
+    return json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+        title: `${SCOPE} ${title}`,
+        cuisine: 'Thai',
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 0,
+        totalTimeMinutes: 5,
+        ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
+        steps: [{ instruction: 'Blend.' }],
+        visibility: 'private',
+        statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
+    });
+}
 
-        const authored = await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
-            expectedVersion: created.currentVersion,
-            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
-        });
-        const cleared = await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
-            expectedVersion: authored.currentVersion,
-            statement: null,
-        });
+/** The R2 state, as a recipe cleared before the lock existed: no stored statement, the `fromPerson` row still on record. */
+async function clearStatementAsOwner(id: string): Promise<void> {
+    await roleDb.asOwner((client) => client.query('UPDATE recipes SET statement_kind = NULL WHERE id = $1', [id]));
+}
+
+async function readState(id: string): Promise<{ statementKind: string | null; attestations: number }> {
+    const { rows } = await pool.query<{ statement_kind: string | null; attestations: string }>(
+        `SELECT r.statement_kind, (SELECT count(*) FROM recipe_statement_attestations WHERE recipe_ref = r.id) AS attestations
+           FROM recipes r WHERE r.id = $1`,
+        [id],
+    );
+
+    return { statementKind: rows[0]?.statement_kind ?? null, attestations: Number(rows[0]?.attestations ?? 0) };
+}
+
+async function expectLockedWrites(id: string, version: number): Promise<void> {
+    const before = await readState(id);
+    const patch = await call('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: AUTHORED });
+    const sheet = await call('PATCH', `/api/v1/recipes/${id}/visibility`, {
+        visibility: 'public',
+        statement: AUTHORED,
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+    });
+
+    for (const response of [patch, sheet]) {
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({ details: { reason: 'SOURCE_LOCKED' } });
+    }
+
+    expect(await readState(id)).toEqual(before);
+}
+
+describe('"from another person" is locked for the cook (e2e)', () => {
+    it('refuses "I wrote this" over a stored "from another person" on every write, and Public stays refused', async () => {
+        const created = await fromPersonRecipe('stored pesto');
+
+        await expectLockedWrites(created.id, created.currentVersion);
+
+        const state = await readState(created.id);
+
+        expect(state).toEqual({ statementKind: 'fromPerson', attestations: 1 });
+    });
+
+    it('refuses Public with FROM_PERSON_PRIVATE_ONLY on the R2 state, and refuses "I wrote this" over it', async () => {
+        const created = await fromPersonRecipe('cleared pesto');
+
+        await clearStatementAsOwner(created.id);
+        await expectLockedWrites(created.id, created.currentVersion);
 
         const refused = await call('PATCH', `/api/v1/recipes/${created.id}/visibility`, {
             visibility: 'public',
@@ -114,40 +155,17 @@ describe('Public after "from another person", "I wrote this" and a clear (e2e)',
             code: 'INVALID_VISIBILITY',
             details: { reason: 'FROM_PERSON_PRIVATE_ONLY' },
         });
+        expect(await readState(created.id)).toEqual({ statementKind: null, attestations: 1 });
 
-        const { rows } = await pool.query<{ choice: string }>(
-            'SELECT choice FROM recipe_statement_attestations WHERE recipe_ref = $1 ORDER BY recorded_at, id',
-            [created.id],
-        );
+        const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [created.id]);
 
-        expect(rows.map((row) => row.choice)).toEqual(['fromPerson', 'authored', 'cleared']);
-        expect(cleared.visibility).toBe('private');
+        expect(rows[0]?.held).toBe(true);
     });
 
-    it('refuses Public on a CLONE of a recipe whose "from another person" was cleared, and the clone keeps the record', async () => {
-        const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
-            title: `${SCOPE} cloned pesto`,
-            cuisine: 'Thai',
-            servings: 2,
-            prepTimeMinutes: 5,
-            cookTimeMinutes: 0,
-            totalTimeMinutes: 5,
-            ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
-            steps: [{ instruction: 'Blend.' }],
-            visibility: 'private',
-            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
-        });
+    it('refuses Public on a CLONE of a recipe cleared before the lock, and the clone stays locked on its own id', async () => {
+        const created = await fromPersonRecipe('cloned cleared pesto');
 
-        // "From another person" cannot be cleared directly (SOURCE_LOCKED): the cook replaces it, then clears.
-        const authored = await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
-            expectedVersion: created.currentVersion,
-            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
-        });
-
-        await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
-            expectedVersion: authored.currentVersion,
-            statement: null,
-        });
+        await clearStatementAsOwner(created.id);
 
         const clone = await json<RecipeBody>('POST', `/api/v1/recipes/${created.id}/clone`, 201, {});
 
@@ -167,11 +185,27 @@ describe('Public after "from another person", "I wrote this" and a clear (e2e)',
         const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [clone.id]);
 
         expect(rows[0]?.held).toBe(true);
+
+        // The attestation is read for the clone's OWN id: both writes are refused and nothing is written.
+        await expectLockedWrites(clone.id, clone.currentVersion);
     });
 
-    it('lets a clone go Public when the cook had replaced "from another person" with "I wrote this"', async () => {
-        const created = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
-            title: `${SCOPE} cloned authored`,
+    it('lets the R2 recipe state "from another person" again (a first statement), and an unstated recipe state either answer', async () => {
+        const created = await fromPersonRecipe('restated pesto');
+
+        await clearStatementAsOwner(created.id);
+
+        const restated = await call('PATCH', `/api/v1/recipes/${created.id}`, {
+            expectedVersion: created.currentVersion,
+            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
+        });
+
+        expect(restated.status).toBe(200);
+        expect((await readState(created.id)).statementKind).toBe('fromPerson');
+
+        // R4: a recipe with no statement and no attestation at all still takes "I wrote this".
+        const unstated = await json<RecipeBody>('POST', '/api/v1/recipes', 201, {
+            title: `${SCOPE} unstated`,
             cuisine: 'Thai',
             servings: 2,
             prepTimeMinutes: 5,
@@ -180,17 +214,29 @@ describe('Public after "from another person", "I wrote this" and a clear (e2e)',
             ingredients: [{ ingredientId: basilLookup, quantity: { kind: 'exact', value: 1 }, unit: 'cup' }],
             steps: [{ instruction: 'Blend.' }],
             visibility: 'private',
-            statement: { kind: 'fromPerson', wording: FROM_PERSON_AS_SHOWN },
+        });
+        const authored = await call('PATCH', `/api/v1/recipes/${unstated.id}`, {
+            expectedVersion: unstated.currentVersion,
+            statement: AUTHORED,
         });
 
-        await json<RecipeBody>('PATCH', `/api/v1/recipes/${created.id}`, 200, {
-            expectedVersion: created.currentVersion,
-            statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
-        });
+        expect(authored.status).toBe(200);
+    });
+
+    // AE9 / AE1: this used to assert the gap the lock closes (a cook replaced "from another person" with "I wrote this", and the
+    // clone then went Public). The replace is refused now, so the clone of a "from another person" recipe stays held.
+    it('a clone of a "from another person" recipe holds it, stays private, and cannot be changed to "I wrote this"', async () => {
+        const created = await fromPersonRecipe('cloned pesto');
 
         const clone = await json<RecipeBody>('POST', `/api/v1/recipes/${created.id}/clone`, 201, {});
+
+        expect(clone.visibility).toBe('private');
+
         const { rows } = await pool.query<{ held: boolean }>('SELECT recipe_is_from_person($1) AS held', [clone.id]);
 
-        expect(rows[0]?.held).toBe(false);
+        expect(rows[0]?.held).toBe(true);
+
+        await expectLockedWrites(clone.id, clone.currentVersion);
+        expect((await readState(clone.id)).statementKind).toBe('fromPerson');
     });
 });

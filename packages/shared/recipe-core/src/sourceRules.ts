@@ -8,9 +8,11 @@ import {
     RECIPE_SOURCE_KINDS,
     RecipeSourceType,
     UNRECOGNISED_SOURCE_KIND,
+    UNRECOGNISED_STATEMENT_KIND,
     privateRuleOf,
     type RecipeSourceKind,
     type RecipeSourceKindView,
+    type RecipeStatementKindView,
 } from './recipe.types.js';
 
 /** The facts of a stored recipe that decide whether its source can still change. The first publish is not one of them. */
@@ -18,6 +20,8 @@ export interface CorrectableSourceFacts {
     readonly sourceType: RecipeSourceType;
     /** What the cook said the source is, or `null`. A client may hold one it does not know. */
     readonly sourceKind: RecipeSourceKindView | null;
+    /** What the cook stated (`recipes.statement_kind`), or `null`. A client may hold one it does not know. */
+    readonly statementKind: RecipeStatementKindView | null;
     /** The recipe this one was cloned from, or `null`/`undefined` for an original. */
     readonly clonedFromId: string | null | undefined;
 }
@@ -26,9 +30,11 @@ export interface CorrectableSourceFacts {
  * Whether the cook can still set, replace or remove this recipe's source by pasting a link or stating a book. Pure.
  *
  * The first publish does not lock it: the cook's statement of where a recipe is from stays editable after it (ADR-0093
- * section 8, owner ruling 2026-11-15). Detected source evidence is append-only and is never changed by a statement.
+ * section 8, owner ruling 2026-11-15), except "From another person", which only Commise can change (owner ruling
+ * 2026-11-19). Detected source evidence is append-only and is never changed by a statement.
  *
  * `false` when ANY of these holds:
+ * - the stored statement is "From another person", or one this client does not know (it fails closed);
  * - the stored source is one the cook did not state in the editor: the curator's public-domain text, a paid site;
  * - the source was INHERITED by a clone (a clone with a kind): otherwise cloning a public recipe would be a way to relabel it;
  * - the kind is one this client does not know: it fails closed.
@@ -37,7 +43,11 @@ export interface CorrectableSourceFacts {
  * @returns Whether a statement may change the source.
  */
 export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
-    if (recipe.sourceKind === UNRECOGNISED_SOURCE_KIND) {
+    if (
+        recipe.sourceKind === UNRECOGNISED_SOURCE_KIND ||
+        recipe.statementKind === 'fromPerson' ||
+        recipe.statementKind === UNRECOGNISED_STATEMENT_KIND
+    ) {
         return false;
     }
 

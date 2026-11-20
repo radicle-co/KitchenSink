@@ -167,6 +167,27 @@ test.describe('recipe filters, in the panel (slice 5)', () => {
     });
 });
 
+// CL-394 (owner ruling 2026-11-17): at tablet width the Sheet is a bottom sheet, not a centred dialog. 1024 × 768 is below
+// the 960 container the panel needs, so Discover uses the Sheet here.
+test.describe('recipe filters on a tablet (CL-394)', () => {
+    test.use({ viewport: { width: 1024, height: 768 } });
+
+    test('draws the filters as a bottom sheet at most 560 px wide, centred, on the foot of the window', async ({
+        page,
+    }) => {
+        await seed(page);
+        await page.goto(route('/discover?query=e'));
+        await page.getByRole('button', { name: 'Filters' }).click();
+
+        const box = await page.getByRole('dialog', { name: 'Filters' }).boundingBox();
+
+        expect(box).not.toBeNull();
+        expect(Math.abs((box?.y ?? 0) + (box?.height ?? 0) - 768)).toBeLessThanOrEqual(1);
+        expect(box?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(560 + 1);
+        expect(Math.abs((box?.x ?? 0) - (1024 - (box?.x ?? 0) - (box?.width ?? 0)))).toBeLessThanOrEqual(1);
+    });
+});
+
 test.describe('recipe filters, a phone turned sideways (curated U15)', () => {
     // 844 × 390: the inline bar put the first result at y = 921 here, so the window's height counts too.
     test.use({ viewport: { width: 844, height: 390 } });
@@ -189,7 +210,7 @@ test.describe('recipe filters, a phone turned sideways (curated U15)', () => {
  * `@commise/ui/layout`): the apply button ("Show n recipes", still called `done` below) stays pinned while the title row and the footer take at most half the Sheet. Past that it
  * scrolls with the facets, and Close stays pinned in the title row.
  *
- * 640 × 360 is a phone held sideways. From 640 px the Sheet is the centred dialog, capped at 85% of the window's height,
+ * 640 × 360 is a phone held sideways. From 640 px the Sheet is a bottom sheet capped at 85% of the window's height and 35 rem wide,
  * and the window is too short for the inline bar. Both cases use that window, so the text scale alone moves Done. The
  * component suite pins the rule (`SheetFooterPinning.test.tsx`); this proves it in a real layout engine, on the one web
  * page that uses the Sheet. Pinned or not is read from what the cook sees: whether Done moves when the facets scroll.

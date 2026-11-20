@@ -290,9 +290,12 @@ wide screens is listed by its wide form, because that is where it breaks the rul
 
 ## 7. The fix belongs in the primitive
 
-Most "change" entries on web 1280 and tablet are one defect, not many. The web `Sheet` is a centred dialog from `sm`
-(`packages/apps/commise/ui/src/sheet/Sheet.tsx:4`), and the native `presentation="dialog"` centres from 600 dp
-(`sheetPresentation.ts:38`). So on web every task built on `Sheet` becomes a centred modal on a wide screen, whatever it is. On native only `presentation="dialog"` centres.
+Most "change" entries on web 1280 and tablet were one defect, not many: the web `Sheet` was a centred dialog from `sm`,
+so every task built on it became a centred modal on a wide screen, whatever it was. CL-394 fixed it in the primitive
+(`packages/apps/commise/ui/src/sheet/Sheet.tsx`): the web `Sheet` is a bottom sheet at every width, and only
+`presentation="dialog"` centres from `sm`, as native does from 600 dp (`sheetPresentation.ts`). Five callers stay centred
+dialogs: SourceStatementSheet, PrivateFoodsRefusalSheet, PublishBlockedSheet, PublishOpenChoicesSheet and
+ImportWizardLeave.
 
 Follow-ups for the design system (not built here):
 

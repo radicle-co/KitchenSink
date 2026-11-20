@@ -121,5 +121,53 @@ for (const colorScheme of SCHEMES) {
             });
             expect(published.postDataJSON()).not.toHaveProperty('publicConfirmation');
         });
+
+        // CL-394 (owner ruling 2026-11-17, designer D77): this ask stops the publish until the cook chooses, so at tablet
+        // width it stays a centred dialog at most 448 px wide, where every other sheet is a bottom sheet.
+        test('stays a centred dialog, at most 448 px wide, on a tablet', async ({ page }) => {
+            const viewerId = await readViewerAppId(page);
+            await mockRecipeApi(page, {
+                viewerId,
+                paidFeatures: 'granted',
+                parseJob: {
+                    matches: {
+                        bread: {
+                            first: {
+                                state: 'needsChoice',
+                                reason: 'noProposal',
+                                proposed: null,
+                                candidates: [WHITE, BRIOCHE],
+                            },
+                        },
+                    },
+                },
+            });
+            await page.setViewportSize({ width: 1024, height: 768 });
+            await openNewRecipe(page);
+            await page.getByLabel('Title').fill('Bread Pudding');
+            await chooseCuisine(page);
+            await addStep(page, 'Soak the bread.');
+            const ingredients = await pasteList(page, '3 bread');
+            await expect(paragraphWith(ingredients, 'Choose the bread you use')).toBeVisible({
+                timeout: POLL_SETTLE_TIMEOUT_MS,
+            });
+            await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+            const sheet = page.getByRole('dialog', { name: '1 ingredient has no food yet' });
+
+            await expect(sheet).toBeVisible();
+
+            const box = await sheet.boundingBox();
+            const viewport = page.viewportSize();
+
+            expect(box).not.toBeNull();
+            expect(box?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(448 + 1);
+            // Centred both ways: equal gaps left and right, and a gap above and below it.
+            expect(
+                Math.abs((box?.x ?? 0) - ((viewport?.width ?? 0) - (box?.x ?? 0) - (box?.width ?? 0))),
+            ).toBeLessThanOrEqual(1);
+            expect(box?.y ?? 0).toBeGreaterThan(0);
+            expect((box?.y ?? 0) + (box?.height ?? 0)).toBeLessThan(viewport?.height ?? 0);
+        });
     });
 }

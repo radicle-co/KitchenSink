@@ -58,7 +58,7 @@ above it is `ownerDecisions.md`, and this file follows that.
 | Pick-two version compare (`specRecipeAndWizard` §S3)                                                      | Each row compares with the current version (§6.6)                                                 |
 | Delete dialog "Cancel", focus on Cancel                                                                   | "Keep recipe", focus on Keep recipe (§6.5)                                                        |
 | Collection right rail at `@wide`, visibility chips, "Save changes"                                        | One header at every width: Add recipes + ⋯ (§5.2)                                                 |
-| New collection as a page                                                                                  | A sheet. A 480 px dialog at 840+ (§5.1)                                                           |
+| New collection as a page                                                                                  | A bottom sheet at every width (CL-394, §5.1)                                                      |
 | Picker "Add" button column                                                                                | Whole-row toggles (§5.3)                                                                          |
 | "Clone", "Clone collection"                                                                               | "Save a copy" for recipes and collections                                                         |
 | "Cook with confidence. Plan with ease."                                                                   | "Your recipes, in one place." until Plan ships (§8)                                               |
@@ -1016,7 +1016,7 @@ Every no-result block is a `role="status"` region. Its H2 takes no focus: focus 
   becomes **Add a recipe**, which opens the editor. The FAB hides while this block shows. Loading: 4 skeleton cards,
   header stays; the FAB is absent until the first fetch settles. Load error: **Try again**; the FAB shows, and shows offline too (§3.4). Refresh failed: the refresh notice.
 
-**New collection sheet.** A content-height sheet below 840, a 480 px dialog at 840+. No route (§3.1).
+**New collection sheet.** A content-height bottom sheet at every width (CL-394). No route (§3.1).
 
 | Part                    | Spec                                                                                                                            | Rule       |
 | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------- | ---------- |
@@ -1089,8 +1089,8 @@ phone 390                                   840+
 └──────────────────────────────────┘
 ```
 
-- A full-height sheet below 840. A 640 px dialog, 80% of the window tall, at 840+. Native: full-height sheet on phone,
-  a 640 form sheet on tablet.
+- A full-height sheet below 840. From 840 a bottom sheet, 85% of the visible height, at most 560 px wide (CL-394).
+  Native: full-height sheet on phone, a 640 form sheet on tablet.
 - Each row is one control: `role="checkbox"` with `aria-checked`, named by the recipe title. Rows: 48 px thumbnail,
   title (truncate:2), one meta line, and a trailing 28 px circle (off: `lineControl` outline. On: `action` fill with a
   white check). Members of the collection start checked.
@@ -1636,7 +1636,7 @@ Add an ingredient
 
 - A ghost **Paste a list** (`clipboard-paste`) in the section heading row. In the empty section it is a secondary
   button beside the add field.
-- It opens a sheet (a 640 px dialog at 840+): title "Paste a list". `FieldLabel` "Ingredient lines", hint "One
+- It opens a bottom sheet at every width (CL-394): title "Paste a list". `FieldLabel` "Ingredient lines", hint "One
   ingredient per line. You can add the steps next." A `TextArea` in Inter (not monospace), 10 rows minimum, 72ch
   maximum. Under it a live count "9 lines" (`figure`).
 - Primary **Add {n} ingredients** (ICU). Disabled while there are 0 lines.

@@ -480,10 +480,13 @@ test.describe('leaving the one-page editor and coming back', () => {
     });
 });
 
-// A-012/E24 (B1 item 5): the Preview is a page-sized sheet from `sm`, not the 85% centred dialog: the whole visible
-// height, and up to the detail column (72 rem = 1152 px). `size="page"` in `@commise/ui/sheet`.
+// A-012/E24 (B1 item 5), moved by CL-394: the Preview is a page-sized sheet from `sm`, not a dialog: the visible height
+// less a 2 rem strip of the page behind it, on the foot of the window, and up to the detail column (72 rem = 1152 px).
+// `size="page"` in `@commise/ui/sheet`. It was the whole viewport height; the designer's spec leaves the strip.
 test.describe('the editor Preview sheet at 1280', () => {
-    test('is as tall as the viewport and as wide as the detail column, under the preview banner', async ({ page }) => {
+    test('is the viewport less 2 rem tall and as wide as the detail column, under the preview banner', async ({
+        page,
+    }) => {
         await signInWithTicket(page);
         await page.setViewportSize({ width: 1280, height: 800 });
         const viewerId = await readViewerAppId(page);
@@ -499,10 +502,11 @@ test.describe('the editor Preview sheet at 1280', () => {
 
         const box = await dialog.boundingBox();
         expect(box).not.toBeNull();
-        // The 85% dialog was 680 px here; a page is the viewport (sub-pixel slack).
-        expect(Math.abs((box?.height ?? 0) - 800)).toBeLessThanOrEqual(1);
-        // Wider than the house `max-w-lg` dialog (512), capped at the detail column (1152).
-        expect(box?.width ?? 0).toBeGreaterThan(512);
+        // The page leaves a 2 rem (32 px) strip behind it, and sits on the foot of the window (sub-pixel slack).
+        expect(Math.abs((box?.height ?? 0) - (800 - 32))).toBeLessThanOrEqual(1);
+        expect(Math.abs((box?.y ?? 0) + (box?.height ?? 0) - 800)).toBeLessThanOrEqual(1);
+        // Wider than the 35 rem sheet cap (560), capped at the detail column (1152).
+        expect(box?.width ?? 0).toBeGreaterThan(560);
         expect(box?.width ?? Number.POSITIVE_INFINITY).toBeLessThanOrEqual(1152 + 1);
     });
 });

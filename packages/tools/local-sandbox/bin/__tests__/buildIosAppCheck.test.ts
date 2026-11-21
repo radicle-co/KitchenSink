@@ -212,7 +212,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
     }
 
     /** Sources the real script and calls the bake function over a fake ios folder holding `plists`. */
-    function bake(plists: readonly string[], options: { readonly keyAlreadyThere?: boolean } = {}): Bake {
+    function bake(plists: readonly string[]): Bake {
         const root = mkdtempSync(path.join(tmpdir(), 'bakeContentKey-'));
         roots.push(root);
         const ios = path.join(root, 'ios');
@@ -223,10 +223,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
         const bin = path.join(root, 'bin');
         mkdirSync(bin);
         const log = path.join(root, 'plutil.log');
-        writeExecutable(
-            path.join(bin, 'plutil'),
-            `printf '%s\\n' "$*" >> "${log}"\n[ "$1" = -insert ] || ${options.keyAlreadyThere === true ? 'exit 0' : 'exit 1'}`,
-        );
+        writeExecutable(path.join(bin, 'plutil'), `printf '%s\\n' "$*" >> "${log}"\nexit 0`);
         const result = spawnSync(BASH, ['-c', `source "${BUILD_SCRIPT}" && test_app_bake_content_key "${ios}"`], {
             encoding: 'utf8',
             env: { PATH: `${bin}:${SYSTEM_PATH}`, HOME: root, TEST_APP_CONTENT_KEY: KEY_A },
@@ -239,15 +236,15 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
         return { status: result.status, stderr: result.stderr, plutilCalls: calls };
     }
 
-    it('inserts the content key into the one app Info.plist, once', () => {
+    it('replaces the content key into the one app Info.plist, once', () => {
         const result = bake(['Commise/Info.plist']);
 
         // Kills: baking the wrong key, the wrong plist name, or twice.
         expect(result.status).toBe(0);
-        const inserts = result.plutilCalls.filter((call) => call.startsWith('-insert '));
-        expect(inserts).toHaveLength(1);
-        expect(inserts[0]).toMatch(
-            new RegExp(`^-insert ${BAKED_KEY_NAME} -string ${KEY_A} .*/ios/Commise/Info\\.plist$`),
+        const replaces = result.plutilCalls.filter((call) => call.startsWith('-replace '));
+        expect(replaces).toHaveLength(1);
+        expect(replaces[0]).toMatch(
+            new RegExp(`^-replace ${BAKED_KEY_NAME} -string ${KEY_A} .*/ios/Commise/Info\\.plist$`),
         );
     });
 
@@ -256,7 +253,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
 
         // Kills: counting a Pods plist as a second app, or baking into it.
         expect(result.status).toBe(0);
-        expect(result.plutilCalls.filter((call) => call.startsWith('-insert '))).toHaveLength(1);
+        expect(result.plutilCalls.filter((call) => call.startsWith('-replace '))).toHaveLength(1);
     });
 
     it('refuses when there is no Info.plist', () => {
@@ -274,15 +271,21 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
         // Kills: baking the first plist the glob returns.
         expect(result.status).not.toBe(0);
         expect(result.stderr).toContain('Info.plist');
-        expect(result.plutilCalls.filter((call) => call.startsWith('-insert '))).toEqual([]);
+        expect(result.plutilCalls.filter((call) => call.startsWith('-replace '))).toEqual([]);
     });
 
-    it('refuses a plist that already holds the key', () => {
-        const result = bake(['Commise/Info.plist'], { keyAlreadyThere: true });
+    /**
+     * REWRITTEN (staff review of 5552ca5ef): this case used to refuse a plist that already held the key. The Mac keeps
+     * `mobile/ios/` between builds (the job's rsync excludes it) and `expo prebuild` without `--clean` merges into the old
+     * plist, so every build after the first would have died on that refusal. The build now always writes ITS key, and the
+     * call must be `-replace`, which also inserts when the key is absent.
+     */
+    it('replaces a key a previous build left, so a rebuild on the kept ios folder works', () => {
+        const result = bake(['Commise/Info.plist']);
 
-        // Kills: overwriting a key some earlier step baked, which would hide a stale prebuild.
-        expect(result.status).not.toBe(0);
-        expect(result.stderr).toContain('already');
-        expect(result.plutilCalls.filter((call) => call.startsWith('-insert '))).toEqual([]);
+        // Kills: keeping a stale key from an earlier build, or an `-insert` that fails when the key is already there.
+        expect(result.status).toBe(0);
+        expect(result.plutilCalls.some((call) => call.startsWith('-insert '))).toBe(false);
+        expect(result.plutilCalls.filter((call) => call.startsWith('-replace '))).toHaveLength(1);
     });
 });

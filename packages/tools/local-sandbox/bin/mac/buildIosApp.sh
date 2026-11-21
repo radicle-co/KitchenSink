@@ -79,14 +79,14 @@ BAKED_KEY_NAME=KSTestAppContentKey
 # The script the Mac runs to read the baked key: exactly one .app, a verifying signature, then the key. It answers on
 # stdout (`BAKED:<key>` or `FAIL:<reason>`) and always exits 0, so a refusal is told apart from a lost ssh link.
 baked_key_probe() {
-    printf "app='%s'; export PATH='%s'\n" "$1" "$MAC_PATH"
+    printf "app='%s'; key_name='%s'; export PATH='%s'\n" "$1" "$BAKED_KEY_NAME" "$MAC_PATH"
     cat <<'PROBE'
 cd "$HOME/$app" 2>/dev/null || { echo FAIL:folder; exit 0; }
 bundles="$(find . -maxdepth 1 -name '*.app' -type d)"
 [ -n "$bundles" ] || { echo FAIL:noapp; exit 0; }
 [ "$(printf '%s\n' "$bundles" | wc -l | tr -d ' ')" = 1 ] || { echo FAIL:manyapps; exit 0; }
 codesign --verify --strict "$bundles" >/dev/null 2>&1 || { echo FAIL:seal; exit 0; }
-baked="$(plutil -extract KSTestAppContentKey raw -o - "$bundles/Info.plist" 2>/dev/null)" || { echo FAIL:nokey; exit 0; }
+baked="$(plutil -extract "$key_name" raw -o - "$bundles/Info.plist" 2>/dev/null)" || { echo FAIL:nokey; exit 0; }
 echo "BAKED:$baked"
 PROBE
 }

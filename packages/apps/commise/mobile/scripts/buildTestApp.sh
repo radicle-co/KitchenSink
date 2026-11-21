@@ -421,11 +421,12 @@ test_app_build_android() {
 
 # test_app_bake_content_key <ios folder>
 #
-# Writes TEST_APP_CONTENT_KEY into the one app Info.plist under <ios folder> as KSTestAppContentKey (CL-BAKEDKEY, owner
-# ruling decisions/0091). It runs BEFORE `xcodebuild`, so the key is inside the bundle the ad-hoc signature seals; a key
-# written after the compile would need a re-sign and the seal would prove nothing. `buildIosApp.sh check` compares this
-# baked key, not the manifest's. The limit: anyone can re-sign ad hoc, so this stops a careless copy or edit, not a
-# deliberate forgery.
+# Writes THIS build's TEST_APP_CONTENT_KEY into the one app Info.plist under <ios folder> as KSTestAppContentKey
+# (CL-BAKEDKEY, owner ruling decisions/0091). `-replace` also inserts when the key is absent: the Mac keeps `ios/`
+# between builds, so a key an earlier build left must be overwritten, never refused. It runs BEFORE `xcodebuild`, so the
+# key is inside the bundle the ad-hoc signature seals; a key written after the compile would need a re-sign and the seal
+# would prove nothing. `buildIosApp.sh check` compares this baked key, not the manifest's. The limit: anyone can re-sign
+# ad hoc, so this stops a careless copy or edit, not a deliberate forgery.
 test_app_bake_content_key() {
     local ios_dir="${1:-}" plist plists=() found
     test_app_require_env TEST_APP_CONTENT_KEY
@@ -436,10 +437,7 @@ test_app_bake_content_key() {
         test_app_die "expected exactly one app Info.plist under ${ios_dir} (outside Pods), found ${#plists[@]}"
     fi
     plist="${plists[0]}"
-    if plutil -extract KSTestAppContentKey raw -o - "$plist" >/dev/null 2>&1; then
-        test_app_die "${plist} already holds KSTestAppContentKey; refusing to overwrite a key some earlier step baked"
-    fi
-    plutil -insert KSTestAppContentKey -string "$TEST_APP_CONTENT_KEY" "$plist"
+    plutil -replace KSTestAppContentKey -string "$TEST_APP_CONTENT_KEY" "$plist"
 }
 
 test_app_build_ios() {

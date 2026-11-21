@@ -39,8 +39,8 @@ jobs:
         # `labeled` fires for every label, so only `gate-rerun` re-runs the judge.
         if: github.event.action != 'labeled' || github.event.label.name == 'gate-rerun'
         runs-on: ubuntu-latest
-        # evidence wait (up to 46) + judge (up to 20) + the small steps
-        timeout-minutes: 75
+        # evidence wait (up to 48) + judge (up to 20) + the one retry (up to 20) + the small steps
+        timeout-minutes: 95
         permissions:
             contents: read # checkout of the PR and of the base's `.claude/`
             pull-requests: write # the one review comment that carries the findings

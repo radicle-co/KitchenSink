@@ -211,8 +211,13 @@ function alive(pid: number): boolean {
     }
 }
 
-/** Sends SIGKILL to a pid or a group and says nothing when it is already gone. */
+/** Sends SIGKILL to a pid or a group and says nothing when it is already gone. Refuses pids 0, -0, 1 and -1. */
 function killQuietly(pid: number): void {
+    // Never 0, -0 or 1: `kill(0)` and `kill(-0)` reach this runner's own process group, and 1 is init.
+    if (Math.abs(pid) <= 1) {
+        return;
+    }
+
     try {
         process.kill(pid, 'SIGKILL');
     } catch {
@@ -222,7 +227,9 @@ function killQuietly(pid: number): void {
 
 afterEach(() => {
     for (const child of jobs.splice(0)) {
-        killQuietly(-(child.pid ?? 0));
+        if (child.pid !== undefined) {
+            killQuietly(-child.pid);
+        }
     }
 
     for (const world of worlds.splice(0)) {

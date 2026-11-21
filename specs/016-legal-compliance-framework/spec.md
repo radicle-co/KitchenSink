@@ -391,7 +391,8 @@ the policy's recommendation are both visible.
 - **FR-008**: The system MUST enforce a minimum account age and MUST record the basis on which the account
   was determined to meet it. The floor is the higher of the applicable local digital-consent age and 13.
 - **FR-009**: The system MUST NOT present a user under 16 with any publication surface, in any market (`FR-072`,
-  Owner ruling, 2026-11-15).
+  Owner ruling, 2026-11-15). _Interim exception_: until this spec's age assurance ships, spec 003B (`FR-016`, C-17)
+  lets a cook who confirms "I'm 16 or over" at Publish publish. It ends when that assurance ships (003B T150).
 
 #### B. The content licence — the right to display, clone and derive
 
@@ -471,18 +472,19 @@ The rights label tells the cook who owns the writing.
   owner, on web and mobile. There are seven labels. This table is the one authority for who owns the writing and for
   what the cook can do under each label. Other specs cite it and do not restate it.
 
-    | #   | Label                                                    | Who owns the writing and photos                                                       | Keep it | Share with the household                       | Publish                                                                                                                                                                  | Export                                         |
-    | --- | -------------------------------------------------------- | ------------------------------------------------------------------------------------- | ------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------- |
-    | 1   | Written by you                                           | The cook                                                                              | Yes     | Yes                                            | Yes, in full                                                                                                                                                             | Yes                                            |
-    | 2   | Adapted by you from a credited source, in your own words | The cook owns their words. The source keeps its own words and photos                  | Yes     | Yes                                            | Yes, in full, with "Adapted from [source]"                                                                                                                               | Yes                                            |
-    | 3   | Copied from a public web page                            | The page's author                                                                     | Yes     | Yes                                            | Only as a Commise-written public version (`FR-077`), never the page's own words, unless the page is on the copy-outright allowlist (`FR-077`)                            | Yes, as the cook's own copy                    |
-    | 4   | From a cookbook, magazine or paid site                   | The publisher, or the author                                                          | Yes     | Yes, except a paid site's own words (`FR-080`) | Its words and photos, never. A paid-site recipe only as a fully Commise-written page that names no site (`FR-080`). The cook can publish their own version under label 2 | Yes, except a paid site's own words (`FR-080`) |
-    | 5   | From a family member or friend, with their permission    | The person who wrote it                                                               | Yes     | Yes                                            | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                           | Yes                                            |
-    | 6   | Cloned from another Commise cook                         | That cook owns their words and photos. The cloner owns only their own changes         | Yes     | Yes                                            | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]"                                                                                         | Yes, inside the cook's own file                |
-    | 7   | Public domain                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it | Yes     | Yes                                            | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                           | Yes                                            |
+    | #   | Label                                                                                    | Who owns the writing and photos                                                                                                                                                                                                                    | Keep it | Share with the household                       | Publish                                                                                                                                                                                              | Export                                         |
+    | --- | ---------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- | ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------- |
+    | 1   | Written by you                                                                           | The cook                                                                                                                                                                                                                                           | Yes     | Yes                                            | Yes, in full                                                                                                                                                                                         | Yes                                            |
+    | 2   | Adapted by you from a credited source, in your own words                                 | The cook owns their words. The source keeps its own words and photos                                                                                                                                                                               | Yes     | Yes                                            | Yes, in full, with "Adapted from [source]"                                                                                                                                                           | Yes                                            |
+    | 3   | Copied from a public web page                                                            | The page's author                                                                                                                                                                                                                                  | Yes     | Yes                                            | Only as a Commise-written public version (`FR-077`), never the page's own words, unless the page is on the copy-outright allowlist (`FR-077`)                                                        | Yes, as the cook's own copy                    |
+    | 4   | From a cookbook, magazine or paid site                                                   | The publisher, or the author                                                                                                                                                                                                                       | Yes     | Yes, except a paid site's own words (`FR-080`) | Its words and photos, never. A paid-site recipe only as a fully Commise-written page that names no site (`FR-080`). The cook can publish their own version under label 2                             | Yes, except a paid site's own words (`FR-080`) |
+    | 5   | From a family member or friend, with their permission                                    | The person who wrote it                                                                                                                                                                                                                            | Yes     | Yes                                            | Yes, in full, after 020's check, and open to the web when the giver's permission covers the web (`021-FR-002`)                                                                                       | Yes                                            |
+    | 6   | Cloned from another recipe on Commise: another cook's recipe, or a version Commise wrote | From another cook: that cook owns their words and photos, and the cloner owns only their own changes. From a version Commise wrote: shared under CC BY-SA 4.0 (`FR-078`), and the text states facts only, with no claim about who owns the changes | Yes     | Yes                                            | Only after a substantive edit (`001-FR-005b`), always with "Adapted from [cook]", or for a version Commise wrote the credit `rights.adaptedFromCommise` (`rights.adaptedChain` for a copy of a copy) | Yes, inside the cook's own file                |
+    | 7   | Public domain                                                                            | Nobody owns the old text. A new photo, edit or note belongs to the person who made it                                                                                                                                                              | Yes     | Yes                                            | Yes, in full, and open to the web, only under the curator grant with a passing `FR-015k` record (`021-FR-006`)                                                                                       | Yes                                            |
     - _(Amended, Owner ruling, 2026-11-15.)_ Rows 3 and 4 changed. Facts cards and the linked card are retired. A web
       or paid-site recipe goes public only as a Commise-written version (`FR-077`, `FR-080`). Rows 5 and 7 open to the
       web, under their conditions (2026-11-03).
+    - _(Amended, Owner ruling, 2026-11-20.)_ A cook's copy of a Commise-written public version, or of another copy of one, takes label 6, never label 2. Its source is the last cook in its credit chain, else Commise. It shows the Commise credit line, is under CC BY-SA 4.0 (`FR-078`), and goes public only after a substantive edit (`001-FR-005b`).
     - Label 3's source type, `imported_public`, means "copied from a publicly reachable page". It is not public
       domain. Public domain text is label 7, and only `FR-015k` makes it so.
     - A verbatim copy from a book, magazine, paid site or other non-public source stays private. The cook can
@@ -505,10 +507,10 @@ The rights label tells the cook who owns the writing.
 
 - **FR-015d**: The label MUST be **derived**, never stored and never chosen by a surface. One pure Policy works it out,
   a sibling of `provenancePolicy.ts`. Its inputs are the recipe's source type, its statement kind (`004-FR-014a`), its
-  `cloned_from_id`, any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
+  `cloned_from_id`, its `source_record_id` (003B) and its credit chain (003B `recipe_credits`), any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
   ADR-0082). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The own origin of statement 1a is part of the
   statement kind. A site claim is NOT an input, so a claim that fails never changes a label. Every surface,
-  and every rule in another spec that depends on who owns the writing, MUST read that one Policy. `staff-architect`
+  and every rule in another spec that depends on who owns the writing, MUST read that one Policy. For a recipe with `source_record_id` set the Policy gives label 6 and reads its source from the credit chain, never from `cloned_from_id`, which erasure can clear. `staff-architect`
   designs it at PLANNING.
 - **FR-015e**: Commise MUST take a licence and never ownership (`FR-010`, `FR-031`). The cook keeps copyright in what the
   cook wrote. A surface, document or message MUST NOT say that Commise owns a recipe, or that a cook owns writing the label
@@ -517,7 +519,7 @@ The rights label tells the cook who owns the writing.
   claim about rights that Commise has not checked. They MUST NOT use "copyright-free", "royalty-free recipe", "legally yours", "safe to
   publish" or "we checked this". The source check is a filter, not a clearance (020).
 - **FR-015g**: These are the draft words, for `staff-ux-engineer` to refine at SPECIFY and to be confirmed before launch (`FR-050`). Each
-  gets a localisation key (`FR-049`).
+  gets a localisation key (`FR-049`). The two row 6 variants for a recipe with `source_record_id` set (003B) are not draft words: they are the designer's strings of 2026-11-20, below.
 
     | #   | On the recipe                                                                            | When the cook publishes                                                                                                                                         |
     | --- | ---------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -533,12 +535,23 @@ The rights label tells the cook who owns the writing.
       optional and needs the giver's permission, because a name can be personal data. Row 7 shows the basis the
       `FR-015k` record holds, for example "Public domain: first published 1919, author died 1915". A book with no named
       author shows "Public domain: first published [year], no named author".
+    - Row 6 has two more variants, for a recipe with `source_record_id` set (003B). Their words are the designer's strings
+      of 2026-11-20, each with a localisation key (`FR-049`). They state facts only: never "owns", never "the cook's own
+      words", and no claim that the cook owns their changes. The row 6 words above ("Their words stay theirs. Your
+      changes are yours.") apply to a copy of one cook's own recipe and never to these two.
+        - From a version Commise wrote. On the recipe: `rights.adaptedFromCommise`, "Adapted by {cook} from a version
+          Commise wrote. Shared under CC BY-SA 4.0." ("CC BY-SA 4.0" links to the licence deed). `{cook}` comes from `bylineOf` (an erased owner reads "a former member", an owner with no name "a Commise cook"). The credit block also carries `rights.adaptedFromLink`, "See the recipe this was adapted from", while the source is open to the web. When the cook publishes an unedited copy: `editor.visibility.publicNeedsEdit`, "Change the steps or ingredients to make your copy public." Then `rights.publishCreditNotice`, "Other cooks will see the credit line."
+        - From several cooks (a copy of a copy). On the recipe: `rights.adaptedChain`, line 1 "Adapted by {cook} from
+          {source}’s copy." and line 2 "Based on a version Commise wrote. Shared under CC BY-SA 4.0." The earlier
+          cooks are listed behind `rights.chainShow` and `rights.chainHide`, and an erased account reads "a former member" and a cook with no name "a Commise cook"
+          (`bylineOf`, no separate key). There is no self link: consecutive entries by the same cook collapse into one
+          and `{source}` is the nearest earlier cook who is a different cook (003B `FR-062b`). When the cook publishes: as the version above.
     - A family or friend recipe with no credit given says "From a family member or friend".
     - Label 7's words come from the `FR-015k` record. They are true in every market, because that gate is one
       global rule. Commise's own notes on a public-domain page are CC BY-SA 4.0 (`FR-078`). The old text carries the Creative
       Commons Public Domain Mark.
 
-- **FR-015h**: ⛔ "You keep ownership of what you wrote" MUST be shown only for labels 1 and 2. The licence panel
+- **FR-015h**: ⛔ "You keep ownership of what you wrote" MUST be shown only for labels 1 and 2. A copy of a version Commise wrote, or of a copy of one, shows only the facts of `FR-015g` row 6's two variants, and never an ownership claim. The licence panel
   (`021-FR-040`) MUST show the line for the recipe's own label, never a blanket ownership line. This closes the research's
   gap G2, where every cook publishing a clone or a copy was told "The cook keeps ownership".
 - **FR-015i**: A method rewritten by an AI feature is not the cook's own words. It MUST NOT turn a recipe into label 2.
@@ -624,7 +637,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
     - The import rewrites the instructions of every public-facing recipe from a source that is not on the copy-outright
       allowlist, or that `020`'s reviewer check flags. The allowlist is: the cook's own verified site (`FR-067`), an open
       licence stated in the page's structured data (`FR-012b`), public-domain works (`FR-015k`), and US government works.
-    - Every public version: the writer sees the facts only, never the source wording. A similarity check runs on every
+    - Every public version: the writer sees the facts sheet and the source step text only, as `027-FR-035` says, and never the address, the statement or the source title _(amends ADR-0093 §4, ruled 2026-11-17; the feature ADR of spec 003B records it, T004)_. A similarity check runs on every
       save, with a two-way fact and safety check. The cook confirms before it publishes. "Report a problem" hides it
       until staff look (`020`). It uses no source photos and has a descriptive title. AI is disclosed plainly, for
       example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed, `FR-046`). A free-site
@@ -636,7 +649,8 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   the detected evidence and the cook's statement it was made under, and which allowlist rule or rewrite made it
   public. The record is append-only and is never shown to readers.
 - **FR-080**: **Paid sites.** A site is paid when its page data says `isAccessibleForFree` is false, or its domain is
-  on the paid list (data, kept by staff), or it has a metered paywall.
+  on the paid list (data, kept by staff), or it has a metered paywall. _(Amended by `003B-FR-012b`: a paid-list domain
+  alone is not a clear signal. Only `isAccessibleForFree` false or a metered paywall makes a source paid.)_
     - A paid-site recipe goes public only as a fully Commise-written page that names no site.
     - Where the dish exists in free or independent sources, a consensus recipe is preferred.
     - A paid site's signature recipe is never published from that single source.

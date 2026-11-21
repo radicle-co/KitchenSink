@@ -11,7 +11,7 @@ ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Fami
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
 erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
-with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
+with (FR-020a). See Session 2026-11-09. Amended 2026-11-20: every page carries its locale in the URL (FR-010, FR-062). Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
 recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
@@ -30,7 +30,7 @@ to the web in full. What stays private is the full copy of words the cook did no
 paid site. The paragraph above is the 2026-10-27 ruling as given.
 
 _(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe from a
-source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts,
+source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts and the source steps (`027-FR-035`),
 and the cook confirms it before it publishes (FR-003, FR-014). The cook's private copy keeps the source's wording and
 is never public. The Overview and Session 2026-11-15 state the rule now in force.
 
@@ -175,19 +175,19 @@ their own routes, and a person reaches them only through a link or a search resu
 
 ### Words used in this spec
 
-| Word                        | Meaning                                                                                                                                                                                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open recipe**             | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                              |
-| **Indexable**               | An open recipe or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                        |
-| **Public page**             | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                   |
-| **Public view**             | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                               |
-| **Commise-written version** | _(Added 2026-11-15, ADR-0093.)_ The public version of an imported recipe. Commise writes its steps from the facts only, and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
-| **Public domain record**    | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                              |
-| **Not available**           | The one answer for any address that is not an open recipe or an active creator page. It never says why                                                                                                                                                                            |
-| **Share link**              | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                        |
-| **Settle period**           | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                               |
-| **Exit event**              | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                       |
-| **Purge bound**             | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                 |
+| Word                        | Meaning                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open recipe**             | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                                                             |
+| **Indexable**               | An open recipe or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                                                       |
+| **Public page**             | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                                                  |
+| **Public view**             | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                                                              |
+| **Commise-written version** | _(Added 2026-11-15, ADR-0093.)_ The public version of an imported recipe. Commise writes its steps from the facts and the source steps (`027-FR-035`), and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
+| **Public domain record**    | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                                                             |
+| **Not available**           | The one answer for any address that is not an open recipe or an active creator page. It never says why                                                                                                                                                                                                           |
+| **Share link**              | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                                                       |
+| **Settle period**           | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                                                              |
+| **Exit event**              | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                                                      |
+| **Purge bound**             | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                                                |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -476,16 +476,16 @@ creator page.
 - **A cook makes an open recipe private, then public again.** It is open again only after 020 allows it. If its
   checked content changed, a new settle period starts.
 - **Two people share the same recipe.** Each share has its own share mark. The page and its cache are the same for
-  both, because the cache ignores the share mark (FR-062).
+  both, because the response is the same bytes (FR-062, `003A-FR-015`).
 - **A link with a stale slug.** The title changed after the link was sent. The address still works and redirects
   permanently to the canonical slug (FR-010).
 - **A cook with no creator profile.** Their open recipe has no author name on the page, and its structured data has no
   author. The page never falls back to the name from the sign-in provider (FR-024).
 - **A creator renames their handle.** Recipe addresses do not contain the handle, so they do not change.
 - **A clone whose original is deleted.** If the clone meets the rule, it stays open by link. Its "adapted from" link
-  goes away with the original (`001-FR-005d`).
+  goes away with the original, and its place in the credit chain stays (`001-FR-005d`).
 - **The original cook erases their account.** Clones by others survive with the original cook's attribution stripped
-  (`001-FR-005d`). They are noindex anyway.
+  (`001-FR-005d`): the credit entry is kept, the name is blanked, and it reads "a former member" (`bylineOf`). They are noindex anyway.
 - **A visitor arrives from an in-app browser** (Instagram, TikTok, Facebook) that does not open universal links. The
   page offers "Open in the app" (FR-036).
 - **A visitor installs the app from the page.** On Android, the install referrer carries the recipe address, so the
@@ -649,7 +649,8 @@ Four of the answers change this spec:
 - **Recipes left public at erasure stay open** (003A Q8). They are shown with no author name. FR-002 rule 7 is amended
   for that case only.
 - **The page's own words follow the browser language** (003A Q3), with English as the fallback. FR-062's cache key
-  becomes the path plus that language.
+  becomes the path plus that language. Superseded on 2026-11-20 by the owner's ruling that every page carries its
+  locale in the URL (FR-062).
 - **Comments show on public pages** (003A Q6). The owner ruled that a commenter's name and words are public, and that
   the terms say so. FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
 - **003A ships `noindex`, and this feature removes it** (003A Q7). FR-020a and task P003A-01.
@@ -720,7 +721,8 @@ Session 2026-11-15.)_
     4. The read rule lets an anonymous viewer see it now. A recipe that is checking, in review or not approved under
        020 fails this.
     5. Its rights label (`016-FR-015c`, derived by `016-FR-015d`) is one of these, or it is a clone of a recipe with
-       one of these:
+       one of these, or it carries `source_record_id` (a public version, or a cook's copy of one, at any depth,
+       003B `FR-062b`) and it has met every other rule here, including the substantive edit (003B `FR-062a`):
         - "Written by you"
         - "Adapted by you", in the cook's own words, with credit. A rewrite of a web page, a cookbook, a magazine or
           a paid site counts. The method must be rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the
@@ -750,7 +752,7 @@ Session 2026-11-15.)_
     8. No decision under 016 removed or restricted it.
 - **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A public recipe imported from a source the
   cook did not write (a web page, a cookbook, a magazine or a paid site) MUST NOT be open to the web in the source's
-  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts, and the
+  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts and the source steps (`027-FR-035`), and the
   cook confirms the version before it publishes. FR-014 says what a reader sees. The version is an open recipe under
   FR-002 rule 5 and follows this spec's page, indexing and share rules. These rules hold:
     - The cook chooses Private, Public or Both at import (`004`). Both keeps the private copy and adds the version.
@@ -769,9 +771,9 @@ Session 2026-11-15.)_
 
 - **FR-005**: A clone (`cloned_from_id` set) MUST be judged by FR-002 like any recipe. A clone that is open MUST be
   `noindex` and MUST be left out of sitemaps. While the recipe it came from is open, the clone MUST show an "adapted
-  from" link to it. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
+  from" link to it. For a clone without `source_record_id` that recipe is `cloned_from_id`. For a copy of a public version it is the recipe its label names as the source (003B FR-062b, `credit.adaptedFromId`): the nearest earlier copy by another cook, else the public version itself. The server decides it through `openToWeb`, failing closed, and the raw `cloned_from_id` never reaches a non-owner. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
   `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0093.)_ A clone never copies a cook's
-  private copy of an imported recipe, only a public form a reader can see.
+  private copy of an imported recipe, only a public form a reader can see. A copy of a public version carries its credit chain (003B `recipe_credits`), and its credit line reads the chain. Its one "adapted from" link is `rights.adaptedFromLink` ("See the recipe this was adapted from"), an element of the credit block directly under label line 1, per the rule above (`credit.adaptedFromId`) and present only while that source is open to the web (003A `openToWeb`), never a name in the label. **Owed follow-up work for 021's own plan and tasks (none exist yet):** the link for a clone without `source_record_id` is not built by 003A or 003B, because `credit.adaptedFromId` is computed only for a copy of a public version and the raw `cloned_from_id` stays owner-only. It needs a new key on the recipe read and on the public read that carries the source recipe's id only while that source is open to the web (`openToWeb`, failing closed) and is null otherwise, and a task of 021 that adds the key and renders the link for a non-owner, web and mobile. Until that task ships, a clone without `source_record_id` shows no "adapted from" link to a non-owner.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
   The label "Public domain" is derived from the grant plus a passing record (`016-FR-015d`). There is no new
@@ -831,7 +833,7 @@ Session 2026-11-15.)_
 - **FR-010**: Each open recipe MUST have one public page at one canonical address on `commise.app`, on its own route,
   never the app root. The address MUST be built from the recipe's id and a slug from its title. It MUST NOT contain the
   cook's handle, so a handle change never breaks it. A wrong or stale slug MUST redirect permanently to the canonical
-  one. Whether the path carries a locale is a plan decision. Either way there is one canonical address per recipe.
+  one. The path carries the locale (`/{locale}/recipe/{id}/{slug}`, owner 2026-11-20). There is one canonical address per recipe in each shipped locale.
 - **FR-010a** _(added 2026-10-29, owner ruling Q2 on [026](../026-chef-spaces/spec.md): "Their blog")_: A chef chooses a
   **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
   has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules. _(amended 2026-11-03, owner ruling
@@ -871,8 +873,7 @@ Session 2026-11-15.)_
 - **FR-012**: The server's response at a public address MUST always be the signed-out version, the same for every
   viewer, and MUST NOT set a cookie. This holds for an open recipe, a creator page and the not-available answer alike. Anything more for a signed-in viewer MUST appear only after the page loads in the
   browser, from the viewer's own session. It MUST never be part of the cached response. That covers their actions
-  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed on the
-  path alone (FR-062) is safe only because of this rule.
+  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed as `003A-FR-015` states (FR-062) is safe only because of this rule.
 - **FR-013**: Every address that is not an open recipe or an active creator page
   MUST get one **not-available** answer: status `404`, `noindex`, the same words ("This recipe is not available"), a
   sign-in link, and a generic Commise preview card. It MUST NOT differ between private, draft, deleted, erased, held,
@@ -1231,12 +1232,10 @@ Session 2026-11-15.)_
   inside this bound. A preview a social platform already copied is outside our control, and is a residual risk. After any
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
-- **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path alone. It MUST ignore query
-  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-09, owner ruling on
-  003A Q3.)_ The page's own words follow the reader's browser language, so the key is the path plus the page language,
-  chosen from the closed set of supported locales, and never the raw `Accept-Language` header (`003A-FR-015`,
-  `003A-FR-015a`). The address carries no locale. This is safe only because the response
-  does not depend on who asked (FR-012, FR-101).
+- **FR-062**: Public pages MUST be served from a CDN, cached as `003A-FR-015` states. _(Amended 2026-11-20, owner ruling:
+  every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), and the page's own words follow that locale
+  (`003A-FR-015`, `003A-FR-015a`). This is safe only
+  because the response does not depend on who asked (FR-012, FR-101).
 - **FR-063**: Each client address MUST be rate-limited at the edge, where the real address is visible, never from a
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with
   `Retry-After`. The per-user throttler cannot do this, because a signed-out caller has no user.
@@ -1317,7 +1316,7 @@ Session 2026-11-15.)_
   authenticator or a WebSocket to any service that adopts the shared CORS policy (ADR-0047). The
   `bearerOnlyPrecondition` guard MUST stay green without a waiver.
 - **FR-101**: A signed-out read path MUST NOT read the `Authorization` header, and MUST answer the same bytes with or
-  without a credential. Only then can a cache keyed on the path serve it (ADR-0020's first trap).
+  without a credential. Only then can a shared cache serve it (ADR-0020's first trap).
 - **FR-102**: A signed-out response MUST be a **public projection**: an allowlist of fields picked from the
   service-owned schema (GR-015), using `Pick`, never `Omit`, so a new field cannot reach the public by default. It
   MUST carry no owner id. _(Amended 2026-11-15.)_ The facts card projection is withdrawn. A Commise-written version
@@ -1496,7 +1495,7 @@ Session 2026-11-15.)_
   stamped in `blocking` mode (FR-020).
 - **The web app runs on Vercel and production services sit behind CloudFront** (ADR-0020). Photos and avatars are on
   the media CDN (ADR-0064).
-- **English is the only locale** (`SUPPORTED_LOCALES`). No alternate-language pages are declared until a second locale
+- **`en-US` is the only shipped locale** (`SUPPORTED_LOCALES`), and the catalogs are `en`. No alternate-language pages are declared until a second locale
   ships.
 - **Search results come slowly.** The business plan plans no search volume in its first 24 months. This feature makes
   search possible. It does not promise traffic.

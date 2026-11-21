@@ -65,6 +65,6 @@ gateways parse them unchanged.
 - Response: `{ standings: { userId, standing }[] }`, where `standing` is one of `active`, `suspended`, `closed`,
   `erased` or `unknown`. Identity maps `users.status`: `tombstoned` becomes `closed`. An id with no row is `unknown`.
 - Identity's `AuthMiddleware` exempts exactly this path. Its `PublicReaderGuard` checks the token.
-- recipe-service reads a timeout, an error, a missing entry or `unknown` as closed, and answers the public read `503`.
+- recipe-service reads a timeout, an error, a missing entry or `unknown` as closed. The credit's cooks never cause a 503. The signed-in recipe read never answers 503. On the public read, the recipe's own author's unknown standing answers 503.
 - `active` opens. `erased` opens too, for a recipe the erasure left public, shown with no author (owner ruling
   2026-11-09, spec Q8). `suspended`, `closed` and `unknown` close.

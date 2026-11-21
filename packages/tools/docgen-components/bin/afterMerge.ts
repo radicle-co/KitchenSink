@@ -20,26 +20,43 @@ import { GENERATED_OUTPUT_DIRS } from '../src/config.js';
 import { incomingDiffArgs } from '../src/incomingDiff.js';
 
 /**
- * Git is run from PATH through env on purpose: its place differs per machine (Homebrew, Nix, /usr/bin). The scanner's
- * PATH rule guards against a PATH an attacker controls, and here PATH is the developer's own. The repo's ESLint does
- * not load that rule, so it cannot carry a reasoned disable.
+ * The git the hook found, as an absolute path (`KS_GIT_BIN="$(command -v git)"` in `.husky/post-merge` and
+ * `.husky/post-commit`). Its place differs per machine, and the script runs only from a hook, where git is on PATH.
  */
-const ENV = '/usr/bin/env';
+const GIT_BIN = process.env['KS_GIT_BIN'];
 
 /** npm sets this to its own CLI script for every `npm run`, so the script finds npm without a PATH lookup. */
 const NPM_CLI = process.env['npm_execpath'];
 
 /**
- * Runs git in the current repository and returns its output, or null when it fails.
+ * Runs git in the current repository and returns its output. A failure throws.
  *
  * @param args - The arguments after `git`.
- * @returns Standard output, or null on a non-zero exit.
+ * @param stderr - Where git's error output goes. The default shows it in the hook's output.
+ * @returns Standard output.
+ * @throws When the hook did not hand over git, or git exits non-zero.
  */
-function git(args: readonly string[]): string | null {
+function git(args: readonly string[], stderr: 'inherit' | 'ignore' = 'inherit'): string {
+    if (GIT_BIN === undefined) {
+        throw new Error('afterMerge must be started by a git hook, which sets KS_GIT_BIN to the git it found');
+    }
+
+    return execFileSync(GIT_BIN, [...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', stderr] });
+}
+
+/**
+ * Whether HEAD has a second parent, which is the case for a merge commit. `rev-parse` exits non-zero when it has none,
+ * and that exit is the answer, so it is the one git call here whose failure is read as "no".
+ *
+ * @returns True for a merge commit.
+ */
+function isMergeCommit(): boolean {
     try {
-        return execFileSync(ENV, ['git', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+        git(['rev-parse', '-q', '--verify', 'HEAD^2'], 'ignore');
+
+        return true;
     } catch {
-        return null;
+        return false;
     }
 }
 
@@ -58,10 +75,9 @@ function generate(): void {
     });
 }
 
-const isMergeCommit = git(['rev-parse', '-q', '--verify', 'HEAD^2']) !== null;
-const incoming = git(incomingDiffArgs(isMergeCommit, GENERATED_OUTPUT_DIRS));
+const incoming = git(incomingDiffArgs(isMergeCommit(), GENERATED_OUTPUT_DIRS));
 
-if (incoming !== null && incoming.trim() !== '') {
+if (incoming.trim() !== '') {
     generate();
     process.stdout.write('Generated docs were regenerated after the merge: review and commit them.\n');
 }

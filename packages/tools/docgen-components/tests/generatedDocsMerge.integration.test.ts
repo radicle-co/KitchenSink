@@ -35,12 +35,13 @@ const TSX = join(REPO_ROOT, 'node_modules/.bin/tsx');
 const AFTER_MERGE = join(REPO_ROOT, 'packages/tools/docgen-components/bin/afterMerge.ts');
 const TOTALS_FILE = `${COMPONENTS_OUT_DIR}/index.json`;
 
-/** Git is found on PATH through env, as `bin/afterMerge.ts` finds it: its place differs per machine. */
-const ENV = '/usr/bin/env';
 const SH = '/bin/sh';
 
+/** The git this machine has, as an absolute path, found the way the hooks find it (`command -v git`). */
+const GIT = execFileSync(SH, ['-c', 'command -v git'], { encoding: 'utf8' }).trim();
+
 const git = (cwd: string, ...args: string[]): string =>
-    execFileSync(ENV, ['git', ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync(GIT, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
 const scratch: string[] = [];
 
@@ -149,13 +150,15 @@ describe('the output folders carry the merge driver', () => {
     });
 });
 
+const byName = (left: string, right: string): number => left.localeCompare(right);
+
 describe('the attribute lines and the generator agree on the folders', () => {
     it('attributes no folder the generator does not own', () => {
         const attributed = readFileSync(join(REPO_ROOT, '.gitattributes'), 'utf8')
             .split('\n')
             .flatMap((line) => /^(\S+)\/\*\*\s+merge=docgenRegenerate\s*$/u.exec(line)?.[1] ?? []);
 
-        expect([...attributed].sort()).toEqual([...GENERATED_OUTPUT_DIRS].sort());
+        expect([...attributed].sort(byName)).toEqual([...GENERATED_OUTPUT_DIRS].sort(byName));
     });
 });
 
@@ -169,9 +172,12 @@ describe('a checkout installs the driver', () => {
 
 describe('a merge of two PRs that change the same totals line', () => {
     it('conflicts without the driver, which is what this exists to cure', () => {
-        const { merged } = mergeTwoPrs(makeRepo(false));
+        const repo = makeRepo(false);
+        const { merged } = mergeTwoPrs(repo);
 
         expect(merged).toBe(false);
+        // The merge stopped on the totals file itself, not on some other failure of the setup.
+        expect(git(repo, 'diff', '--name-only', '--diff-filter=U').trim()).toBe(TOTALS_FILE);
     });
 
     it('ends with no conflict and the current side kept, with the driver installed', () => {

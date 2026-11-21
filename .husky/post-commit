@@ -1,5 +1,5 @@
 # A merge made with --no-commit never reaches post-merge; it ends in a commit by hand. For a merge commit only, run
 # the same script as post-merge. Any other commit costs one git call.
 if git rev-parse -q --verify HEAD^2 >/dev/null; then
-    npm run docs:after-merge --workspace=@kitchensink/docgen-components
+    KS_GIT_BIN="$(command -v git)" npm run docs:after-merge --workspace=@kitchensink/docgen-components
 fi

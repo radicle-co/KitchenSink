@@ -1,3 +1,3 @@
 # After a merge or pull, regenerate the derived docs when the incoming side changed them. It never stages or commits:
-# the author reviews the files and commits them. The decision is in the one script, which reads the incoming side.
-npm run docs:after-merge --workspace=@kitchensink/docgen-components
+# the author reviews the files and commits them. The hook hands the script the git it found, as an absolute path. The decision is in the one script, which reads the incoming side.
+KS_GIT_BIN="$(command -v git)" npm run docs:after-merge --workspace=@kitchensink/docgen-components

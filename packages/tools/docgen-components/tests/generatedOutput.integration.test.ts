@@ -63,6 +63,8 @@ async function filesUnder(directory: string): Promise<readonly string[]> {
     return found.sort();
 }
 
+const byPath = (left: string, right: string): number => left.localeCompare(right);
+
 describe('the committed component + design documentation', () => {
     it('is not empty, so a generator that silently produced nothing cannot pass', () => {
         expect(artifacts.size).toBeGreaterThan(0);
@@ -89,9 +91,9 @@ describe('the committed component + design documentation', () => {
     it('holds no file the generator does not produce, so a deleted component leaves no orphan behind', async () => {
         const onDisk = (await Promise.all(GENERATED_OUTPUT_DIRS.map((directory) => filesUnder(directory))))
             .flat()
-            .sort();
+            .sort(byPath);
 
-        expect(onDisk).toEqual([...artifacts.keys()].sort());
+        expect(onDisk).toEqual([...artifacts.keys()].sort(byPath));
     });
 
     // Determinism is the precondition of the gate above: output that varies run to run makes it permanently

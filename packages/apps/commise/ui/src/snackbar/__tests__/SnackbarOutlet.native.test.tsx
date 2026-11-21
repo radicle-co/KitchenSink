@@ -27,10 +27,6 @@ beforeEach(() => {
     vi.useFakeTimers();
     vi.setSystemTime(0);
     vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockImplementation(() => Promise.resolve(false));
-    vi.spyOn(AccessibilityInfo, 'addEventListener').mockImplementation(((
-        _event: string,
-        _listener: (on: boolean) => void,
-    ) => ({ remove: () => undefined })) as typeof AccessibilityInfo.addEventListener);
 });
 
 afterEach(() => {
@@ -100,7 +96,7 @@ function windowNamed(label: string): HTMLElement {
 
 /** Every polite status region that holds the message. */
 function regionsHolding(message: string): HTMLElement[] {
-    return screen.getAllByRole('status').filter((region) => region.textContent?.includes(message) === true);
+    return screen.getAllByRole('status').filter((region) => region.textContent.includes(message));
 }
 
 const showFrom = (message: string): void => {
@@ -123,7 +119,7 @@ describe('the snackbar inside an open native window (integration: real host, rea
 
         expect(others).toStrictEqual([]);
         expect(region).toBeDefined();
-        expect(windowNamed('Ingredients').contains(region ?? null)).toBe(true);
+        expect(windowNamed('Ingredients').contains(region)).toBe(true);
     });
 
     it('moves the same snackbar back to the host when the window stops presenting, and its Undo still works', () => {
@@ -144,9 +140,9 @@ describe('the snackbar inside an open native window (integration: real host, rea
         const [region, ...others] = regionsHolding('Ticks cleared');
 
         expect(others).toStrictEqual([]);
-        expect(windowNamed('Ingredients').contains(region ?? null)).toBe(false);
+        expect(windowNamed('Ingredients').contains(region)).toBe(false);
 
-        fireEvent.click(within(region ?? document.body).getByRole('button', { name: 'Undo' }));
+        fireEvent.click(within(region).getByRole('button', { name: 'Undo' }));
 
         expect(onAction).toHaveBeenCalledOnce();
     });
@@ -167,7 +163,7 @@ describe('the snackbar inside an open native window (integration: real host, rea
         const [region, ...others] = regionsHolding('Ticks cleared');
 
         expect(others).toStrictEqual([]);
-        expect(windowNamed('Confirm').contains(region ?? null)).toBe(true);
+        expect(windowNamed('Confirm').contains(region)).toBe(true);
     });
 
     it('keeps a polite region mounted in the window before any snackbar arrives, so the change is announced', () => {
@@ -310,6 +306,6 @@ describe('SnackbarOutlet outside a snackbar host', () => {
 
         const [region] = regionsHolding('Ticks cleared');
 
-        expect(resolvedStyle(region as HTMLElement, 'zIndex')).toBe(String(WINDOW_LAYERS.snackbar));
+        expect(resolvedStyle(region, 'zIndex')).toBe(String(WINDOW_LAYERS.snackbar));
     });
 });

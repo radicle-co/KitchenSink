@@ -48,7 +48,9 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const register = useCallback((entry: SnackbarOutletEntry) => {
         setOutlets((stack) => registerOutlet(stack, entry));
 
-        return () => setOutlets((stack) => unregisterOutlet(stack, entry.token));
+        return () => {
+            setOutlets((stack) => unregisterOutlet(stack, entry.token));
+        };
     }, []);
     const { current } = queue;
     const action = current?.input.action;
@@ -87,16 +89,29 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     }, [screenReader, currentId, pause, resume]);
 
     const top = topOutlet(outlets);
+    const actionProps =
+        action === undefined || current === null
+            ? {}
+            : {
+                  action: {
+                      label: action.label,
+                      onAction: () => {
+                          queue.act(current.id, action);
+                      },
+                  },
+              };
     const snackbar =
         current === null ? null : (
             <UndoSnackbar
                 key={current.id}
                 message={current.input.message}
-                {...(action === undefined
-                    ? {}
-                    : { action: { label: action.label, onAction: () => queue.act(current.id, action) } })}
-                onPause={() => queue.pause(current.id)}
-                onResume={() => queue.resume(current.id)}
+                {...actionProps}
+                onPause={() => {
+                    queue.pause(current.id);
+                }}
+                onResume={() => {
+                    queue.resume(current.id);
+                }}
             />
         );
 

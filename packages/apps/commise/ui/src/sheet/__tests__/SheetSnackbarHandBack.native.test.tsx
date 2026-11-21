@@ -64,13 +64,13 @@ const tree = (open: boolean): JSX.Element => (
 function snackbarInSheet(): boolean {
     const [region, ...others] = screen
         .getAllByRole('status')
-        .filter((candidate) => candidate.textContent?.includes('Ticks cleared') === true);
+        .filter((candidate) => candidate.textContent.includes('Ticks cleared'));
 
     expect(others).toStrictEqual([]);
     // A snackbar that vanished is a failure in both directions, not "not in the sheet".
     expect(region).toBeDefined();
 
-    return region?.closest('[aria-modal="true"]') !== null;
+    return region.closest('[aria-modal="true"]') !== null;
 }
 
 describe('Sheet (native) and the snackbar', () => {

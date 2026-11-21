@@ -109,9 +109,7 @@ function layOut(heights: { readonly sheet: number; readonly topBlock: number; re
 function regionBottom(): string {
     fireEvent.click(screen.getByRole('button', { name: 'show' }));
 
-    const region = screen
-        .getAllByRole('status')
-        .find((candidate) => candidate.textContent?.includes('Ticks cleared') === true);
+    const region = screen.getAllByRole('status').find((candidate) => candidate.textContent.includes('Ticks cleared'));
 
     return resolvedStyle(region as HTMLElement, 'bottom');
 }
@@ -121,13 +119,13 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         renderSheet();
         layOut({ sheet: 600, topBlock: 56, footer: 92 });
 
-        expect(regionBottom()).toBe(`${92 + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(92 + SNACKBAR_GAP)}px`);
     });
 
     it('keeps the window foot when the sheet has no footer', () => {
         renderSheet({ footer: undefined });
 
-        expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(INSET + SNACKBAR_GAP)}px`);
     });
 
     // A footer with little content above it is "unpinned" (it scrolls with the content), and on a content-sized sheet
@@ -139,7 +137,7 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         // The footer moved into the scroll region, a new view, and reports its height again from there.
         layOut({ sheet: 300, topBlock: 64, footer: 92 });
 
-        expect(regionBottom()).toBe(`${92 + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(92 + SNACKBAR_GAP)}px`);
     });
 
     // The footer's own report can arrive before the frame's in one pass, so the decision it was made under may be old.
@@ -149,7 +147,7 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         layOut({ sheet: 300, topBlock: 64, footer: 92 });
         layOut({ sheet: 700, topBlock: 64, footer: 92 });
 
-        expect(regionBottom()).toBe(`${92 + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(92 + SNACKBAR_GAP)}px`);
     });
 
     // A centred dialog's footer is inside a card in the middle of the window, not at the window's foot.
@@ -158,7 +156,7 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         renderSheet({ presentation: 'dialog' });
         layOut({ sheet: 300, topBlock: 64, footer: 92 });
 
-        expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(INSET + SNACKBAR_GAP)}px`);
     });
 
     it('goes back to the window foot when the footer is taken away after it reported', () => {
@@ -167,6 +165,6 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         layOut({ sheet: 600, topBlock: 56, footer: 92 });
         rerender(sheetTree({ footer: undefined }));
 
-        expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
+        expect(regionBottom()).toBe(`${String(INSET + SNACKBAR_GAP)}px`);
     });
 });

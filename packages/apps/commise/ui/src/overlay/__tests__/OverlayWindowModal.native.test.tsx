@@ -49,9 +49,7 @@ function Shower(): JSX.Element {
 function snackbarRegion(): HTMLElement {
     fireEvent.click(screen.getByRole('button', { name: 'show' }));
 
-    const region = screen
-        .getAllByRole('status')
-        .find((candidate) => candidate.textContent?.includes('Ticks cleared') === true);
+    const region = screen.getAllByRole('status').find((candidate) => candidate.textContent.includes('Ticks cleared'));
 
     if (region === undefined) {
         throw new Error('The snackbar did not show.');

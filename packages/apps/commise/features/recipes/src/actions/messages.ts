@@ -76,6 +76,12 @@ export interface SourceStatementMessages {
     readonly answerBook: string;
     readonly bookTitleLabel: string;
     readonly bookTitleError: string;
+    /** `statementPaidSite.v1`. */
+    readonly answerPaidSite: string;
+    /** Says the answer is locked once confirmed, on both surfaces. */
+    readonly hintPaidSite: string;
+    readonly paidSiteLabel: string;
+    readonly paidSiteError: string;
     /** `statementFromPerson.v1`. */
     readonly answerPerson: string;
     /** What "from another person" means, said under it. */
@@ -240,6 +246,11 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             answerBook: 'From a cookbook or magazine',
             bookTitleLabel: 'Book or magazine title',
             bookTitleError: 'Add the book or magazine title.',
+            answerPaidSite: 'From a paid website',
+            hintPaidSite:
+                'A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.',
+            paidSiteLabel: 'Website name or address',
+            paidSiteError: 'Add the website’s name or address.',
             answerPerson: 'From another person',
             hintPerson: 'A recipe someone gave you, like family or a friend. Stays private to you.',
             answerPublishPrivately: 'Publish privately',

@@ -2767,6 +2767,47 @@
                         {
                             "additionalProperties": false,
                             "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "paid_site",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPaidSite.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
                                 "kind": {
                                     "const": "fromPerson",
                                     "type": "string"
@@ -7945,6 +7986,26 @@
             ],
             "type": "object"
         },
+        "paidSiteStatementSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "citation": {
+                    "maxLength": 2000,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "kind": {
+                    "const": "paid_site",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "kind",
+                "citation"
+            ],
+            "type": "object"
+        },
         "parseJobLinePhaseSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "enum": [
@@ -12693,6 +12754,47 @@
                 {
                     "additionalProperties": false,
                     "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "paid_site",
+                            "type": "string"
+                        },
+                        "wording": {
+                            "additionalProperties": false,
+                            "properties": {
+                                "locale": {
+                                    "maxLength": 35,
+                                    "minLength": 2,
+                                    "type": "string"
+                                },
+                                "version": {
+                                    "enum": [
+                                        "statementPaidSite.v1"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "version",
+                                "locale"
+                            ],
+                            "type": "object"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation",
+                        "wording"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
                         "kind": {
                             "const": "fromPerson",
                             "type": "string"
@@ -15018,6 +15120,47 @@
                         {
                             "additionalProperties": false,
                             "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "paid_site",
+                                    "type": "string"
+                                },
+                                "wording": {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "locale": {
+                                            "maxLength": 35,
+                                            "minLength": 2,
+                                            "type": "string"
+                                        },
+                                        "version": {
+                                            "enum": [
+                                                "statementPaidSite.v1"
+                                            ],
+                                            "type": "string"
+                                        }
+                                    },
+                                    "required": [
+                                        "version",
+                                        "locale"
+                                    ],
+                                    "type": "object"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation",
+                                "wording"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
                                 "kind": {
                                     "const": "fromPerson",
                                     "type": "string"
@@ -15502,6 +15645,47 @@
                                                 "version": {
                                                     "enum": [
                                                         "statementBook.v1"
+                                                    ],
+                                                    "type": "string"
+                                                }
+                                            },
+                                            "required": [
+                                                "version",
+                                                "locale"
+                                            ],
+                                            "type": "object"
+                                        }
+                                    },
+                                    "required": [
+                                        "kind",
+                                        "citation",
+                                        "wording"
+                                    ],
+                                    "type": "object"
+                                },
+                                {
+                                    "additionalProperties": false,
+                                    "properties": {
+                                        "citation": {
+                                            "maxLength": 2000,
+                                            "minLength": 1,
+                                            "type": "string"
+                                        },
+                                        "kind": {
+                                            "const": "paid_site",
+                                            "type": "string"
+                                        },
+                                        "wording": {
+                                            "additionalProperties": false,
+                                            "properties": {
+                                                "locale": {
+                                                    "maxLength": 35,
+                                                    "minLength": 2,
+                                                    "type": "string"
+                                                },
+                                                "version": {
+                                                    "enum": [
+                                                        "statementPaidSite.v1"
                                                     ],
                                                     "type": "string"
                                                 }

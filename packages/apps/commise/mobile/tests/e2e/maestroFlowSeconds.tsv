@@ -175,6 +175,10 @@ ios	shell/overlaySwipeDismiss	161	0
 android	recipes/pinnedIngredients	108	0
 android	recipes/sourceFromPaste	168	5
 android	recipes/sourceStatement	168	1
+android	recipes/sourceStatementPaidSite	281	1
+android	recipes/sourceStatementFromPerson	281	1
 ios	recipes/pinnedIngredients	161	0
 ios	recipes/sourceFromPaste	174	3
 ios	recipes/sourceStatement	174	1
+ios	recipes/sourceStatementPaidSite	292	1
+ios	recipes/sourceStatementFromPerson	292	1

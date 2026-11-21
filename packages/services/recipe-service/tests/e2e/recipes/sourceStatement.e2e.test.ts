@@ -143,6 +143,39 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         });
     });
 
+    // AE12 (#374): the paid-site statement over HTTP, through the real 0091 CHECKs. A mocked tier cannot see them refuse.
+    it('create with a paid-site statement writes the editorCitation evidence and the paidSite attestation, with no address', async () => {
+        const citation = 'Sam’s Subscription Kitchen, March issue';
+        const { id } = await create({
+            visibility: 'private',
+            statement: { kind: 'paid_site', citation, wording: { version: 'statementPaidSite.v1', locale: 'en' } },
+        });
+
+        expect(await readRow(id)).toMatchObject({
+            sourceType: 'imported_paid',
+            sourceKind: 'paid_site',
+            sourceAttribution: citation,
+            sourceUrl: null,
+            visibility: 'private',
+        });
+
+        const evidenceRows = await pool.query(
+            'SELECT capture, source_kind, citation, source_url, source_domain FROM recipe_source_evidence WHERE recipe_id = $1',
+            [id],
+        );
+
+        expect(evidenceRows.rows).toEqual([
+            { capture: 'editorCitation', source_kind: 'paid_site', citation, source_url: null, source_domain: null },
+        ]);
+
+        const attestations = await pool.query(
+            'SELECT choice, wording_version FROM recipe_statement_attestations WHERE recipe_id = $1',
+            [id],
+        );
+
+        expect(attestations.rows).toEqual([{ choice: 'paidSite', wording_version: 'statementPaidSite.v1' }]);
+    });
+
     it('returns the kind on the wire, so a client can judge the source', async () => {
         const { json } = await send('POST', '/api/v1/recipes', body({ statement: STATEMENT, visibility: 'private' }));
 
@@ -293,6 +326,8 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             // Never a clone: the one fact besides the source the lock reads for the source-correction rule. The first publish is
             // not read (owner ruling 2026-11-15).
             clonedFromId: null,
+            // The citation a paid site stated again is judged against; a web copy's is its site.
+            sourceAttribution: 'allrecipes.com',
         });
     });
 

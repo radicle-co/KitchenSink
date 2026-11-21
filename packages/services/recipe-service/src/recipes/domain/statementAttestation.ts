@@ -8,7 +8,7 @@
  *
  * ## The two acts, and why they are separate
  *
- * - An EXPLICIT row is the cook's own act on a choice: a statement (`authored`, `publicWeb`, `book`, `fromPerson`) or its
+ * - An EXPLICIT row is the cook's own act on a choice: a statement (`authored`, `publicWeb`, `book`, `paidSite`, `fromPerson`) or its
  *   removal (`cleared`, no wording because nothing was shown). Written whenever the request carries a `statement`.
  * - An IMPLICIT row is the line shown beside Public (`publicConfirm`). It is REQUIRED when the write makes a recipe
  *   published AND public, and RECORDED whenever the cook chose Public in a write that was sent one.
@@ -92,6 +92,7 @@ const CHOICE_OF_KIND = {
     authored: 'authored',
     public_web: 'publicWeb',
     book: 'book',
+    paid_site: 'paidSite',
     fromPerson: 'fromPerson',
 } as const satisfies Record<RecipeStatementInput['kind'], NewRecipeStatementAttestationRow['choice']>;
 

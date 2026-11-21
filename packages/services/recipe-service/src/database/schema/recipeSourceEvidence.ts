@@ -15,6 +15,13 @@ import { recipes } from './recipes.js';
 /** How a statement reached the service, mirrored from the SQL CHECK. */
 export const SOURCE_EVIDENCE_CAPTURES = ['pastedPage', 'editorLink', 'editorCitation', 'importFile'] as const;
 
+/**
+ * The source kinds an `editorCitation` row may hold: the cook typed a citation for a book or a paid site. Mirrored from
+ * the SQL `recipe_source_evidence_capture_shape` CHECK (migration 0091), and the LOCAL e2e parity test inserts every
+ * kind to keep the two equal.
+ */
+export const EDITOR_CITATION_SOURCE_KINDS = ['book', 'paid_site'] as const satisfies readonly RecipeSourceKind[];
+
 /** One way a statement reached the service. */
 export type SourceEvidenceCapture = (typeof SOURCE_EVIDENCE_CAPTURES)[number];
 

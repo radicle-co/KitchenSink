@@ -24,6 +24,8 @@ jobs:
             id-token: write # awsAuth and Argos in _ci.yml (a callee only downgrades)
             # ⛔ A callee can only downgrade, so omitting this rejects the whole run (`startup_failure`).
             actions: read # mobile-app-build reuses an earlier run's test app artifact
+            pull-requests: read # codeQuality reads the PR's live labels (a callee only downgrades)
+            security-events: read # codeQuality reads the CodeQL alerts of this ref (a callee only downgrades)
             # ⛔ Granted for `_ci.yml`'s `infra-shared` job, which publishes the shared CDK constructs as a
             # prerelease when they change. Without it that job cannot write to GitHub Packages and every CDK
             # app in the run silently compiles against the LAST PUBLISHED construct instead of this branch's.

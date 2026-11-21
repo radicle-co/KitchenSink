@@ -78,6 +78,18 @@ function fakeAdapter(
     };
 }
 
+/** The adapter with a preflight that records itself and fails with `failure` when one is given. */
+function withPreflight(events: string[], adapter: DeviceAdapter, failure?: Error): DeviceAdapter {
+    return {
+        ...adapter,
+        preflight: () => {
+            events.push(`preflight ${adapter.platform}`);
+
+            return failure === undefined ? Promise.resolve() : Promise.reject(failure);
+        },
+    };
+}
+
 /**
  * A lane child the test controls. `finish` ends its `exit`; `onStart` runs when it is made and `onStop` on each signal.
  * It reports no group unless `running` says otherwise.
@@ -1100,5 +1112,98 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events).toContain('stop SIGTERM');
             expect(events).not.toContain('stop SIGKILL');
         });
+    });
+});
+
+describe('runLaneRun: the preflight of each adapter', () => {
+    it('checks every planned platform before it starts a service, makes a user or boots a device', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) => withPreflight(events, fakeAdapter(events, platform)),
+        };
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } });
+
+        const preflights = events.flatMap((event, at) => (event.startsWith('preflight ') ? [at] : []));
+        const firstWork = events.findIndex((event) =>
+            /^(startServices|createRunUsers|prepareHost|startDevice)/u.test(event),
+        );
+
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual([
+            'preflight android',
+            'preflight ios',
+        ]);
+        expect(Math.max(...preflights)).toBeLessThan(firstWork);
+    });
+
+    it('refuses the run when a preflight fails: no service, no user, no device, and the lock is released', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('no iOS app for key abc');
+
+        expect(
+            events.filter((event) => /^(startServices|createRunUsers|prepareHost|startDevice|setupLane)/u.test(event)),
+        ).toEqual([]);
+        expect(events).toContain('unlock');
+    });
+
+    it('does not preflight the platform that plans no lane, so the other platform still runs', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+            selectFlows: (platform) =>
+                Promise.resolve({ flows: platform === 'ios' ? [] : ['a', 'b'], notes: [], owed: [] }),
+        };
+
+        const code = await runLaneRun(deps, {
+            platforms: ['android', 'ios'],
+            selection: { android: 'all', ios: 'all' },
+        });
+
+        expect(code).toBe(0);
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual(['preflight android']);
+        expect(events.some((event) => event.startsWith('startDevice android'))).toBe(true);
+    });
+
+    it('stops the run before any lane, and tears the host down, when the port probe refuses', async () => {
+        const made = harness();
+        const { events } = made;
+        const spawned = vi.fn<LaneRunDeps['spawnLane']>((lane, env) => made.deps.spawnLane(lane, env));
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            spawnLane: spawned,
+            adapterFor: (platform) => ({
+                ...fakeAdapter(events, platform),
+                prepareHost: () => Promise.reject(new Error('the Mac port 13000 answered 000 on /health')),
+            }),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('the Mac port 13000 answered 000 on /health');
+
+        expect(spawned).not.toHaveBeenCalled();
+        expect(events).toContain('teardownHost android');
     });
 });

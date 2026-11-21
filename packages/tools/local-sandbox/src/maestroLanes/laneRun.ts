@@ -24,7 +24,7 @@ import { failureEvidenceDir, pruneFailureRuns } from './failureEvidence.js';
 import type { HostLock } from './hostLock.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
 import { laneRunnerEnv, type LaneChild } from './laneProcess.js';
-import type { DeviceAdapter, LanePlatform, LaneSpec } from './laneTypes.js';
+import type { DeviceAdapter, LanePlatform, LaneSpec, RunContext } from './laneTypes.js';
 import type { SharedServices } from './sharedServices.js';
 import { KILL_WAIT_MS, STOP_GRACE_MS, stopTargets, type StopSignal } from './stopGroups.js';
 
@@ -214,11 +214,23 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
         const lanes = plans.flatMap((plan) => plan.lanes);
 
+        const run: RunContext = {
+            runId: path.basename(deps.stateDir),
+            stateDir: deps.stateDir,
+            repoRoot: deps.repoRoot,
+        };
+
+        // A cause no lane can fix fails here, before a service, a user or a device exists to be cleaned up.
+        for (const plan of plans.filter((candidate) => candidate.lanes.length > 0)) {
+            await plan.adapter.preflight?.(run);
+        }
+
         const code =
             lanes.length === 0
                 ? 0
                 : await runPlanned(
                       deps,
+                      run,
                       plans.filter((plan) => plan.lanes.length > 0),
                       lanes,
                   );
@@ -242,6 +254,7 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
 async function runPlanned(
     deps: LaneRunDeps,
+    run: RunContext,
     plans: readonly PlatformPlan[],
     lanes: readonly LaneSpec[],
 ): Promise<number> {
@@ -294,11 +307,7 @@ async function runPlanned(
         await settleAll(
             plans.map(async (plan) => {
                 prepared.push(plan.adapter);
-                await plan.adapter.prepareHost({
-                    runId: path.basename(deps.stateDir),
-                    stateDir: deps.stateDir,
-                    repoRoot: deps.repoRoot,
-                });
+                await plan.adapter.prepareHost(run);
                 await settleAll(
                     plan.lanes.map(async (lane) => {
                         if (deps.aborted()) {

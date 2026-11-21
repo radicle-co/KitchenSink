@@ -26,7 +26,9 @@ export const RadioRowContent = styled(XStack, {
     name: 'RadioRowContent',
     alignItems: 'flex-start',
     gap: '$3',
-    flex: 1,
+    flexGrow: 1,
+    flexShrink: 1,
+    flexBasis: 0,
 });
 
 /** The slot one line of the label tall, with the circle centred in it: the circle stays beside the FIRST line. */

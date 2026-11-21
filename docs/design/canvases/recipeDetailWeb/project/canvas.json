@@ -772,6 +772,20 @@
       "w": 390,
       "h": 844,
       "title": "Recipe detail, private import, photo link only (state 4) (web, 390)"
+    },
+    "RecipeMakePublicStatementPaidSiteWeb1280.dc.html": {
+      "x": 0,
+      "y": 33296,
+      "w": 1280,
+      "h": 2000,
+      "title": "Recipe detail, make public: a paid website (web, 1280)"
+    },
+    "RecipeMakePublicStatementPaidSiteWeb390.dc.html": {
+      "x": 1360,
+      "y": 33296,
+      "w": 390,
+      "h": 3237,
+      "title": "Recipe detail, make public: a paid website (web, 390)"
     }
   },
   "order": [
@@ -883,7 +897,9 @@
     "RecipePrivateImportPhotoLinkOnlyWeb1280.dc.html",
     "RecipePrivateImportPhotoSavedWeb390.dc.html",
     "RecipePrivateImportPhotoLoadingWeb390.dc.html",
-    "RecipePrivateImportPhotoLinkOnlyWeb390.dc.html"
+    "RecipePrivateImportPhotoLinkOnlyWeb390.dc.html",
+    "RecipeMakePublicStatementPaidSiteWeb1280.dc.html",
+    "RecipeMakePublicStatementPaidSiteWeb390.dc.html"
   ],
   "notes": {
     "row0": {

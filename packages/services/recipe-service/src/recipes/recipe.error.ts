@@ -432,7 +432,9 @@ const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
 
 /**
  * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe whose
- * source the cook did not state, or a clone inherited, so it can no longer change (ADR-0089). The first publish does not lock it.
+ * source the cook did not state, or a clone inherited, so it can no longer change (ADR-0089). It is also the answer to a
+ * statement over a stored "From another person", or over a recipe that has a past "From another person" attestation and no
+ * stored statement. The first publish does not lock it.
  *
  * ⚠️ A 403 and NOT a 409, and not a new published code. An installed client reads an unknown 409 as a version conflict (the
  * same reason `PRIVATE_SLOTS_FULL` is a 403), and a new member of `recipeErrorCodeSchema` would widen a contract both apps

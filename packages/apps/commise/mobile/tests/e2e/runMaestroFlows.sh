@@ -283,6 +283,8 @@ recipes:recipes/pasteMatchChoose
 recipes:recipes/pastePublishOpenChoices
 recipes:recipes/sourceFromPaste
 recipes:recipes/sourceStatement
+recipes:recipes/sourceStatementPaidSite
+recipes:recipes/sourceStatementFromPerson
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups

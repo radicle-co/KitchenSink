@@ -87,11 +87,13 @@ function isSharedLeaf(leaf: ComponentImplementation): boolean {
  * Every leaf is validated before the entry is classified, so a bad value throws wherever its leaf sits and the result
  * never depends on file order.
  *
+ * @param group - The group the component belongs to.
  * @param leaves - Every leaf of one component.
  * @returns Whether the component's one file serves both platforms.
- * @throws {DocgenError} For an unknown `@platform` value, or a shared leaf beside a `.native` leaf.
+ * @throws {DocgenError} For an unknown `@platform` value, a shared leaf beside a `.native` leaf, or a shared leaf in a
+ * group that ships to fewer than two platforms.
  */
-function sharedClaimOf(leaves: readonly ComponentImplementation[]): boolean {
+function sharedClaimOf(group: ComponentGroup, leaves: readonly ComponentImplementation[]): boolean {
     const declaresShared = leaves.map(isSharedLeaf);
     const shared = leaves.find((_leaf, index) => declaresShared[index]);
     const twin = leaves.find((leaf) => leaf.platform === 'native');
@@ -99,6 +101,13 @@ function sharedClaimOf(leaves: readonly ComponentImplementation[]): boolean {
     if (shared !== undefined && twin !== undefined) {
         throw new DocgenError(
             `${shared.sourcePath}: declares @platform ${SHARED_PLATFORM} but has the native twin ${twin.sourcePath}`,
+        );
+    }
+
+    if (shared !== undefined && group.platforms.length < 2) {
+        throw new DocgenError(
+            `${shared.sourcePath}: declares @platform ${SHARED_PLATFORM} but its group ships to ` +
+                `${group.platforms.join(' and ')} only`,
         );
     }
 
@@ -170,7 +179,7 @@ export function buildEntries(
             (left, right) => PLATFORM_ORDER.indexOf(left.platform) - PLATFORM_ORDER.indexOf(right.platform),
         );
         const first = leaves[0] as ComponentImplementation;
-        const shared = sharedClaimOf(leaves);
+        const shared = sharedClaimOf(group, leaves);
 
         const platforms = PLATFORM_ORDER.filter(
             (platform) => shared || leaves.some((leaf) => leaf.platform === platform),

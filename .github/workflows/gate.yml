@@ -281,20 +281,31 @@ jobs:
                       --json-schema '{"type":"object","additionalProperties":false,"required":["verdict","findings"],"properties":{"verdict":{"enum":["PASS","BLOCK"]},"findings":{"type":"array","items":{"type":"object","additionalProperties":false,"required":["severity","title","detail"],"properties":{"severity":{"enum":["blocking","advisory"]},"file":{"type":"string"},"line":{"type":"integer"},"title":{"type":"string"},"detail":{"type":"string"}}}}}}'
 
             # The action fails the judge step when the model ends in prose and never calls the structured output tool
-            # ("--json-schema was provided but Claude did not return structured_output"). That one shape, and only that, is
-            # retried once: the judge FINISHED (a success result, no error) but gave no structured result. A timeout,
-            # an error result, `error_max_turns` or a missing file is not retried and stays fail-closed. A prose
-            # report that says BLOCK is not retried either: a second review would re-roll the verdict.
+            # ("--json-schema was provided but Claude did not return structured_output"), and it can also END THE STEP AS
+            # SUCCESS with an empty `structured_output`. Both are one shape, and only that shape is retried once: the
+            # judge FINISHED (a success result, no error) but gave no structured result. A timeout, an error result,
+            # `error_max_turns` or a missing file is not retried and stays fail-closed. A prose report that says BLOCK is
+            # not retried either: a second review would re-roll the verdict. Any output at all, valid or not, is never
+            # retried: the verdict step fails an invalid one closed. A judge step that was skipped has empty outputs too,
+            # so the `if` asks for `success` before it asks for empty.
             - name: Check whether the judge only lacked the structured result
               id: retry
-              if: ${{ !cancelled() && steps.judge.outcome == 'failure' }}
+              if: ${{ !cancelled() && (steps.judge.outcome == 'failure' || (steps.judge.outcome == 'success' && steps.judge.outputs.structured_output == '')) }}
               env:
+                  # The first judge's answer, read by bash so an empty string is a real empty string.
+                  JUDGE_OUTPUT: ${{ steps.judge.outputs.structured_output }}
                   # The last result entry of the action's execution file: finished, no error, no structured output.
                   RETRY_FILTER: >-
                       map(select(.type == "result")) | last | (.subtype == "success" and .is_error == false
                       and ((.structured_output // null) == null) and (((.result // "") | test("BLOCK")) | not))
               run: |
                   set -euo pipefail
+                  # The judge gave an answer, valid or not. There is nothing missing to ask for again, and the verdict step
+                  # fails a bad one closed.
+                  if [ -n "${JUDGE_OUTPUT:-}" ]; then
+                      echo "retry=false" >>"$GITHUB_OUTPUT"
+                      exit 0
+                  fi
                   if jq -e "$RETRY_FILTER" "${RUNNER_TEMP}/claude-execution-output.json" >/dev/null 2>&1; then
                       echo "retry=true" >>"$GITHUB_OUTPUT"
                   else

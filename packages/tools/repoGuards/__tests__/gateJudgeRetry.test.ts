@@ -87,7 +87,7 @@ function retryAllowed(executionFile: string | undefined): boolean {
 }
 
 /** Runs the `retry` step's own shell with a temp RUNNER_TEMP and GITHUB_OUTPUT, and returns what it wrote to the output. */
-function retryStepOutput(executionFile: string | undefined): string {
+function retryStepOutput(executionFile: string | undefined, judgeOutput = ''): string {
     const retry = step('retry');
     const dir = mkdtempSync(path.join(tmpdir(), 'gateJudgeRetryStep-'));
     dirs.push(dir);
@@ -99,7 +99,13 @@ function retryStepOutput(executionFile: string | undefined): string {
 
     const run = spawnSync('/bin/bash', ['-c', retry.run ?? ''], {
         encoding: 'utf8',
-        env: { PATH: '/usr/bin:/bin', RUNNER_TEMP: dir, GITHUB_OUTPUT: output, ...retry.env },
+        env: {
+            PATH: '/usr/bin:/bin',
+            RUNNER_TEMP: dir,
+            GITHUB_OUTPUT: output,
+            ...retry.env,
+            JUDGE_OUTPUT: judgeOutput,
+        },
     });
 
     expect(run.status, run.stderr).toBe(0);
@@ -196,11 +202,23 @@ describe('gate.yml judge retry', () => {
         expect(step('judge')['continue-on-error']).toBe(true);
     });
 
-    it('retries only when the retry step says so, and only after the first judge failed', () => {
+    it('retries only when the retry step says so, and only after the first judge failed or finished without an output', () => {
         const condition = step('judge-retry').if ?? '';
 
         expect(condition).toContain("steps.retry.outputs.retry == 'true'");
         expect(step('retry').if ?? '').toContain("steps.judge.outcome == 'failure'");
+    });
+
+    it('also runs the retry check when the judge SUCCEEDED with an empty structured output, and only then', () => {
+        // The action fails the step when it lacks the structured output, but a step can also succeed with none: the
+        // run that posted `failure` with FIRST_OUTCOME=success and an empty FIRST_OUTPUT was that shape.
+        expect(step('retry').if).toBe(
+            "${{ !cancelled() && (steps.judge.outcome == 'failure' || (steps.judge.outcome == 'success' && steps.judge.outputs.structured_output == '')) }}",
+        );
+    });
+
+    it('hands the retry step the first judge output through env, so bash decides on a real empty string', () => {
+        expect(step('retry').env?.['JUDGE_OUTPUT']).toBe('${{ steps.judge.outputs.structured_output }}');
     });
 
     it('does not start a judge for a run a newer push cancelled: both new steps use !cancelled(), not always()', () => {
@@ -288,6 +306,26 @@ describe('gate.yml judge retry', () => {
                 retryOutput: '',
                 firstOutcome: 'success',
                 firstOutput: '{"v":"PASS"}',
+            }),
+        ).toBe('success ');
+        // The first judge SUCCEEDED with no output and the retry ran: the retry's answer is the one that counts.
+        expect(
+            verdictChoice({
+                retryRan: 'true',
+                retryOutcome: 'success',
+                retryOutput: '{"verdict":"PASS","findings":[]}',
+                firstOutcome: 'success',
+                firstOutput: '',
+            }),
+        ).toBe('success {"verdict":"PASS","findings":[]}');
+        // The first judge succeeded with no output and no retry ran: the choice is empty, which the shape check fails closed.
+        expect(
+            verdictChoice({
+                retryRan: 'false',
+                retryOutcome: '',
+                retryOutput: '',
+                firstOutcome: 'success',
+                firstOutput: '',
             }),
         ).toBe('success ');
         expect(verdictChoice({ retryRan: '', retryOutcome: '', retryOutput: '', firstOutcome: 'failure' })).toMatch(
@@ -403,6 +441,37 @@ describe('gate.yml judge retry', () => {
                 ),
             ).toBe('retry=false\n');
             expect(retryStepOutput(undefined)).toBe('retry=false\n');
+        });
+
+        it('retries a judge that succeeded with an empty output: only the empty string counts as empty', () => {
+            const finished = result({ subtype: 'success', is_error: false });
+
+            expect(retryStepOutput(finished, '')).toBe('retry=true\n');
+        });
+
+        // A judge that gave ANY output is not retried, valid or not: the verdict step fails an invalid one closed, and a
+        // retry of a BLOCK would re-roll the verdict (a verdict exists, so there is nothing missing to ask for again).
+        it.each([
+            ['an empty object', '{}'],
+            ['the text null', 'null'],
+            ['a verdict with no findings', '{"verdict":"PASS"}'],
+            ['a PASS', '{"verdict":"PASS","findings":[]}'],
+            ['a BLOCK', '{"verdict":"BLOCK","findings":[{"severity":"blocking","title":"t","detail":"d"}]}'],
+        ])('does not retry when the judge gave %s as its output', (_name, judgeOutput) => {
+            const finished = result({ subtype: 'success', is_error: false });
+
+            expect(retryStepOutput(finished, judgeOutput)).toBe('retry=false\n');
+        });
+
+        it('does not retry when the judge succeeded with an empty output but left no execution file: the verdict fails closed', () => {
+            expect(retryStepOutput(undefined, '')).toBe('retry=false\n');
+        });
+
+        it('does not retry an empty output whose prose says BLOCK, and does not retry an error result', () => {
+            expect(
+                retryStepOutput(result({ subtype: 'success', is_error: false, result: 'BLOCK: a finding' }), ''),
+            ).toBe('retry=false\n');
+            expect(retryStepOutput(result({ subtype: 'error_max_turns', is_error: true }), '')).toBe('retry=false\n');
         });
     });
 

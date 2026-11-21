@@ -24,7 +24,7 @@ export const STOP_GRACE_MS = 10_000;
 export const KILL_WAIT_MS = 5_000;
 
 /** How often the escalation asks whether a group is gone. */
-export const GROUP_POLL_MS = 25;
+const GROUP_POLL_MS = 25;
 
 export interface StopTimes {
     readonly graceMs?: number;

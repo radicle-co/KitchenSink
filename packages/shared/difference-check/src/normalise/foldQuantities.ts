@@ -32,7 +32,7 @@ const UNIT_SKELETONS: ReadonlySet<string> = new Set(Array.from(V1_UNITS, skeleto
 /** The digit each skeleton letter stands for (`o` for 0, `l` for 1), read from the confusables map's digit entries. */
 const DIGIT_OF_IMAGE: ReadonlyMap<string, string> = new Map(
     Object.entries(CONFUSABLES_V1)
-        .filter(([source]) => /^[0-9]$/u.test(source))
+        .filter(([source]) => /^\d$/u.test(source))
         .map(([digit, image]) => [image.toLowerCase(), digit]),
 );
 

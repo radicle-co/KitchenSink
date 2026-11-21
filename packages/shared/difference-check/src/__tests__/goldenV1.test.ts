@@ -30,6 +30,8 @@ describe('the golden set', () => {
     });
 
     it('records the measures of every case, and of no other', () => {
-        expect(Object.keys(GOLDEN_V1_MEASURES).sort()).toEqual(GOLDEN_V1.map((golden) => golden.name).sort());
+        expect(Object.keys(GOLDEN_V1_MEASURES).sort((a, b) => a.localeCompare(b))).toEqual(
+            GOLDEN_V1.map((golden) => golden.name).sort((a, b) => a.localeCompare(b)),
+        );
     });
 });

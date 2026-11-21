@@ -26,9 +26,9 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
-        "tsx": "^4.23.15",
         "eslint": "^10.0.3",
         "prettier": "^3.10.1",
+        "tsx": "^4.23.15",
         "typescript": "^6.0.3",
         "vitest": "^4.1.12"
     },

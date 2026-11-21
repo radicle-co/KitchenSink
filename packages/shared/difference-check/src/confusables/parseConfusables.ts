@@ -41,7 +41,7 @@ export function parseConfusables(text: string): ConfusablesMap {
             continue;
         }
 
-        entries[charactersOf(match[1] ?? '')] = charactersOf(match[2] ?? '');
+        entries[charactersOf(match[1])] = charactersOf(match[2]);
     }
 
     return entries;

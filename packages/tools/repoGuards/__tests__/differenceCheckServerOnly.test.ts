@@ -79,6 +79,11 @@ function closureOf(roots: readonly string[], manifests: ReadonlyMap<string, Mani
     return seen;
 }
 
+/** The names in alphabetical order, so a failure message and a comparison do not depend on the walk order. */
+function sorted(names: Iterable<string>): string[] {
+    return [...names].sort((left, right) => left.localeCompare(right));
+}
+
 describe('closureOf', () => {
     const graph = new Map<string, Manifest>([
         ['app', { dependencies: { ui: '*' }, devDependencies: { tooling: '*' } }],
@@ -90,10 +95,14 @@ describe('closureOf', () => {
     ]);
 
     it('follows every dependency field, transitively, and stops at a package no manifest knows', () => {
-        expect([...closureOf(['app'], graph)].sort()).toEqual(['app', 'core', 'leaf', 'tooling', 'ui']);
-        expect(
-            [...closureOf(['app'], new Map([...graph, ['leaf', { dependencies: { npmOnly: '1' } }]]))].sort(),
-        ).toEqual(['app', 'core', 'leaf', 'tooling', 'ui']);
+        expect(sorted(closureOf(['app'], graph))).toEqual(['app', 'core', 'leaf', 'tooling', 'ui']);
+        expect(sorted(closureOf(['app'], new Map([...graph, ['leaf', { dependencies: { npmOnly: '1' } }]])))).toEqual([
+            'app',
+            'core',
+            'leaf',
+            'tooling',
+            'ui',
+        ]);
     });
 
     it('does not reach a package only a server declares, and survives a cycle', () => {
@@ -140,7 +149,7 @@ describe('@kitchensink/difference-check is server only', () => {
             DEPENDENCY_FIELDS.some((field) => MANIFESTS.get(name)?.[field]?.[CHECK] !== undefined),
         );
 
-        expect(declarers.sort()).toEqual([]);
+        expect(sorted(declarers)).toEqual([]);
     });
 
     it('no workspace that reaches a client bundle imports the check', () => {
@@ -162,6 +171,6 @@ describe('@kitchensink/difference-check is server only', () => {
             }
         }
 
-        expect([...importers].sort()).toEqual([]);
+        expect(sorted(importers)).toEqual([]);
     });
 });

@@ -57,7 +57,7 @@ describe('parseConfusables', () => {
             (line) => line.trim() !== '' && !line.startsWith('#') && !line.startsWith('\ufeff#'),
         );
 
-        expect(Object.keys(parseConfusables(TXT)).length).toBe(dataLines.length);
+        expect(Object.keys(parseConfusables(TXT))).toHaveLength(dataLines.length);
     });
 
     it('maps every source of the vendored file to its target, pair by pair', () => {
@@ -71,13 +71,13 @@ describe('parseConfusables', () => {
             }
 
             const source = String.fromCodePoint(
-                ...(match[1] ?? '')
+                ...match[1]
                     .trim()
                     .split(' ')
                     .map((hex) => Number.parseInt(hex, 16)),
             );
             const target = String.fromCodePoint(
-                ...(match[2] ?? '')
+                ...match[2]
                     .trim()
                     .split(' ')
                     .map((hex) => Number.parseInt(hex, 16)),
@@ -106,6 +106,6 @@ describe('the generated module', () => {
         ['1', 'l'],
         ['m', 'rn'],
     ])('maps %j to %j, the pair that makes a skeleton fold before the number fold wrong', (from, to) => {
-        expect(CONFUSABLES_V1[from]?.toLowerCase()).toBe(to);
+        expect(CONFUSABLES_V1[from].toLowerCase()).toBe(to);
     });
 });

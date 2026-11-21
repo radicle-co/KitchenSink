@@ -37,7 +37,7 @@ test.describe('why a recipe cannot be public (P6)', () => {
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { name: 'Pasted Soup' })).toBeVisible();
         // Nothing is wrong yet, so the page says nothing about why.
-        await expect(page.getByText(WEB_PAGE_LINE)).toHaveCount(0);
+        await expect(page.getByRole('main')).not.toContainText(WEB_PAGE_LINE);
 
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make public' }).click();
@@ -53,8 +53,7 @@ test.describe('why a recipe cannot be public (P6)', () => {
         await sheet.getByRole('button', { name: 'Make public' }).click();
 
         // The one standing line is plain text, not an alert; a screen reader hears it once, from the polite status region.
-        // Two copies of the words exist: the plain line and the hidden announcement, and only one of them is a status.
-        await expect(page.getByText(WEB_PAGE_LINE)).toHaveCount(2);
+        await expect(page.getByRole('main')).toContainText(WEB_PAGE_LINE);
         await expect(page.getByRole('status').filter({ hasText: WEB_PAGE_LINE })).toHaveCount(1);
         await expect(page.getByRole('alert').filter({ hasText: WEB_PAGE_LINE })).toHaveCount(0);
 

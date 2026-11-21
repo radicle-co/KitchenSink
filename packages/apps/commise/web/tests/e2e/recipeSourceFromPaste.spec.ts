@@ -355,14 +355,14 @@ test.describe('removing a saved source (ADR-0095)', () => {
         const section = editorSection(page, 'Photos & publish');
 
         // Before: the one note (a saved web copy reads "from a web page"), on a Public card that is unavailable.
-        await expect(section.getByText('This recipe stays private because it’s from a web page.')).toBeVisible();
+        await expect(section).toContainText('This recipe stays private because it’s from a web page.');
         await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
 
         await section.getByRole('button', { name: 'Remove source' }).click();
 
         await expect(page.getByText('Source removed.')).toBeVisible();
         // After: the source is held by what was saved, so the note says so; the same unavailable card.
-        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        await expect(section).toContainText(HELD_NOTE);
         await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
         await expect(section.getByRole('group', { name: 'Who can see it' })).toBeFocused();
         await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();

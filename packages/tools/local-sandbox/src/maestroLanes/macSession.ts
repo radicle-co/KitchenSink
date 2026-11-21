@@ -77,7 +77,7 @@ export function macPathsOf(home?: string) {
         androidLaneHostScript: at('ksIos/lane/androidLaneHost.sh'),
         laneHome: (index: number): string => at(`ksIos/lanes/lane${String(index)}`),
         runTree: (runId: string): string => at(`ksIos/run/${runId}`),
-        iosApp: (key: string): string => at(`ksIos/apps/${key}`),
+        iosApp: (key: string): string => at(`ksIos/apps/ios/${key}`),
         androidApp: (key: string): string => at(`ksIos/apps/android/${key}`),
         androidEnv: at('ksAndroid/env.sh'),
         androidSdk: at('ksAndroid/sdk'),

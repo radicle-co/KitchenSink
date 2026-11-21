@@ -1,7 +1,7 @@
 /**
  * @module @commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with
- * `RecipeVisibilityNotice.tsx` and presentational like it: an assertive moment region, a muted standing line outside any live region, and a polite
- * hidden region that carries the one announcement.
+ * `RecipeVisibilityNotice.tsx` and presentational like it: an assertive moment region, a muted standing line outside
+ * any live region, and a polite hidden region that carries the one announcement.
  *
  * @pattern Presentational component — pure props to JSX; the notice and the announcement are decided in the controller
  */

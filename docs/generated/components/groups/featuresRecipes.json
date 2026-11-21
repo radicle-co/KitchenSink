@@ -10112,7 +10112,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with\n`RecipeVisibilityNotice.tsx` and presentational like it: an assertive moment region, a muted standing line outside any live region, and a polite\nhidden region that carries the one announcement.",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with\n`RecipeVisibilityNotice.tsx` and presentational like it: an assertive moment region, a muted standing line outside\nany live region, and a polite hidden region that carries the one announcement.",
                     "moduleTags": [
                         {
                             "name": "module",

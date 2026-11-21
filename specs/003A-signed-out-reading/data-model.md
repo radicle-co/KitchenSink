@@ -80,7 +80,7 @@ Validation:
 
 `active` opens. `erased` also opens, because every public, published recipe of an erased author is one the erasure kept
 public, and the owner ruled those stay open with no author name (spec Q8). The projection then shows no author and never
-the pseudonymous handle, which embeds the user id. Exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b); an erased cook reads "a former member". No other creator field until 012. `suspended`, `closed` and `unknown` close. The standing is read on
+the pseudonymous handle, which embeds the user id. Exception: names in a copy's credit chain and the checker line (spec Q8, owner 2026-11-20). `suspended`, `closed` and `unknown` close. The standing is read on
 each origin miss and is not stored by recipe-service.
 
 ## Public recipe address

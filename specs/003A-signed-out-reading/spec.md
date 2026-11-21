@@ -442,7 +442,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   A recipe the cook left public when they erased their account is the one exception (owner ruling 2026-11-09, Q8,
   amending `021-FR-002` rule 7): an `erased` standing does not close a public, published recipe. It is shown with no
   author name and no pseudonym, because the pseudonymous handle the erasure writes carries the user id. Suspended,
-  closed and unknown standings still close the recipe. Exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b); an erased cook reads "a former member". No other creator field until 012.
+  closed and unknown standings still close the recipe. Exception: names in a copy's credit chain and the checker line (spec Q8, owner 2026-11-20).
 
 #### D. Caching, purge and rate limits
 
@@ -581,3 +581,5 @@ native public view shows the offline state with Try again. The web page is serve
 
 None. The owner answered all eight on 2026-11-09. The answers are recorded under Clarifications, Session
 2026-11-09.
+
+Owed (a design task, not an owner question): the strings a signed-out reader sees for a copy's credit chain: `staff-ux-engineer` SPECIFY. Open: whether the signed-out page names the copy's owner, which the 2026-11-20 exception (chain and checker line) does not cover.

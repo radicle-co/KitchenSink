@@ -28,7 +28,13 @@ while [ $# -gt 1 ]; do
 done
 mkdir -p "$out"
 printf '%s\\n' "$1" >> "$SCQ_HOME/paths.log"
-printf '{"statistics":{"total":{"sources":1}},"duplicates":[]}' > "$out/jscpd-report.json"
+# Like jscpd 5.2.0, a duplicate in a file target is named by its basename: relative to the file's own directory.
+dup=''
+if [ -f "$1" ]; then
+    n=$(basename "$1")
+    dup='{"lines":1,"firstFile":{"name":"'$n'","start":1,"end":1},"secondFile":{"name":"'$n'","start":1,"end":1}}'
+fi
+printf '{"statistics":{"total":{"sources":1}},"duplicates":[%s]}' "$dup" > "$out/jscpd-report.json"
 `;
 let root;
 let repo;
@@ -80,8 +86,17 @@ describe('scan.mjs jscpd for a code file outside every package', () => {
         assert.deepEqual(scanPaths('HEAD~3..HEAD~2'), [join(repo, 'scripts')]);
     });
 
-    it('scans a file in a folder that holds a package as that file alone', () => {
+    it('scans a file in a folder that holds a package as that file alone, and maps its clones to the repo path', () => {
         assert.deepEqual(scanPaths('HEAD~2..HEAD~1'), [join(repo, 'tools', 'loose.mjs')]);
+        const findings = readFileSync(join(root, 'out', 'findings.jsonl'), 'utf8')
+            .trim()
+            .split('\n')
+            .map((line) => JSON.parse(line))
+            .filter((f) => f.tool === 'jscpd');
+        assert.deepEqual(
+            findings.map((f) => f.file),
+            ['tools/loose.mjs'],
+        );
     });
 
     it('scans a file directly in the repository root as that file alone', () => {

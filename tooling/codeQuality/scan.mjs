@@ -662,7 +662,7 @@ await tool('jscpd', () => {
         targets += res.statistics.total.sources;
         for (const d of res.duplicates) {
             // jscpd reports paths relative to the directory it scanned (the package root), not the repo.
-            const pkgDir = codeFiles.includes(root) ? repo : join(repo, root); // a lone root file reports against the repo
+            const pkgDir = codeFiles.includes(root) ? dirname(join(repo, root)) : join(repo, root); // a lone file reports against its own directory
             const a = relative(repo, resolve(pkgDir, d.firstFile.name));
             const b = relative(repo, resolve(pkgDir, d.secondFile.name));
             // Only a clone with one side on a changed line: the rest is the repository's own backlog.

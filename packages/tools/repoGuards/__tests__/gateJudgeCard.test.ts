@@ -207,8 +207,8 @@ describe('the staff-code-quality card, GATE mode', () => {
         const mandate = between(fold(rawStandards), '### 7.1 Test Mandate', '### 7.1a');
         const gate = between(mandate, 'This is a **HARD MERGE GATE.**', '- **"It can\'t run in this environment"');
 
-        expect(mandate).not.toContain('ZERO EXCEPTIONS');
-        expect(mandate).not.toContain('no exceptions');
+        expect(mandate.toLowerCase()).not.toContain('zero exceptions');
+        expect(mandate.toLowerCase()).not.toContain('no exceptions');
         expect(mandate).toContain('with **one exception, the end-to-end wrap-up in §7.1b**');
         expect(gate).toContain('§7.1b');
     });

@@ -1,10 +1,11 @@
 /**
- * The window is the ONE modal view: the panel or card that is the dialog, and the snackbar's outlet, sit inside the same
- * `aria-modal` view (staff ruling S90 on designer D79).
+ * The window is the ONE modal view: the panel or card that is the dialog, and the snackbar's outlet, sit inside the
+ * same `aria-modal` view (staff ruling S90 on designer D79).
  *
- * On iOS a modal view hides its siblings from VoiceOver. The outlet was a sibling of the panel that carried `aria-modal`,
- * so Undo could be tapped by a test tool and unreachable by VoiceOver. So `OverlayHost` wraps its children and the outlet
- * in one modal view, and the sheet and the dialog keep their dialog role and name without being modal themselves.
+ * On iOS a modal view hides its siblings from VoiceOver. The outlet was a sibling of the panel that carried
+ * `aria-modal`, so Undo could be tapped by a test tool and unreachable by VoiceOver. So `OverlayHost` wraps its
+ * children and the outlet in one modal view, and the sheet and the dialog keep their dialog role and name without
+ * being modal themselves.
  *
  * ⚠️ react-native-web draws a `Modal` into the same document, with a modal root of its own: this proves the STRUCTURE
  * (what shares a modal ancestor), not what VoiceOver reads. That needs a device, and no agent can drive VoiceOver.

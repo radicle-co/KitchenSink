@@ -5,7 +5,8 @@
  *
  * - `modal={false}`: no portal and no window of its own; `OverlayHost` is the window, and Back, Close and the
  *   screen-reader escape all reach the host through it. On a device Tamagui's content is then a plain frame in place,
- *   with the dialog role (`OverlayHost`'s window view is the modal one); the outside-press and focus-trap layers are web-only.
+ *   with the dialog role (`OverlayHost`'s window view is the modal one); the outside-press and focus-trap layers are
+ *   web-only.
  * - Controlled `open`, no state of its own: the engine's own close (`onOpenChange(false)`) asks the host once, and the host
  *   answers by changing `open` or not. A dialog that vetoes (a form that is submitting) simply stays.
  * - The scrim is not a dismiss route, so the frame hands the engine no overlay.

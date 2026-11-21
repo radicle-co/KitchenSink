@@ -23,6 +23,14 @@ import { Sheet } from '../Sheet.native.js';
 
 const INSET = 16;
 
+const state = vi.hoisted(() => ({ width: 390 }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, useWindowDimensions: () => ({ ...actual.useWindowDimensions(), width: state.width }) };
+});
+
 vi.mock('react-native-safe-area-context', () => ({
     useSafeAreaInsets: () => ({ top: 24, right: 0, bottom: INSET, left: 0 }),
 }));
@@ -30,6 +38,7 @@ vi.mock('../../layout/useKeyboardShown.native.js', () => ({ useKeyboardShown: ()
 vi.mock('../../motion/useReduceMotion.native.js', () => ({ useReduceMotion: () => false }));
 
 beforeEach(() => {
+    state.width = 390;
     vi.useFakeTimers();
     vi.spyOn(AccessibilityInfo, 'isScreenReaderEnabled').mockImplementation(() => Promise.resolve(false));
 });
@@ -51,23 +60,23 @@ function Shower(): JSX.Element {
     );
 }
 
-function renderSheet(overrides: Partial<SheetProps> = {}): void {
-    render(
-        <SnackbarHost>
-            <Sheet
-                open
-                onOpenChange={vi.fn()}
-                title="Ingredients"
-                closeLabel="Close ingredients"
-                size="content"
-                footer={<Text accessibilityRole="button">Clear ticks</Text>}
-                {...overrides}
-            >
-                <Shower />
-            </Sheet>
-        </SnackbarHost>,
-    );
-}
+const sheetTree = (overrides: Partial<SheetProps> = {}): JSX.Element => (
+    <SnackbarHost>
+        <Sheet
+            open
+            onOpenChange={vi.fn()}
+            title="Ingredients"
+            closeLabel="Close ingredients"
+            size="content"
+            footer={<Text accessibilityRole="button">Clear ticks</Text>}
+            {...overrides}
+        >
+            <Shower />
+        </Sheet>
+    </SnackbarHost>
+);
+
+const renderSheet = (overrides: Partial<SheetProps> = {}): ReturnType<typeof render> => render(sheetTree(overrides));
 
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Ingredients' }).closest('[role="dialog"]') as HTMLElement;
@@ -141,5 +150,23 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         layOut({ sheet: 700, topBlock: 64, footer: 92 });
 
         expect(regionBottom()).toBe(`${92 + SNACKBAR_GAP}px`);
+    });
+
+    // A centred dialog's footer is inside a card in the middle of the window, not at the window's foot.
+    it('keeps the window foot for a centred dialog, whatever its footer reports', () => {
+        state.width = 820;
+        renderSheet({ presentation: 'dialog' });
+        layOut({ sheet: 300, topBlock: 64, footer: 92 });
+
+        expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
+    });
+
+    it('goes back to the window foot when the footer is taken away after it reported', () => {
+        const { rerender } = renderSheet();
+
+        layOut({ sheet: 600, topBlock: 56, footer: 92 });
+        rerender(sheetTree({ footer: undefined }));
+
+        expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
     });
 });

@@ -263,7 +263,8 @@ describe('Sheet (native)', () => {
         expect(onShown).toHaveBeenCalledTimes(2);
     });
 
-    // REWRITTEN for S90 (qse record 0073): the window, not the panel, is the modal view, so the snackbar's outlet shares it.
+    // REWRITTEN for S90 (qse record 0073): the window, not the panel, is the modal view, and the snackbar's outlet
+    // shares it.
     it('is a dialog in the one modal window, not modal itself', () => {
         renderSheet();
 

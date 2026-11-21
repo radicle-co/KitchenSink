@@ -169,3 +169,36 @@ export function evaluateSourceCorrectionScope(input: {
 
     return { kind: 'apply', provenance, hold: holdOf(from, to), from, to };
 }
+
+/** What the preview decides. */
+export type SourceCorrectionPreviewVerdict =
+    | { readonly kind: 'forbidden' }
+    | { readonly kind: 'notFound' }
+    | { readonly kind: 'found'; readonly answer: SourceAnswerKind | undefined };
+
+/**
+ * Decide the read-only preview a staff command shows before it applies (ADR-0099). The same order as
+ * `evaluateSourceCorrectionScope`: `forbidden` from the grants alone, then ONE `notFound` for a missing recipe and a wrong owner,
+ * so the preview can never be used to learn who owns a recipe. Pure.
+ *
+ * @param input.callerScopes - The caller's grants.
+ * @param input.recipe - The recipe, or `undefined` when none is active.
+ * @param input.ownerAccountId - The owner staff confirmed.
+ */
+export function evaluateSourceCorrectionPreview(input: {
+    readonly callerScopes: readonly string[];
+    readonly recipe: CorrectableRecipe | undefined;
+    readonly ownerAccountId: string;
+}): SourceCorrectionPreviewVerdict {
+    const { callerScopes, recipe, ownerAccountId } = input;
+
+    if (!callerScopes.includes(SOURCE_CORRECT_SCOPE)) {
+        return { kind: 'forbidden' };
+    }
+
+    if (recipe === undefined || recipe.ownerId !== ownerAccountId) {
+        return { kind: 'notFound' };
+    }
+
+    return { kind: 'found', answer: answerOf(recipe) };
+}

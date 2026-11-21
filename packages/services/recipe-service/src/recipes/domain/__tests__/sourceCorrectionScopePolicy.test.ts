@@ -9,6 +9,7 @@ import { RecipeSourceType } from '@kitchensink/recipe-core';
 
 import { SOURCE_CORRECT_SCOPE } from '../../recipes.schema.js';
 import {
+    evaluateSourceCorrectionPreview as evaluatePreview,
     evaluateSourceCorrectionScope,
     holdOf,
     type CorrectableRecipe,
@@ -314,5 +315,40 @@ describe('the other verdicts', () => {
                 answer: { kind: 'public_web', citation: 'http://localhost/recipe' },
             }),
         ).toEqual({ kind: 'invalidTarget' });
+    });
+});
+
+describe('evaluateSourceCorrectionPreview — the read the runbook command shows before it applies', () => {
+    it('no grant: forbidden, decided before the recipe is looked at (a missing recipe is forbidden too)', () => {
+        for (const callerScopes of [[], ['recipes:import:public']]) {
+            for (const recipe of [undefined, STORED.own]) {
+                expect(evaluatePreview({ callerScopes, recipe, ownerAccountId: OWNER })).toEqual({ kind: 'forbidden' });
+            }
+        }
+    });
+
+    it('a missing recipe and a recipe of another owner are the SAME notFound', () => {
+        const missing = evaluatePreview({ callerScopes: SCOPES, recipe: undefined, ownerAccountId: OWNER });
+        const wrongOwner = evaluatePreview({ callerScopes: SCOPES, recipe: STORED.own, ownerAccountId: 'someoneElse' });
+
+        expect(missing).toEqual({ kind: 'notFound' });
+        expect(wrongOwner).toEqual(missing);
+    });
+
+    it.each(KINDS)('names the answer a stored %s recipe holds, by the same reading the correction uses', (kind) => {
+        expect(evaluatePreview({ callerScopes: SCOPES, recipe: STORED[kind], ownerAccountId: OWNER })).toEqual({
+            kind: 'found',
+            answer: kind,
+        });
+    });
+
+    it('a recipe holding no answer is found with no answer, so the command can say it cannot be corrected', () => {
+        expect(
+            evaluatePreview({
+                callerScopes: SCOPES,
+                recipe: { ...STORED.own, statementKind: null },
+                ownerAccountId: OWNER,
+            }),
+        ).toEqual({ kind: 'found', answer: undefined });
     });
 });

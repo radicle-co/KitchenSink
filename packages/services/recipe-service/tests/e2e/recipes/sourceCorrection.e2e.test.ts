@@ -315,4 +315,21 @@ describe('a staff source correction (e2e, ADR-0099)', () => {
         expect(await recordsOf(id)).toHaveLength(0);
         expect((await readRow(id)).statementKind).toBe('authored');
     });
+
+    it('the preview reads ANOTHER cook’s private recipe for staff: title, owner, visibility, answer and flag, and the cook is refused over HTTP', async () => {
+        const id = await create({ title: 'Grandma’s Soup', statement: { ...WEB }, visibility: 'private' });
+
+        await expect(service.preview(staff(), id, COOK)).resolves.toStrictEqual({
+            title: 'Grandma’s Soup',
+            ownerAccountId: COOK,
+            visibility: 'private',
+            answer: { kind: 'webPage', citation: LINK },
+            sourceCorrected: false,
+        });
+        await expect(service.preview(staff(), id, OTHER_COOK)).rejects.toMatchObject({ code: 'RECIPE_NOT_FOUND' });
+        await expect(service.preview(staff([]), id, COOK)).rejects.toMatchObject({ status: 403 });
+
+        // The cook who owns it holds no grant: the route refuses them too.
+        expect((await send('GET', `/api/v1/recipes/${id}/source-correction?ownerAccountId=${COOK}`)).status).toBe(403);
+    });
 });

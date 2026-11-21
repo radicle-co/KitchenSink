@@ -129,6 +129,12 @@ describe('throttle wiring — effective per-route limits enforced by the real Th
             SourceCorrectionController.prototype.correctSource,
             writeLimit,
         ],
+        [
+            'recipes.previewSource (read)',
+            SourceCorrectionController,
+            SourceCorrectionController.prototype.previewSource,
+            readLimit,
+        ],
         ['collections.create (write)', CollectionsController, CollectionsController.prototype.create, writeLimit],
         ['collections.update (write)', CollectionsController, CollectionsController.prototype.update, writeLimit],
         ['collections.remove (write)', CollectionsController, CollectionsController.prototype.remove, writeLimit],

@@ -73,6 +73,13 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
 
         return 0;
     });
+    const readPreview = vi.fn(async (..._args: unknown[]) => {
+        calls.push('readPreview');
+
+        return recipe === null
+            ? undefined
+            : { ...recipe, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false };
+    });
     const transaction = async <T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> => {
         calls.push('begin');
 
@@ -80,11 +87,11 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
     };
     const service = new SourceCorrectionService(
         { transaction, lockAndCountPrivateSlots: lockOwner },
-        { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones },
+        { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones, readPreview },
         { insert: evidence },
     );
 
-    return { service, calls, rewrite, record, holdClones, evidence, lockRecipe, lockOwner };
+    return { service, calls, rewrite, record, holdClones, evidence, lockRecipe, lockOwner, readPreview };
 }
 
 const captured: string[] = [];
@@ -271,5 +278,93 @@ describe('SourceCorrectionService.correct', () => {
         expect(line).toContain(STAFF);
         expect(line).not.toContain(OWNER);
         expect(line).not.toContain(LINK);
+    });
+});
+
+describe('SourceCorrectionService.preview', () => {
+    it('shows the title, owner, answer and visibility of the recipe, with no transaction and no lock', async () => {
+        const t = build();
+
+        const preview = await t.service.preview(staff(), RECIPE_ID, OWNER);
+
+        expect(preview).toEqual({
+            title: 'Tomato Soup',
+            ownerAccountId: OWNER,
+            visibility: 'private',
+            answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' },
+            sourceCorrected: false,
+        });
+        expect(t.calls).toEqual(['readPreview']);
+        expect(t.rewrite).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['own', { statementKind: 'authored', sourceKind: null, sourceType: 'user_created' }, null],
+        ['person', { statementKind: 'fromPerson', sourceKind: null, sourceType: 'user_created' }, null],
+        [
+            'webPage',
+            {
+                sourceKind: 'public_web',
+                sourceType: 'imported_public',
+                sourceUrl: LINK,
+                sourceAttribution: 'allrecipes.com',
+            },
+            LINK,
+        ],
+        [
+            'paidSite',
+            { sourceKind: 'paid_site', sourceType: 'imported_paid', sourceAttribution: 'Sam’s Site' },
+            'Sam’s Site',
+        ],
+    ] as const)('cites a %s answer as the link, the citation or nothing', async (kind, over, citation) => {
+        const t = build({ ...BOOK_RECIPE, ...over });
+
+        await expect(t.service.preview(staff(), RECIPE_ID, OWNER)).resolves.toMatchObject({
+            answer: { kind, citation },
+        });
+    });
+
+    it('a recipe holding no answer shows answer null', async () => {
+        const t = build({ ...BOOK_RECIPE, sourceKind: null, statementKind: null, sourceType: 'user_created' });
+
+        await expect(t.service.preview(staff(), RECIPE_ID, OWNER)).resolves.toMatchObject({ answer: null });
+    });
+
+    it('forbidden is answered BEFORE any read, and logs the refusal', async () => {
+        captureLog();
+        const t = build();
+
+        await expect(t.service.preview(staff([]), RECIPE_ID, OWNER)).rejects.toMatchObject({ status: 403 });
+
+        expect(t.calls).toEqual([]);
+        expect(captured.join('\n')).toContain('"refusal":"forbidden"');
+    });
+
+    it('a missing recipe and a wrong owner are the same 404, and the refusal log names neither the owner nor the title', async () => {
+        captureLog();
+        const missing = build(null);
+        const other = build({ ...BOOK_RECIPE, ownerId: '01JUSOMEONEELSE00000000A1' });
+
+        const a = await missing.service.preview(staff(), RECIPE_ID, OWNER).catch((error: unknown) => error);
+        const b = await other.service.preview(staff(), RECIPE_ID, OWNER).catch((error: unknown) => error);
+
+        expect(a).toMatchObject({ code: RecipeErrorCode.RECIPE_NOT_FOUND });
+        expect(a).toEqual(b);
+
+        const line = captured.join('\n');
+
+        expect(line).toContain('"refusal":"notFound"');
+
+        for (const secret of [OWNER, 'Tomato Soup', 'Joy of Cooking']) {
+            expect(line).not.toContain(secret);
+        }
+    });
+
+    it('a successful preview logs nothing', async () => {
+        captureLog();
+
+        await build().service.preview(staff(), RECIPE_ID, OWNER);
+
+        expect(captured).toEqual([]);
     });
 });

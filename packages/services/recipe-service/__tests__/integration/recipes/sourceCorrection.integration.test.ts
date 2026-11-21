@@ -41,6 +41,11 @@ const BOOK: CorrectableRecipe = {
 
 let stored: CorrectableRecipe | undefined;
 const calls: string[] = [];
+const readPreview = vi.fn(async (_id: string) =>
+    stored === undefined
+        ? undefined
+        : { ...stored, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false },
+);
 const rewriteSource = vi.fn(async (..._args: unknown[]) => {
     calls.push('rewrite');
 });
@@ -114,6 +119,7 @@ beforeAll(async () => {
 
                         return stored;
                     },
+                    readPreview,
                     rewriteSource,
                     recordCorrection,
                     holdOwnersClones,
@@ -237,5 +243,68 @@ describe('POST /api/v1/recipes/:id/source-correction', () => {
         });
 
         expect(response.status).toBe(401);
+    });
+});
+
+/** One preview request as `caller`, holding `scopes` in a signed token. */
+async function get(caller: string, scopes: readonly string[], query: string, id = RECIPE_ID): Promise<Response> {
+    const token = mintToken(keypair.privateKeyPem, { sub: `user_${caller}`, azp: AZP, externalId: caller, scopes });
+
+    return fetch(`${booted.baseUrl}/api/v1/recipes/${id}/source-correction${query}`, {
+        headers: { authorization: `Bearer ${token}` },
+    });
+}
+
+describe('GET /api/v1/recipes/:id/source-correction (the runbook preview)', () => {
+    const OWNER_QUERY = `?ownerAccountId=${OWNER}`;
+
+    it.each([
+        ['a cook with no grant', []],
+        ['a curator holding only the import grant', ['recipes:import:public']],
+    ])('%s is 403 FORBIDDEN naming the scope, and the recipe is never read', async (_name, scopes) => {
+        const response = await get(OWNER, scopes, OWNER_QUERY);
+
+        await expect(errorOf(response)).resolves.toMatchObject({
+            status: 403,
+            code: 'FORBIDDEN',
+            details: { requiredScope: SOURCE_CORRECT_SCOPE },
+        });
+        expect(readPreview).not.toHaveBeenCalled();
+    });
+
+    it('a missing recipe and a wrong owner answer with the SAME 404 body, byte for byte', async () => {
+        stored = undefined;
+        const missing = await get(STAFF, [SOURCE_CORRECT_SCOPE], OWNER_QUERY);
+        const missingBody = await missing.text();
+
+        stored = BOOK;
+        const wrong = await get(STAFF, [SOURCE_CORRECT_SCOPE], '?ownerAccountId=01JSOMEONEELSE000000001');
+        const wrongBody = await wrong.text();
+
+        expect(missing.status).toBe(404);
+        expect(wrong.status).toBe(404);
+        expect(wrongBody).toBe(missingBody);
+    });
+
+    it('a request with no ownerAccountId is 400, and the recipe is never read', async () => {
+        const response = await get(STAFF, [SOURCE_CORRECT_SCOPE], '');
+
+        expect(response.status).toBe(400);
+        expect(readPreview).not.toHaveBeenCalled();
+    });
+
+    it('answers EXACTLY the title, owner, visibility, answer and corrected flag, uncached', async () => {
+        const response = await get(STAFF, [SOURCE_CORRECT_SCOPE], OWNER_QUERY);
+
+        expect(response.status).toBe(200);
+        expect(response.headers.get('cache-control')).toBe('private, no-store');
+        expect(await response.json()).toStrictEqual({
+            title: 'Tomato Soup',
+            ownerAccountId: OWNER,
+            visibility: 'private',
+            answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' },
+            sourceCorrected: false,
+        });
+        expect(calls).toEqual([]);
     });
 });

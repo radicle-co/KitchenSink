@@ -120,6 +120,8 @@ import {
     recipeNutritionStateSchema,
     privateSlotUsageSchema,
     setRecipeVisibilityRequestSchema,
+    sourceCorrectionPreviewQuerySchema,
+    sourceCorrectionPreviewSchema,
     sourceCorrectionRequestSchema,
     sourceCorrectionResponseSchema,
     updateRecipeRequestSchema,
@@ -197,6 +199,7 @@ export const openApiComponents = {
     SetRecipeVisibilityRequest: setRecipeVisibilityRequestSchema,
     SourceCorrectionRequest: sourceCorrectionRequestSchema,
     SourceCorrectionResponse: sourceCorrectionResponseSchema,
+    SourceCorrectionPreview: sourceCorrectionPreviewSchema,
     PrivateSlotUsage: privateSlotUsageSchema,
     RebindIngredientLineRequest: rebindIngredientLineRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
@@ -603,6 +606,31 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         },
     },
     '/api/v1/recipes/{id}/source-correction': {
+        get: {
+            operationId: 'previewRecipeSourceCorrection',
+            summary: 'Staff: read what a source correction would change (ADR-0099 runbook preview).',
+            description:
+                'Requires the staff grant `recipes:source:correct`. Read-only and uncached: it answers the recipe’s title, owner, current source answer and visibility so staff can check them against the owner’s confirmation before they apply. A missing recipe and a recipe of another owner answer the same `404`.',
+            parameters: [
+                uuidPathParam('id', 'The recipe id.'),
+                {
+                    name: 'ownerAccountId',
+                    in: 'query',
+                    required: true,
+                    description: 'The owner staff confirmed with the cook.',
+                    schema: sourceCorrectionPreviewQuerySchema.shape.ownerAccountId,
+                },
+            ],
+            responses: {
+                '200': { description: 'The recipe as it stands.', schema: 'SourceCorrectionPreview' },
+                '403': {
+                    description: 'The caller does not hold the staff grant (`details.requiredScope`).',
+                    schema: 'ErrorResponse',
+                },
+                '404': RECIPE_NOT_FOUND,
+                ...sharedErrorResponses(),
+            },
+        },
         post: {
             operationId: 'correctRecipeSource',
             summary: 'Staff: correct the confirmed source answer of a recipe (ADR-0099).',

@@ -133,7 +133,11 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // write's own transaction, so it holds no client of its own.
         RecipeStatementAttestationsDal,
         // ADR-0099 — the staff correction: stateless writes over the caller's transaction, and the Command that orders them.
-        SourceCorrectionsDal,
+        {
+            provide: SourceCorrectionsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): SourceCorrectionsDal => new SourceCorrectionsDal(db),
+        },
         SourceCorrectionService,
         // Judges and records every write that can leave a recipe public (ADR-0095): the one owner of both tables above.
         PublicStatementGate,

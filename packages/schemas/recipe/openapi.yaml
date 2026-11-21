@@ -902,6 +902,94 @@ paths:
             schema:
               $ref: "#/components/schemas/SetRecipeVisibilityRequest"
   /api/v1/recipes/{id}/source-correction:
+    get:
+      operationId: previewRecipeSourceCorrection
+      summary: "Staff: read what a source correction would change (ADR-0099 runbook preview)."
+      security:
+        - clerkSessionToken: []
+      responses:
+        "200":
+          description: The recipe as it stands.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SourceCorrectionPreview"
+        "400":
+          description: "The request body, query or path was rejected. `code` says by what: `VALIDATION_FAILED` from the boundary
+            parser (with `details.fields` naming each offending field, including a rejected unknown key), or a domain
+            code such as `INVALID_VISIBILITY` / `UNKNOWN_INGREDIENT`. A write that would leave a published, public
+            recipe holding a line bound to a food only its author can see is `PRIVATE_FOODS_ON_PUBLIC_RECIPE`, with
+            every refused line in `details.lines` (`sortOrder`, `foodId`); make the food public or keep the recipe
+            private (ADR-0029 section 4)."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No, invalid, expired, or wrong-authorized-party bearer token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: "The caller does not hold the staff grant (`details.requiredScope`). Or: The token is genuine but its
+            account is suspended: `code: ACCOUNT_SUSPENDED` (ADR-0081). Answered before the route runs."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: No such recipe, or it is not visible to the caller.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "423":
+          description: "The caller has an in-flight account erasure, so writes are locked (HAZ-052). `code: ERASURE_IN_PROGRESS`."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: "Per-user rate limit exceeded (`code: TOO_MANY_REQUESTS`). ⚠️ This body used to be a bare JSON STRING — the
+            throttler exception passed through the filter unchanged — and is now the envelope."
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+          headers:
+            Retry-After:
+              description: Seconds until the limit resets.
+              schema:
+                type: integer
+                minimum: 0
+                exclusiveMinimum: true
+        "500":
+          description: Unexpected server error. The body never carries internals.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+      description: "Requires the staff grant `recipes:source:correct`. Read-only and uncached: it answers the recipe’s title,
+        owner, current source answer and visibility so staff can check them against the owner’s confirmation before they
+        apply. A missing recipe and a recipe of another owner answer the same `404`."
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The recipe id.
+          schema:
+            type: string
+            format: uuid
+            pattern: ^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$
+        - name: ownerAccountId
+          in: query
+          required: true
+          description: The owner staff confirmed with the cook.
+          schema:
+            type: string
+            minLength: 1
+            maxLength: 255
     post:
       operationId: correctRecipeSource
       summary: "Staff: correct the confirmed source answer of a recipe (ADR-0099)."
@@ -7630,7 +7718,44 @@ components:
             - unchanged
       required:
         - result
-      additionalProperties: false
+    SourceCorrectionPreview:
+      type: object
+      properties:
+        title:
+          type: string
+        ownerAccountId:
+          type: string
+        visibility:
+          type: string
+          enum:
+            - public
+            - private
+        answer:
+          nullable: true
+          type: object
+          properties:
+            kind:
+              type: string
+              enum:
+                - own
+                - person
+                - webPage
+                - book
+                - paidSite
+            citation:
+              nullable: true
+              type: string
+          required:
+            - kind
+            - citation
+        sourceCorrected:
+          type: boolean
+      required:
+        - title
+        - ownerAccountId
+        - visibility
+        - answer
+        - sourceCorrected
     PrivateSlotUsage:
       oneOf:
         - type: object

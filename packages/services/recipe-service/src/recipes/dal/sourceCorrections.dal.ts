@@ -17,11 +17,13 @@
  *
  * @sideEffect Every method reads or writes Postgres through the transaction it is given.
  */
+import type { RecipeVisibility } from '@kitchensink/recipe-core';
 import { and, eq, sql } from 'drizzle-orm';
 
 import type { ResolvedProvenance } from '../domain/provenancePolicy.js';
 import type { CorrectableRecipe } from '../domain/sourceCorrectionScopePolicy.js';
 import { recipeSourceCorrections, recipes } from '../../database/schema/index.js';
+import type { RecipeDrizzle } from '../../database/client.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 import { activeRecipe } from './recipePredicates.js';
 
@@ -35,7 +37,41 @@ export interface CorrectionRecord {
     readonly reason: string;
 }
 
+/** What the preview reads: the correctable facts, and what staff need to see to be sure it is the right recipe. */
+export interface PreviewableRecipe extends CorrectableRecipe {
+    readonly title: string;
+    readonly visibility: RecipeVisibility;
+    readonly sourceCorrectionHold: boolean;
+}
+
 export class SourceCorrectionsDal {
+    public constructor(private readonly db: RecipeDrizzle) {}
+
+    /**
+     * The recipe as the preview shows it, read WITHOUT a lock: it is display only, and the correction re-decides on the locked row.
+     *
+     * @param id - The recipe.
+     * @returns The facts, or `undefined` when no active recipe has that id.
+     */
+    public async readPreview(id: string): Promise<PreviewableRecipe | undefined> {
+        const [row] = await this.db
+            .select({
+                ownerId: recipes.ownerId,
+                title: recipes.title,
+                visibility: recipes.visibility,
+                sourceType: recipes.sourceType,
+                sourceKind: recipes.sourceKind,
+                statementKind: recipes.statementKind,
+                sourceUrl: recipes.sourceUrl,
+                sourceAttribution: recipes.sourceAttribution,
+                sourceCorrectionHold: recipes.sourceCorrectionHold,
+            })
+            .from(recipes)
+            .where(and(eq(recipes.id, id), activeRecipe()));
+
+        return row;
+    }
+
     /**
      * The recipe's owner and source facts, read `FOR UPDATE`. The caller already holds the owner's private-slot lock, so the order
      * is owner lock, then recipe row (ADR-0073).

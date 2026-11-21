@@ -21,12 +21,39 @@ import type { Principal } from '../auth/principal.js';
 import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
 import type { RecipesDal } from './dal/recipes.dal.js';
 import { SourceCorrectionsDal } from './dal/sourceCorrections.dal.js';
-import { evaluateSourceCorrectionScope, type SourceCorrectionVerdict } from './domain/sourceCorrectionScopePolicy.js';
+import {
+    evaluateSourceCorrectionPreview,
+    evaluateSourceCorrectionScope,
+    type SourceAnswerKind,
+    type SourceCorrectionVerdict,
+} from './domain/sourceCorrectionScopePolicy.js';
 import { evidenceListOf } from './domain/sourceEvidence.js';
 import { provenanceNotPermitted, recipeNotFound, sourceCorrectionInvalidTarget } from './recipe.error.js';
-import { SOURCE_CORRECT_SCOPE, type SourceCorrectionRequest, type SourceCorrectionResponse } from './recipes.schema.js';
+import {
+    SOURCE_CORRECT_SCOPE,
+    type SourceCorrectionPreview,
+    type SourceCorrectionRequest,
+    type SourceCorrectionResponse,
+} from './recipes.schema.js';
 import { RECIPES_DAL } from './recipes.tokens.js';
 import { recordSourceCorrected, recordSourceCorrectionRefused } from './sourceEvents.js';
+
+/** What a preview cites for an answer: the link, the cook's citation, or nothing for "I wrote this" and "from another person". Pure. */
+function citationOf(
+    answer: SourceAnswerKind,
+    recipe: { sourceUrl: string | null; sourceAttribution: string | null },
+): string | null {
+    switch (answer) {
+        case 'webPage':
+            return recipe.sourceUrl;
+        case 'book':
+        case 'paidSite':
+            return recipe.sourceAttribution;
+        case 'own':
+        case 'person':
+            return null;
+    }
+}
 
 /** What the transaction decided, handed out so the log line is written after the commit. */
 type Outcome = SourceCorrectionVerdict;
@@ -39,7 +66,7 @@ export class SourceCorrectionService {
         @Inject(SourceCorrectionsDal)
         private readonly corrections: Pick<
             SourceCorrectionsDal,
-            'lockRecipe' | 'rewriteSource' | 'recordCorrection' | 'holdOwnersClones'
+            'lockRecipe' | 'rewriteSource' | 'recordCorrection' | 'holdOwnersClones' | 'readPreview'
         >,
         @Inject(RecipeSourceEvidenceDal) private readonly evidence: Pick<RecipeSourceEvidenceDal, 'insert'>,
     ) {}
@@ -116,6 +143,49 @@ export class SourceCorrectionService {
             case 'invalidTarget':
                 return this.refuse(principal, 'invalidTarget');
         }
+    }
+
+    /**
+     * What staff see before they apply a correction: the recipe's title, owner, answer and visibility (ADR-0099 runbook).
+     *
+     * Read-only and unlocked: it is display, and `correct` re-decides on the locked row. The same order as `correct`: the grant
+     * first, with no read; then ONE answer for a missing recipe and a wrong owner. Nothing is logged on success, and no refusal
+     * line carries a title, owner, citation or reason.
+     *
+     * @param principal - The staff caller.
+     * @param recipeId - The recipe.
+     * @param ownerAccountId - The owner staff confirmed.
+     * @returns The preview.
+     * @throws {HttpException} `403 FORBIDDEN` without the grant; `404` for a missing recipe or another owner's.
+     */
+    public async preview(
+        principal: Principal,
+        recipeId: string,
+        ownerAccountId: string,
+    ): Promise<SourceCorrectionPreview> {
+        const callerScopes = [...principal.scopes, ...principal.permissions];
+
+        if (evaluateSourceCorrectionPreview({ callerScopes, recipe: undefined, ownerAccountId }).kind === 'forbidden') {
+            return this.refuse(principal, 'forbidden');
+        }
+
+        const recipe = await this.corrections.readPreview(recipeId);
+        const verdict = evaluateSourceCorrectionPreview({ callerScopes, recipe, ownerAccountId });
+
+        if (verdict.kind !== 'found' || recipe === undefined) {
+            return this.refuse(principal, verdict.kind === 'forbidden' ? 'forbidden' : 'notFound', recipeId);
+        }
+
+        return {
+            title: recipe.title,
+            ownerAccountId: recipe.ownerId,
+            visibility: recipe.visibility,
+            answer:
+                verdict.answer === undefined
+                    ? null
+                    : { kind: verdict.answer, citation: citationOf(verdict.answer, recipe) },
+            sourceCorrected: recipe.sourceCorrectionHold,
+        };
     }
 
     /** Log the refusal and throw its answer. */

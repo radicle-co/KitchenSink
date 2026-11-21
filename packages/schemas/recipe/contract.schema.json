@@ -15310,6 +15310,84 @@
                 }
             ]
         },
+        "sourceCorrectionPreviewQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ownerAccountId": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ownerAccountId"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionPreviewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "answer": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "kind": {
+                                    "enum": [
+                                        "own",
+                                        "person",
+                                        "webPage",
+                                        "book",
+                                        "paidSite"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "ownerAccountId": {
+                    "type": "string"
+                },
+                "sourceCorrected": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "title",
+                "ownerAccountId",
+                "visibility",
+                "answer",
+                "sourceCorrected"
+            ],
+            "type": "object"
+        },
         "sourceCorrectionRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

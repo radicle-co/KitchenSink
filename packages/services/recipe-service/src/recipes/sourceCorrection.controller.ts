@@ -7,14 +7,27 @@
  * ⛔ The grant (`recipes:source:correct`) is decided by `evaluateSourceCorrectionScope`, a policy over the principal's scopes, not by
  * a Guard (ADR-0023, DD18): what is authorised is a value on the request and a row read under lock.
  */
-import { Body, Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UsePipes } from '@nestjs/common';
+import {
+    Body,
+    Controller,
+    Get,
+    Header,
+    HttpCode,
+    HttpStatus,
+    Param,
+    ParseUUIDPipe,
+    Post,
+    Query,
+    UsePipes,
+} from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 
 import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
 import type { Principal } from '../auth/principal.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
 import { SourceCorrectionDto } from './dto/sourceCorrection.dto.js';
-import type { SourceCorrectionResponse } from './recipes.schema.js';
+import { SourceCorrectionPreviewQueryDto } from './dto/sourceCorrectionPreviewQuery.dto.js';
+import type { SourceCorrectionPreview, SourceCorrectionResponse } from './recipes.schema.js';
 import { SourceCorrectionService } from './sourceCorrection.service.js';
 
 @Controller('api/v1/recipes')
@@ -32,5 +45,19 @@ export class SourceCorrectionController {
         @Body() body: SourceCorrectionDto,
     ): Promise<SourceCorrectionResponse> {
         return this.sourceCorrection.correct(principal, id, body);
+    }
+
+    /**
+     * What staff see before they apply: the recipe's title, owner, answer and visibility. Read-only, `private, no-store` (the body
+     * is another cook's private recipe), and answered under the same grant and the same single `404` as the correction.
+     */
+    @Get(':id/source-correction')
+    @Header('Cache-Control', 'private, no-store')
+    public async previewSource(
+        @CurrentPrincipal() principal: Principal,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Query() query: SourceCorrectionPreviewQueryDto,
+    ): Promise<SourceCorrectionPreview> {
+        return this.sourceCorrection.preview(principal, id, query.ownerAccountId);
     }
 }

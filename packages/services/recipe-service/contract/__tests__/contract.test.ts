@@ -540,7 +540,7 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
      * So both directions are now asserted: the exempt set is exactly these seven names, and every one of them is
      * genuinely non-strict. Adding another is a visible, reviewable edit.
      */
-    it('exempts EXACTLY the seven read queries from strictness, and each of them really is open', async () => {
+    it('exempts EXACTLY the eight read queries from strictness, and each of them really is open', async () => {
         const modules = await Promise.all(
             authored.map(
                 async (schema) =>
@@ -565,6 +565,8 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
             'listCollectionsQuerySchema',
             'listRecipesQuerySchema',
             'recipeSearchQuerySchema',
+            // ADR-0099: the owner staff confirmed on the correction preview — a READ query like the others, open for the same reason.
+            'sourceCorrectionPreviewQuerySchema',
         ]);
 
         const rejecting = querySchemas
@@ -682,6 +684,9 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         RecipeNutritionState: 'recipeNutritionStateSchema',
         RecipeNutritionResponse: 'recipeNutritionResponseSchema',
         SetRecipeVisibilityRequest: 'setRecipeVisibilityRequestSchema',
+        SourceCorrectionPreview: 'sourceCorrectionPreviewSchema',
+        SourceCorrectionRequest: 'sourceCorrectionRequestSchema',
+        SourceCorrectionResponse: 'sourceCorrectionResponseSchema',
         PrivateSlotUsage: 'privateSlotUsageSchema',
         RebindIngredientLineRequest: 'rebindIngredientLineRequestSchema',
         SetRatingRequest: 'setRatingRequestSchema',

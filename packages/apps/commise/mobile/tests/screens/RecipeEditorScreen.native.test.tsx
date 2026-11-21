@@ -685,7 +685,10 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
     });
 
     describe('a book or paid-site recipe: private only', () => {
-        const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+        const REASON = {
+            imported_physical: 'This recipe stays private because it’s from a cookbook or magazine.',
+            imported_paid: 'This recipe stays private because it’s from a paid website.',
+        } as const;
 
         it.each(['imported_physical', 'imported_paid'] as const)(
             '⛔ shows Public refused on a private %s recipe, with the reason in its words',
@@ -701,7 +704,7 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
                 const pub = screen.getByRole('radio', { name: /^Public/u });
 
                 // The card's dimmed state and its hint are asserted on the field's own suite (jsdom drops them here).
-                expect(within(pub).getByText(REASON)).toBeTruthy();
+                expect(within(pub).getByText(REASON[sourceType])).toBeTruthy();
             },
         );
 
@@ -724,7 +727,9 @@ describe('RecipeEditorScreen (native) — Private (E1, private slots and Pro)', 
             profile.paidFeatures = 'upsell';
             await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
 
-            expect(screen.queryByText(REASON)).toBeNull();
+            for (const line of Object.values(REASON)) {
+                expect(screen.queryByText(line)).toBeNull();
+            }
         });
     });
 

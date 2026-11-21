@@ -641,7 +641,7 @@ describe('the retry evidence', () => {
         );
         const projection = JSON.parse(run.projection ?? 'null') as Record<string, unknown>;
 
-        expect(Object.keys(projection).sort()).toEqual([
+        expect(Object.keys(projection).sort((a, b) => a.localeCompare(b))).toEqual([
             'is_error',
             'num_turns',
             'result_length',

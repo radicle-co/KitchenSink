@@ -40,6 +40,7 @@ import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { surfaceToneOf } from '@commise/ui/testing/surface-tone-of';
 
+import type { VisibilityNotice } from '../../actions/visibilityNotice.js';
 import { CookMarksProvider } from '../CookMarksProvider.js';
 import { memoryCookMarksBackend } from '../cookMarksStore.js';
 
@@ -2136,7 +2137,8 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
     const renderAsOwner = (ui: ReactElement): ReturnType<typeof renderUnscoped> =>
         renderUnscoped(ui, { wrapper: OwnerScope });
     const NOTICE = 'This recipe is still public: it couldn’t be made private.';
-    const ownerView = (visibilityNotice?: string, viewerIsOwner = true): ReactElement => (
+    const MOMENT: VisibilityNotice = { kind: 'moment', text: NOTICE };
+    const ownerView = (visibilityNotice?: VisibilityNotice, viewerIsOwner = true): ReactElement => (
         <RecipeDetailView
             dataSourcesHref="/en/legal/sources"
             unreachableRetry={idleUnreachableRetry}
@@ -2159,7 +2161,7 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
         const { rerender } = renderAsOwner(ownerView());
         const before = screen.getByRole('alert');
 
-        rerender(ownerView(NOTICE));
+        rerender(ownerView(MOMENT));
 
         const after = screen.getByRole('alert');
 
@@ -2168,7 +2170,7 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
     });
 
     it('shows the words, visible, as meta text in the danger colour', () => {
-        renderAsOwner(ownerView(NOTICE));
+        renderAsOwner(ownerView(MOMENT));
 
         const region = screen.getByRole('alert');
 
@@ -2180,7 +2182,7 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
 
     // REWRITTEN IN SLICE 1: the line it sits under is the status row now (no rating in it), and the fact tiles follow it.
     it('sits directly under the status row and above the fact tiles, in the header', () => {
-        renderAsOwner(ownerView(NOTICE));
+        renderAsOwner(ownerView(MOMENT));
 
         const region = screen.getByRole('alert');
         const statusRow = screen.getByText('Public').closest('div') as HTMLElement;
@@ -2196,15 +2198,94 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
         const { rerender } = renderAsOwner(ownerView());
         const focused = document.activeElement;
 
-        rerender(ownerView(NOTICE));
+        rerender(ownerView(MOMENT));
 
         expect(document.activeElement).toBe(focused);
     });
 
     it('mounts nothing for another cook, even when handed a notice', () => {
-        render(ownerView(NOTICE, false));
+        render(ownerView(MOMENT, false));
 
         expect(screen.queryByRole('alert')).toBeNull();
         expect(screen.queryByText(NOTICE)).toBeNull();
+    });
+    // Board P6 (plan makePublicRefusalNotice U2, KTD-3 and KTD-6, designer DN-1): why a private recipe stays private is one
+    // STANDING line, muted and never in a live region; a separate hidden polite region is filled once, when the line appears.
+    describe('the standing reason line (P6)', () => {
+        const STANDING = {
+            kind: 'standing',
+            reason: 'policy.webPage',
+            text: 'This recipe stays private because it’s from a web page.',
+        } as const;
+        const ANNOUNCEMENT = STANDING.text;
+        const standingView = (notice?: VisibilityNotice, announcement?: string, viewerIsOwner = true): ReactElement => (
+            <RecipeDetailView
+                dataSourcesHref="/en/legal/sources"
+                unreachableRetry={idleUnreachableRetry}
+                {...(viewerIsOwner ? { viewerIsOwner } : {})}
+                {...(notice === undefined ? {} : { visibilityNotice: notice })}
+                {...(announcement === undefined ? {} : { visibilityAnnouncement: announcement })}
+                recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })}
+            />
+        );
+
+        it('shows the line as muted meta text, not in the danger colour, and not an alert', () => {
+            renderAsOwner(standingView(STANDING));
+
+            const line = screen.getByText(STANDING.text);
+
+            expect(line.className).toContain('text-meta');
+            expect(line.className).toContain('text-ink-muted');
+            expect(line.className).not.toContain('text-danger-text');
+            expect(utilityContrast(line.className, { foreground: 'text' })).toBeGreaterThanOrEqual(4.5);
+        });
+
+        it('⛔ never puts the visible line inside a live region', () => {
+            renderAsOwner(standingView(STANDING, ANNOUNCEMENT));
+
+            expect(
+                screen
+                    .getByText(STANDING.text, { selector: ':not([role])' })
+                    .closest('[role="alert"], [role="status"]'),
+            ).toBeNull();
+        });
+
+        it('keeps the alert region mounted and empty while the standing line is shown', () => {
+            renderAsOwner(standingView(STANDING));
+
+            expect(screen.getByRole('alert').textContent).toBe('');
+        });
+
+        it('⛔ fills a polite hidden region that was already mounted, empty, when the announcement arrives', () => {
+            const { rerender } = renderAsOwner(standingView(STANDING));
+            const before = new Set(document.querySelectorAll('[role="status"]'));
+
+            rerender(standingView(STANDING, ANNOUNCEMENT));
+
+            const filled = screen.getByText(ANNOUNCEMENT, { selector: '[role="status"]' });
+
+            expect(before.has(filled)).toBe(true);
+            expect(filled.className).toContain('sr-only');
+        });
+
+        it('says nothing in the polite region on a page that opens with the line', () => {
+            renderAsOwner(standingView(STANDING));
+
+            expect(screen.queryByText(STANDING.text, { selector: '[role="status"]' })).toBeNull();
+        });
+
+        it('shows a moment line, not the standing line, when it is given one', () => {
+            renderAsOwner(standingView({ kind: 'moment', text: NOTICE }));
+
+            expect(screen.getByRole('alert').textContent).toBe(NOTICE);
+            expect(screen.queryByText(STANDING.text)).toBeNull();
+        });
+
+        it('mounts nothing for another cook, even when handed a line', () => {
+            render(standingView(STANDING, ANNOUNCEMENT, false));
+
+            expect(screen.queryByText(STANDING.text)).toBeNull();
+            expect(screen.queryByRole('alert')).toBeNull();
+        });
     });
 });

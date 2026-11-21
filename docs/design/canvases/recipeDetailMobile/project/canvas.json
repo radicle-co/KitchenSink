@@ -1094,6 +1094,27 @@
       "w": 820,
       "h": 3166,
       "title": "Recipe detail, make public: a paid website (mobile, iPad 820)"
+    },
+    "RecipeRefusalNoticeIphone390.dc.html": {
+      "x": 0,
+      "y": 40480,
+      "w": 390,
+      "h": 3795,
+      "title": "Recipe detail, why it stays private (mobile, iPhone 390)"
+    },
+    "RecipeRefusalNoticeAndroid384.dc.html": {
+      "x": 470,
+      "y": 40480,
+      "w": 384,
+      "h": 3782,
+      "title": "Recipe detail, why it stays private (mobile, Android 384)"
+    },
+    "RecipeRefusalNoticeIpad820.dc.html": {
+      "x": 934,
+      "y": 40480,
+      "w": 820,
+      "h": 3338,
+      "title": "Recipe detail, why it stays private (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1251,7 +1272,10 @@
     "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html",
     "RecipeMakePublicStatementPaidSiteIphone390.dc.html",
     "RecipeMakePublicStatementPaidSiteAndroid384.dc.html",
-    "RecipeMakePublicStatementPaidSiteIpad820.dc.html"
+    "RecipeMakePublicStatementPaidSiteIpad820.dc.html",
+    "RecipeRefusalNoticeIphone390.dc.html",
+    "RecipeRefusalNoticeAndroid384.dc.html",
+    "RecipeRefusalNoticeIpad820.dc.html"
   ],
   "notes": {
     "row0": {

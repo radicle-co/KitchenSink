@@ -287,6 +287,9 @@ function SettledRecipeDetail({
             recipe={recipe}
             viewerIsOwner={page.viewerIsOwner}
             {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
+            {...(page.visibilityAnnouncement === undefined
+                ? {}
+                : { visibilityAnnouncement: page.visibilityAnnouncement })}
             refreshNotice={refreshNotice}
             unreachableRetry={unreachableRetry}
             headerActions={primary}

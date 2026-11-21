@@ -237,6 +237,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
                 versionsHref={page.viewerIsOwner ? versionsHref : undefined}
                 viewerIsOwner={page.viewerIsOwner}
                 {...(page.visibilityNotice === undefined ? {} : { visibilityNotice: page.visibilityNotice })}
+                {...(page.visibilityAnnouncement === undefined
+                    ? {}
+                    : { visibilityAnnouncement: page.visibilityAnnouncement })}
                 refreshNotice={refreshNotice}
                 unreachableRetry={unreachableRetry}
                 headerActions={headerActions}

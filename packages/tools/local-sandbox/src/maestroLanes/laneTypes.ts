@@ -93,9 +93,9 @@ export interface DeviceAdapter {
     teardownHost(): Promise<void>;
     /**
      * Resolves with the reason when the adapter loses what the lanes need to keep running (the tunnel to the Mac).
-     * It may be asked at any time. A loss that happened before the ask still resolves, so a late asker is not blind
-     * to it.
-     * An adapter with nothing to lose returns {@link NEVER_LOST}.
+     * It may be asked at any time. The run asks once, before it starts a lane, and reads a loss that happened already
+     * on the next macrotask. So a loss must be settled as soon as it happens, and it may be wrapped in any number of
+     * `then` or `async` layers. An adapter with nothing to lose returns {@link NEVER_LOST}.
      */
     lost(): Promise<Error>;
 }

@@ -40,7 +40,8 @@ export interface MacSessionOptions {
 
 /**
  * The health probe asks again every `PROBE_INTERVAL_MS` while a port is silent. All ports together get
- * `PROBE_DEADLINE_MS` of wall time from the moment the tunnel starts.
+ * `PROBE_DEADLINE_MS` from the moment the tunnel starts. The deadline is read between asks, so an ask already in
+ * flight (curl's 2 s limit plus the ssh round trip) can end after it.
  */
 const PROBE_INTERVAL_MS = 500;
 const PROBE_DEADLINE_MS = 10_000;
@@ -95,9 +96,13 @@ export class MacSession {
     private stateDirectory = '';
     private home = '';
     private run = '';
+    private readonly now: () => number;
+    private readonly sleep: (ms: number) => Promise<void>;
 
     constructor(private readonly options: MacSessionOptions) {
         this.host = macHostFromEnv(options.env);
+        this.now = options.now ?? Date.now;
+        this.sleep = options.sleep ?? ((ms) => delay(ms));
     }
 
     get sshConfig(): string {
@@ -268,7 +273,7 @@ export class MacSession {
         // Made now, so a loss before anyone asks is still there to read. An exit that close() causes is not a loss.
         this.loss = tunnel.exited.then((code) => (this.closing ? NEVER_LOST : this.exitError(code, 'during the run')));
         const early = tunnel.exited.then((code) => this.exitError(code, 'before the run used it'));
-        const probing = { over: false, until: (this.options.now ?? Date.now)() + PROBE_DEADLINE_MS };
+        const probing = { over: false, until: this.now() + PROBE_DEADLINE_MS };
 
         try {
             const failure = await Promise.race([this.probeAll(forwards, probing), early]);
@@ -282,8 +287,9 @@ export class MacSession {
     }
 
     /**
-     * Resolves with the reason when the tunnel exits while it is open.
-     * It stays pending after {@link MacSession.close}.
+     * Resolves with the reason when the tunnel exits while it is open. A loss that happened before this is asked, or
+     * before {@link MacSession.close}, still resolves. The exit that `close()` itself causes is not a loss, so it stays
+     * pending then.
      */
     lost(): Promise<Error> {
         return this.loss;
@@ -312,8 +318,6 @@ export class MacSession {
      * not a code (curl missing on the Mac) fails at once and is quoted, never read as 000.
      */
     private async probe(forward: Tunnel, probing: Probing): Promise<Error | undefined> {
-        const { sleep = (ms: number) => delay(ms) } = this.options;
-        const now = this.options.now ?? Date.now;
         const where = `the Mac port ${String(forward.macPort)}`;
 
         while (!probing.over) {
@@ -338,14 +342,14 @@ export class MacSession {
                 return undefined;
             }
 
-            if (reply !== '000' || now() >= probing.until) {
+            if (reply !== '000' || this.now() >= probing.until) {
                 return new Error(
                     `${where} answered /health with ${reply}, ` +
                         `so the forward to local port ${String(forward.localPort)} is not serving`,
                 );
             }
 
-            await sleep(PROBE_INTERVAL_MS);
+            await this.sleep(PROBE_INTERVAL_MS);
         }
 
         return undefined;

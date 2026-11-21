@@ -364,7 +364,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **Q3. The address carries the locale (owner 2026-11-20, reverses the 2026-11-09 answer).** "Every page should have
   locale in it." The public address is `/{locale}/recipe/{id}/{slug}`, and the page's own words follow that locale. The
   page is not cached by the web app (no ISR): the CDN caches it under the cache key (FR-015), which needs no `Accept-Language` and no
-  `Vary: Accept-Language` (FR-015). The signed-out reader's market is the region of that
+  `Vary: Accept-Language`. The signed-out reader's market is the region of that
   locale (003B C-31).
 - **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
   lifts only the API's per-address limit for page renders. It grants no read (FR-016).
@@ -459,7 +459,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   browser language is not a market, `025-FR-001`). A bare `en` MUST redirect to the negotiated locale, never straight to
   a market. The page MUST send `s-maxage` with no `Vary: Accept-Language` header, and use no incremental static regeneration. Its
   response MUST NOT depend on a cookie, the `Authorization` header, the `Accept-Language` header or any query parameter,
-  so every cached copy of one path holds the same bytes (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
+  so every cached copy of one path holds the same bytes, except Next's own RSC payload for that path (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
   the full URL, and its key is not configurable. So each distinct query string, a share mark included, is its own cache
   entry holding the same bytes. The public address and the
   in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.

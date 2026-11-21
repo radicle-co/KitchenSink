@@ -169,7 +169,7 @@ The grouped read is one query and does not run the lazy expiry: until the sweep 
 - `recipes.source_record_id uuid NULL`: the text derives from this source record. It is set on a public version, and on a cook's copy of one. FK `recipe_source_records`, no cascade. It keys the FR-050 wording check, the credit and the CC BY-SA licence and the reader-market term.
 - `recipes.source_page_key text NULL`: the page key. Only a public version holds it.
 - `source_type = 'commise_written'` marks a public version; it keys the public-version label and the page key.
-- CHECKs (each `NOT VALID`, then validated by T030): (1) `source_type <> 'commise_written' OR source_record_id IS NOT NULL`; (2) `source_page_key IS NULL OR source_type = 'commise_written'`; (3) `source_record_id IS NULL OR source_type IN ('commise_written', 'user_created')`. The `public_credit` CHECK becomes `(public_credit IS NOT NULL) = (source_record_id IS NOT NULL)`. T029 adds them and T026 asserts them.
+- CHECKs (each `NOT VALID`, then validated by T030): (1) `source_type <> 'commise_written' OR source_record_id IS NOT NULL`; (2) `source_page_key IS NULL OR source_type = 'commise_written'`; (3) `source_record_id IS NULL OR source_type IN ('commise_written', 'user_created')`. T029 adds them and T026 asserts them.
 - A copy of a public version is `user_created`. It keeps `source_record_id`, `public_credit` and `cloned_from_id`, has a NULL `source_page_key`, and starts as a draft. It never holds a page key and never counts for `publicExists` (FR-034).
 - A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
   public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same

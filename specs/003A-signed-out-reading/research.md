@@ -170,7 +170,7 @@ recipe in the same transaction. The spec records the reading that both kinds of 
 **Decision**: the page is the only cache (R1), held by the CDN. The API is always `no-store`. The CloudFront behaviour for
 `/api/v1/public/*` on the recipe distribution uses `CACHING_DISABLED` and an origin-request policy that forwards
 no `Authorization` header, no cookie and no query string. The page never reads `searchParams`, cookies or headers, so
-every cached copy of one path holds the same bytes, as FR-015 states (R8); a share mark gets its own cache entry with the same bytes.
+every cached copy of one path holds the same bytes, as FR-015 states (R8).
 
 **Rationale**: the one cache forgets within 5 minutes by itself, so the bound holds without a purge (FR-013). ADR-0020's
 "URL-only recipe behaviour" decision is not needed, because nothing on the API is cached.

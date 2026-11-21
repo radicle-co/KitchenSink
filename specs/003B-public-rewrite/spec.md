@@ -173,7 +173,7 @@ refused with `blocked.bodyBoth`. A reader of the public page sees the credit, th
 
 **Acceptance Scenarios**:
 
-1. **Given** any save of a public version's steps or title, **Then** the wording check of FR-050 runs before the save
+1. **Given** any save of the steps or title of a recipe with `source_record_id` set, **Then** the wording check of FR-050 runs before the save
    is accepted.
 2. **Given** the check refuses, **Then** nothing is saved, and the cook sees `blocked.body` (public path) or
    `blocked.bodyBoth` (Both path) with "Write it again" and the path's not-now key. At 3 attempts "Write it again" is
@@ -438,7 +438,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
   its normalised source address (`sourceLinkKey`, `004`). A retry or a second device of the same cook MUST return the
   same version. A later cook who chooses "For everyone" or "Both" while one holds the page is shown it (`publicExists.published`,
   `publicExists.link`) and can keep a private copy. That cook never writes a second one. A cook's own "Adapted by you"
-  recipe (FR-015, door two) is not a public version and does not hold the page. A cook's copy never holds or takes the page key and never counts for `publicExists`.
+  recipe (FR-015, door two) is not a public version and does not hold the page. A cook's copy of a public version (`RecipesService.clone`) never holds or takes the page key and never counts for `publicExists`.
 - **FR-034a**: A public version holds its page through the source page key. The key MUST be released, in the same
   transaction as its cause, when the version is (a) deleted, (b) not approved by 020 (it becomes private,
   ADR-0074), or (c) withdrawn by a publisher opt-out (`016`).
@@ -513,7 +513,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 
 #### F. Every save of a public version
 
-- **FR-050**: Every save of a public version's steps or title, at the review and at any later edit, MUST run the
+- **FR-050**: Every save of the steps or title of a recipe with `source_record_id` set (a public version, or a cook's copy of one), at the review and at any later edit, MUST run the
   wording check against the source's stored fingerprint (FR-080). A save over the threshold MUST be refused, with
   `blocked.body` (`blocked.bodyBoth` on the Both path). The steps use 027's measure and threshold (`027-FR-042`, 027 research R3). This feature sets none. A
   title is too short for that measure, so a title MUST NOT equal the source's title once both are normalised, and its
@@ -548,7 +548,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 
 #### G. Credit, label and licence
 
-- **FR-060**: A public version MUST show, wherever it is shown, the credit of ADR-0093 §4. The credit reads the
+- **FR-060**: A recipe with `source_record_id` set (a public version, or a cook's copy of one) MUST show, wherever it is shown, the credit of ADR-0093 §4. The credit reads the
   version's own `recipes.public_credit`, set at Publish from the credit the cook was shown (data-model "Columns on
   existing tables"). `free` shows `credit.written` with the AI disclosure, and `credit.basedOn` with the domain
   line. `{site}` is the registrable domain and a link, read from the source record. `paid` (a clearly paid or an
@@ -559,7 +559,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 - **FR-061**: A public version's rights label MUST be a new derived label, "Steps written by Commise", never "Written by
   you" and never "Adapted by you" (`016-FR-015i`). It is open to the web (`021-FR-002`). Adding the value is a one-way
   door and needs an ADR before code. (C-11)
-- **FR-062**: A public version's text carries the licence and credit of ADR-0093 §4, and the cook's later edits are
+- **FR-062**: The text of a recipe with `source_record_id` set (a public version, or a cook's copy of one) carries the licence and credit of ADR-0093 §4, and the cook's later edits are
   under the same licence. The terms of service say who owns the written steps and the cook's edits. `review.licence`
   links to them. "Publish" is the cook's acceptance of that licence for their edits, recorded as the Publish
   confirmation row (wording `publicVersionConfirm.v1`, data-model "Columns on existing tables").
@@ -648,7 +648,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 #### K. Release
 
 - **FR-090**: The feature MUST sit behind one switch, read in one place, shared by web and mobile, and per market
-  (ADR-0093 §6a, which rules the launch state). The reader's market (C-31, T383) decides whether a public version is shown, and
+  (ADR-0093 §6a, which rules the launch state). The reader's market (C-31, T383) decides whether a row that carries `source_record_id` is shown (C-31), and
   the cook's market does not gate publishing. There is one switch for each market, all on at launch. With the feature
   switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).
@@ -864,7 +864,7 @@ Still owed:
   the boards.
 - **C-30. The `public.hint` line.** Ruled 2026-11-19: it now ends "Once it’s published, we don’t keep your pasted steps.", which is true on the public-only path, because
   every place that holds the pasted steps is cleared at Publish: the item's draft (`payload`) goes through `claimSave` in the Publish transaction, the writer's queue message carries the job id only and never step text, the job's `source_steps` is set to NULL in the same UPDATE that ends the job `published` (a final state), the job's `output` becomes the public version's own written steps, the source record and the evidence record hold hashes only, and logs hold outcome and refusal category only (data-model, Not stored). An unfinished import keeps its draft until ADR-0072's 30-day purge (its date is `recipe_import_purge_at`, data model) (FR-033), and the line says "Once it’s published", so it makes no claim about an unfinished one (T319 tests it). The line shows in the For everyone row on the choice page and in the public-only card. The Both hint is unchanged (research R8). A file item shows `public.hintFile` instead ("we don’t keep the steps from your file for this recipe"), which is true for the same reason, because the file item's draft is cleared by `claimSave` at Publish too, and T319 tests it for a file item.
-- **C-31. Where does a reader's market come from?** Ruled by the owner 2026-11-19 ("Account, else request; unknown hides") and changed 2026-11-20 ("every page should have locale in it", "the locale is in the url"). Signed-in: the market on the reader's account (025-FR-003); until 025 ships it, every signed-in reader is in the one served market (launch is US-only, 016-FR-048), and 003B adds no identity column. Signed-out: a signed-out reader's market is the region of the locale in the page's URL (`en-US` gives US), which the API gets as a path segment (`GET /api/v1/public/{locale}/recipes/{id}`, which is a one-way door, ADR-0082). A locale that has no region or is not shipped names no market, and the reader is shown no public version. On the public route 003A U4's `404` answers an unshipped or malformed locale before the resolver is called. No request header is read. An unknown market hides public versions only: a reader whose market cannot be resolved is shown no public version. The cook's market is never consulted. The term applies to every row that carries `source_record_id`: a public version and every copy of one. The rule is built in T383, tested by T385 (truth table), T196 (wiring) and T386 (real database); the route is pinned by 003A U4's integration test.
+- **C-31. Where does a reader's market come from?** Ruled by the owner 2026-11-19 ("Account, else request; unknown hides") and changed 2026-11-20 ("every page should have locale in it", "the locale is in the url"). Signed-in: the market on the reader's account (025-FR-003); until 025 ships it, every signed-in reader is in the one served market (launch is US-only, 016-FR-048), and 003B adds no identity column. Signed-out: a signed-out reader's market is the region of the locale in the page's URL (`en-US` gives US), which the API gets as a path segment (`GET /api/v1/public/{locale}/recipes/{id}`, which is a one-way door, ADR-0082). A locale that has no region or is not shipped names no market, and the reader is shown no row that carries `source_record_id`. On the public route 003A U4's `404` answers an unshipped or malformed locale before the resolver is called. No request header is read. An unknown market hides only rows that carry `source_record_id`. The cook's market is never consulted. The term applies to every row that carries `source_record_id`: a public version and every copy of one. The rule is built in T383, tested by T385 (truth table), T196 (wiring) and T386 (real database); the route is pinned by 003A U4's integration test.
     - **The URL market decides only which public content a signed-out reader is shown.** It never sets or changes the market a person is served in (025-FR-003), so it is never used for law, price or terms. Being served (sign-up, terms, store, prices) stays with 025's market record (025-FR-001, 025-FR-003). (AQ2, owner 2026-11-20.)
     - **AQ1.** A browser that matches no shipped locale (for example `fr-FR` or `en-GB`) goes to the default route locale, `en-US`. Basis: the library is open (ADR-0082); the switch is a product availability rule, not an access control; a browser language is not a market (025-FR-001). T389 pins the matcher's result for `en-GB` and `fr-FR`.
     - **AQ3.** A bare `en` redirects to the negotiated locale and never maps straight to US.

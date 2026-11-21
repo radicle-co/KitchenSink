@@ -507,7 +507,7 @@ The rights label tells the cook who owns the writing.
 
 - **FR-015d**: The label MUST be **derived**, never stored and never chosen by a surface. One pure Policy works it out,
   a sibling of `provenancePolicy.ts`. Its inputs are the recipe's source type, its statement kind (`004-FR-014a`), its
-  `cloned_from_id`, its `source_record_id` (003B), any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
+  `cloned_from_id` and the source type of the recipe that id names, its `source_record_id` (003B), any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
   ADR-0082). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The own origin of statement 1a is part of the
   statement kind. A site claim is NOT an input, so a claim that fails never changes a label. Every surface,
   and every rule in another spec that depends on who owns the writing, MUST read that one Policy. `staff-architect`

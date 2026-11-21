@@ -12,7 +12,7 @@ https://commise.app/{locale}/recipe/{id}/{slug}
 
 - `id` is the recipe's UUID. `slug` is derived from the title by one pure function and is never stored.
 - `locale` is a shipped locale (owner 2026-11-20). The page's own words follow it (below).
-- A query string is allowed and ignored by the page, and each distinct query string is its own cache entry with the same bytes (003A-FR-015). Measurement reads only whether a share mark is
+- A query string is allowed and ignored by the page; it is cached as `003A-FR-015` states. Measurement reads only whether a share mark is
   present (`021-FR-031`, `021-FR-080`).
 - `GET /{locale}/recipe/{id}` and `GET /{locale}/recipe/{id}/{wrongSlug}` answer `308` to the right slug only when the recipe is open.
   Otherwise they answer the not-available page with status `404`. The redirect never reveals a closed recipe's title.

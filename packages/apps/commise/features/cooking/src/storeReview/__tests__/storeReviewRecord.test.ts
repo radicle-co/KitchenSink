@@ -10,6 +10,15 @@ import { createStoreReviewRecord, STORE_REVIEW_KEY } from '../storeReviewRecord.
 
 const NOW = '2026-11-20T10:00:00.000Z';
 
+/** How many reports named `step`: the reporter's second argument is `{ source, step }`. */
+function reportsAtStep(report: ReturnType<typeof vi.fn>, step: string): number {
+    return report.mock.calls.filter(([, context]) => isRecord(context) && context['step'] === step).length;
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null;
+}
+
 function setup(initial: Record<string, string> = {}) {
     const device = makeMemoryKeptPort(initial);
     const report = vi.fn();
@@ -208,9 +217,7 @@ describe('the store-review record: a bad entry is reported again after it was de
         await record.read('user_a');
 
         // Mutation: never forget a reported cook after a write, and the second bad entry is never reported.
-        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
-            2,
-        );
+        expect(reportsAtStep(report, 'parse')).toBe(2);
     });
 
     it.each([
@@ -225,9 +232,7 @@ describe('the store-review record: a bad entry is reported again after it was de
         await record.read('user_a');
 
         // Mutation: never forget a reported cook after a clear.
-        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
-            2,
-        );
+        expect(reportsAtStep(report, 'parse')).toBe(2);
     });
 
     it('⛔ reports again after a clear removed a key that was not a readable map', async () => {
@@ -238,9 +243,7 @@ describe('the store-review record: a bad entry is reported again after it was de
         device.data.set(STORE_REVIEW_KEY, '{"user_a":');
         await record.read('user_a');
 
-        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
-            2,
-        );
+        expect(reportsAtStep(report, 'parse')).toBe(2);
     });
 });
 

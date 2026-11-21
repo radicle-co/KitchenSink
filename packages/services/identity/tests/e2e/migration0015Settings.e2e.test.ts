@@ -229,6 +229,7 @@ describe('0015_settings (real Postgres)', () => {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             });
 
         it('a closure KEEPS the settings row, and a closed account can no longer write one', async () => {

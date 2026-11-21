@@ -33,6 +33,7 @@ const claimsFor = (sub: string): VerifiedClerkClaims => ({
     permissions: [],
     roles: [],
     testPrincipal: false,
+    publishAgeMet: false,
 });
 
 describe('create-user flow — idempotency under concurrency (integration)', () => {
@@ -143,6 +144,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
 
         const [row] = await db.select().from(users).where(eq(users.identityId, sub));
@@ -162,6 +164,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
 
         // B presents the SAME email (Clerk permits shared emails — delete+recreate, social link). This
@@ -174,6 +177,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
 
         const [rowB] = await db.select().from(users).where(eq(users.identityId, subB));
@@ -196,6 +200,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         await usersService.resolveOrCreateFromClaims({
             sub: 'user_noemail_b',
@@ -205,6 +210,7 @@ describe('create-user flow — idempotency under concurrency (integration)', () 
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
 
         expect(await countsFor('user_noemail_a')).toEqual({ users: 1, accounts: 1, profiles: 1 });

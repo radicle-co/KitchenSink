@@ -35,6 +35,7 @@ function claimsFor(sub: string, overrides: Partial<VerifiedClerkClaims> = {}): V
         roles: [],
         permissions: [],
         testPrincipal: false,
+        publishAgeMet: false,
         ...overrides,
     };
 }

@@ -53,6 +53,7 @@ function principalFor(token: string): {
     permissions: string[];
     roles: readonly Role[];
     testPrincipal: boolean;
+    publishAgeMet: boolean;
 } {
     switch (token) {
         case 'pool':
@@ -63,11 +64,27 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: true,
+                publishAgeMet: false,
             };
         case 'poolUnsynced':
-            return { sub: 'user_pool_2', scopes: [], permissions: [], roles: [], testPrincipal: true };
+            return {
+                sub: 'user_pool_2',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: true,
+                publishAgeMet: false,
+            };
         case 'poolService':
-            return { sub: 'svc_pool', userId: POOL_ULID, scopes: [], permissions: [], roles: [], testPrincipal: true };
+            return {
+                sub: 'svc_pool',
+                userId: POOL_ULID,
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: true,
+                publishAgeMet: false,
+            };
         case 'real':
             return {
                 sub: 'user_real',
@@ -76,9 +93,17 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'm2m':
-            return { sub: 'svc_import', scopes: ['food:admin'], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'svc_import',
+                scopes: ['food:admin'],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         default:
             throw new ClerkVerificationError();
     }

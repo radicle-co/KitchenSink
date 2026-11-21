@@ -34,6 +34,8 @@ export function makeRecipeRow(overrides: Partial<RecipeExportRow> = {}): RecipeE
         visibility: 'public',
         status: 'published',
         firstPublishedAt: CREATED,
+        sourceConfirmedAt: CREATED,
+        sourceCorrectionHold: false,
         sourceType: 'user_created',
         sourceKind: null,
         statementKind: null,

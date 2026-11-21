@@ -757,6 +757,7 @@ export const eraseRecipeRows = async (
               AND NOT recipe_holds_third_party_source(id)
               AND NOT recipe_needs_statement(id)
               AND NOT recipe_is_from_person(id)
+              AND NOT source_correction_hold
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured
@@ -799,6 +800,13 @@ export const eraseRecipeRows = async (
             UPDATE recipe_statement_attestations
             SET account_id = ${attestationAccountToken}
             WHERE account_id = ${ownerId}
+        `);
+        // The staff account's source corrections are relabelled the same way (migration 0092): the record of what was
+        // corrected stays, who corrected it does not.
+        await tx.execute(sql`
+            UPDATE recipe_source_corrections
+            SET actor_account_id = ${attestationAccountToken}
+            WHERE actor_account_id = ${ownerId}
         `);
 
         // 6. Scoped recipe delete — the removed set (owner-only, post-flip), NOT owner-wide, so truly-public +
@@ -1040,6 +1048,13 @@ export const purgeTestPrincipalRows = async (
             UPDATE recipe_statement_attestations
             SET account_id = ${resetAccountToken}
             WHERE account_id = ${ownerId}
+        `);
+        // The staff account's source corrections are relabelled the same way (migration 0092): the record of what was
+        // corrected stays, who corrected it does not.
+        await tx.execute(sql`
+            UPDATE recipe_source_corrections
+            SET actor_account_id = ${resetAccountToken}
+            WHERE actor_account_id = ${ownerId}
         `);
 
         // 3. Every recipe — no visibility/status carve-out, no tombstone filter. Cascades the recipe graph.

@@ -136,6 +136,14 @@ export const recipes = pgTable(
         // `recipes_first_published_at_ratchet` trigger (0053 migration) sets it on the first publish and refuses to
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
+        // When the recipe's source answer was first confirmed (0092, ADR-0099): the first publish (set by the 0053 trigger), a Make
+        // public that carries a statement, or a staff correction. Once set it never changes: the
+        // `recipes_source_confirmed_ratchet` trigger refuses it. A cook cannot change a confirmed answer.
+        sourceConfirmedAt: timestamp('source_confirmed_at', { withTimezone: true }),
+        // True once a staff correction that could itself open a Public path was applied here or to the recipe this one was cloned
+        // from (0092). Never cleared (ratchet trigger), copied onto a clone by a BEFORE INSERT trigger, and a held recipe is never
+        // public (CHECK below), whichever writer sets `visibility`.
+        sourceCorrectionHold: boolean('source_correction_hold').notNull().default(false),
         sourceType: text('source_type').$type<RecipeSourceType>().notNull().default('user_created'),
         // What the cook said the source is (ADR-0089, 0071 migration): `public_web`, `book` or `paid_site`. NULL: no
         // statement, which includes the curator's public-domain text. The vocabulary is recipe-core's, as the import
@@ -212,6 +220,15 @@ export const recipes = pgTable(
         check(
             'recipes_published_has_first_published_at',
             sql`${table.status} <> 'published' OR ${table.firstPublishedAt} IS NOT NULL`,
+        ),
+        // A published recipe has its source answer confirmed (0092). The first-publish trigger sets both.
+        check(
+            'recipes_first_published_has_source_confirmed',
+            sql`${table.firstPublishedAt} IS NULL OR ${table.sourceConfirmedAt} IS NOT NULL`,
+        ),
+        check(
+            'recipes_held_is_not_public',
+            sql`NOT (${table.sourceCorrectionHold} AND ${table.visibility} = 'public')`,
         ),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),
         check(

@@ -199,6 +199,18 @@ export type {
     SourceEvidenceCapture,
 } from './recipeSourceEvidence.js';
 
+// ── recipe_source_corrections (0092) — the append-only record of every staff correction of a source answer ──
+export {
+    recipeSourceCorrections,
+    SOURCE_CORRECTION_GROUNDS,
+    SOURCE_CORRECTION_REASON_MAX_LENGTH,
+} from './recipeSourceCorrections.js';
+export type {
+    NewRecipeSourceCorrectionRow,
+    RecipeSourceCorrectionRow,
+    SourceCorrectionGround,
+} from './recipeSourceCorrections.js';
+
 // ── recipe_statement_attestations (0088) — the append-only record of every statement and Public confirmation ──
 export {
     ATTESTATION_ACTIONS,

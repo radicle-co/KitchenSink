@@ -23,6 +23,7 @@ import { useEffect } from 'react';
 import { clearStoredCookMarks } from '../detail/cookMarksBackend.js';
 import { recentSearchesKeyFor, type RecentSearchStore } from '../discovery/recentSearches.js';
 import { draftStoreFor } from '../editor/draftStore.js';
+import { endsCookSession } from './endsCookSession.js';
 import type { KeptSessionStore } from './kept/keptSessionStore.js';
 
 /**
@@ -114,7 +115,7 @@ async function observeCook(
     // cook's keys unreachable.
     const held = await store.getItem(HELD_COOK_KEY).catch(() => null);
 
-    if (held !== null && held !== subject) {
+    if (held !== null && endsCookSession(held, subject)) {
         // A failed clear leaves the keys namespaced to that cook, unreachable by anyone else signed in.
         await endDeviceSession(store, held, recentSearches, kept).catch(() => undefined);
     }

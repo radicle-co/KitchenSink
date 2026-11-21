@@ -49,12 +49,13 @@ describe('the phone`s store-review record', () => {
     });
 
     it('clears one cook and keeps the other, through the one storage', async () => {
-        await nativeStoreReviewRecord.recordFinish('user_b');
+        await nativeStoreReviewRecord.recordFinish('user_d');
+        await nativeStoreReviewRecord.recordFinish('user_e');
 
-        await nativeStoreReviewRecord.clear('user_a');
+        await nativeStoreReviewRecord.clear('user_d');
 
-        expect(await nativeStoreReviewRecord.read('user_a')).toEqual({ finishes: 0 });
-        expect(await nativeStoreReviewRecord.read('user_b')).toEqual({ finishes: 1 });
+        expect(await nativeStoreReviewRecord.read('user_d')).toEqual({ finishes: 0 });
+        expect(await nativeStoreReviewRecord.read('user_e')).toEqual({ finishes: 1 });
     });
 
     it('lets two finishes in the same tick both land, through the phone`s serial queue', async () => {

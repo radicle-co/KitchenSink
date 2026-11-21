@@ -28,6 +28,8 @@ export default defineConfig({
             '@tamagui/animations-react-native': fileURLToPath(
                 import.meta.resolve('@commise/ui/testing/animations-shim'),
             ),
+            // The timer id's native leaf draws its random bytes from `expo-crypto`, which binds native code.
+            'expo-crypto': fileURLToPath(new URL('./test-utils/expoCryptoStub.ts', import.meta.url)),
             // `@commise/ui/keep-awake`'s native hold calls a native module with no jsdom runtime; the stub records holds.
             'expo-keep-awake': fileURLToPath(import.meta.resolve('@commise/ui/testing/expo-keep-awake')),
             // `react-native-safe-area-context` reports window insets from a native module with no jsdom runtime.

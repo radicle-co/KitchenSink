@@ -94,8 +94,11 @@ function earliestEnd(state: TimerState): number | undefined {
  * Create the store.
  *
  * @param initial - The state to start from. Tests build several-timer states with it; the app starts empty.
+ * @param kept - The device's kept session store. With it, every change that moves the state is written through to the
+ *   record, and the record is read back once no write is in flight. Without it, the timers live in memory only.
  * @returns The store.
- * @sideEffect None until `connect`, which subscribes to the app focus and sets a timeout while a timer runs.
+ * @sideEffect Writes through to `kept` on a command that moved the state. Nothing else until `connect`, which
+ *   subscribes to the app focus and sets a timeout while a timer runs.
  */
 export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSessionStore): TimerStore {
     let state = initial;
@@ -244,18 +247,17 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
                 const outcome = await kept.dispatch({ type: 'timer', command, undo });
 
                 if (outcome.kind === 'refused') {
-                    // The record refused a start or an Undo (it is full): this tab's copy was stale, so read the record
-                    // as it is. The cook keeps the Undo, to free a slot and try again.
+                    // The record refused the command (it is full, or the length is past 24 h): this tab's copy was
+                    // stale, so read the record as it is. The cook keeps the Undo, to free a slot and try again.
                     if (command.kind === 'restore' && state.undo === undefined) {
-                        state = { ...state, undo };
+                        publish({ ...state, undo });
                     }
 
                     await kept.reread();
                 }
-            } catch {
-                // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported
-                // inside the kept store), so this only keeps a defect from becoming an unhandled rejection.
             } finally {
+                // A rejection is a defect and is left to surface: the kept store answers every refusal, a stale command
+                // included, as an outcome.
                 inFlight -= 1;
                 resync();
             }

@@ -7,6 +7,7 @@
 import {
     matchStep,
     matchStepStrict,
+    isInvalidTimerDurationError,
     reduceTimer,
     type HeldTimer,
     type TimerCommand,
@@ -63,8 +64,8 @@ export type KeptOutcome =
     | { readonly kind: 'unchanged' }
     /** `startSession` over an existing cooking entry (ADR-0094 section 2): nothing written, open at this step. */
     | { readonly kind: 'joined'; readonly step: StepMark }
-    /** A timer command the reducer declined (the limit): nothing is written. */
-    | { readonly kind: 'refused'; readonly reason: TimerRefusal };
+    /** A timer command the reducer declined (the limit, or a length no timer can have): nothing is written. */
+    | { readonly kind: 'refused'; readonly reason: TimerRefusal | 'duration' };
 
 const UNCHANGED: KeptOutcome = { kind: 'unchanged' };
 
@@ -172,13 +173,37 @@ function storedTimers(
     return result.state.timers.map((timer) => keptTimerOf(timer, priorOf.get(timer.id), nowMs));
 }
 
+/**
+ * The reducer's answer for the timers in the record, or the refusal outcome. The reducer throws for a length no timer
+ * can have (a second tab added time to a timer already near 24 h), and a refusal here is an outcome, never a throw, so
+ * a stale command can neither lose the caller's write nor block the commands parked behind it on replay.
+ */
+function reduceOrRefuse(
+    state: Parameters<typeof reduceTimer>[0],
+    command: TimerCommand,
+): { readonly result: ReturnType<typeof reduceTimer> } | { readonly refusal: KeptOutcome } {
+    try {
+        const result = reduceTimer(state, command);
+
+        return result.refused === undefined ? { result } : { refusal: { kind: 'refused', reason: result.refused } };
+    } catch (error) {
+        if (isInvalidTimerDurationError(error)) {
+            return { refusal: { kind: 'refused', reason: 'duration' } };
+        }
+
+        throw error;
+    }
+}
+
 function timerCommand(doc: KeptDocument, c: Extract<KeptCommand, { type: 'timer' }>): KeptOutcome {
     const state = { timers: doc.timers.map(activeTimerOf), undo: c.undo };
-    const result = reduceTimer(state, c.command);
+    const reduced = reduceOrRefuse(state, c.command);
 
-    if (result.refused !== undefined) {
-        return { kind: 'refused', reason: result.refused };
+    if ('refusal' in reduced) {
+        return reduced.refusal;
     }
+
+    const { result } = reduced;
 
     return result.state.timers === state.timers
         ? UNCHANGED
@@ -200,14 +225,16 @@ function restoreSession(
     const nowMs = Date.parse(now);
     // The reducer applies the limit, the numbers and a timer that ended meanwhile; a refusal refuses the whole Undo,
     // entry included, so the cook never gets half of an End back.
-    const result = reduceTimer(
+    const reduced = reduceOrRefuse(
         { timers: doc.timers.map(activeTimerOf), undo: undefined },
         { kind: 'readmit', timers: snapshot.timers.map(activeTimerOf), limit: c.limit, nowMs },
     );
 
-    if (result.refused !== undefined) {
-        return { kind: 'refused', reason: result.refused };
+    if ('refusal' in reduced) {
+        return reduced.refusal;
     }
+
+    const { result } = reduced;
 
     let entry: CookingEntry = snapshot.entry;
 

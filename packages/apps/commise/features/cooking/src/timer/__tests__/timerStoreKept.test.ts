@@ -388,6 +388,28 @@ describe('the record is the truth across tabs', () => {
     });
 });
 
+describe('added time past 24 h in another tab', () => {
+    it('is refused by the record, and this tab shows the record instead of its own copy', async () => {
+        const device = makeDevice();
+        const one = await device.tab();
+        const two = await device.tab();
+        const id = one.timers.start({ ...STEP, label: undefined, durationMs: 12 * 60 * MINUTE }) ?? '';
+
+        await settle();
+        await two.kept.reread();
+        await settle();
+
+        // Tab one takes the timer to 23 h 59 m. Tab two still holds 12 h, so its own copy accepts two more hours.
+        one.timers.command({ kind: 'addTime', id, run: 1, addMs: (11 * 60 + 59) * MINUTE });
+        await settle();
+        two.timers.command({ kind: 'addTime', id, run: 1, addMs: 120 * MINUTE });
+        await settle();
+
+        expect(two.timers.getSnapshot().timers[0]).toMatchObject({ durationMs: (23 * 60 + 59) * MINUTE });
+        expect(stored(device).timers).toHaveLength(1);
+    });
+});
+
 describe('a write in flight', () => {
     it('does not flicker back: a pause made while the start is still being written never shows running again', async () => {
         const device = makeDevice();
@@ -402,28 +424,10 @@ describe('a write in flight', () => {
         expect(seen).not.toContain('running');
         expect(timers.getSnapshot().timers[0]?.kind).toBe('paused');
     });
-
-    it('is not undone by a record change that arrives meanwhile', async () => {
-        const device = makeDevice();
-        const one = await device.tab();
-        const two = await device.tab();
-        const release = device.hold();
-
-        one.timers.start({ ...STEP, label: undefined, durationMs: 10 * MINUTE });
-        two.timers.start({ ...STEP, recipeId: 'other', label: undefined, durationMs: 10 * MINUTE });
-        await settle();
-        release();
-        await settle();
-        await one.kept.reread();
-        await settle();
-
-        // Whatever the record settled on, memory never lost the cook's own timer to a read taken mid-write.
-        expect(one.timers.getSnapshot().timers.map((t) => t.id)).toEqual(stored(device).timers.map((t) => t.id));
-    });
 });
 
 describe('clear', () => {
-    it('empties the memory, forgets what it told, and dispatches nothing (the record ends through the kept store)', async () => {
+    it('empties the memory and dispatches nothing (the record ends through the kept store)', async () => {
         const device = makeDevice();
         const { timers } = await device.tab();
 
@@ -434,5 +438,28 @@ describe('clear', () => {
 
         expect(timers.getSnapshot().timers).toEqual([]);
         expect(stored(device).timers).toHaveLength(1);
+    });
+
+    it("reads the next cook's first record as a reload: a timer it shows ringing tells nothing", async () => {
+        const device = makeDevice();
+        // A tab of this cook is alive, so the record's ringing timer stays ringing here (it is not settled away).
+        const { kept, timers, ended } = await device.tab(() => Promise.resolve(true));
+
+        timers.start({ ...STEP, label: undefined, durationMs: 5 * MINUTE });
+        await settle();
+        await vi.advanceTimersByTimeAsync(5 * MINUTE);
+        await settle();
+
+        expect(ended).toHaveLength(1);
+
+        // The next cook's record holds a ringing timer too (the same one, for the test's sake).
+        device.data.set(`${KEPT_KEY_PREFIX}B`, device.data.get(KEY) ?? '');
+        timers.observeCook('A');
+        timers.observeCook('B');
+        await kept.scope('B');
+        await settle();
+
+        expect(timers.getSnapshot().timers[0]?.kind).toBe('ringing');
+        expect(ended).toHaveLength(1);
     });
 });

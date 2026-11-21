@@ -170,8 +170,8 @@ export type TimerCommand =
            */
           readonly kind: 'settleAway';
           /**
-           * Whether another tab of this cook is alive (it holds the presence lock): a due timer rings there, here it
-           * only shows.
+           * Whether another tab of this cook is alive: a due timer rings there, here it only shows. The store passes
+           * false until a lock that tracks open tabs exists, so a reload settles every ended timer as ended-away.
            */
           readonly heldElsewhere: boolean;
           readonly nowMs: number;

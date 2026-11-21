@@ -90,7 +90,7 @@ describe('hydrate settles what ended while away', () => {
         expect(calls.write).toBe(0);
     });
 
-    it('another tab of this cook alive (the presence lock): due timer left ringing, ringing one stays', async () => {
+    it('another tab of this cook alive (as the port reports): due timer left ringing, ringing one stays', async () => {
         const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), {
             heldElsewhere: () => Promise.resolve(true),
         });

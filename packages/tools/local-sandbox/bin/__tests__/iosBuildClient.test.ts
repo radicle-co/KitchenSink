@@ -113,7 +113,12 @@ function makeWorld(): World {
         path.join(world.bin, 'ssh'),
         `#!/usr/bin/env bash\ncmd="\${@: -1}"\nprintf 'SSH %s\\n' "$cmd" >> "${world.sshLog}"\n` +
             // A poll is the command that starts with `cd`; the fake counts them so a case can wait for the client's looks.
-            `[[ "$cmd" == cd\\ ksIos/build.noindex/jobs/* ]] && echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
+            // FAIL_POLL makes the link drop; POLL_ANSWERS holds one answer per line.
+            `if [[ "$cmd" == cd\\ ksIos/build.noindex/jobs/* ]]; then\n` +
+            `    echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
+            `    [ -z "$FAIL_POLL" ] || exit 255\n` +
+            `    if [ -n "$POLL_ANSWERS" ] && [ -s "$POLL_ANSWERS" ]; then\n` +
+            `        head -n 1 "$POLL_ANSWERS" | sed 's/;/\\n/g'\n        sed -i 1d "$POLL_ANSWERS"\n        exit 0\n    fi\nfi\n` +
             `cd "${world.macHome}"\nexport HOME="${world.macHome}"\nexec bash -c "$cmd"\n`,
     );
     // `-e <ssh command>` is dropped and `host:` becomes the Mac's HOME, as a login would resolve it: the real rsync then copies locally.
@@ -337,6 +342,34 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.status).not.toBe(0);
         expect(job).toBeDefined();
         expect(result.stderr).toContain(job);
+    });
+
+    it('⛔ gives up and names the job when the Mac cannot be reached for the whole give-up time', () => {
+        const world = makeWorld();
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        const result = build(world, repo, { FAIL_POLL: '1', KS_MAC_POLL_GIVE_UP_SECONDS: '3' });
+        const [job] = jobIdsIn(sshCommands(world).join('\n'));
+
+        // Mutation: retry for ever, and a Mac that went away holds the client until someone stops it.
+        expect(result.error).toBeUndefined();
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(job);
+        expect(result.stderr).toMatch(/cannot reach the Mac/u);
+    });
+
+    it('does not read two dead answers apart as a dead wrapper: a live answer between them resets the count', () => {
+        const world = makeWorld();
+        const answers = path.join(world.root, 'answers');
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        writeFileSync(answers, ['STATE a;DEAD', 'STATE a', 'STATE a;DEAD', 'STATE a', 'RC 3', ''].join('\n'));
+
+        const result = build(world, repo, { POLL_ANSWERS: answers });
+
+        // Mutation: never reset the count, and the second dead answer ends the build early.
+        expect(result.stderr).not.toMatch(/wrapper/u);
+        expect(result.stderr).toContain('exit 3');
     });
 
     it('keeps the job folder and shows the log tail when the build failed', () => {

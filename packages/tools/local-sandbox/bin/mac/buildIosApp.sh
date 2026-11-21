@@ -14,6 +14,7 @@
 #   CLERK_PUBLISHABLE_KEY            the sandbox Clerk publishable key (pk_test_…); public by design
 #   KS_REPO_ROOT                     the tree to build (default: this script's repository)
 #   KS_MAC_POLL_SECONDS              seconds between looks at the Mac job (default 20)
+#   KS_MAC_POLL_GIVE_UP_SECONDS      seconds of failed looks in a row before giving up (default 1800)
 set -euo pipefail
 
 # The build folder ends in .noindex so Spotlight skips it: indexing a node_modules tree and derived data held the Mac at
@@ -103,6 +104,8 @@ case "$command_name" in
         sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
         poll_seconds="${KS_MAC_POLL_SECONDS:-20}"
         [[ "$poll_seconds" =~ ^[0-9]+$ ]] || die "KS_MAC_POLL_SECONDS must be a whole number"
+        give_up_seconds="${KS_MAC_POLL_GIVE_UP_SECONDS:-1800}"
+        [[ "$give_up_seconds" =~ ^[0-9]+$ ]] || die "KS_MAC_POLL_GIVE_UP_SECONDS must be a whole number"
 
         # One job, one folder: nothing it writes is shared with another job, or with an old copy of this script.
         host_part="$(hostname -s | tr -c 'A-Za-z0-9' '-' | cut -c1-20)"
@@ -143,11 +146,18 @@ fi'
         poll_command="${poll_command//@JOB_DIR@/$job_dir}"
         last_state=''
         dead=0
+        unreachable_since=''
         while :; do
             if ! answer="$(mac "$poll_command" 2>/dev/null)"; then
+                # A dropped link is retried, but not for ever: the job keeps running on the Mac either way.
+                [ -n "$unreachable_since" ] || unreachable_since=$SECONDS
+                [ $((SECONDS - unreachable_since)) -lt "$give_up_seconds" ] ||
+                    die "cannot reach the Mac for ${give_up_seconds}s; job $job may still run, log: $job_dir/build.log on the Mac"
                 sleep "$poll_seconds"
                 continue
             fi
+            unreachable_since=''
+
             case "$answer" in
                 GONE) die "the job folder $job_dir is gone from the Mac (job $job)" ;;
                 RC*)

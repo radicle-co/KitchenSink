@@ -83,6 +83,7 @@ interface PublicFull extends PublicFacts {
     steps: { position: number; instruction: string; timerSeconds?: number }[];
     missingNutritionCount: number;
     licence: PublicLicence; // REQUIRED. No 016 value exists yet, so `full` cannot be built until 016 ships
+    creditChain?: PublicCreditChain; // a cook's copy of a public version only (003B FR-062b)
     credit?: PublicCredit; // adapted, family, public domain basis, a clone source while it is open, or a
     // Commise-written version's disclosure and free-site domain (021-FR-014)
 }
@@ -92,11 +93,11 @@ interface PublicFull extends PublicFacts {
 provenance, `sourceLine` and `sourcePhrase` (the verbatim pasted or imported line is owner-only,
 `transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A Commise-written
 version never carries the wording of the cook's private copy or a source photo (`021-FR-014`). The
-allowlist tests fail when any other key appears.
+allowlist tests fail when any other key appears. `creditChain` is the one credit-chain key, and its inner keys are exactly those above.
 
 **No author for an erased cook.** A recipe whose author standing is `erased` carries no author field and never the
 pseudonymous handle `user_{ULID}`, which embeds the user id (spec FR-012, owner ruling Q8). No creator field is
-projected for anyone until 012's creator profiles ship.
+projected for anyone until 012's creator profiles ship, with one exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b). `creditChain` is `{ source: { displayName: string | null, recipeUrl: string | null } | null, hidden: { displayName: string | null }[], checker: { displayName: string | null } }`, computed by the server. An erased or NULL owner gives `displayName: null` (the client reads "a former member"), never `user_{ULID}`. No account id is on the wire.
 
 **Comments (owner ruling 2026-11-09, spec Q6).** Comments are not built yet. In the release that ships them,
 `PublicFull` gains `comments`, picked from the comments schema: each comment's text, its date and its commenter's

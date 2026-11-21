@@ -140,8 +140,8 @@ the whole recipe. The response sets no cookie. The same request with a credentia
    (`021-FR-003`).
 3. **Given** the same address, **When** it is requested with and without a credential, **Then** both responses are byte
    for byte the same, and neither sets a cookie (`021-FR-012`, `021-FR-075`, `021-FR-101`).
-4. **Given** the address has a share mark or any other query string, **When** it is opened, **Then** the page is the same
-   bytes, held in its own cache entry for that query string (FR-015, `021-FR-062`).
+4. **Given** the address has a share mark or a valid campaign parameter, **When** it is opened, **Then** the page is the same
+   bytes, held in its own cache entry for that query string. **Given** any other query parameter, **Then** it redirects (`308`) to the address without it (FR-015, `021-FR-062`, `023-FR-002`).
 5. **Given** the address has the wrong slug, **When** the recipe is open, **Then** it redirects permanently to the right
    slug. **When** the recipe is not open, **Then** it answers not available, and the title is never revealed (FR-014).
 6. **Given** an open full recipe whose food data is partly unavailable at that moment, **When** it is opened, **Then**
@@ -379,7 +379,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   sitemap and its fast removal path. 021 MUST then remove it (`021-FR-020a`, FR-017).
 - **Q8. Recipes an erased cook left public → open, with no author name.** A recipe the cook chose to leave public at
   erasure stays readable signed out, shown without the deleted author's name. `021-FR-002` rule 7 is amended for that
-  case only. Suspended and closed authors still close their recipes (FR-012). _Reading:_ the erasure keeps two kinds of
+  case only. Suspended and closed authors still close their recipes (FR-012). Exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b); an erased cook reads "a former member". No other creator field until 012. _Reading:_ the erasure keeps two kinds of
   recipe public, the ones the cook elected to donate and the ones that were already public, and both carry the same
   consent. This spec reads the ruling as covering both. If the owner meant donated recipes only, the erasure job's
   stored election (`account_erasure_jobs.publish_recipe_ids`) tells them apart.
@@ -442,7 +442,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   A recipe the cook left public when they erased their account is the one exception (owner ruling 2026-11-09, Q8,
   amending `021-FR-002` rule 7): an `erased` standing does not close a public, published recipe. It is shown with no
   author name and no pseudonym, because the pseudonymous handle the erasure writes carries the user id. Suspended,
-  closed and unknown standings still close the recipe.
+  closed and unknown standings still close the recipe. Exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b); an erased cook reads "a former member". No other creator field until 012.
 
 #### D. Caching, purge and rate limits
 
@@ -461,7 +461,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   response MUST NOT depend on a cookie, the `Authorization` header, the `Accept-Language` header or any query parameter,
   so every cached copy of one path holds the same bytes, except Next's own RSC payload for that path (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
   the full URL, and its key is not configurable. So each distinct query string, a share mark included, is its own cache
-  entry holding the same bytes. So the middleware MUST redirect (`308`) any public address that carries a query parameter other than one well-formed share mark to the same address without it, and it keeps `_rsc` only on a request with the `RSC: 1` header. A random parameter then never makes a new cache entry. The public address and the
+  entry holding the same bytes. So the middleware MUST redirect (`308`) any public address that carries a query parameter other than the allowed ones to the same address without it. The allowed ones are one well-formed share mark, 023's named campaign parameters (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `023-FR-002`, and the invite-code parameter whose name and format 023 owns, `023-FR-002` and `023-FR-017`, read from 023's one exported definition, never a second copy; until 023 names it, U6 keeps none), each with a bounded, validated format (a `utm_*` value of at most 100 characters from `[A-Za-z0-9_.~+-]`, which is U6's own validation), and `_rsc`, kept only on a request with the `RSC: 1` header. A malformed or over-long campaign value is dropped. A random or unknown parameter then never makes a new cache entry. Keeping the campaign parameters splits the cache by campaign. The split is bounded by those length and alphabet limits and is accepted (coordinator ruling, 2026-11-20; `023-FR-002`). The public address and the
   in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
 - **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
   has no copy. The recipe's own text is never translated. The native public view uses the app's own language

@@ -176,8 +176,7 @@ every cached copy of one path holds the same bytes, as FR-015 states (R8).
 "URL-only recipe behaviour" decision is not needed, because nothing on the API is cached.
 
 **What cannot be proven on a preview**: previews have no CloudFront and no WAF (ADR-0020). The CloudFront passthrough,
-the WAF rate limit and the production web cache are proven in production only. A preview does show the page's own
-`Cache-Control` header, which the Playwright suite checks.
+the WAF rate limit and the production web cache are proven in production only. A preview does show what the browser sees (no `s-maxage` in its `Cache-Control`) and that a repeat request is `x-vercel-cache: HIT` (FR-015, `Vercel-CDN-Cache-Control`), which the Playwright suite checks.
 
 ## R6. Rate limits
 

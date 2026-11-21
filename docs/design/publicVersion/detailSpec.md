@@ -73,11 +73,12 @@ Under the badge row, same type:
 
 Strings: designer round 14, 2026-11-20 (spec.md §7.2). The label states facts only. It never says who owns the cook's changes.
 
-1. With no earlier cook: `rights.adaptedFromCommise`. With earlier cooks: `rights.adaptedChain`, two lines, the first naming `{cook}`, the copy's owner, and `{source}`, the last earlier cook, the second the Commise credit. "CC BY-SA 4.0" is a link to the licence deed.
-2. An erased account in `{source}` or in the list reads `rights.removedCook`. The entry stays.
-3. Earlier cooks beyond `{source}`: `rights.chainShow` opens the list and `rights.chainHide` closes it. With none, there is no disclosure.
-4. The disclosure opens in place under the label, on phone and desktop. No hover and no popover. The items are plain text with no links, newest first, one name per line, ending with Commise's line. At 320 the list is stacked with no indent. On desktop it stays within the credit block's width.
-5. `editor.visibility.publicNeedsEdit` wraps in the unavailable-card slot: 2 lines in English and 3 in German at 320. It is never truncated. `editor.visibility.publicHeldByPaste` wins over it.
+1. With no earlier cook who is a different cook from the owner: `rights.adaptedFromCommise`. With earlier cooks: `rights.adaptedChain`, two lines, the first naming `{cook}`, the copy's owner, and `{source}`, the nearest earlier cook who is a different cook (item 3), the second the Commise credit. "CC BY-SA 4.0" is a link to the licence deed.
+2. Every name, `{cook}` and `{source}` included, comes from `bylineOf` (`features/recipes/src/byline/`). An erased account reads "a former member", in `{source}` and in the list, and the entry stays. There is no separate key for it.
+3. There is no self link. Consecutive entries by the same cook collapse into one, and `{source}` is the nearest earlier cook who is a different cook from `{cook}`. With none, the source is Commise and the label is plain `rights.adaptedFromCommise`. A collapsed entry is neither shown nor counted. Two "a former member" entries never collapse. One pure function computes this on the server, so the client only renders the view.
+4. Earlier cooks beyond `{source}`: `rights.chainShow` opens the list and `rights.chainHide` closes it. `{count}` counts only the cooks hidden behind the disclosure: never Commise, whose line is always visible as line 2, and never a collapsed entry. Each "a former member" entry counts. With none, there is no disclosure.
+5. The disclosure opens in place under the label, on phone and desktop. No hover and no popover. The items are plain text with no links, newest first, one name per line, ending with Commise's line. At 320 the list is stacked with no indent. On desktop it stays within the credit block's width.
+6. `editor.visibility.publicNeedsEdit` wraps in the unavailable-card slot: 2 lines in English and 3 in German at 320. It is never truncated. `editor.visibility.publicHeldByPaste` wins over it.
 
 ---
 

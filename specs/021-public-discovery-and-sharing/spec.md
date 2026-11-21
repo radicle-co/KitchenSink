@@ -485,7 +485,7 @@ creator page.
 - **A clone whose original is deleted.** If the clone meets the rule, it stays open by link. Its "adapted from" link
   goes away with the original, and its place in the credit chain stays (`001-FR-005d`).
 - **The original cook erases their account.** Clones by others survive with the original cook's attribution stripped
-  (`001-FR-005d`): the credit entry is kept, the name is blanked, and `rights.removedCook` is shown. They are noindex anyway.
+  (`001-FR-005d`): the credit entry is kept, the name is blanked, and it reads "a former member" (`bylineOf`). They are noindex anyway.
 - **A visitor arrives from an in-app browser** (Instagram, TikTok, Facebook) that does not open universal links. The
   page offers "Open in the app" (FR-036).
 - **A visitor installs the app from the page.** On Android, the install referrer carries the recipe address, so the
@@ -721,7 +721,8 @@ Session 2026-11-15.)_
     4. The read rule lets an anonymous viewer see it now. A recipe that is checking, in review or not approved under
        020 fails this.
     5. Its rights label (`016-FR-015c`, derived by `016-FR-015d`) is one of these, or it is a clone of a recipe with
-       one of these:
+       one of these, or it carries `source_record_id` (a public version, or a cook's copy of one, at any depth,
+       003B `FR-062b`) and it has met every other rule here, including the substantive edit (003B `FR-062a`):
         - "Written by you"
         - "Adapted by you", in the cook's own words, with credit. A rewrite of a web page, a cookbook, a magazine or
           a paid site counts. The method must be rewritten, not trimmed (`016-FR-015b`). An AI rewrite is not the

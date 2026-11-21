@@ -74,7 +74,7 @@ These cannot be proven on a preview, because previews have no CloudFront and no 
 
 - the CloudFront passthrough for `/api/v1/public/*` with caching disabled
 - the WAF rate rule's `429` and `Retry-After`
-- the web host's production cache life and its rate limit
+- the web page's production cache life (`Vercel-CDN-Cache-Control`, FR-015) and the Vercel Firewall page rate rule (`firewall:check`, U11)
 - Apple's CDN fetching the association file, and Android's `pm verify-app-links`
 
 Each is a named step in the release checklist, run once after the first production deploy, with its result recorded.

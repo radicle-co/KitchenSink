@@ -182,6 +182,38 @@ describe('RadioList (native) at a system text scale', () => {
         },
     );
 
+    it('a row with no hint keeps the circle on the label: both sit in one top-aligned group the row centres', () => {
+        // The Pressable centres its content. A lone label line is then centred in the 44 dp row, so a circle that
+        // is only offset from the row top would sit off it. Circle and words share one flex-start group instead.
+        withPlatformOs('android', () => {
+            renderWithTamagui(
+                <RadioList
+                    label="Where is this recipe from?"
+                    options={[{ id: 'a', label: 'Publish privately' }]}
+                    value={undefined}
+                    onChange={vi.fn()}
+                />,
+                'light',
+                1,
+            );
+
+            const radio = screen.getByRole('radio');
+            const circle = radio.querySelector('[aria-hidden="true"]');
+
+            if (!(circle instanceof HTMLElement) || circle.parentElement === null) {
+                throw new Error('radio circle not found');
+            }
+
+            const group = circle.parentElement;
+
+            expect(radio.children).toHaveLength(1);
+            expect(radio.firstElementChild).toBe(group);
+            expect(group.contains(screen.getByText('Publish privately'))).toBe(true);
+            expect(getComputedStyle(group).alignItems).toBe('flex-start');
+            expect(getComputedStyle(radio).alignItems).toBe('center');
+        });
+    });
+
     it('on iOS the offset is read from the snapped leading the label draws with', () => {
         withPlatformOs('ios', () => {
             renderAt(2);

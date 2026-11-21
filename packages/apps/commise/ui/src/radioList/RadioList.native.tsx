@@ -23,6 +23,7 @@ import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
+import { RadioRowContent } from './RadioRowContent.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
 /** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
@@ -68,27 +69,30 @@ export function RadioList<Id extends string>({
                             disabled ? { opacity: dimmedOpacity } : null,
                         ]}
                     >
-                        <View
-                            aria-hidden
-                            importantForAccessibility="no-hide-descendants"
-                            style={[
-                                styles.radio,
-                                { marginTop: circleTop },
-                                checked
-                                    ? { borderWidth: 5, borderColor: colors.action }
-                                    : { borderWidth: 2, borderColor: colors.lineControl },
-                            ]}
-                        />
-                        <View style={styles.words}>
-                            <Text typeRole="cardTitle" color="$ink">
-                                {option.label}
-                            </Text>
-                            {option.hint === undefined ? null : (
-                                <Text typeRole="meta" color="$inkMuted">
-                                    {option.hint}
+                        {/* One top-aligned group the row centres: a lone label line then keeps the circle on it. */}
+                        <RadioRowContent>
+                            <View
+                                aria-hidden
+                                importantForAccessibility="no-hide-descendants"
+                                style={[
+                                    styles.radio,
+                                    { marginTop: circleTop },
+                                    checked
+                                        ? { borderWidth: 5, borderColor: colors.action }
+                                        : { borderWidth: 2, borderColor: colors.lineControl },
+                                ]}
+                            />
+                            <View style={styles.words}>
+                                <Text typeRole="cardTitle" color="$ink">
+                                    {option.label}
                                 </Text>
-                            )}
-                        </View>
+                                {option.hint === undefined ? null : (
+                                    <Text typeRole="meta" color="$inkMuted">
+                                        {option.hint}
+                                    </Text>
+                                )}
+                            </View>
+                        </RadioRowContent>
                     </Pressable>
                 );
             })}
@@ -102,12 +106,11 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[4],
         borderWidth: 1,
         borderRadius: nativeTokens.radius.md,
     },
-    radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2, alignSelf: 'flex-start' },
+    radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2 },
     words: { flex: 1, minWidth: 0 },
 });

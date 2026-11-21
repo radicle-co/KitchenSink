@@ -236,7 +236,7 @@ export const GOLDEN_V1_MEASURES: Readonly<
         longestRun: 64,
         newWords: 0,
     },
-    'sauce: Cyrillic look-alikes for six letters': { kept: 58, total: 67, longestRun: 30, newWords: 2 },
+    'sauce: Cyrillic look-alikes for six letters': { kept: 67, total: 67, longestRun: 64, newWords: 0 },
     'sauce: the full text with a long padding paragraph that never repeats its words': {
         kept: 67,
         total: 67,
@@ -269,7 +269,7 @@ export const GOLDEN_V1_MEASURES: Readonly<
         longestRun: 64,
         newWords: 0,
     },
-    'pancakes: Cyrillic look-alikes for six letters': { kept: 74, total: 81, longestRun: 40, newWords: 2 },
+    'pancakes: Cyrillic look-alikes for six letters': { kept: 81, total: 81, longestRun: 64, newWords: 0 },
     'pancakes: the full text with a long padding paragraph that never repeats its words': {
         kept: 81,
         total: 81,
@@ -302,7 +302,7 @@ export const GOLDEN_V1_MEASURES: Readonly<
         longestRun: 64,
         newWords: 0,
     },
-    'roots: Cyrillic look-alikes for six letters': { kept: 47, total: 62, longestRun: 25, newWords: 4 },
+    'roots: Cyrillic look-alikes for six letters': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
     'roots: the full text with a long padding paragraph that never repeats its words': {
         kept: 62,
         total: 62,

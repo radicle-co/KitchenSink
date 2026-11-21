@@ -46,4 +46,34 @@ describe('foldQuantities', () => {
         expect(UNIT_TOKEN).not.toMatch(/[\p{L}\p{N}]/u);
         expect(NUMBER_TOKEN).not.toBe(UNIT_TOKEN);
     });
+
+    // B10a S-1 (staff, qse decision 2026-11-21): a look-alike quantity is still a quantity. The fold reads the token before
+    // the skeleton, so a look-alike used to stay a word and a quantity-only edit counted as new text.
+    describe('look-alike quantities', () => {
+        it.each([
+            // Cyrillic с and р in `cups`; Cyrillic і and е in `minutes`.
+            ['\u0441u\u0440s', [UNIT_TOKEN]],
+            ['m\u0456nut\u0435s', [UNIT_TOKEN]],
+            ['2\u0441u\u0440s', [NUMBER_TOKEN, UNIT_TOKEN]],
+        ])('(a) folds the look-alike unit %j', (text, folded) => {
+            expect(fold(text)).toEqual(folded);
+        });
+
+        it.each([
+            ['l8O', [NUMBER_TOKEN]],
+            ['l8og', [NUMBER_TOKEN, UNIT_TOKEN]],
+            ['2O', [NUMBER_TOKEN]],
+        ])('(b) folds the number written with letters for digits %j', (text, folded) => {
+            expect(fold(text.toLowerCase())).toEqual(folded);
+        });
+
+        it('(d) keeps an all-letter number as a word: `lo` for 10 is the named residual of ADR-0100', () => {
+            expect(fold('lo')).toEqual(['lo']);
+        });
+
+        it('does not fold a real word that holds a digit, or an ASCII word that only resembles a unit', () => {
+            expect(fold('0nion')).toEqual(['0nion']);
+            expect(fold('rnl')).toEqual(['rnl']);
+        });
+    });
 });

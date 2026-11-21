@@ -270,6 +270,33 @@ describe('the runtime pin (KTD-2)', () => {
     });
 });
 
+describe('look-alike quantities do not earn the fact (B10a S-1, AE5)', () => {
+    // Each sentence: two numbers, two units, three words, so every three-token shingle holds a quantity. Our own text.
+    const sentences = Array.from({ length: 14 }, (_, index) => {
+        const noun = synthWord(100 + index);
+        const verb = synthWord(300 + index);
+
+        return {
+            plain: `${verb} ${String(150 + index)} g and ${String(20 + index)} minutes ${noun}.`,
+            // Digits written as the letters l and O, units with Cyrillic с, р, і and е.
+            disguised: `${verb} l${String(5 + (index % 4))}O \u0441u\u0440s and 2${String(index % 10)}O m\u0456nut\u0435s ${noun}.`,
+        };
+    });
+    const baseline = sentences.map((sentence) => sentence.plain).join(' ');
+
+    it('(c) fails a copy whose every quantity is swapped for a look-alike and whose every tenth word is changed', () => {
+        const words = sentences
+            .map((sentence) => sentence.disguised)
+            .join(' ')
+            .split(' ');
+        const edited = words.map((word, index) => (index % 10 === 9 ? synthWord(2000 + index) : word)).join(' ');
+        const result = differenceCheckV1(baseline, edited);
+
+        expect(result.total).toBeGreaterThanOrEqual(20);
+        expect(result.pass).toBe(false);
+    });
+});
+
 describe('the stated v1 limit: scripts written without spaces between words', () => {
     it('never earns the fact for Japanese, whose runs tokenise into a few long tokens and miss the minimum', () => {
         const japanese = '焼き目がつくまでじっくり焦がさずに炒め、第二に調味料を加えてよく混ぜる';

@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { skeletonOf, skeletonTokens } from '../normalise/skeleton.js';
+import { skeletonTokens } from '../normalise/skeleton.js';
+import { skeletonOf } from '../normalise/skeletonOf.js';
 import { NUMBER_TOKEN, UNIT_TOKEN } from '../normalise/foldQuantities.js';
 
 describe('skeletonOf', () => {

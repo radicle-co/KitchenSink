@@ -41,7 +41,10 @@ const BLOCKING_SEVERITIES = new Set(['error', 'high', 'critical']);
 const place = (finding) =>
     finding.line === null || finding.line === undefined ? finding.file : `${finding.file}:${finding.line}`;
 
-/** An array entry without its `why`: the reason annotates debt already on the books, so it is not part of the entry's identity. */
+/**
+ * An array entry without its `why`: the reason annotates debt already on the books, so it is not part of the entry's
+ * identity.
+ */
 const withoutWhy = (entry) => {
     if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) {
         return entry;
@@ -51,7 +54,8 @@ const withoutWhy = (entry) => {
 
 /**
  * Every leaf of a baseline file as `path -> count`, so growth is judged per entry (a sum would let one entry rise while
- * another falls). Numbers are their own count, an array entry counts 1 (keyed without its `why`), nested objects recurse. Pure.
+ * another falls). Numbers are their own count, an array entry counts 1 (keyed without its `why`), nested objects
+ * recurse. Pure.
  *
  * @param {unknown} json
  * @returns {Map<string, number>}

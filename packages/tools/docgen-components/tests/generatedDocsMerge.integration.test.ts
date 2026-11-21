@@ -172,6 +172,18 @@ describe('a merge of two PRs that change the same totals line', () => {
     });
 });
 
+/** Runs a real hook file the way git does, from the repository root, with the stub `docs:generate` in the workspace. */
+function runHook(repo: string, hook: string): string {
+    const log = join(repo, 'calls.txt');
+    execFileSync(SH, [hook], {
+        cwd: repo,
+        env: { ...process.env, DOCGEN_CALLS_FILE: log, DOCGEN_TOTALS_FILE: join(repo, TOTALS_FILE) },
+        stdio: 'ignore',
+    });
+
+    return log;
+}
+
 describe('the hooks regenerate when the incoming side changed an output folder', () => {
     /**
      * Runs a real hook file the way git does, from the repository root, and returns how many times `docs:generate` ran.
@@ -179,12 +191,7 @@ describe('the hooks regenerate when the incoming side changed an output folder',
      * the directory a hook never shares with a test that starts the script itself.
      */
     function generations(repo: string, hook: string): number {
-        const log = join(repo, 'calls.txt');
-        execFileSync(SH, [hook], {
-            cwd: repo,
-            env: { ...process.env, DOCGEN_CALLS_FILE: log, DOCGEN_TOTALS_FILE: join(repo, TOTALS_FILE) },
-            stdio: 'ignore',
-        });
+        const log = runHook(repo, hook);
 
         try {
             return readFileSync(log, 'utf8').trim().split('\n').length;
@@ -262,20 +269,22 @@ describe('the hooks regenerate when the incoming side changed an output folder',
 });
 
 describe('a hook leaves the regenerated files to the author', () => {
-    it('neither stages nor commits what the regeneration changed', () => {
-        const repo = makeRepo(true);
-        expect(mergeTwoPrs(repo).merged).toBe(true);
-        const head = git(repo, 'rev-parse', 'HEAD');
+    /** The hook and the state it finds: post-merge after a self-committed merge, post-commit after a hand commit. */
+    const AFTER = [
+        ['post-merge', POST_MERGE, false],
+        ['post-commit', POST_COMMIT, true],
+    ] as const;
 
-        execFileSync(SH, [POST_MERGE], {
-            cwd: repo,
-            env: {
-                ...process.env,
-                DOCGEN_CALLS_FILE: join(repo, 'calls.txt'),
-                DOCGEN_TOTALS_FILE: join(repo, TOTALS_FILE),
-            },
-            stdio: 'ignore',
-        });
+    it.each(AFTER)('%s neither stages nor commits what the regeneration changed', (_name, hook, noCommit) => {
+        const repo = makeRepo(true);
+        expect(mergeTwoPrs(repo, { noCommit }).merged).toBe(true);
+
+        if (noCommit) {
+            git(repo, 'commit', '-qm', 'merge prB');
+        }
+
+        const head = git(repo, 'rev-parse', 'HEAD');
+        runHook(repo, hook);
 
         expect(git(repo, 'rev-parse', 'HEAD')).toBe(head);
         expect(git(repo, 'diff', '--cached', '--name-only')).toBe('');

@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /**
- * Preview (build spec §7.7 item 4): the real detail page of the draft, in a full-height sheet, under the banner that
+ * Preview (build spec §7.7 item 4): the real detail page of the draft, in a page-sized sheet, under the banner that
  * says it is a preview. Closing returns to the editor.
  */
 import { LocaleProvider } from '@commise/i18n/react';
@@ -37,7 +37,11 @@ describe('RecipePreviewSheet', () => {
 
     // A-012/E24: the preview is a PAGE from `sm` (the whole visible height, up to the detail column), not the
     // picker's 85% dialog. `full` is the picker's size and stays as it was.
-    it('is a page-sized sheet: the whole visible height from sm, up to the detail column', () => {
+    /**
+     * Page size: from sm the visible height less 2 rem, up to the detail column. The 2 rem gap replaces the height half of
+     * A-012/E24 for every page-size sheet (the sheet's page-size geometry); the width half stands.
+     */
+    it('is a page-sized sheet: the visible height less 2 rem from sm, up to the detail column', () => {
         render(
             <LocaleProvider locale="en">
                 <CookMarksTestProvider>
@@ -48,9 +52,9 @@ describe('RecipePreviewSheet', () => {
 
         const classes = screen.getByRole('dialog').className.split(/\s+/u);
 
-        expect(classes).toContain('sm:h-[var(--sheet-visible-height,100dvh)]');
+        expect(classes).toContain('sm:h-[calc(var(--sheet-visible-height,100dvh)-2rem)]');
         expect(classes).toContain('sm:max-w-6xl');
-        expect(classes).not.toContain('sm:h-[85vh]');
+        expect(classes).not.toContain('sm:h-[calc(var(--sheet-visible-height,100dvh)*0.85)]');
     });
 
     it('draws the banner as a tinted block', () => {

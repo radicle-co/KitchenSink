@@ -13,6 +13,7 @@ import { dialogTitled } from '@commise/test-utils';
 import { homeMessages } from '@commise/features-core/home';
 import { nativeTokens } from '@commise/ui/native';
 import { rgb, rolesFor } from '@commise/ui/testing/system-color-scheme';
+import { expectWindowIsTheModal } from '@commise/ui/testing/window-modal';
 // The copy draws through the design system's Tamagui `Text` (ADR-0080), so the sheet renders in its provider.
 import { render, renderWithTamagui, resolvedColour } from '@commise/ui/testing/tamagui';
 
@@ -32,10 +33,12 @@ describe('SubscriptionNudge (mobile) — open', () => {
     // `docs/design/compactHeightLayout.md` §10 (A9): the nudge is the design system's `Sheet`, so it gains the width
     // cap, the insets, the scroll and every close route a phone held sideways needs. It was a hand-rolled bottom panel
     // that spanned the whole width under the side navigation bar.
-    it('is the design-system sheet: a modal dialog named by its title', () => {
+    // #221 moved `aria-modal` from the sheet's own view to the one full-window view around it (S90): the dialog is
+    // named by its title and sits in the modal window.
+    it('is the design-system sheet: a dialog named by its title, in the one modal window', () => {
         render(<SubscriptionNudge open onDismiss={() => undefined} />);
 
-        expect(dialogTitled('Unlock Commise Pro').getAttribute('aria-modal')).toBe('true');
+        expectWindowIsTheModal(dialogTitled('Unlock Commise Pro'));
         expect(screen.getByRole('heading', { name: 'Unlock Commise Pro' })).toBeTruthy();
     });
 

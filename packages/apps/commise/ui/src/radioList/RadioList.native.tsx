@@ -3,25 +3,26 @@
  *
  * A `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint
  * to the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps
- * the native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action` ring when checked), the
- * label that wraps, then the hint under it. A pressed row takes the theme's press wash, as `ChipRow` does. Colours come
- * from the theme at render, so it repaints in the dark scheme. Nothing animates.
+ * the native touch floor and is its own bordered card: the radio circle (`RadioMark`, which owns its size and rings),
+ * the label that wraps, then the hint under it. Label and hint draw on the design-system `Text` (roles `cardTitle` and
+ * `meta`), so they honour the 2x cap and the iOS leading snap (ADR-0080 §8, react-native#58970). The circle sits in a
+ * slot one label line tall, so it stays beside the label's first line. A pressed row takes the theme's press wash, as
+ * `ChipRow` does. Colours come from the theme at render, so it repaints in the dark scheme. Nothing animates.
  *
  * Controlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
+import { RadioMark, RadioRowContent } from './RadioRowContent.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
-
-/** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
-const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
 export function RadioList<Id extends string>({
@@ -59,22 +60,20 @@ export function RadioList<Id extends string>({
                             disabled ? { opacity: dimmedOpacity } : null,
                         ]}
                     >
-                        <View
-                            aria-hidden
-                            importantForAccessibility="no-hide-descendants"
-                            style={[
-                                styles.radio,
-                                checked
-                                    ? { borderWidth: 5, borderColor: colors.action }
-                                    : { borderWidth: 2, borderColor: colors.lineControl },
-                            ]}
-                        />
-                        <View style={styles.words}>
-                            <Text style={[styles.label, { color: colors.ink }]}>{option.label}</Text>
-                            {option.hint === undefined ? null : (
-                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.hint}</Text>
-                            )}
-                        </View>
+                        {/* One top-aligned group the row centres: a lone label line then keeps the circle on it. */}
+                        <RadioRowContent>
+                            <RadioMark checked={checked} />
+                            <View style={styles.words}>
+                                <Text typeRole="cardTitle" color="$ink">
+                                    {option.label}
+                                </Text>
+                                {option.hint === undefined ? null : (
+                                    <Text typeRole="meta" color="$inkMuted">
+                                        {option.hint}
+                                    </Text>
+                                )}
+                            </View>
+                        </RadioRowContent>
                     </Pressable>
                 );
             })}
@@ -88,14 +87,10 @@ const styles = StyleSheet.create({
     row: {
         flexDirection: 'row',
         alignItems: 'center',
-        gap: nativeTokens.spacing[3],
         paddingVertical: nativeTokens.spacing[2],
         paddingHorizontal: nativeTokens.spacing[4],
         borderWidth: 1,
         borderRadius: nativeTokens.radius.md,
     },
-    radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2, alignSelf: 'flex-start' },
     words: { flex: 1, minWidth: 0 },
-    label: nativeTokens.type.cardTitle,
-    hint: nativeTokens.type.meta,
 });

@@ -28,7 +28,7 @@ import { touchFloor } from '@commise/ui/layout';
 import { ImportModeChoice } from '../ImportModeChoice.native.js';
 import { importMessages } from '../messages.js';
 import type { ImportModeChoiceProps } from '../props.js';
-import { render, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
+import { render, renderWithTamagui, scrollRegionFloorOf } from '@commise/ui/testing/tamagui';
 
 const m = importMessages.en.mode;
 
@@ -69,6 +69,24 @@ function renderChoice(overrides: Partial<ImportModeChoiceProps> = {}) {
 const start = () => screen.getByRole('button', { name: m.start });
 
 describe('ImportModeChoice (native)', () => {
+    // AE7 (plan largeTextSheet): the mode cards are the design system's radio list, so their words honour the 2x cap.
+    it('draws a mode card’s title at the capped 2x size under the largest system text', () => {
+        renderWithTamagui(
+            <ImportModeChoice
+                fileName="My Recipes.paprikarecipes"
+                sourceName="Paprika"
+                recipeCount={864}
+                mode={undefined}
+                onModeChange={vi.fn()}
+                onStart={vi.fn()}
+            />,
+            'light',
+            3.571,
+        );
+
+        expect(getComputedStyle(screen.getByText(m.bestTitle)).fontSize).toBe('32px');
+    });
+
     it('names the screen and the file it imports', () => {
         renderChoice();
 

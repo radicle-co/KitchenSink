@@ -100,7 +100,8 @@ describe('the props the frame hands Tamagui’s Dialog', () => {
         renderWithTamagui(<DialogFrame {...propsFor({ role })} />, 'light');
 
         expect(state.content?.['role']).toBe(role);
-        expect(state.content?.['aria-modal']).toBe(true);
+        // REWRITTEN for S90 (qse record 0073): the prop is absent; `OverlayHost`'s window is the modal view.
+        expect(state.content?.['aria-modal']).toBeUndefined();
     });
 
     it('names the dialog by a heading', () => {

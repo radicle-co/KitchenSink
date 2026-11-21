@@ -4,15 +4,15 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 18,
-        "implementations": 34,
-        "props": 127,
-        "documentedComponents": 18,
-        "implementationsWithModuleDoc": 34,
-        "implementationsWithComponentDoc": 34,
-        "documentedProps": 116,
-        "classifiedComponents": 18,
-        "componentsWithPatternTag": 8,
+        "components": 19,
+        "implementations": 35,
+        "props": 128,
+        "documentedComponents": 19,
+        "implementationsWithModuleDoc": 35,
+        "implementationsWithComponentDoc": 35,
+        "documentedProps": 117,
+        "classifiedComponents": 19,
+        "componentsWithPatternTag": 9,
         "crossPlatformComponents": 17
     },
     "components": [
@@ -2426,6 +2426,82 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/timer/TimerProvider",
+            "name": "TimerProvider",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src/timer",
+            "kind": "orchestration",
+            "patterns": [
+                "Composition root (Facade) over the timer store, which a hook reads through context",
+                "Observer — the store is read with `useSyncExternalStore` in `useCookingTimers`"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "TimerProvider",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src/timer",
+                    "moduleDoc": "TimerProvider — makes the session's one timer store and ends it with the cook (S3a.U3, ADR-0094).\n\nMounted once, high in the app (web `RecipeProviders`, mobile `RecipeServiceGate`), fed Clerk's raw `userId`, so a\ntimer outlives every screen and every route and ends only with the cook who started it: a change from a cook to\nnobody or to another cook clears it, and Clerk's loading `undefined` changes nothing.\n\nIt renders only its children. What it constructs is the point: the store, its connection to the clock and the app\nfocus, and the rule that ends it.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "TimerProvider — makes the session's one timer store and ends it with the cook (S3a.U3, ADR-0094)."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Composition root (Facade) over the timer store, which a hook reads through context"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Observer — the store is read with `useSyncExternalStore` in `useCookingTimers`"
+                        }
+                    ],
+                    "description": "Provide the timer store to the subtree. Orchestration: it constructs the store and decides when it ends, and draws\nonly its children.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The cook and the subtree."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The subtree under the store."
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Connects the store to the clock and the app focus while mounted, and tells it who is signed in."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "subject",
+                            "type": "string | null | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Clerk's `userId`: a cook, `null` when signed out, `undefined` while it loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

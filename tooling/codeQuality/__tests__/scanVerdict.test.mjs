@@ -267,6 +267,35 @@ describe('baseline growth', () => {
         );
     });
 
+    // A `why` explains debt that is already on the books. Keying an entry with it made every annotation read as a new
+    // entry, so the ratchet punished exactly the reason it asks for.
+    describe('a `why` on an array entry', () => {
+        const pair = (dependency, why) => ({
+            package: '@x/y',
+            dependency,
+            rule: 'imports-outside-package',
+            ...(why === undefined ? {} : { why }),
+        });
+        const grew = (base, head) => !judge({ baselines: [growth({ pairs: base }, { pairs: head })] }).pass;
+
+        it('is not growth when it is added to an existing pair', () => {
+            assert.equal(grew([pair('a')], [pair('a', 'bootstraps the install')]), false);
+        });
+
+        it('is not growth when it is changed on an existing pair', () => {
+            assert.equal(grew([pair('a', 'old reason')], [pair('a', 'new reason')]), false);
+        });
+
+        it('is growth for a new pair, with or without a `why`', () => {
+            assert.equal(grew([pair('a')], [pair('a'), pair('b')]), true);
+            assert.equal(grew([pair('a')], [pair('a'), pair('b', 'a reason')]), true);
+        });
+
+        it('is a shrink when the pair is removed', () => {
+            assert.equal(grew([pair('a', 'a reason'), pair('b')], [pair('b')]), false);
+        });
+    });
+
     it('passes when a baseline shrinks, is unchanged or is deleted', () => {
         assert.equal(judge({ baselines: [growth(counts({ 'a.ts': 3 }), counts({ 'a.ts': 2 }))] }).pass, true);
         assert.equal(judge({ baselines: [growth(counts({ 'a.ts': 3 }), counts({ 'a.ts': 3 }))] }).pass, true);

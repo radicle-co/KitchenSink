@@ -295,6 +295,10 @@ carries the procedure, time budget and exact report body. Do not improvise the f
 | **minor**   | Real but local and cheap to fix later                                                                                                                                                                                                                   | no                                                         |
 | **nit**     | Only if it is a house-standard rule; otherwise omit                                                                                                                                                                                                     | no                                                         |
 
+- **A deferred end-to-end tier is not a "missing required test tier".** When the PR body names the feature's wrap-up
+  task as the home of the story's Playwright and Maestro flows (CLAUDE.md "Cheapest tier first"), do not file the
+  missing flows. Missing unit, component or integration tests are still a major finding, and so is a deferral the PR
+  body does not name.
 - **Anchor everything** at `path:line`. An unanchored claim about the code is an assumption — label it.
 - **Verified vs assumed**: what you ran and read, versus what you inferred.
 - **Never invent** a path, symbol, rule ID, threshold, standards section or ADR number.

@@ -39,7 +39,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import type { RecipeStatementInput } from '../recipes.schema.js';
-import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.js';
+import { evaluateProvenance, type ResolvedProvenance, type StatementAnswer } from './provenancePolicy.js';
 import { sourceKeyOf } from './sourceEvidence.js';
 
 /**
@@ -83,7 +83,7 @@ export type SourceCorrection =
  * is compared by its source key (the address without its `#fragment`), a book title and a paid-site citation exactly as stored,
  * because the write stores them as sent. Pure.
  */
-export function restatesStored(statement: RecipeStatementInput, stored: StoredSource): boolean {
+export function restatesStored(statement: StatementAnswer, stored: StoredSource): boolean {
     switch (statement.kind) {
         case 'paid_site':
             return stored.sourceKind === 'paid_site' && stored.sourceAttribution === statement.citation;
@@ -105,7 +105,7 @@ export function restatesStored(statement: RecipeStatementInput, stored: StoredSo
  * statement the recipe already holds. Such a statement took no effect, so it is neither written nor recorded. A statement that
  * states a source is never "already held": a second link is a new fact, and its evidence is appended.
  */
-function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
+export function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
     return (
         provenance.sourceKind === null &&
         stored.sourceKind === null &&

@@ -74,6 +74,15 @@ export type ProvenancePolicyInput = {
       }
 );
 
+/**
+ * An answer to "where is this recipe from" with no wording: the shape a staff correction carries, since staff are not shown a
+ * wording to attest. Every statement a cook sends, and every import item, is a subtype of one member.
+ */
+export type StatementAnswer =
+    | { readonly kind: 'authored' }
+    | { readonly kind: 'fromPerson' }
+    | { readonly kind: 'public_web' | 'book' | 'paid_site'; readonly citation: string };
+
 /** The provenance the service will persist, fully resolved. `null` means "no such source", never `''`. */
 export interface ResolvedProvenance {
     /** The recipe's provenance classification. */
@@ -149,7 +158,7 @@ const AUTHORED: ResolvedProvenance = { ...UNDECLARED, statementKind: 'authored' 
  * @returns The provenance to store, or `undefined` for a web link that is not a usable source. Pure.
  */
 export function resolveStatementProvenance(
-    statement: ImportStatement | RecipeStatementInput,
+    statement: ImportStatement | RecipeStatementInput | StatementAnswer,
 ): ResolvedProvenance | undefined {
     switch (statement.kind) {
         case 'authored':

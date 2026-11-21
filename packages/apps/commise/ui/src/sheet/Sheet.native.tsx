@@ -44,7 +44,6 @@ import { KeyboardAvoider } from '../keyboardAvoider/KeyboardAvoider.native.js';
 import { KeyboardLift } from '../keyboardAvoider/KeyboardLift.native.js';
 import { useReduceMotion } from '../motion/useReduceMotion.native.js';
 import type { DismissRequest } from '../overlay/dismissRoute.js';
-import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { OverlayHost } from '../overlay/OverlayHost.native.js';
 import { OverlayView } from '../overlay/OverlayView.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -80,8 +79,8 @@ export const Sheet: FC<SheetProps> = ({
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const [shown, setShown] = useState(0);
-    // The panel's footer measurements live here: the snackbar sits above a pinned footer (designer D78).
-    const pinning = usePinnedFooter();
+    // The footer's last reported height: the snackbar sits above a footer (designer D78).
+    const [footHeight, setFootHeight] = useState(0);
     // Whether the engine has reported a transition: only an engine that is animating has an exit to wait for. One that
     // never reports (no layout yet, or a lane with no frames) leaves the window at once, as it did before the engine.
     const [engineLive, setEngineLive] = useState(false);
@@ -156,7 +155,7 @@ export const Sheet: FC<SheetProps> = ({
                 busy={busy}
                 toolbar={toolbar}
                 footer={footer}
-                pinning={pinning}
+                onFootHeight={setFootHeight}
                 focusSignal={shown}
                 screenReaderLanding={screenReaderLanding}
                 reduceMotion={reduceMotion}
@@ -188,7 +187,7 @@ export const Sheet: FC<SheetProps> = ({
             // A closing sheet hands the snackbar back at once, while its exit still plays.
             presenting={windowOpen}
             // A centred dialog's footer is not at the window's foot.
-            footHeight={centred || footer === undefined ? 0 : pinning.footerHeight}
+            footHeight={centred || footer === undefined ? 0 : footHeight}
             transparent
             statusBarTranslucent
             navigationBarTranslucent

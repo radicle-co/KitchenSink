@@ -6,7 +6,7 @@
  * sheet engine is given its layer here, and the snackbar's outlet is the next one up. Both read these numbers.
  */
 
-/** The layer of the sheet engine's frame. 100_001 is what Tamagui's own default comes to, stated so it is not implied. */
+/** The layer of the sheet engine's frame: what Tamagui's own default comes to, stated so it is not implied. */
 const SHEET_LAYER = 100_001;
 
 export const WINDOW_LAYERS = { sheet: SHEET_LAYER, snackbar: SHEET_LAYER + 1 } as const;

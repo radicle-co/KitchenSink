@@ -1,8 +1,8 @@
 /**
  * Sheet (native) and the snackbar's foot (designer D78, P60): inside a sheet with a footer the snackbar sits one
  * gap above the footer's top, so it never covers Done or Clear ticks, whether the footer is pinned or has scrolled into
- * the content. With no footer it keeps the window foot (the bottom inset and the gap). A centred dialog's footer is not at the window
- * foot, so it keeps the window foot too.
+ * the content. With no footer it keeps the window foot (the bottom inset and the gap). A centred dialog's footer is
+ * not at the window foot, so it keeps the window foot too.
  *
  * The footer's height comes from the footer's own `onLayout`, which react-native-web reports through a
  * `ResizeObserver` that jsdom lacks, so this file serves the heights itself (as `SheetFooterPinning.native.test.tsx`
@@ -121,8 +121,8 @@ describe('Sheet (native): where the snackbar sits inside it', () => {
         expect(regionBottom()).toBe(`${INSET + SNACKBAR_GAP}px`);
     });
 
-    // A footer with little content above it is "unpinned" (it scrolls with the content), and on a content-sized sheet it
-    // still stands at the window's foot: it is the footer, not the pin, that the snackbar must not cover (seen on an
+    // A footer with little content above it is "unpinned" (it scrolls with the content), and on a content-sized sheet
+    // it still stands at the window's foot: it is the footer, not the pin, that the snackbar must not cover (seen on an
     // iPhone run of #221: the snackbar hid Clear ticks).
     it('sits one gap above the footer when the footer has scrolled into the content', () => {
         renderSheet();

@@ -47,7 +47,7 @@ import {
     sheetWidthStyle,
 } from './sheetPresentation.js';
 import { PinnedFooterScrollRegion } from '../layout/PinnedFooterScrollRegion.native.js';
-import { usePinnedFooter, type PinnedFooter } from '../layout/usePinnedFooter.native.js';
+import { usePinnedFooter } from '../layout/usePinnedFooter.native.js';
 import { useKeyboardShown } from '../layout/useKeyboardShown.native.js';
 import { useSwipeToDismiss } from './useSwipeToDismiss.native.js';
 
@@ -56,8 +56,11 @@ export interface BottomSheetPanelProps extends Pick<
     'title' | 'closeLabel' | 'size' | 'presentation' | 'busy' | 'toolbar' | 'footer'
 > {
     readonly children: ReactNode;
-    /** The footer's measurements and decision, when the sheet owns them (the snackbar's offset reads them too); the panel measures its own otherwise. */
-    readonly pinning?: PinnedFooter;
+    /**
+     * Called with the footer's height, bottom inset included, each time the footer reports its layout. The sheet keeps
+     * it so the snackbar sits above the footer.
+     */
+    readonly onFootHeight?: (height: number) => void;
     /** Advances each time the Modal shows; the title takes screen-reader focus on each advance. */
     readonly focusSignal: number;
     /** Where the cursor lands on open (`SheetProps.screenReaderLanding`); read once, when the panel mounts for an opening. */
@@ -93,7 +96,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     toolbar,
     footer,
     children,
-    pinning: ownedPinning,
+    onFootHeight,
     focusSignal,
     screenReaderLanding = 'title',
     reduceMotion,
@@ -114,8 +117,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     const [landing] = useState(screenReaderLanding);
     const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(landing === 'title' ? focusSignal : 0);
     const { panHandlers, translateY } = useSwipeToDismiss(onSwipeDismiss, reduceMotion);
-    const ownPinning = usePinnedFooter();
-    const pinning = ownedPinning ?? ownPinning;
+    const pinning = usePinnedFooter();
     // The one node handle: putting a scroll position back has no declarative form.
     const scroller = useRef<ScrollView>(null);
 
@@ -137,7 +139,10 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         footer === undefined || collapsed ? null : (
             <View
                 style={[styles.footer, endPadding, { borderTopColor: colors.lineDivider }]}
-                onLayout={pinning.onFooterLayout}
+                onLayout={(event) => {
+                    pinning.onFooterLayout(event);
+                    onFootHeight?.(event.nativeEvent.layout.height);
+                }}
             >
                 {footer}
             </View>

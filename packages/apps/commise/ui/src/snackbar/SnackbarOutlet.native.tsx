@@ -14,8 +14,8 @@
  * the page's tab bar is not on screen. Over a footer at the window's foot it sits `SNACKBAR_GAP` above the footer's
  * top (designer D78). Its layer is above the sheet engine's frame (`WINDOW_LAYERS`).
  *
- * shortcut: does not account for a pinned sheet footer's height, so it can cover the footer; publish the footer height
- * and sit above it when the first footered sheet shows a snackbar.
+ * shortcut: the offset counts from the window's foot, so with the keyboard open (`KeyboardLift` lifts the panel and its
+ * footer) the snackbar can sit under the keyboard; lift it by the keyboard height when a sheet with an input shows one.
  *
  * @pattern Mediator — a drawing slot the snackbar host's Mediator fills; the queue, the timer and the pause stay in the
  *     host

@@ -13680,6 +13680,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
+                            "name": "onFootHeight",
+                            "type": "((height: number) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called with the footer's height, bottom inset included, each time the footer reports its layout. The sheet keeps\nit so the snackbar sits above the footer.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
+                        },
+                        {
                             "name": "onScrollSettled",
                             "type": "(y: number) => void",
                             "typeDetail": null,
@@ -13695,15 +13704,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "A swipe down on the handle and the title row went past its threshold.",
-                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
-                        },
-                        {
-                            "name": "pinning",
-                            "type": "PinnedFooter",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The footer's measurements and decision, when the sheet owns them (the snackbar's offset reads them too); the panel measures its own otherwise.",
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
@@ -14572,7 +14572,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host.\n\nA React Native `Modal` is a window of its own, so a snackbar the host draws at the app root sits under an open sheet\nor dialog, where its Undo cannot be reached. `OverlayHost` mounts one outlet in every window it opens. While the\nwindow presents, the outlet registers with the host and keeps a polite `status` region mounted, empty until the host\nhands it the snackbar. The region exists before any snackbar arrives, which is what lets the change be announced.\nOnly the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar\nis in one place at a time and is read out once.\n\nIt is an orchestration component: it owns the registration with the host and draws a styled region.\n\nIt sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window\nthe page's tab bar is not on screen. Over a footer at the window's foot it sits `SNACKBAR_GAP` above the footer's\ntop (designer D78). Its layer is above the sheet engine's frame (`WINDOW_LAYERS`).\n\nshortcut: does not account for a pinned sheet footer's height, so it can cover the footer; publish the footer height\nand sit above it when the first footered sheet shows a snackbar.",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host.\n\nA React Native `Modal` is a window of its own, so a snackbar the host draws at the app root sits under an open sheet\nor dialog, where its Undo cannot be reached. `OverlayHost` mounts one outlet in every window it opens. While the\nwindow presents, the outlet registers with the host and keeps a polite `status` region mounted, empty until the host\nhands it the snackbar. The region exists before any snackbar arrives, which is what lets the change be announced.\nOnly the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar\nis in one place at a time and is read out once.\n\nIt is an orchestration component: it owns the registration with the host and draws a styled region.\n\nIt sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window\nthe page's tab bar is not on screen. Over a footer at the window's foot it sits `SNACKBAR_GAP` above the footer's\ntop (designer D78). Its layer is above the sheet engine's frame (`WINDOW_LAYERS`).\n\nshortcut: the offset counts from the window's foot, so with the keyboard open (`KeyboardLift` lifts the panel and its\nfooter) the snackbar can sit under the keyboard; lift it by the keyboard height when a sheet with an input shows one.",
                     "moduleTags": [
                         {
                             "name": "module",

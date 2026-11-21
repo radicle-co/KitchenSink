@@ -97,6 +97,14 @@ describe('gate.yml judge retry', () => {
         expect(step('retry').if ?? '').toContain("steps.judge.outcome == 'failure'");
     });
 
+    it('does not start a judge for a run a newer push cancelled: both new steps use !cancelled(), not always()', () => {
+        for (const id of ['retry', 'judge-retry']) {
+            // Mutation: always() would run a full model judge for a head nobody waits for.
+            expect(step(id).if, id).toContain('!cancelled()');
+            expect(step(id).if, id).not.toContain('always()');
+        }
+    });
+
     it('gives both judge steps the same action, tools, model, schema and trust settings', () => {
         const [first, second] = judgeSteps;
 

@@ -286,7 +286,7 @@ jobs:
             # error result, `error_max_turns` or a missing file is not retried and stays fail-closed.
             - name: Check whether the judge only lacked the structured result
               id: retry
-              if: ${{ always() && steps.judge.outcome == 'failure' }}
+              if: ${{ !cancelled() && steps.judge.outcome == 'failure' }}
               env:
                   # The last result entry of the action's execution file: finished, no error, no structured output.
                   RETRY_FILTER: 'map(select(.type == "result")) | last | (.subtype == "success" and .is_error == false and ((.structured_output // null) == null))'
@@ -300,7 +300,7 @@ jobs:
 
             - name: Judge the diff once more (GATE mode)
               id: judge-retry
-              if: ${{ always() && steps.retry.outputs.retry == 'true' }}
+              if: ${{ !cancelled() && steps.retry.outputs.retry == 'true' }}
               timeout-minutes: 20
               uses: anthropics/claude-code-action@61a9c274fa7110a66dfafc1bbbced03833eb25fe # v1.0.269
               with:

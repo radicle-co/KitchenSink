@@ -38,7 +38,7 @@ inside an agent session costs that session's budget and cannot be required by th
    with no judge posts `failure`.
 6. **It fails closed.** A step error, a timeout, a missing or malformed structured output, a `BLOCK` verdict or any
    blocking finding posts `failure`. Fork PRs are refused, because the secret is withheld from them. One shape gets a
-   single retry (owner ruling 2026-11-21, decision 0075 of the Luna squad): the judge finished with a success result
+   single retry (owner ruling 2026-11-21): the judge finished with a success result
    but gave no structured output, because it ended in prose. The prompt now says the final action must be the structured
    output. The `retry` step reads the action's execution file and allows one more judge run for exactly that shape.
    Every other failure stays `failure` with no retry. `gateJudgeRetry.test.ts` pins this.

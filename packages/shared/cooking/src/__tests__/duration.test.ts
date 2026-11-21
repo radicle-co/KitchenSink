@@ -85,6 +85,43 @@ describe('readDuration: a time that is a rate per weight or per piece is no wait
     });
 });
 
+describe('readDuration: a repeat rate offers the time, because the time is the real wait for each repeat (P56)', () => {
+    it.each([
+        ['Fry 3 minutes per side', 180],
+        ['Fry 3 minutes per side.', 180],
+        ['Fry 3 minutes each side', 180],
+        ['Bake 12 minutes per batch', 720],
+        ['Bake 12 minutes each batch.', 720],
+        ['Fry 3 MINUTES PER SIDE', 180],
+        ['Fry 2 MINUTES PER SIDE', 120],
+        ['Fry 3 minutes per   side', 180],
+        ['Fry 3 minutes per side of the steak', 180],
+    ])('%s gives %i s', (line, seconds) => {
+        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+        expect(offerSecondsOf({ line })).toBe(seconds);
+    });
+
+    it.each([
+        'Microwave 1 minute per potato',
+        'Rest 10 minutes per pound',
+        'Roast 20 minutes to the pound',
+        'Bake 20 minutes to the boil',
+        'Fry 3 minutes per sidecar',
+        'Bake 12 minutes per batches',
+        'Fry 3 minutes per batchwork',
+        'Fry 3 minutes per',
+        'Fry 3 minutes per other side',
+        'Rest the steak 10 minutes to the side',
+        'Roast 20 minutes per pound per side',
+    ])('%s still gives none: only the listed repeat words offer the time', (line) => {
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+    });
+
+    it('still reads many when a repeat rate sits beside another time', () => {
+        expect(readDuration('Sear 1 minute per side, 2 minutes in all.')).toEqual({ kind: 'many' });
+    });
+});
+
 describe('readDuration rounds a fractional length to whole seconds, half up', () => {
     it.each([
         ['Whisk 1/8 minute', 8],

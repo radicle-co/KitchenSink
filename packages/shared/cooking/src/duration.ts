@@ -15,7 +15,7 @@
 import { amountAt } from '@kitchensink/recipe-core/parsing/measure-reader';
 
 import { oneReading, type DurationReading } from './durationReading.js';
-import { RATE_PHRASES, readWordDuration } from './durationWords.js';
+import { RATE_PHRASES, REPEAT_RATE_PHRASES, readWordDuration } from './durationWords.js';
 import { MIN_TIMER_MS, isValidTimerMs } from './timer.js';
 
 const SECONDS_PER_UNIT: Readonly<Record<string, number>> = { h: 3_600, m: 60, s: 1 };
@@ -65,13 +65,19 @@ const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
 const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
 
+/** The words as a pattern: each phrase's words joined by whitespace, the phrases as alternatives. */
+const phrasePattern = (phrases: readonly (readonly string[])[]): string =>
+    phrases.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
+
 /**
  * Any rate word right after the span ("10 minutes per pound", "20 minutes to the pound"): the line reads none. The
- * rule is on the words, not on what follows them, so "per side", "per batch" and "to the boil" read none on purpose. A
- * wrong number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
+ * rule is on the words, not on what follows them, so "to the boil" and "per potato" read none on purpose. A wrong
+ * number the cook trusts is worse than no offer. The words are the word reader's, plain lower-case letters.
  */
-const RATE_ALTERNATION = RATE_PHRASES.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
-const RATE_AFTER = new RegExp(String.raw`^\s*(?:${RATE_ALTERNATION})(?![a-z])`, 'iu');
+const RATE_AFTER = new RegExp(String.raw`^\s*(?:${phrasePattern(RATE_PHRASES)})(?![a-z])`, 'iu');
+
+/** The repeat words ("per side", "per batch") are the one rate whose time is the real wait, so they are offered. */
+const REPEAT_RATE_AFTER = new RegExp(String.raw`^\s*(?:${phrasePattern(REPEAT_RATE_PHRASES)})(?![a-z])`, 'iu');
 
 /** One whole span of time: amounts joined by space, comma or "and", then an optional bare minute part. */
 const SPAN = new RegExp(`${amountSource(false)}(?:${JOINER}${amountSource(false)})*${BARE_MINUTES}?`, 'giu');
@@ -127,7 +133,11 @@ export function readDuration(line: string): DurationReading {
 
     const after = line.slice(at + span.length);
 
-    if (UNREAD_TIME_BEFORE.test(line.slice(0, at)) || UNREAD_TIME_AFTER.test(after) || RATE_AFTER.test(after)) {
+    if (
+        UNREAD_TIME_BEFORE.test(line.slice(0, at)) ||
+        UNREAD_TIME_AFTER.test(after) ||
+        (RATE_AFTER.test(after) && !REPEAT_RATE_AFTER.test(after))
+    ) {
         return { kind: 'none' };
     }
 

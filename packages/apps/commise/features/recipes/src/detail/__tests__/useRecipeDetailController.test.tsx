@@ -138,7 +138,9 @@ function mount(
         marks,
         rendered,
         reportError,
-        showRecipe: (next) => rerender({ ...recipe, ...next }),
+        showRecipe: (next) => {
+            rerender({ ...recipe, ...next });
+        },
     };
 }
 
@@ -264,12 +266,12 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
             act(() => result.current.menu?.items.find((item) => item.id === 'makePrivate')?.onSelect());
             expect(setVisibility).toHaveBeenCalled();
         });
-        await waitFor(() =>
+        await waitFor(() => {
             expect(result.current.visibilityNotice).toEqual({
                 kind: 'moment',
                 text: 'Not available. All 50 of your private slots are in use.',
-            }),
-        );
+            });
+        });
     });
 
     it('Make public on a private recipe of a cook with slots asks first, in the "frees a slot" words', async () => {
@@ -554,12 +556,12 @@ describe('useRecipeDetailController — the visibility notice', () => {
             slots: { used: 50, limit: 50 },
         });
 
-        await waitFor(() =>
+        await waitFor(() => {
             expect(result.current.visibilityNotice).toEqual({
                 kind: 'moment',
                 text: 'Not available. All 50 of your private slots are in use.',
-            }),
-        );
+            });
+        });
     });
 });
 

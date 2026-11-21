@@ -16,7 +16,6 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, screen } from '@testing-library/react';
 import type { FC, ReactElement, ReactNode } from 'react';
-import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
@@ -24,7 +23,10 @@ import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index
 import type { VisibilityNotice } from '../../actions/visibilityNotice.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
-const platform = vi.hoisted(() => ({ os: 'ios' as 'ios' | 'android' }));
+const platform = vi.hoisted(() => ({
+    os: 'ios' as 'ios' | 'android',
+    announce: vi.fn<(message: string, options: unknown) => void>(),
+}));
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -40,7 +42,7 @@ vi.mock('react-native', async (importOriginal) => {
         },
         AccessibilityInfo: {
             ...actual.AccessibilityInfo,
-            announceForAccessibilityWithOptions: vi.fn(),
+            announceForAccessibilityWithOptions: platform.announce,
             sendAccessibilityEvent: vi.fn(),
         },
     };
@@ -52,7 +54,7 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
-    vi.mocked(AccessibilityInfo.announceForAccessibilityWithOptions).mockClear();
+    platform.announce.mockClear();
 });
 
 /** The owner's view also mounts the ambiguity review, which reads the food client. */
@@ -87,8 +89,7 @@ const view = (notice?: VisibilityNotice, announcement?: string, viewerIsOwner = 
         recipe={makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE })}
     />
 );
-const announced = (): string[] =>
-    vi.mocked(AccessibilityInfo.announceForAccessibilityWithOptions).mock.calls.map(([message]) => message);
+const announced = (): string[] => platform.announce.mock.calls.map(([message]) => message);
 /** The visible line: the node that is not a live region (the hidden polite region holds the same words once announced). */
 const visibleLine = (): HTMLElement => screen.getByText(STANDING.text, { selector: ':not([aria-live])' });
 
@@ -114,7 +115,7 @@ describe('RecipeDetailView (native) — the standing reason line (P6)', () => {
         const regions = document.querySelectorAll('[aria-live="assertive"]');
 
         expect(regions).toHaveLength(1);
-        expect(regions[0]?.textContent).toBe('');
+        expect(regions.item(0)?.textContent).toBe('');
     });
 
     it('announces nothing on a page that opens with the line', () => {

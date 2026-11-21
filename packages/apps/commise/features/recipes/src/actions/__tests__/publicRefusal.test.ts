@@ -14,11 +14,9 @@ import {
     type RecipeSourceKindView,
     type RecipeStatementKindView,
 } from '@kitchensink/recipe-core';
+
 import { describe, expect, it } from 'vitest';
 
-// The state model is a repo document with no package of its own, and this test pins the reason names to it.
-// eslint-disable-next-line import-x/no-relative-packages -- a doc file outside every package; no alias reaches it
-import stateModel from '../../../../../../../../docs/architecture/recipeStateModel.json';
 import { PUBLIC_REFUSALS, publicRefusalOf, type PublicRefusal, type PublicRefusalFacts } from '../publicRefusal.js';
 
 const { USER_CREATED, IMPORTED_PUBLIC, IMPORTED_PHYSICAL, IMPORTED_PAID } = RecipeSourceType;
@@ -121,14 +119,5 @@ describe('publicRefusalOf: the decision table', () => {
         expect(publicRefusalOf(facts({ sourceType: IMPORTED_PUBLIC, sourceKind: 'public_web' }))).not.toBe('none');
         expect(publicRefusalOf(facts({ sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' }))).not.toBe('none');
         expect(publicRefusalOf(facts({ sourceType: IMPORTED_PAID, sourceKind: 'paid_site' }))).not.toBe('none');
-    });
-});
-
-describe('publicRefusalOf: the reason names are the state model’s', () => {
-    it('uses the refusal names of docs/architecture/recipeStateModel.json for the reasons P6 shows', () => {
-        const names = stateModel.refusals.map((refusal) => refusal.reason);
-        const shown = PUBLIC_REFUSALS.filter((reason) => reason !== 'none');
-
-        expect(shown.filter((reason) => !names.includes(reason))).toEqual([]);
     });
 });

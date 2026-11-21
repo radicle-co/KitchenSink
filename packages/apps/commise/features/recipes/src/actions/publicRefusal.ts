@@ -3,7 +3,7 @@
  *
  * ONE pure function answers it. The recipe page's menu, the page's visibility slot and the editor's Public card, choice
  * and send all read it, so they cannot disagree about whether Public is offered or what is said when it is not. The
- * reason names are the recipe state model's (`docs/architecture/recipeStateModel.json`, `refusals`), so one vocabulary
+ * reason names are the recipe state model's (the recipe state model under `docs/architecture`, its `refusals`), so one vocabulary
  * serves the model and both surfaces.
  *
  * It composes recipe-core's `privateRuleOf` (ADR-0073 section 10) and restates none of it: a rule that says "private

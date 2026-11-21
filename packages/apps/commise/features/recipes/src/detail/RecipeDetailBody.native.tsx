@@ -215,16 +215,16 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
             )}
             {/* Board P6: why a private recipe stays private is plain muted text, never a live region. A separate polite hidden
                 region, mounted empty, is filled once when the reason first appears (KTD-6, designer DN-1). */}
-            {owner && visibilityNotice?.kind === 'standing' && (
+            {owner && visibilityNotice?.kind === 'standing' ? (
                 <Text typeRole="meta" color="$inkMuted">
                     {visibilityNotice.text}
                 </Text>
-            )}
-            {owner && (
+            ) : null}
+            {owner ? (
                 <LiveRegion politeness="polite" visuallyHidden>
                     {visibilityAnnouncement ?? ''}
                 </LiveRegion>
-            )}
+            ) : null}
             <RecipeSourceLine
                 {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
                 {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}

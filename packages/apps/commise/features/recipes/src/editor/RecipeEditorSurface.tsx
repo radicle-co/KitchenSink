@@ -45,6 +45,7 @@ import { recipeActionMessages } from '../actions/messages.js';
 import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
+import { publicOfferOf } from './publishBlockedCopy.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { originalLinesOf } from '../form/wire.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
@@ -467,11 +468,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     onKeepDraft={editor.keepAsDraft}
                     // ⛔ A recipe whose Public is refused can only be private (ADR-0089, board P6): the ask has no such control. One
                     // function (`publicRefusalOf`) decides every Public offer; a web page keeps its own words.
-                    {...(editor.publicRefusal === 'none'
-                        ? { onPublishPublic: editor.publishAsPublic }
-                        : source.webSource
-                          ? { webSource: true }
-                          : { refused: true })}
+                    {...publicOfferOf(editor.publicRefusal, source.webSource, editor.publishAsPublic)}
                 />
             )}
         </>

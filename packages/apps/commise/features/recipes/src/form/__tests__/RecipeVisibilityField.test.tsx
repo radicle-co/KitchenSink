@@ -97,6 +97,14 @@ const Harness: FC<HarnessProps> = ({
 
 const radio = (name: string): HTMLInputElement => screen.getByRole<HTMLInputElement>('radio', { name });
 
+/** The text of everything a control points at with `aria-describedby`, joined. */
+const descriptionOf = (element: HTMLElement): string =>
+    (element.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .join(' ')
+        .trim();
+
 describe('RecipeVisibilityField (web)', () => {
     it('is a group named "Who can see it" holding Public and Private, each with its hint', () => {
         render(<Harness paidFeatures="granted" />);
@@ -395,12 +403,6 @@ describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only
         standing: { kind: 'open', used: 10, limit: 50, left: 40 },
         state,
     });
-    const descriptionOf = (element: HTMLElement): string =>
-        (element.getAttribute('aria-describedby') ?? '')
-            .split(' ')
-            .map((id) => document.getElementById(id)?.textContent ?? '')
-            .join(' ')
-            .trim();
 
     it('⛔ shows Public refused - aria-disabled, never natively disabled - with the reason as its description', () => {
         render(
@@ -681,12 +683,6 @@ describe('RecipeVisibilityField (web) - the reason on the refused Public card (P
     const CONFIRM = 'By making this public, you confirm it is your own recipe.';
     const lines = recipeActionMessages.en.publicRefusal;
     const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
-    const descriptionOf = (element: HTMLElement): string =>
-        (element.getAttribute('aria-describedby') ?? '')
-            .split(' ')
-            .map((id) => document.getElementById(id)?.textContent ?? '')
-            .join(' ')
-            .trim();
 
     it.each([
         ['fromPerson', lines.fromPerson],

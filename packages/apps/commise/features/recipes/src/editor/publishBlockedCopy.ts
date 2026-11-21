@@ -8,7 +8,9 @@
  * @pattern Policy — one pure decision of which words the blocked-publish dialog says
  */
 import { fillTemplate } from '@commise/i18n';
+import type { PublicRefusal } from '../actions/publicRefusal.js';
 import type { EditorMessages } from './messages.js';
+import type { PublishBlockedSheetProps } from './publishBlockedSheetProps.js';
 
 /** What the dialog says. */
 export interface PublishBlockedCopy {
@@ -16,6 +18,23 @@ export interface PublishBlockedCopy {
     readonly body: string;
     /** The Premium line, only while the subscription-entry-point switch is on. */
     readonly upsell: string | undefined;
+}
+
+/** Which pair of bodies the dialog says: a web copy first, then another refusal, then the plain no-slot words. */
+function bodiesOf(
+    noSlot: EditorMessages['publishBlocked']['noSlot'],
+    webSource: boolean,
+    refused: boolean,
+): readonly [counted: string, uncounted: string] {
+    if (webSource) {
+        return [noSlot.bodyWebSource, noSlot.bodyWebSourceNoCount];
+    }
+
+    if (refused) {
+        return [noSlot.bodyRefused, noSlot.bodyRefusedNoCount];
+    }
+
+    return [noSlot.body, noSlot.bodyNoCount];
 }
 
 /**
@@ -39,15 +58,27 @@ export function publishBlockedCopyOf(
     refused = false,
 ): PublishBlockedCopy {
     const { noSlot } = messages;
-    const [counted, uncounted] = webSource
-        ? [noSlot.bodyWebSource, noSlot.bodyWebSourceNoCount]
-        : refused
-          ? [noSlot.bodyRefused, noSlot.bodyRefusedNoCount]
-          : [noSlot.body, noSlot.bodyNoCount];
+    const [counted, uncounted] = bodiesOf(noSlot, webSource, refused);
 
     return {
         title: noSlot.title,
         body: slotTotal === undefined ? uncounted : fillTemplate(counted, { total: slotTotal }),
         upsell: sellsPro ? fillTemplate(messages.noSlot.upsell, { premiumFeatures }) : undefined,
     };
+}
+
+/**
+ * What the blocked-publish sheet offers for Public: the control when nothing refuses it, otherwise the flag that picks
+ * the words for the reason there is none (a web copy keeps its own). Pure.
+ */
+export function publicOfferOf(
+    refusal: PublicRefusal,
+    webSource: boolean,
+    publish: () => void,
+): Pick<PublishBlockedSheetProps, 'onPublishPublic' | 'webSource' | 'refused'> {
+    if (refusal === 'none') {
+        return { onPublishPublic: publish };
+    }
+
+    return webSource ? { webSource: true } : { refused: true };
 }

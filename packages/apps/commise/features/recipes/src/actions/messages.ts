@@ -116,7 +116,7 @@ export interface RecipeVisibilityToggleMessages {
 
 /**
  * One line per reason a recipe cannot be public (board P6, `publicRefusalOf`). One key per reason, named by the recipe state
- * model's refusal (`docs/architecture/recipeStateModel.json`): the recipe page's slot and the editor's Public card say the
+ * model's refusal (the recipe state model under `docs/architecture`): the recipe page's slot and the editor's Public card say the
  * same line. A line states what is true and stops: no public path, no invitation to change the answer (brainstorm R5).
  */
 export interface PublicRefusalMessages {

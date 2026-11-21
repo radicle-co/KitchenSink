@@ -48,8 +48,8 @@ describe('the reason lines', () => {
     });
 
     it('has one key per reason, and no other', () => {
-        expect(Object.keys(recipeActionMessages.en.publicRefusal).sort()).toEqual(
-            ['fromPerson', 'policyBook', 'policyPaidSite', 'policyWebPage', 'sourceConflict', 'unrecognised'].sort(),
+        expect(new Set(Object.keys(recipeActionMessages.en.publicRefusal))).toEqual(
+            new Set(['fromPerson', 'policyBook', 'policyPaidSite', 'policyWebPage', 'sourceConflict', 'unrecognised']),
         );
     });
 
@@ -62,7 +62,7 @@ describe('the reason lines', () => {
 
 describe('AE8: no line promises a public path or invites a change of answer', () => {
     // Every locale: a locale added later is held to the same list.
-    const cases = Object.entries(recipeActionMessages).flatMap(([locale, messages]) =>
+    const cases = Object.entries(recipeActionMessages).flatMap(([locale, messages]): Array<readonly [string, string]> =>
         Object.entries(messages?.publicRefusal ?? {}).map(([key, value]) => [`${locale}.${key}`, value] as const),
     );
 

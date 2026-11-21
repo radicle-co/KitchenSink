@@ -41,7 +41,7 @@ const WAIT_MS = 15_000;
 const BUILD_STUB = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 
 /** What the stub build does for one key, written to `mode.<key>`. */
-type StubMode = 'block' | 'fail3' | 'leaveGroup' | 'leaveSession';
+type StubMode = 'block' | 'fail3' | 'leaveGroup' | 'leaveSession' | 'leaveDeaf';
 
 interface World {
     readonly root: string;
@@ -70,6 +70,7 @@ mode="$(cat "$STUB_DIR/mode.$k" 2>/dev/null || echo block)"
 case "$mode" in
     fail3) echo "end $k" >> "$STUB_DIR/events.log"; exit 3 ;;
     leaveSession) setsid sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
+    leaveDeaf) bash -c 'trap "" TERM; exec sleep 300' > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     leaveGroup) sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     *) while [ ! -f "$STUB_DIR/release.$k" ]; do sleep 0.05; done ;;
 esac
@@ -298,27 +299,30 @@ describe('iosBuildJob.sh: one build at a time', () => {
         await until('the leftover to be gone', () => !alive(pidOf(world, 'pid.sleep.keyA')));
     });
 
-    it('⛔ stops the whole build on TERM, exits 143, and leaves the lock to the next job', async () => {
-        const world = makeWorld();
+    it.each(['SIGTERM', 'SIGINT'] as const)(
+        '⛔ stops the whole build on %s, exits 143, and leaves the lock to the next job',
+        async (signal) => {
+            const world = makeWorld();
 
-        upload(world, 'jobA', 'keyA');
-        upload(world, 'jobB', 'keyB');
-        const a = startJob(world, 'jobA', 'keyA');
+            upload(world, 'jobA', 'keyA');
+            upload(world, 'jobB', 'keyB');
+            const a = startJob(world, 'jobA', 'keyA');
 
-        await until('A to build', () => started(world, 'keyA'));
-        const build = pidOf(world, 'pid.keyA');
+            await until('A to build', () => started(world, 'keyA'));
+            const build = pidOf(world, 'pid.keyA');
 
-        process.kill(a.child.pid ?? 0, 'SIGTERM');
+            process.kill(a.child.pid ?? 0, signal);
 
-        expect(await a.exit).toBe(143);
-        // Mutation: no TERM trap, and the build keeps running in the shared tree while the next job starts.
-        expect(alive(build)).toBe(false);
-        const b = startJob(world, 'jobB', 'keyB');
+            expect(await a.exit).toBe(143);
+            // Mutation: no TERM trap, and the build keeps running in the shared tree while the next job starts.
+            expect(alive(build)).toBe(false);
+            const b = startJob(world, 'jobB', 'keyB');
 
-        await until('B to take the lock', () => started(world, 'keyB'));
-        release(world, 'keyB');
-        expect(await b.exit).toBe(0);
-    });
+            await until('B to take the lock', () => started(world, 'keyB'));
+            release(world, 'keyB');
+            expect(await b.exit).toBe(0);
+        },
+    );
 
     it('⛔ leaves the holder`s record alone when a job that never held the lock is stopped', async () => {
         const world = makeWorld();
@@ -336,8 +340,41 @@ describe('iosBuildJob.sh: one build at a time', () => {
 
         // Mutation: write `released` on every exit, and the live holder A reads as released.
         expect(readFileSync(path.join(buildRoot(world), 'build.owner'), 'utf8')).toMatch(/^job=jobA /u);
+        // Mutation: no `rm -rf` of the snapshot on exit, and a stopped waiter leaves its whole upload behind.
+        expect(existsSync(path.join(jobFolder(world, 'jobB'), 'src'))).toBe(false);
         release(world, 'keyA');
         expect(await a.exit).toBe(0);
+    });
+
+    it('⛔ kills a process in the build group that ignores TERM, before the next job can take the lock', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA', {}, 'leaveDeaf');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        expect(await a.exit).toBe(0);
+        // Mutation: no `kill -KILL` after the bounded wait, and the deaf process outlives the job for good.
+        expect(alive(pidOf(world, 'pid.sleep.keyA'))).toBe(false);
+    }, 30_000);
+
+    it('⛔ builds job 2 from its own files only: a file only job 1 uploaded is gone from the shared tree', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA', { f: 'only in A' });
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: no `--delete` on the sync, and B builds with the file A left in the shared tree.
+        expect(existsSync(marker(world, 'seen.f.keyA'))).toBe(true);
+        expect(existsSync(marker(world, 'seen.f.keyB'))).toBe(false);
     });
 });
 

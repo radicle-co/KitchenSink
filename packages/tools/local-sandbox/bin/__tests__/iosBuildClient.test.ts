@@ -259,6 +259,10 @@ describe('buildIosApp.sh build: one result file for one job', () => {
         const world = makeWorld();
         const repo = makeRepo(world, readFileSync(REAL_JOB_SCRIPT, 'utf8'));
 
+        // The clock stands still, as it does for two builds begun in the same second: only the pid tells the ids apart.
+        // Mutation: drop `-$$` from the id, and the second build reuses the first one's folder name.
+        writeExecutable(path.join(world.bin, 'date'), '#!/usr/bin/env bash\necho 20261121T000000Z\n');
+
         // The ssh log is emptied between the runs, so each run's commands are told apart.
         const first = build(world, repo);
         const firstIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
@@ -292,6 +296,21 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.status).not.toBe(0);
         expect(result.stderr).toContain('job=other');
         expect(result.stderr.match(/waiting for the build lock: job=other/gu)).toHaveLength(1);
+    });
+
+    it('⛔ dies and names the job when the Mac rebooted since the wrapper started, even if its pid is alive again', () => {
+        const world = makeWorld();
+        // A live pid (this job's own) beside a boot id that is not the Mac's: a reused pid after a reboot.
+        const repo = makeRepo(world, fakeJob(`printf '%s %s\\n' "$$" otherboot > "$d/wrapper"\nsleep 15\nexit 0`));
+
+        const result = build(world, repo);
+        const [job] = jobIdsIn(sshCommands(world).join('\n'));
+
+        // Mutation: poll only `kill -0`, and the client waits for a build the reboot already ended.
+        expect(result.error).toBeUndefined();
+        expect(result.status).not.toBe(0);
+        expect(job).toBeDefined();
+        expect(result.stderr).toContain(job);
     });
 
     it('keeps the job folder and shows the log tail when the build failed', () => {

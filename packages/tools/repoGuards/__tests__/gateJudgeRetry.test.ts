@@ -555,7 +555,11 @@ describe('the retry evidence', () => {
             run.stdout
                 .split('\n')
                 .filter((line) => line.startsWith('retry-evidence '))
-                .map((line) => line.slice('retry-evidence '.length).split('=') as [string, string]),
+                .map((line) => {
+                    const [name = '', ...value] = line.slice('retry-evidence '.length).split('=');
+
+                    return [name, value.join('=')];
+                }),
         );
 
     it('says which clause failed when the prose mentions BLOCK (H1)', () => {
@@ -568,6 +572,23 @@ describe('the retry evidence', () => {
             structured_absent: 'true',
             result_mentions_block: 'true',
             filter: 'false',
+        });
+    });
+
+    it("says BLOCK is mentioned when the card's own report spine is echoed (H1)", () => {
+        const spine = '### Verdict\nPASS WITH FINDINGS\n\nTemplate: [BLOCK | PASS WITH FINDINGS | PASS]';
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, result: spine }));
+
+        expect(run.output).toBe('retry=false\n');
+        expect(evidence(run)['result_mentions_block']).toBe('true');
+    });
+
+    it('keeps the projection when the result text is not a string', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, result: 7 }));
+
+        expect(JSON.parse(run.projection ?? 'null')).toMatchObject({
+            result_type: 'number',
+            result_mentions_block: null,
         });
     });
 
@@ -657,5 +678,7 @@ describe('the retry evidence', () => {
             'if-no-files-found': 'ignore',
         });
         expect(upload?.if).toContain('!cancelled()');
+        // An artifact-service error or a re-run name clash must never fail the GATE job.
+        expect(upload?.['continue-on-error']).toBe(true);
     });
 });

@@ -356,7 +356,7 @@ jobs:
                       jq 'map(select(.type == "result")) | last | {subtype, is_error, num_turns,
                           structured_output_type: (.structured_output | type), result_type: (.result | type),
                           result_length: (.result | if type == "string" then length else null end),
-                          result_mentions_block: ((.result // "") | test("BLOCK"))}' "$FILE" \
+                          result_mentions_block: (.result | if type == "string" then test("BLOCK") else null end)}' "$FILE" \
                           >"${RUNNER_TEMP}/gateRetryEvidence.json" 2>/dev/null || rm -f "${RUNNER_TEMP}/gateRetryEvidence.json"
                   else
                       echo "retry-evidence file_present=false"
@@ -365,6 +365,8 @@ jobs:
             # The retry check's projection (clause facts and type names, no prose), kept three days for the next failure.
             - name: Keep the retry evidence
               if: ${{ !cancelled() && steps.retry.conclusion == 'success' }}
+              # Evidence must never decide the GATE: an artifact error or a re-run name clash is not a verdict.
+              continue-on-error: true
               uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
               with:
                   name: gateRetryEvidence-${{ env.SHA }}

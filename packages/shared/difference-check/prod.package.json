@@ -1,0 +1,20 @@
+{
+    "name": "@kitchensink/difference-check",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "main": "./dist/differenceCheckV1.js",
+    "types": "./dist/differenceCheckV1.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/differenceCheckV1.d.ts",
+            "default": "./dist/differenceCheckV1.js"
+        }
+    },
+    "dependencies": {
+        "stemmer": "2.0.1"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

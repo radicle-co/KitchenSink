@@ -312,7 +312,9 @@ describe('the stated v1 limit: scripts written without spaces between words', ()
 });
 
 describe('cost (qse F-11)', () => {
-    it('finishes a pair at the 100 kB body limit inside the default test timeout', () => {
+    // The 30 s timeout is not a speed claim (cost.test.ts holds that, as a ratio): it keeps a loaded CI runner from
+    // failing a case that only shows the whole check completes at the body limit.
+    it('completes a pair at the 100 kB body limit', { timeout: 30_000 }, () => {
         const words = Array.from({ length: 17_000 }, (_, index) => synthWord((index * 7) % 4096));
         const baseline = textOf(words);
         const steps = textOf(words.map((word, index) => (index % 40 === 0 ? synthWord(index % 4096) : word)));

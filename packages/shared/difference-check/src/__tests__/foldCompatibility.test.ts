@@ -48,7 +48,7 @@ describe('foldCompatibility', () => {
 });
 
 describe('foldCompatibility over every code point (qse P4-Q4)', () => {
-    // A coverage sweep of 1.1 million code points, not a timing claim: the bound only keeps a loaded CI runner from failing it.
+    // A sweep of every code point, not a timing claim: the bound only keeps a loaded CI runner from failing it.
     it(
         'leaves no mark, format character or default-ignorable code point in its output, whatever goes in',
         { timeout: 30_000 },

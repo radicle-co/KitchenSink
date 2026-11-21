@@ -8,7 +8,7 @@
  * cost of one cell right now, then times L and R on two independent sequences of 70,000 tokens, and asks that each
  * spend under 1/20 of a table cell's time per (baseline x steps) cell. Load slows both runs about equally, so it
  * cancels. Measured on a developer machine: L about 1/180, R about 1/130, a naive quadratic R about 1/3.5, the plain
- * table 1. No absolute time is asserted; the timeout only stops a hang.
+ * table 1. No absolute time is asserted: the ratio is the bound, and vitest cannot stop a synchronous run.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -70,7 +70,9 @@ describe('the cost of the measures', () => {
         },
     );
 
-    it('finishes the whole check on a pair at the 100 kB body limit inside the default timeout', () => {
+    // The 30 s timeout is not a speed claim (the ratio case above is); it keeps a loaded CI runner from failing a
+    // case that only shows the whole check returns its result at the body limit.
+    it('completes the whole check on a pair at the 100 kB body limit', { timeout: 30_000 }, () => {
         const baseline = words(3, 17_000);
         const result = differenceCheckV1(textOf(baseline), textOf(words(4, 17_000)));
 

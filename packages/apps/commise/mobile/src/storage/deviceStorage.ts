@@ -1,7 +1,6 @@
 /**
- * @module mobile/storage — the phone's one device storage, as the kept-session store and the store-review record see
- * it: AsyncStorage behind the `KeptPort`, and one serial queue per lock name as the exclusion, so two writes in the
- * same tick both land. Both records share this module so neither imports the other.
+ * @module mobile/storage — the phone's one device storage: AsyncStorage behind the `KeptPort`, and one serial queue
+ * per lock name as the exclusion, so two writes in the same tick both land. It holds no record of its own.
  *
  * @pattern Adapter — AsyncStorage behind the `KeptPort`.
  */

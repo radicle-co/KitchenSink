@@ -1,6 +1,6 @@
 /**
  * @module mobile/storage — the phone's kept cooking-session store (ADR-0094 sections 3 and 6), composed over the
- * device storage in `deviceStorage.ts`.
+ * phone's device storage.
  */
 import { createKeptSessionStore } from '@commise/features-recipes/session';
 

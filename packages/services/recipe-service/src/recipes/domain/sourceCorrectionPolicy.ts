@@ -103,7 +103,7 @@ export function restatesStored(statement: StatementAnswer, stored: StoredSource)
 /**
  * Whether a statement would leave the recipe exactly as stored: the provenance it resolves to states no source and names the
  * statement the recipe already holds. Such a statement took no effect, so it is neither written nor recorded. A statement that
- * states a source is never "already held": a second link is a new fact, and its evidence is appended.
+ * states a source is never "already held" here: restating the same link or title is `restatesStored`'s case, and a different link or title is a new fact whose evidence is appended.
  */
 export function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
     return (

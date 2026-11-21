@@ -28,7 +28,8 @@ vi.mock('@react-native-async-storage/async-storage', () => ({
 }));
 vi.mock('../../src/observability/sentryErrorReporter.js', () => ({ reportErrorToSentry: vi.fn() }));
 
-const { nativeKeptPort, nativeKeptSessionStore } = await import('../../src/storage/keptSessionStore.js');
+const { nativeKeptPort } = await import('../../src/storage/deviceStorage.js');
+const { nativeKeptSessionStore } = await import('../../src/storage/keptSessionStore.js');
 
 describe('nativeKeptPort', () => {
     it('lists only the keys with the prefix', async () => {

@@ -55,7 +55,7 @@ import type { JSX } from 'react';
 import { useState } from 'react';
 import { StyleSheet, View } from 'react-native';
 
-import { useSignOutAndVerify } from '../../hooks/useSignOutAndVerify.js';
+import { useLeaveAfterClearingReviewRecord } from '../../hooks/useLeaveAfterClearingReviewRecord.js';
 import { useDeleteAccount } from '../../hooks/useDeleteAccount.js';
 import { SignOutButton } from './SignOutButton.js';
 
@@ -73,7 +73,7 @@ function AccountEraseFlow({
     readonly onClose: () => void;
     readonly onExitFailed: () => void;
 }): JSX.Element {
-    const { signOutAndVerify } = useSignOutAndVerify();
+    const leave = useLeaveAfterClearingReviewRecord();
     const recipes = useAllOwnerRecipes();
     const erasure = useRequestAccountErasure();
 
@@ -89,13 +89,13 @@ function AccountEraseFlow({
 
     /**
      * Recipes -> account -> sign-out, run by the shared flow's `useErasureSequence` (the same sequence web runs), so it
-     * finishes even if this screen unmounts mid-way. The last step is `signOutAndVerify`, which keeps ADR-0009's
-     * verified post-condition.
+     * finishes even if this screen unmounts mid-way. The last step clears this cook's store-review record and then runs
+     * `signOutAndVerify`, which keeps ADR-0009's verified post-condition.
      */
     const steps: ErasureSteps = {
         eraseRecipes: erasure.mutateAsync,
         eraseAccount: accountErasure.mutateAsync,
-        leave: signOutAndVerify,
+        leave,
         recipesAlreadyErased: isGoneError,
     };
 

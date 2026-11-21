@@ -1,10 +1,10 @@
 /**
  * One-off Maestro flows: a flow file that is not committed, run by `maestro:lanes --one-off <path.yaml>`.
  *
- * The door copies each file into `<maestroDir>/oneOff/<runId>/<name>.yaml` (a folder git ignores, so no committed flow is
- * ever overwritten or restored by hand), runs it under the id `oneOff/<runId>/<name>`, and removes the run's folder when
- * the run ends. Stale folders from a run that was killed (no `finally`) are swept at the start. The runner, the Mac sync
- * and the lanes then see an ordinary file under `.maestro/`.
+ * The door copies each file into `<maestroDir>/oneOff/<runId>/<name>.yaml` (a folder git ignores, so no committed
+ * flow is ever overwritten or restored by hand), runs it under the id `oneOff/<runId>/<name>`, and removes the run's
+ * folder when the run ends. Stale folders from a run that was killed (no `finally`) are swept at the start. The
+ * runner, the Mac sync and the lanes then see an ordinary file under `.maestro/`.
  *
  * A relative `runFlow`, `runScript` or `addMedia` target in a one-off resolves from its STAGED folder, so it is checked
  * before anything is copied: it must exist, and it must stay inside `.maestro/`.
@@ -52,7 +52,8 @@ export function planOneOffs(paths: readonly string[], runId: string): readonly O
 
         if (!PLAIN_FLOW_FILE.test(name)) {
             throw new Error(
-                `maestro:lanes: --one-off ${source}: the file name ${JSON.stringify(name)} must be one plain word ending in .yaml`,
+                `maestro:lanes: --one-off ${source}: the file name ${JSON.stringify(name)} must be one plain word ` +
+                    'ending in .yaml',
             );
         }
 

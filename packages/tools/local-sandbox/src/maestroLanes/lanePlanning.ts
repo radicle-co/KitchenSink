@@ -141,8 +141,9 @@ export interface LaneArgs {
 const DEFAULT_STAGGER_SECONDS = 20;
 
 /**
- * Read `--platform android|ios|both [--lanes <n>] [--flows <f...> | --one-off <path>...] [--ios-device iphone|ipad]`. `FULL_SUITE=1` runs
- * everything, `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds, default 20) spaces the lane starts, and the flag beats
+ * Read `--platform android|ios|both [--lanes <n>] [--flows <f...> | --one-off <path>...]
+ * [--ios-device iphone|ipad]`. `FULL_SUITE=1` runs everything, `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds,
+ * default 20) spaces the lane starts, and the flag beats
  * `E2E_IOS_DEVICE`, which beats the iPhone default. Pure.
  *
  * @throws On a missing or unknown platform, a lane count that is not a positive integer, `--flows` naming nothing, a

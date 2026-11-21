@@ -180,7 +180,7 @@ describe('MacSession', () => {
         expect(rsync).toContain('me@mac:ksIos/run/r/mobile/.maestro/');
     });
 
-    it('syncs the whole .maestro folder, so a staged one-off flow reaches the Mac and a finished one leaves it', async () => {
+    it('syncs the whole .maestro folder, so a staged one-off flow reaches the Mac', async () => {
         const rec = recorder();
         const session = make(rec.shell);
         await session.open(run);

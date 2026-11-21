@@ -1001,12 +1001,13 @@ maestro_shard_selection() {
 
 # maestro_one_off_selection
 #
-# The flows of a `maestro:lanes --one-off` run: the staged ids in MAESTRO_ONE_OFF_FLOWS, printed as the `flow=` lines the
-# registry selection prints, so run mode reads one shape. A one-off has no row in the registry, so the registry cannot
-# select it; each id must be the door's staged name `oneOff/<runId>/<name>` and its file must be there.
+# The flows of a `maestro:lanes --one-off` run: the staged ids in MAESTRO_ONE_OFF_FLOWS, printed as the `flow=`
+# lines the registry selection prints, so run mode reads one shape. A one-off has no row in the registry, so the
+# registry cannot select it; each id must be the door's staged name `oneOff/<runId>/<name>` and its file must
+# be there.
 #
-# Exit 2, with the id on stderr and NOTHING on stdout, for an id that is not a staged name, a file that is missing, or an
-# empty list: a run over no flows is refused, never read as a pass.
+# Exit 2, with the id on stderr and NOTHING on stdout, for an id that is not a staged name, a file that is
+# missing, or an empty list: a run over no flows is refused, never read as a pass.
 maestro_one_off_selection() {
     local id out=''
     local ids=()
@@ -1025,8 +1026,10 @@ maestro_one_off_selection() {
             return 2
         fi
 
-        if [ ! -f "packages/apps/commise/mobile/.maestro/${id}.yaml" ]; then
-            echo "runMaestroFlows.sh: the staged one-off flow ${id} has no file at packages/apps/commise/mobile/.maestro/${id}.yaml" >&2
+        local staged="packages/apps/commise/mobile/.maestro/${id}.yaml"
+
+        if [ ! -f "$staged" ]; then
+            echo "runMaestroFlows.sh: the staged one-off flow ${id} has no file at ${staged}" >&2
 
             return 2
         fi
@@ -1034,10 +1037,11 @@ maestro_one_off_selection() {
         out+="flow=${id}"$'\n'
     done
 
-    # The lane's own share, by the one packer every run uses: the door packed the same ids the same way to size its lanes.
+    # The lane's own share, by the one packer every run uses: the door packed the same ids the same way.
     local sharded
     # shellcheck disable=SC2086 # `out` is one flow name per word, and flow names carry no whitespace
-    sharded=$(maestro_pack_flows "$(maestro_platform)" "$FLOW_PLAN" "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
+    sharded=$(maestro_pack_flows "$(maestro_platform)" "$FLOW_PLAN" \
+        "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
         $(printf '%s' "$out" | sed 's/^flow=//' | tr '\n' ' ')) || return 2
 
     printf 'selection-reason=%s\n' 'one-off flows named by the lane door'

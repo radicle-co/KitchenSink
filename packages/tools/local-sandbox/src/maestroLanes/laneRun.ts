@@ -114,8 +114,8 @@ export interface LaneRunDeps {
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     /**
-     * `--one-off` runs: copy the flows into `.maestro/oneOff/<runId>/` and answer their ids. Called once, under the host
-     * lock, before any adapter step (the iOS flows sync to the Mac in `prepareHost`). It throws when a one-off is
+     * `--one-off` runs: copy the flows into `.maestro/oneOff/<runId>/` and answer their ids. Called once, under the
+     * host lock, before any adapter step (the iOS flows sync to the Mac in `prepareHost`). It throws when a one-off is
      * refused. Absent for a run of committed flows.
      */
     stageOneOffs?(): StagedOneOffs;

@@ -258,7 +258,7 @@ export function stepWaitsOf(input: StepWaitsInput): StepWaits {
     };
 }
 
-/** A length split into hours, minutes and seconds. (`@commise/ui` has its own `DurationParts`.) */
+/** A length split into hours, minutes and seconds. */
 export interface HmsParts {
     readonly hours: number;
     readonly minutes: number;

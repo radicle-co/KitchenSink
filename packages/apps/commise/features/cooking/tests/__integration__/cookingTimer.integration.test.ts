@@ -48,19 +48,11 @@ const startAt = (id: string, durationMs: number, nowMs = T0): TimerCommand => ({
     nowMs,
 });
 
-/** The delays the store gave `setTimeout`. */
-function watchArms(): number[] {
-    const delays: number[] = [];
-    const real = globalThis.setTimeout;
+/** A spy on `setTimeout` that calls through to the fake timer and records every call. */
+const watchArms = () => vi.spyOn(globalThis, 'setTimeout');
 
-    vi.spyOn(globalThis, 'setTimeout').mockImplementation(((handler: () => void, delay?: number) => {
-        delays.push(delay ?? 0);
-
-        return real(handler, delay);
-    }) as typeof setTimeout);
-
-    return delays;
-}
+/** The delays the store gave `setTimeout`, in order. */
+const delaysOf = (arms: ReturnType<typeof watchArms>): number[] => arms.mock.calls.flatMap(([, delay]) => delay ?? []);
 
 beforeEach(() => {
     vi.useFakeTimers({ now: T0 });
@@ -128,29 +120,29 @@ describe('the one timeout', () => {
     });
 
     it('is never longer than 60 s, and a 1 h 30 timer rings once', () => {
-        const delays = watchArms();
+        const arms = watchArms();
         const store = storeOf();
         const told = listen(store);
 
         store.start({ ...STEP, durationMs: 90 * MINUTE });
         vi.advanceTimersByTime(90 * MINUTE);
 
-        expect(Math.max(...delays)).toBeLessThanOrEqual(MINUTE);
+        expect(Math.max(...delaysOf(arms))).toBeLessThanOrEqual(MINUTE);
         expect(told).toHaveLength(1);
         expect(vi.getTimerCount()).toBe(0);
     });
 
     it('waits for the earliest running timer, not the first in the list', () => {
         // The later one was started first, so it is first in the list.
-        const delays = watchArms();
+        const arms = watchArms();
         const store = storeOf(stateOf(startAt('t1', 90 * SECOND), startAt('t2', 30 * SECOND)));
         const told = listen(store);
 
-        expect(delays).toEqual([30 * SECOND]);
+        expect(delaysOf(arms)).toEqual([30 * SECOND]);
 
         vi.advanceTimersByTime(30 * SECOND);
 
-        expect(delays).toEqual([30 * SECOND, MINUTE]);
+        expect(delaysOf(arms)).toEqual([30 * SECOND, MINUTE]);
         expect(told.map((e) => e.id)).toEqual(['t2']);
 
         vi.advanceTimersByTime(MINUTE);

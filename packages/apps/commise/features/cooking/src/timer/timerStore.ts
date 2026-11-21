@@ -42,11 +42,11 @@ interface StartTimer {
     readonly durationMs: number;
 }
 
+/** `Omit` applied to each member of a union, so every variant keeps its own fields. */
+type DistributiveOmit<T, K extends PropertyKey> = T extends unknown ? Omit<T, K> : never;
+
 /** A command as a caller says it: the store adds the clock, and the limit of a restore. */
-type TimerCall = Exclude<
-    TimerCommand extends infer C ? (C extends { readonly nowMs: number } ? Omit<C, 'nowMs' | 'limit'> : never) : never,
-    { readonly kind: 'start' | 'ring' }
->;
+type TimerCall = DistributiveOmit<Exclude<TimerCommand, { readonly kind: 'start' | 'ring' }>, 'nowMs' | 'limit'>;
 
 /** The timer list of one session on this device. */
 export interface TimerStore {

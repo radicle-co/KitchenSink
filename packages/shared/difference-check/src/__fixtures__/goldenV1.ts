@@ -56,6 +56,17 @@ const REWRITES: Readonly<Record<string, readonly string[]>> = {
 /** The base each rewrite set belongs to. */
 const BASES: Readonly<Record<string, string>> = { sauce: SAUCE_BASE, pancakes: PANCAKE_BASE, roots: ROOTS_BASE };
 
+/**
+ * The ingredient list of each base, one entry per ingredient, written from the base text alone and in our own words. It
+ * is part of every case: the alignment measure removes these words from the compare. After the alignment measure ran,
+ * an edit needs a qse TEST-CHANGE record.
+ */
+export const INGREDIENTS_TEXT: Readonly<Record<string, string>> = {
+    sauce: 'olive oil, onion, garlic, tin of tomatoes, salt, black pepper, basil leaves, pasta',
+    pancakes: 'flour, salt, eggs, milk',
+    roots: 'carrots, parsnips, oil, salt, thyme, honey',
+};
+
 /** A mechanical edit: a named transform of the base text that v1 must NOT pass. */
 interface Transform {
     readonly name: string;

@@ -17,6 +17,7 @@
 import { execFileSync } from 'node:child_process';
 
 import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR } from '../src/config.js';
+import { incomingDiffArgs } from '../src/incomingDiff.js';
 
 /**
  * Git is run from PATH through env on purpose: its place differs per machine (Homebrew, Nix, /usr/bin). The scanner's
@@ -57,13 +58,9 @@ function generate(): void {
     });
 }
 
-// npm runs this script from the workspace folder, so a plain `docs/generated/...` would name a path under it: `:(top)`
-// anchors each folder at the repository root, wherever the script is started.
-const outputFolders = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR].map((folder) => `:(top)${folder}`);
+const outputFolders = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR];
 const isMergeCommit = git(['rev-parse', '-q', '--verify', 'HEAD^2']) !== null;
-const incoming = isMergeCommit
-    ? git(['diff', '--name-only', 'HEAD^1...HEAD^2', '--', ...outputFolders])
-    : git(['diff', '--name-only', 'ORIG_HEAD', 'HEAD', '--', ...outputFolders]);
+const incoming = git(incomingDiffArgs(isMergeCommit, outputFolders));
 
 if (incoming !== null && incoming.trim() !== '') {
     generate();

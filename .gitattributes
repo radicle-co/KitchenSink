@@ -14,7 +14,8 @@ docs/design/canvases/*/** -text
 docs/design/canvases/*/project/assets/** filter=lfs diff=lfs merge=lfs -text
 
 # Derived output of docgen-components. Two PRs that each change a component both change the same aggregate lines, so
-# the merge keeps the current side with no conflict (driver installed by scripts/installMergeDrivers.mjs) and
-# .husky/post-merge regenerates. generatedOutput.integration.test.ts still fails any head whose files are stale.
+# the merge keeps the current side with no conflict (driver installed by scripts/installMergeDrivers.mjs), and
+# packages/tools/docgen-components/bin/afterMerge.ts regenerates (run by the post-merge and post-commit hooks).
+# generatedOutput.integration.test.ts still fails any head whose files are stale.
 docs/generated/components/** merge=docgenRegenerate
 docs/generated/design/** merge=docgenRegenerate

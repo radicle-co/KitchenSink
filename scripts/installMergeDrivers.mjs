@@ -1,6 +1,7 @@
 // Installs the `docgenRegenerate` merge driver named in .gitattributes into the repository's own git config, which
-// every worktree shares. The driver is `true`: it keeps the current side and leaves the merge to .husky/post-merge to
-// regenerate, because either side of derived output is as good as the other. Run by `prepare`.
+// every worktree shares. The driver is `true`: it keeps the current side and leaves the merge to
+// packages/tools/docgen-components/bin/afterMerge.ts to regenerate (run by the post-merge and post-commit hooks),
+// because either side of derived output is as good as the other. Run by `prepare`.
 import { execFileSync } from 'node:child_process';
 
 /**

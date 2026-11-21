@@ -22,9 +22,9 @@ import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSy
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR, REPO_ROOT } from '../config.js';
+import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR, REPO_ROOT } from '../src/config.js';
 
 const OUT_DIRS = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR] as const;
 const INSTALLER = join(REPO_ROOT, 'scripts/installMergeDrivers.mjs');
@@ -34,15 +34,12 @@ const TSX = join(REPO_ROOT, 'node_modules/.bin/tsx');
 const AFTER_MERGE = join(REPO_ROOT, 'packages/tools/docgen-components/bin/afterMerge.ts');
 const TOTALS_FILE = `${COMPONENTS_OUT_DIR}/index.json`;
 
-/** Absolute, so the test never resolves a command through a PATH it does not control. */
-const GIT = '/usr/bin/git';
+/** Git is found on PATH through env, as `bin/afterMerge.ts` finds it: its place differs per machine. */
+const ENV = '/usr/bin/env';
 const SH = '/bin/sh';
 
-// Every hook case starts real npm twice (the hook, then the script's own `docs:generate`).
-vi.setConfig({ testTimeout: 30_000 });
-
 const git = (cwd: string, ...args: string[]): string =>
-    execFileSync(GIT, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync(ENV, ['git', ...args], { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
 const scratch: string[] = [];
 
@@ -56,8 +53,9 @@ afterEach(() => {
 const WORKSPACE_DIR = 'packages/tools/docgen-components';
 const WORKSPACE_NAME = '@kitchensink/docgen-components';
 
-/** The stub `docs:generate`: appends one line to the file `DOCGEN_CALLS_FILE` names. */
-const RECORD_CALL = "require('node:fs').appendFileSync(process.env.DOCGEN_CALLS_FILE, 'generate\\n')";
+/** The stub `docs:generate`: records a call in `DOCGEN_CALLS_FILE`, and edits the tracked totals file as a real run does. */
+const RECORD_CALL =
+    "const fs = require('node:fs'); fs.appendFileSync(process.env.DOCGEN_CALLS_FILE, 'generate\\n'); fs.appendFileSync(process.env.DOCGEN_TOTALS_FILE, '\\n')";
 
 /**
  * A repository with the real `.gitattributes`, one totals file on `main`, the driver installed when asked, and a
@@ -176,7 +174,11 @@ describe('the hooks regenerate when the incoming side changed an output folder',
      */
     function generations(repo: string, hook: string): number {
         const log = join(repo, 'calls.txt');
-        execFileSync(SH, [hook], { cwd: repo, env: { ...process.env, DOCGEN_CALLS_FILE: log }, stdio: 'ignore' });
+        execFileSync(SH, [hook], {
+            cwd: repo,
+            env: { ...process.env, DOCGEN_CALLS_FILE: log, DOCGEN_TOTALS_FILE: join(repo, TOTALS_FILE) },
+            stdio: 'ignore',
+        });
 
         try {
             return readFileSync(log, 'utf8').trim().split('\n').length;
@@ -253,8 +255,24 @@ describe('the hooks regenerate when the incoming side changed an output folder',
     });
 });
 
-describe('the hooks never stage or commit', () => {
-    it.each([POST_MERGE, POST_COMMIT])('%s leaves the regenerated files to the author', (hook) => {
-        expect(readFileSync(hook, 'utf8')).not.toMatch(/git (add|commit)/u);
+describe('a hook leaves the regenerated files to the author', () => {
+    it('neither stages nor commits what the regeneration changed', () => {
+        const repo = makeRepo(true);
+        expect(mergeTwoPrs(repo).merged).toBe(true);
+        const head = git(repo, 'rev-parse', 'HEAD');
+
+        execFileSync(SH, [POST_MERGE], {
+            cwd: repo,
+            env: {
+                ...process.env,
+                DOCGEN_CALLS_FILE: join(repo, 'calls.txt'),
+                DOCGEN_TOTALS_FILE: join(repo, TOTALS_FILE),
+            },
+            stdio: 'ignore',
+        });
+
+        expect(git(repo, 'rev-parse', 'HEAD')).toBe(head);
+        expect(git(repo, 'diff', '--cached', '--name-only')).toBe('');
+        expect(git(repo, 'diff', '--name-only').trim()).toBe(TOTALS_FILE);
     });
 });

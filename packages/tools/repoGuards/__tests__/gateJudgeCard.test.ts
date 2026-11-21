@@ -4,9 +4,8 @@
  *
  * The GATE judge runs as `--agent staff-code-quality` with read-only tools and no shell. Before this guard the card gave it
  * instructions it could not meet or that competed with the structured call: a refusal that needs `$GITHUB_ACTIONS`, a
- * playbook skill it cannot load, a fixed prose report spine, and a request to run tests. Each regression the QSE and
- * the red team named is pinned below (decisions/gateJudgeRetry-staff.md RC-1 step 2, decisions/gateJudgeCard-qse.md,
- * reviews/gateJudgeRetry-redteam.md), and each test was seen red on the regression it names.
+ * playbook skill it cannot load, a fixed prose report spine, and a request to run tests. Each of those regressions
+ * is pinned below, and each test was seen red on the regression it names.
  *
  * These are text guards: they prove the instruction is on the card, not that the model obeys it. The proof is the first
  * PRs judged after this one merges.
@@ -41,6 +40,16 @@ const gateBullet = (): string => between(card, '- **GATE** —', '- **REVIEW** �
 
 /** The playbook's GATE section: from its heading to the REVIEW heading. */
 const playbookGate = (): string => between(playbook, '## GATE —', '## REVIEW —');
+
+const rawStandards = readFileSync(path.join(repoRoot, 'docs/CODING_STANDARDS.md'), 'utf8');
+const rawClaude = readFileSync(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
+
+/** CODING_STANDARDS §7.1b: from its heading to the next heading, never across the whole file. */
+const standardsSection = (): string =>
+    between(fold(rawStandards), '### 7.1b Cheapest tier first', '### Test File Location');
+
+/** CLAUDE.md "Cheapest tier first": from its heading to the next heading. */
+const claudeSection = (): string => between(fold(rawClaude), '### Cheapest tier first', '### What a mocked test');
 
 const countOf = (text: string, needle: string): number => text.split(needle).length - 1;
 
@@ -146,5 +155,83 @@ describe('the staff-code-quality card, GATE mode', () => {
         expect(step).toContain('base copies the brief lists');
         expect(step).toContain('only in a plan or tasks file the brief names');
         expect(step).toContain('rule text this pull request adds or changes is a proposal');
+    });
+
+    it('12. step 5 points at the one deferral rule and asks a schema change for its local e2e', () => {
+        const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
+
+        expect(step).toContain('wrap-up PR');
+        expect(step).toContain('CODING_STANDARDS §7.1b');
+        expect(step).toContain('never deferred');
+        expect(step).toContain('schema → the local e2e of CODING_STANDARDS §7.1a');
+        expect(step).not.toContain('migration integration test');
+    });
+
+    it('13. the card, step 5 and CLAUDE.md point at §7.1b and do not restate its deferral rule', () => {
+        const bullet = between(
+            card,
+            'A deferred end-to-end tier is not a "missing required test tier".',
+            '**Anchor everything**',
+        );
+        const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
+
+        for (const [name, text] of [
+            ['the card bullet', bullet],
+            ['playbook step 5', step],
+            ['CLAUDE.md', claudeSection()],
+        ] as const) {
+            expect(text, name).toContain('§7.1b');
+            expect(text, name).not.toContain('already exists on the base branch');
+            expect(text, name).not.toContain("covers this story's flows");
+            expect(text, name).not.toContain('A wrap-up task that this diff adds or changes does not count');
+            expect(text, name).not.toContain('PR body names');
+            expect(text, name).not.toContain('PR body must name');
+        }
+
+        // Step 5 names the plan and tasks files because it tells the judge to read the brief's base copies.
+        expect(bullet).not.toContain('plan or tasks file');
+        expect(claudeSection()).not.toContain('plan or tasks file');
+        expect(bullet).toContain('CODING_STANDARDS §7.1b');
+        expect(bullet).toContain('A missing unit, component or integration tier is still a major finding');
+        expect(bullet).toContain('CODING_STANDARDS §7.1a');
+        expect(bullet).toContain('and by the base copies the brief lists');
+        expect(step).toContain('base copies the brief lists');
+    });
+
+    it('14. §7.1b is the one full statement of the deferral rule', () => {
+        const rule = standardsSection();
+
+        for (const clause of [
+            'Playwright',
+            'Maestro',
+            'local e2e',
+            'deployed e2e',
+            'already exists on the base branch',
+            'plan or tasks file',
+            "covers this story's flows",
+            'A wrap-up task that this diff adds or changes does not count',
+            "An end-to-end test that is the only proof (a schema or migration change's local e2e, a real-dependency constraint) is never deferred",
+            'Unit, component and integration tests are never deferred',
+            'specs/<feature>/plan.md',
+            'specs/<feature>/tasks.md',
+            'docs/plans/<name>.md',
+            'A task in any other file never counts',
+            'GATE does not read the PR body',
+        ]) {
+            expect(rule, clause).toContain(clause);
+        }
+
+        expect(rule).not.toContain('PR body names');
+        expect(rule).not.toContain('PR body must name');
+    });
+
+    it('15. §7.1 names the §7.1b deferral beside its absolutes, so the standard does not contradict itself', () => {
+        const mandate = between(fold(rawStandards), '### 7.1 Test Mandate', '### 7.1a');
+        const gate = between(mandate, 'This is a **HARD MERGE GATE.**', '- **"It can\'t run in this environment"');
+
+        expect(mandate.toLowerCase()).not.toContain('zero exceptions');
+        expect(mandate.toLowerCase()).not.toContain('no exceptions');
+        expect(mandate).toContain('with **one exception, the end-to-end wrap-up in §7.1b**');
+        expect(gate).toContain('§7.1b');
     });
 });

@@ -299,6 +299,10 @@ carries the procedure, time budget and exact report body. Do not improvise the f
 | **minor**   | Real but local and cheap to fix later                                                                                                                                                                                                                   | no                                                         |
 | **nit**     | Only if it is a house-standard rule; otherwise omit                                                                                                                                                                                                     | no                                                         |
 
+- **A deferred end-to-end tier is not a "missing required test tier".** Judge a deferral by the rule of
+  CODING_STANDARDS §7.1b and by the base copies the brief lists (GATE structured output above): you never see the PR
+  body. A missing unit, component or integration tier is still a major finding, and a schema or migration change needs
+  its local e2e of CODING_STANDARDS §7.1a.
 - **Anchor everything** at `path:line`. An unanchored claim about the code is an assumption — label it.
 - **Verified vs assumed**: what you ran and read, versus what you inferred.
 - **Never invent** a path, symbol, rule ID, threshold, standards section or ADR number.

@@ -254,15 +254,26 @@ Every finding's remediation must be something an engineer can act on without re-
 
 Exactly one per engagement. Detect it; if ambiguous, pick the most defensible reading and say so.
 
-- **GATE** — the pull request's whole diff against its base, judged ONLY in CI (ADR-0098, owner ruling 2026-11-19).
-  ⛔ GATE refuses to run unless `$GITHUB_ACTIONS` is set: say so in one line and stop. It never runs on a developer
-  machine or inside another agent's session, and it never runs a scanner: it reads the evidence the `Code quality
-scanners` job uploaded (`$SCQ_EVIDENCE`). Locally, use REVIEW. Blocking verdict, minimal prose.
+- **GATE** — the pull request's whole diff against its base, judged ONLY by the CI workflow (ADR-0098, owner ruling
+  2026-11-19). It is never run on a developer machine or inside another agent's session; there, use REVIEW. In CI you
+  have read-only tools and no shell: you read the evidence the `Code quality scanners` job uploaded (`$SCQ_EVIDENCE`)
+  and never run a scanner, a script or a stamp. ⛔ **In GATE the structured output call IS the report.** Do not load
+  the mode playbook, do not write the §9 spine, and write no closing prose. Put every finding in the call (rules
+  below), and make the call your LAST action, with nothing after it. Your working notes stay in your reasoning.
+  GATE structured output, field by field:
+    - `verdict`: `BLOCK` when any finding is blocking, or the evidence is missing, failed, or shows a required scanner
+      proved nothing; otherwise `PASS`. There is no "PASS WITH FINDINGS" in GATE: advisory findings ride on a `PASS`.
+    - `findings[].severity`: `blocking` for critical and for major without a recorded, dated deferral (§8); `advisory`
+      for minor and nit.
+    - `findings[].file` and `line`: the changed file and line. Every finding names its file.
+    - `findings[].title`: `[SEV] [ID] Short name`, as in §9.
+    - `findings[].detail`: the §9 finding fields in one paragraph: smell with evidence, cost, root cause
+      (LOCAL | PATTERN (N sites) | STRUCTURAL (rung Lx)), remediation, prove and prevent, ruling check.
 - **REVIEW** — a PR, branch or commit range. Full three passes over the diff and its blast radius.
 - **INSPECT** — a named file, module, package or the repository on demand. Deepest: hotspots, clusters,
   structural diagnosis, prioritised remediation plan.
 
-**Then load the `code-quality-mode-playbooks` skill and read that mode's section** — it carries the
+**In REVIEW and INSPECT, then load the `code-quality-mode-playbooks` skill and read that mode's section** — it carries the
 procedure, time budget and exact report body. Do not improvise the format.
 
 ---
@@ -286,10 +297,11 @@ procedure, time budget and exact report body. Do not improvise the format.
 
 ## 9. Output spine
 
-The **body** comes from the mode's playbook; the spine is fixed.
+In REVIEW and INSPECT the **body** comes from the mode's playbook, and the spine is fixed. GATE has no spine: its report is the structured output
+call (§7).
 
 ```
-## Code quality: [scope] — [GATE | REVIEW | INSPECT]
+## Code quality: [scope] — [REVIEW | INSPECT]
 
 ### Verdict
 [BLOCK | PASS WITH FINDINGS | PASS] — one sentence on why. Count by severity.

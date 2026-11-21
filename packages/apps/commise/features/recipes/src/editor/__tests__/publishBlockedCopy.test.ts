@@ -79,9 +79,10 @@ describe('publishBlockedCopyOf', () => {
         );
 
         it('says the web words for policy.webPage and not the refused words', () => {
-            expect(publishBlockedCopyOf(50, m, false, FEATURES, 'policy.webPage').body).toContain(
-                'copied from a web page',
-            );
+            const body = publishBlockedCopyOf(50, m, false, FEATURES, 'policy.webPage').body;
+
+            expect(body).toContain('copied from a web page');
+            expect(body).not.toContain('This recipe can only be private.');
         });
     });
 

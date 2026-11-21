@@ -25,10 +25,18 @@ describe('RecipeVisibilityNotice (native)', () => {
         expect(screen.getAllByText('Could not save')).toHaveLength(1);
     });
 
-    it('draws nothing for no notice', () => {
-        render(<RecipeVisibilityNotice notice={undefined} announcement={undefined} />);
+    it('draws nothing once the notice is gone', () => {
+        const { rerender } = render(
+            <RecipeVisibilityNotice
+                notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
+                announcement={undefined}
+            />,
+        );
+
+        expect(screen.getByText('Stays private')).toBeDefined();
+
+        rerender(<RecipeVisibilityNotice notice={undefined} announcement={undefined} />);
 
         expect(screen.queryByText('Stays private')).toBeNull();
-        expect(screen.queryByText('Could not save')).toBeNull();
     });
 });

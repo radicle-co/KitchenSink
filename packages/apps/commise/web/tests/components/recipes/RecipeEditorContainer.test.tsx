@@ -682,6 +682,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
             await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
 
             expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-disabled')).toBeNull();
+
             for (const line of Object.values(REASON)) {
                 expect(screen.queryByText(line)).toBeNull();
             }

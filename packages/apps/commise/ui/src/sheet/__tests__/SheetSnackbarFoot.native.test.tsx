@@ -78,12 +78,24 @@ const sheetTree = (overrides: Partial<SheetProps> = {}): JSX.Element => (
 
 const renderSheet = (overrides: Partial<SheetProps> = {}): ReturnType<typeof render> => render(sheetTree(overrides));
 
+/** A node a test needs: throws, naming it, when the tree does not hold it. */
+function present(node: HTMLElement | null | undefined, name: string): HTMLElement {
+    if (node === null || node === undefined) {
+        throw new Error(`The tree has no ${name}.`);
+    }
+
+    return node;
+}
+
 const dialog = (): HTMLElement =>
-    screen.getByRole('heading', { name: 'Ingredients' }).closest('[role="dialog"]') as HTMLElement;
+    present(screen.getByRole('heading', { name: 'Ingredients' }).closest<HTMLElement>('[role="dialog"]'), 'dialog');
 const topBlock = (): HTMLElement =>
-    screen.getByRole('button', { name: 'Close ingredients' }).parentElement?.parentElement
-        ?.parentElement as HTMLElement;
-const footerOf = (): HTMLElement => screen.getByRole('button', { name: 'Clear ticks' }).parentElement as HTMLElement;
+    present(
+        screen.getByRole('button', { name: 'Close ingredients' }).parentElement?.parentElement?.parentElement,
+        'top block',
+    );
+const footerOf = (): HTMLElement =>
+    present(screen.getByRole('button', { name: 'Clear ticks' }).parentElement, 'footer');
 
 function layOut(heights: { readonly sheet: number; readonly topBlock: number; readonly footer: number }): void {
     for (const [node, height] of [
@@ -108,7 +120,7 @@ function regionBottom(): string {
 
     const region = screen.getAllByRole('status').find((candidate) => candidate.textContent.includes('Ticks cleared'));
 
-    return resolvedStyle(region as HTMLElement, 'bottom');
+    return resolvedStyle(present(region, 'snackbar region'), 'bottom');
 }
 
 describe('Sheet (native): where the snackbar sits inside it', () => {

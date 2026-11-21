@@ -8,13 +8,20 @@
  * range rule lives here once.
  */
 
+/** Where a reading found its time in the line given: code-unit offsets, `start` inclusive, `end` exclusive. */
+export interface ReadingSpan {
+    readonly start: number;
+    readonly end: number;
+}
+
 /**
  * What a line says: no duration, exactly one (in seconds), or several. A range ("20 to 25 minutes") gives its low end
- * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`.
+ * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`. A `one` reading
+ * also says where in the line its time was written, so the words in front of it can be read.
  */
 export type DurationReading =
     | { readonly kind: 'none' }
-    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
+    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number; readonly span: ReadingSpan }
     | { readonly kind: 'many' };
 
 /**
@@ -24,13 +31,14 @@ export type DurationReading =
  *
  * @param seconds - The low end, or the whole duration.
  * @param high - The high end of a range, if the span is one.
+ * @param span - Where in the line the time was written.
  * @returns The `one` reading.
  */
-export function oneReading(seconds: number, high?: number): DurationReading {
+export function oneReading(seconds: number, high: number | undefined, span: ReadingSpan): DurationReading {
     const low = Math.round(seconds);
     const top = high === undefined ? undefined : Math.round(high);
 
     return top !== undefined && top > low
-        ? { kind: 'one', seconds: low, highSeconds: top }
-        : { kind: 'one', seconds: low };
+        ? { kind: 'one', seconds: low, highSeconds: top, span }
+        : { kind: 'one', seconds: low, span };
 }

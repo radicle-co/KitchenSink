@@ -65,6 +65,26 @@ vi.mock('@kitchensink/food-service-client/hooks', async (importOriginal) => {
     };
 });
 
+/** The `subject` each mounted timer provider was handed. */
+const timerSubjects = vi.hoisted(() => ({ seen: [] as unknown[] }));
+
+vi.mock('@commise/features-cooking/web', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('@commise/features-cooking/web')>();
+
+    return {
+        ...actual,
+        TimerProvider: (props: Parameters<typeof actual.TimerProvider>[0]) => {
+            timerSubjects.seen.push(props.subject);
+
+            return (
+                <div data-provider="timer">
+                    <actual.TimerProvider {...props} />
+                </div>
+            );
+        },
+    };
+});
+
 const { RecipeProviders } = await import('../RecipeProviders.js');
 
 afterEach(cleanup);
@@ -96,5 +116,21 @@ describe('RecipeProviders (web) — provider order', () => {
 
         expect(syncProps.onFault.length).toBeGreaterThan(0);
         expect(new Set(syncProps.onFault)).toStrictEqual(new Set([reportErrorToSentry]));
+    });
+
+    it('mounts the timers under the service providers and over the screens, fed the raw Clerk userId (S3a.U3)', () => {
+        timerSubjects.seen.length = 0;
+
+        const { container } = render(
+            <RecipeProviders>
+                <span>child</span>
+            </RecipeProviders>,
+        );
+
+        expect(
+            container.querySelector('[data-provider="sync"] [data-provider="food"] [data-provider="timer"] > span'),
+        ).not.toBeNull();
+        expect(container.querySelector('[data-provider="timer"] [data-provider="sync"]')).toBeNull();
+        expect(new Set(timerSubjects.seen)).toStrictEqual(new Set(['user_1']));
     });
 });

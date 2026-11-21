@@ -1,10 +1,11 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { resizeObserver } from '../resizeObserver.js';
+import { resizeEntryOf, reportResize, resizeObserver } from '../resizeObserver.js';
 
 afterEach(() => {
     resizeObserver.observed.clear();
     resizeObserver.callback = undefined;
+    resizeObserver.observer = undefined;
 });
 
 describe('the recording ResizeObserver', () => {
@@ -35,5 +36,37 @@ describe('the recording ResizeObserver', () => {
         observer.disconnect();
 
         expect(resizeObserver.observed.size).toBe(0);
+    });
+});
+
+describe('reportResize', () => {
+    it('fires the callback with a real entry for each watched node, and the observer that was built', () => {
+        const callback = vi.fn<ResizeObserverCallback>();
+        const node = document.createElement('div');
+        const observer = new ResizeObserver(callback);
+
+        node.getBoundingClientRect = () => new DOMRect(0, 0, 10, 42);
+        observer.observe(node);
+        reportResize();
+
+        expect(callback).toHaveBeenCalledTimes(1);
+        const [entries, from] = callback.mock.calls[0] ?? [];
+
+        expect(entries).toMatchObject([{ target: node, contentRect: { height: 42 } }]);
+        expect(from).toBe(observer);
+    });
+
+    it('reports only the nodes it is given, and does nothing before an observer exists', () => {
+        reportResize();
+
+        const callback = vi.fn<ResizeObserverCallback>();
+        const watched = document.createElement('div');
+        const other = document.createElement('div');
+        const observer = new ResizeObserver(callback);
+
+        observer.observe(watched);
+        reportResize([other]);
+
+        expect(callback.mock.calls[0]?.[0]).toEqual([resizeEntryOf(other)]);
     });
 });

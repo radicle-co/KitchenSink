@@ -322,9 +322,9 @@ describe('SnackbarOutlet footer offset', () => {
         );
 
         // The host draws its own status region too; the outlet's is the one named for it.
-        const [region] = screen
+        const region = screen
             .getAllByRole('status')
-            .filter((node) => node.getAttribute('name') === 'SnackbarOutletRegion');
+            .find((node) => node.getAttribute('name') === 'SnackbarOutletRegion');
 
         if (region === undefined) {
             throw new Error('The outlet drew no status region.');
@@ -334,13 +334,13 @@ describe('SnackbarOutlet footer offset', () => {
     }
 
     it('sits one gap above the window safe area when no footer is pinned', () => {
-        expect(resolvedStyle(regionAbove(), 'bottom')).toBe(`${STUB_INSETS.bottom + SNACKBAR_GAP}px`);
+        expect(resolvedStyle(regionAbove(), 'bottom')).toBe(`${String(STUB_INSETS.bottom + SNACKBAR_GAP)}px`);
     });
 
     it('sits one gap above a pinned footer, which already holds the inset', () => {
         const footer = 120;
 
         expect(footer).not.toBe(STUB_INSETS.bottom);
-        expect(resolvedStyle(regionAbove(footer), 'bottom')).toBe(`${footer + SNACKBAR_GAP}px`);
+        expect(resolvedStyle(regionAbove(footer), 'bottom')).toBe(`${String(footer + SNACKBAR_GAP)}px`);
     });
 });

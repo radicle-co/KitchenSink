@@ -430,6 +430,19 @@ describe('Sheet (web)', () => {
         expect(screen.getByRole('button', { name: 'Remove details' }).parentElement?.className).toContain('border-t');
     });
 
+    // KTD8 (designer D11): the scroll region reserves its scrollbar gutter when it holds a DialogActions row, so an
+    // overflow that starts or ends never changes the row's width. The condition is the CSS `:has()` on the wrapper's
+    // marker, which jsdom does not evaluate; the built-CSS behaviour is proved by the Playwright describe.
+    it('reserves the scrollbar gutter only through a :has() on the DialogActions marker', async () => {
+        await openHost(<Host />);
+
+        const region = screen.getByRole('button', { name: 'Remove details' }).parentElement
+            ?.parentElement as HTMLElement;
+
+        expect(region.className.split(/\s+/u)).toContain('has-[[data-dialog-actions]]:[scrollbar-gutter:stable]');
+        expect(region.className).not.toMatch(/(^|\s)\[scrollbar-gutter:stable\]/u);
+    });
+
     describe('the collapse', () => {
         it('shows the heading under the title, and the footer, while nothing is collapsed', async () => {
             stubViewport(800);

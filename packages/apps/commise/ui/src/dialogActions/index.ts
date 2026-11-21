@@ -4,5 +4,6 @@
  * prop contract is platform-agnostic. Consumed as `@commise/ui/dialog-actions`.
  */
 export { DialogActions } from './DialogActions.js';
+export { DialogActionsWidthContext, useDialogActionsWidthMemento } from './dialogActionsWidth.js';
 export { dialogActionSlotClass } from './dialogActionsClass.js';
-export type { DialogActionsProps, DialogActionsSideBySideFrom } from './props.js';
+export type { DialogActionsProps, DialogActionsShares, DialogActionsSideBySideFrom } from './props.js';

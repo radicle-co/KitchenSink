@@ -22,6 +22,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
     RadioMark:
         "The native RadioList row's circle, centred in a slot one label line tall. A part of RadioList, never placed on its own; the RadioList card covers it.",
+    EqualShare:
+        "The native DialogActions' equal-share wrapper (one child grows to an equal share of a row when `shares` is `equal`). A part of DialogActions, never placed on its own; the DialogActions card covers it.",
     DesignSystemProvider:
         'Native-only Tamagui provider the app mounts once. It draws nothing of its own and is not placed by a screen; previews are themed by the `data-theme` attribute.',
     DesignSystemTheme:

@@ -1,5 +1,6 @@
-import { describe, it, expect, vi, afterEach } from 'vitest';
-import { cleanup, fireEvent, screen, within } from '@testing-library/react';
+import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { createElement, type ComponentProps, type ComponentType } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import type { KeyboardAvoidingView as KeyboardAvoidingViewType, Modal as ModalType } from 'react-native';
@@ -342,5 +343,55 @@ describe('ConfirmDialog (native) text size', () => {
         expect(region?.contains(screen.getByText(BODY))).toBe(true);
         expect(region?.contains(screen.getByLabelText('Keep editing'))).toBe(false);
         expect(region?.contains(screen.getByLabelText('Discard changes'))).toBe(false);
+    });
+});
+
+/**
+ * The action row decides in text units (U4, #391): a 416 dp dialog box (an iPad card) sits side by side at normal text and
+ * stacks, confirm on top, at the largest text. The tree order is Keep then confirm in both forms.
+ */
+describe('ConfirmDialog (native) — the action row at large text', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    function layOut(width: number): HTMLElement {
+        const row = pressFrameOf(screen.getByRole('button', { name: 'Keep editing' })).parentElement as HTMLElement;
+
+        Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
+        Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
+        act(() => {
+            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        return row;
+    }
+
+    const orderOf = (): string[] =>
+        screen
+            .getAllByRole('button')
+            .map((button) => button.textContent ?? '')
+            .filter((text) => text === 'Keep editing' || text === 'Discard changes');
+
+    it('is a row at 416 dp and scale 1', () => {
+        renderWithTamagui(<ConfirmDialog {...baseProps()} />, 'light', 1);
+
+        expect(resolvedStyle(layOut(416), 'flexDirection')).toBe('row');
+        expect(orderOf()).toStrictEqual(['Keep editing', 'Discard changes']);
+    });
+
+    it('stacks at 416 dp and scale 2, confirm on top, the tree still Keep then confirm', () => {
+        renderWithTamagui(<ConfirmDialog {...baseProps()} />, 'light', 2);
+
+        expect(resolvedStyle(layOut(416), 'flexDirection')).toBe('column-reverse');
+        expect(orderOf()).toStrictEqual(['Keep editing', 'Discard changes']);
     });
 });

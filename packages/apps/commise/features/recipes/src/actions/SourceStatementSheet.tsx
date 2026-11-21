@@ -17,6 +17,7 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { FieldLabel, fieldErrorId, Input } from '@commise/ui/input';
 import { RadioList } from '@commise/ui/radio-list';
 import { Sheet } from '@commise/ui/sheet';
@@ -65,7 +66,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                     <p id={effectId} className="text-meta text-ink-muted">
                         {m.effect}
                     </p>
-                    <div className="flex gap-3">
+                    <DialogActions sideBySideFrom={400} shares="equal">
                         <Button variant="secondary" width="fill" disabled={view.busy} onPress={onDismiss}>
                             {view.dismissLabel}
                         </Button>
@@ -79,7 +80,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                         >
                             {view.confirmLabel}
                         </Button>
-                    </div>
+                    </DialogActions>
                 </div>
             }
         >

@@ -337,7 +337,7 @@ describe('SnackbarOutlet footer offset', () => {
         expect(resolvedStyle(regionAbove(), 'bottom')).toBe(`${STUB_INSETS.bottom + SNACKBAR_GAP}px`);
     });
 
-    it('sits one gap above a pinned footer, which already holds the bottom inset, so it never covers the footer', () => {
+    it('sits one gap above a pinned footer, which already holds the inset', () => {
         const footer = 120;
 
         expect(footer).not.toBe(STUB_INSETS.bottom);

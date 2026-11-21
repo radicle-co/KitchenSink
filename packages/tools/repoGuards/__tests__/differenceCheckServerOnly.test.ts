@@ -107,17 +107,12 @@ describe('closureOf', () => {
 
     it('does not reach a package only a server declares, and survives a cycle', () => {
         expect(closureOf(['app'], graph).has('server')).toBe(false);
-        expect(
-            [
-                ...closureOf(
-                    ['a'],
-                    new Map<string, Manifest>([
-                        ['a', { dependencies: { b: '*' } }],
-                        ['b', { dependencies: { a: '*' } }],
-                    ]),
-                ),
-            ].sort(),
-        ).toEqual(['a', 'b']);
+        const cycle = new Map<string, Manifest>([
+            ['a', { dependencies: { b: '*' } }],
+            ['b', { dependencies: { a: '*' } }],
+        ]);
+
+        expect(sorted(closureOf(['a'], cycle))).toEqual(['a', 'b']);
     });
 });
 

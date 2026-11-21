@@ -756,7 +756,7 @@ describe('runLaneRun — the green stamp settles after the check', () => {
 
 describe('runLaneRun — a lost tunnel', () => {
     it('stops the lanes, still tears the host down, and fails with the loss when a tunnel is lost', async () => {
-        let loseTunnel: (error: Error) => void = () => undefined;
+        let loseTunnel!: (error: Error) => void;
         const lost = new Promise<Error>((resolve) => {
             loseTunnel = resolve;
         });
@@ -790,7 +790,7 @@ describe('runLaneRun — a lost tunnel', () => {
         expect(events).toContain('unlock');
     });
     it('waits for the stopped lanes to exit before it stops the device', async () => {
-        let loseTunnel: (error: Error) => void = () => undefined;
+        let loseTunnel!: (error: Error) => void;
         const lost = new Promise<Error>((resolve) => {
             loseTunnel = resolve;
         });
@@ -932,7 +932,7 @@ describe('runLaneRun — a lost tunnel', () => {
                         return fakeLaneChild({
                             // SIGTERM is ignored, as a runner stuck in a child process would.
                             onStop: (signal, finish) => {
-                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal}`);
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
 
                                 if (signal === 'SIGKILL') {
                                     finish(137);
@@ -971,7 +971,7 @@ describe('runLaneRun — a lost tunnel', () => {
                             // The runner (bash) dies on SIGTERM at once; a child in its group lives on.
                             running: () => groupAlive,
                             onStop: (signal, finish) => {
-                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal}`);
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
                                 finish(143);
 
                                 if (signal === 'SIGKILL') {
@@ -1007,7 +1007,7 @@ describe('runLaneRun — a lost tunnel', () => {
                         return fakeLaneChild({
                             running: () => groupAlive,
                             onStop: (signal, finish) => {
-                                events.push(`stopLane ${lane.index} ${signal}`);
+                                events.push(`stopLane ${String(lane.index)} ${signal}`);
                                 finish(143);
 
                                 if (signal === 'SIGKILL' && groupAlive) {
@@ -1048,7 +1048,7 @@ describe('runLaneRun — a lost tunnel', () => {
                         fakeLaneChild({
                             running: () => true,
                             onStop: (signal) => {
-                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal}`);
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
                             },
                         }),
                 },

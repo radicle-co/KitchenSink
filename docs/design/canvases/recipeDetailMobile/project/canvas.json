@@ -1073,6 +1073,27 @@
       "w": 820,
       "h": 1180,
       "title": "Recipe detail, private import, photo link only (state 4) (mobile, iPad 820)"
+    },
+    "RecipeMakePublicStatementPaidSiteIphone390.dc.html": {
+      "x": 0,
+      "y": 36769,
+      "w": 390,
+      "h": 3311,
+      "title": "Recipe detail, make public: a paid website (mobile, iPhone 390)"
+    },
+    "RecipeMakePublicStatementPaidSiteAndroid384.dc.html": {
+      "x": 470,
+      "y": 36769,
+      "w": 384,
+      "h": 3301,
+      "title": "Recipe detail, make public: a paid website (mobile, Android 384)"
+    },
+    "RecipeMakePublicStatementPaidSiteIpad820.dc.html": {
+      "x": 934,
+      "y": 36769,
+      "w": 820,
+      "h": 3166,
+      "title": "Recipe detail, make public: a paid website (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1227,7 +1248,10 @@
     "RecipePrivateImportPhotoLinkOnlyAndroid384.dc.html",
     "RecipePrivateImportPhotoSavedIpad820.dc.html",
     "RecipePrivateImportPhotoLoadingIpad820.dc.html",
-    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html"
+    "RecipePrivateImportPhotoLinkOnlyIpad820.dc.html",
+    "RecipeMakePublicStatementPaidSiteIphone390.dc.html",
+    "RecipeMakePublicStatementPaidSiteAndroid384.dc.html",
+    "RecipeMakePublicStatementPaidSiteIpad820.dc.html"
   ],
   "notes": {
     "row0": {

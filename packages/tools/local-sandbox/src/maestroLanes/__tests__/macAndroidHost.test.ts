@@ -129,4 +129,12 @@ describe('MacAndroidHost', () => {
 
         expect(stopped()).toBe(1);
     });
+
+    it('answers the loss of its tunnel from the session, so the run learns of it', async () => {
+        const { host, exitTunnel } = makeMacAndroidRig();
+        await host.prepare(run, APK_PATH, 'abc123');
+        exitTunnel(255);
+
+        await expect(host.lost()).resolves.toEqual(new Error('the tunnel ssh exited with code 255 during the run'));
+    });
 });

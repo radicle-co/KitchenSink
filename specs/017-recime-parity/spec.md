@@ -834,8 +834,7 @@ intact. _(Amended 2026-10-27: there are no paid seats, FR-034.)_
 - **NFR-002**: All exported functions and interfaces MUST carry JSDoc. (Principle II)
 - **NFR-003**: Every UI element introduced here MUST expose an accessible name queryable via
   `getByRole`/`getByLabel`. (Principles IV & VII)
-- **NFR-004**: Colour MUST NOT be the sole conveyor of state — including the per-field import confidence of
-  `004-FR-015`, the waterfall tier badge of FR-002, household member attribution, and every state of the dark
+- **NFR-004**: Colour MUST NOT be the sole conveyor of state — including the waterfall tier badge of FR-002, household member attribution, and every state of the dark
   theme in FR-027. (Principle VII)
 - **NFR-005**: Every capability here ships to **web and mobile in the same release**; single-platform delivery
   is a blocking defect per `001-FR-044a`. The browser extension (FR-014) is a desktop-only surface and is

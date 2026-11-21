@@ -36,8 +36,28 @@ function rgb(hex: string): string {
     return `rgb(${r}, ${g}, ${b})`;
 }
 
-/** Sign in, seed one recipe with two lines and two steps, and open it. */
-async function openRecipe(page: Page): Promise<void> {
+/** The two lines the recipe opens with. */
+const LINES = [
+    {
+        ingredientId: '00000000-0000-4000-8000-0000000000c1',
+        name: 'lamb shoulder',
+        foodId: 'food_lamb',
+        quantity: { kind: 'exact', value: 2 },
+        unit: 'kg',
+        isUserEntered: false,
+    },
+    {
+        ingredientId: '00000000-0000-4000-8000-0000000000c2',
+        name: 'preserved lemon',
+        foodId: 'food_lemon',
+        quantity: { kind: 'exact', value: 1 },
+        unit: undefined,
+        isUserEntered: false,
+    },
+] as const;
+
+/** Sign in, seed one recipe with the given lines and eight steps, and open it. */
+async function openRecipe(page: Page, ingredients: readonly (typeof LINES)[number][] = LINES): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
@@ -48,24 +68,7 @@ async function openRecipe(page: Page): Promise<void> {
                 id: RECIPE_ID,
                 ownerId: viewerId,
                 title: RECIPE_TITLE,
-                ingredients: [
-                    {
-                        ingredientId: '00000000-0000-4000-8000-0000000000c1',
-                        name: 'lamb shoulder',
-                        foodId: 'food_lamb',
-                        quantity: { kind: 'exact', value: 2 },
-                        unit: 'kg',
-                        isUserEntered: false,
-                    },
-                    {
-                        ingredientId: '00000000-0000-4000-8000-0000000000c2',
-                        name: 'preserved lemon',
-                        foodId: 'food_lemon',
-                        quantity: { kind: 'exact', value: 1 },
-                        unit: undefined,
-                        isUserEntered: false,
-                    },
-                ],
+                ingredients: [...ingredients],
                 steps: [
                     { stepNumber: 1, instruction: 'Rub the lamb with the lemon.' },
                     { stepNumber: 2, instruction: 'Roast low for five hours.' },
@@ -153,6 +156,36 @@ for (const [scheme, colors] of THEMES) {
                 'aria-checked',
                 'false',
             );
+        });
+
+        test('ticks one of two identical lines, and keeps that tick across a reload (#155, ADR-0096)', async ({
+            page,
+        }) => {
+            const [lamb] = LINES;
+
+            await openRecipe(page, [lamb, lamb]);
+            const twins = page.getByRole('checkbox', { name: '2 kg lamb shoulder' });
+
+            await expect(twins).toHaveCount(2);
+            await twins.first().click();
+
+            await expect(twins.first()).toHaveAttribute('aria-checked', 'true');
+            await expect(twins.last()).toHaveAttribute('aria-checked', 'false');
+
+            // The tick follows its line when the servings change, because the key comes from the unscaled line.
+            await page.getByRole('button', { name: 'More servings' }).first().click();
+            const scaled = page.getByRole('checkbox', { name: /lamb shoulder/u });
+
+            await expect(scaled).toHaveCount(2);
+            await expect(scaled.first()).toHaveAttribute('aria-checked', 'true');
+            await expect(scaled.last()).toHaveAttribute('aria-checked', 'false');
+
+            await page.reload();
+            const reloaded = page.getByRole('checkbox', { name: /lamb shoulder/u });
+
+            await expect(reloaded).toHaveCount(2);
+            await expect(reloaded.first()).toHaveAttribute('aria-checked', 'true');
+            await expect(reloaded.last()).toHaveAttribute('aria-checked', 'false');
         });
 
         test('keeps one current step: another step moves the marker, a second press clears it', async ({ page }) => {

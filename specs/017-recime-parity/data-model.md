@@ -121,8 +121,8 @@ capture_tier_results
    retried capture resumes at the first tier with no row. This is why `capture_tier_results` is a table rather
    than a JSON column on `captures` — a partial waterfall must be durable at a tier boundary.
 
-**Per-field provenance** rides on the draft, not this table: each extracted field carries the tier that
-produced it plus the confidence `004-FR-015` already requires. That satisfies SC-009 without a second store.
+**Per-field provenance** rides on the capture result, not this table: each extracted field carries the tier that
+produced it. That satisfies SC-009 without a second store.
 
 ---
 

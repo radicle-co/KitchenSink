@@ -16,10 +16,11 @@ import { isKeptTimersDroppedError } from '../keptErrors.js';
 import { keptKeyFor, serializeKeptDocument, type KeptDocument } from '../keptRecord.js';
 import { createKeptSessionStore, type KeptSnapshot } from '../keptSessionStore.js';
 import type { ExclusiveRunner } from '../keptPort.js';
+import { TICK } from '../../../detail/__fixtures__/tickKeys.js';
 
 const KEY_A = keptKeyFor('A');
 const NOW = iso(T0 + HOUR);
-const tick = { type: 'tickPage', recipeId: 'r1', ingredientId: 'butter', ticked: true } as const;
+const tick = { type: 'tickPage', recipeId: 'r1', line: TICK.butter, ticked: true } as const;
 
 function setup(initial: Record<string, string> = {}, locks: ExclusiveRunner | null = makeFakeLocks()) {
     const fake = makeFakePort(initial);
@@ -155,7 +156,7 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         await store.scope('A');
 
         expect((await store.dispatch(tick)).kind).toBe('applied');
-        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: ['butter'] });
+        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: [TICK.butter] });
         expect(calls.write).toBe(0);
         expect(data.get(KEY_A)).toBe(stored);
         expect(report).toHaveBeenCalledTimes(1);
@@ -168,12 +169,12 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         await store.scope('A');
         await store.dispatch(tick);
         state.failReads = false;
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
         const written = writtenDocument(data.get(KEY_A));
 
         expect(Object.keys(written.entries)).toEqual(['r1']);
-        expect(written.entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
+        expect(written.entries.r1.ticks).toEqual(expect.arrayContaining([TICK.butter, TICK.salt]));
     });
 
     it('a re-read after reads recover keeps the unsaved change on screen, and the next write sends it', async () => {
@@ -186,11 +187,13 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         data.set(KEY_A, serializeKeptDocument(makeDoc({ rev: 2, entries: { r1: makeCooking() } })));
         await store.reread();
 
-        expect(docOf(store.getSnapshot()).entries['r1']?.ticks).toContain('butter');
+        expect(docOf(store.getSnapshot()).entries['r1']?.ticks).toContain(TICK.butter);
 
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
-        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual(expect.arrayContaining(['butter', 'salt']));
+        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual(
+            expect.arrayContaining([TICK.butter, TICK.salt]),
+        );
     });
 
     it('a direct switch of cook drops the old cook`s unsaved changes: they never replay into the new record', async () => {
@@ -201,11 +204,11 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         await store.dispatch(tick);
         await store.scope('B');
         state.failReads = false;
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
         const written = writtenDocument(data.get(keptKeyFor('B')));
 
-        expect(written.entries.r1.ticks).toEqual(['salt']);
+        expect(written.entries.r1.ticks).toEqual([TICK.salt]);
     });
 
     it('a change made while reads fail is replayed with the instant the cook made it, not the replay instant', async () => {
@@ -241,9 +244,9 @@ describe('a storage that throws on read, remove or keys (blocked storage)', () =
         state.failReads = false;
         await store.scope(null);
         await store.scope('A');
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
-        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual(['salt']);
+        expect(writtenDocument(data.get(KEY_A)).entries.r1.ticks).toEqual([TICK.salt]);
     });
 
     it('a re-read that throws leaves the session as it was', async () => {
@@ -320,7 +323,7 @@ describe('dispatch', () => {
 
         expect(outcome.kind).toBe('applied');
         expect(listener).toHaveBeenCalledTimes(1);
-        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 1, entries: { r1: { ticks: ['butter'] } } });
+        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 1, entries: { r1: { ticks: [TICK.butter] } } });
     });
 
     it('a tick dispatched while loading is applied after the hydrate (mutant: dropped)', async () => {
@@ -330,7 +333,7 @@ describe('dispatch', () => {
 
         await Promise.all([scoping, dispatching]);
 
-        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 5, entries: { r1: { ticks: ['butter'] } } });
+        expect(writtenDocument(data.get(KEY_A))).toMatchObject({ rev: 5, entries: { r1: { ticks: [TICK.butter] } } });
     });
 
     it('write failure: the snapshot keeps the change and one report is made across two failures', async () => {
@@ -339,9 +342,9 @@ describe('dispatch', () => {
         await store.scope('A');
         state.failWrites = true;
         await store.dispatch(tick);
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
-        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: ['butter', 'salt'] });
+        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: [TICK.butter, TICK.salt] });
         expect(report).toHaveBeenCalledTimes(1);
     });
 
@@ -350,9 +353,9 @@ describe('dispatch', () => {
 
         await store.scope('A');
         await store.dispatch(tick);
-        await store.dispatch({ ...tick, ingredientId: 'salt' });
+        await store.dispatch({ ...tick, line: TICK.salt });
 
-        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: ['butter', 'salt'] });
+        expect(docOf(store.getSnapshot()).entries['r1']).toMatchObject({ ticks: [TICK.butter, TICK.salt] });
         expect(calls.write).toBe(0);
         expect(warn).toHaveBeenCalledTimes(1);
     });

@@ -126,10 +126,14 @@ export type FixtureRecipeKey =
     | 'needsReviewProbe'
     | 'downgradedStew'
     | 'libraryFiller'
-    | 'cooking';
+    | 'cooking'
+    | 'twinLines';
 
 /** The cooking recipe's title before it is scoped to a run: `<base> <runKey>`. */
 export const COOKING_RECIPE_BASE_TITLE = 'Cooking Mode Tray Bake';
+
+/** The twin-lines recipe's title before it is scoped to a run: `<base> <runKey>`. */
+export const TWIN_LINES_RECIPE_BASE_TITLE = 'Twin Butter Toast';
 
 /**
  * The world, before run-scoping.
@@ -609,6 +613,44 @@ function deriveCookingRecipe(runKey: string): FixtureRecipe {
 }
 
 /**
+ * The signer's recipe with two IDENTICAL lines, for `reset --mode cooking` and the line-ticks Maestro flow alone
+ * (ADR-0096, #155): the flow ticks the first line and asserts that the second stays unticked, then reopens the recipe.
+ *
+ * The two lines have the same name, quantity and unit, so they bind to one food and share one content digest. They
+ * differ only by their order.
+ *
+ * ⛔ NOT IN {@link SEED_WORLD}, and not in `manifest.recipes`, for the reason {@link deriveCookingRecipe} gives.
+ *
+ * @param runKey - This run's fixture scope.
+ * @returns The run-scoped twin-lines recipe. Pure, and frozen.
+ */
+function deriveTwinLinesRecipe(runKey: string): FixtureRecipe {
+    const butter = Object.freeze({ name: 'Butter', quantity: 1, unit: 'tbsp' });
+
+    return Object.freeze({
+        key: 'twinLines',
+        owner: 'signer',
+        baseTitle: TWIN_LINES_RECIPE_BASE_TITLE,
+        title: runScopedTitle(TWIN_LINES_RECIPE_BASE_TITLE, runKey),
+        cuisine: 'Mediterranean',
+        description: 'Toast with butter twice, once for the pan and once for the top.',
+        visibility: 'private',
+        servings: 2,
+        prepTimeMinutes: 5,
+        cookTimeMinutes: 5,
+        totalTimeMinutes: 10,
+        ingredients: Object.freeze([butter, butter]),
+        steps: Object.freeze([
+            Object.freeze({
+                instruction: 'Melt the first butter in a pan and toast the bread.',
+                timerSeconds: undefined,
+            }),
+            Object.freeze({ instruction: 'Spread the second butter on top.', timerSeconds: undefined }),
+        ]),
+    } as const);
+}
+
+/**
  * The fixed world. The names are plain letters and spaces, because the Maestro flow puts them inside a pattern, and they
  * share no word with any text another flow types.
  */
@@ -664,6 +706,8 @@ export const FIXTURE_ENV_KEYS = {
     privateFoodName: 'E2E_PRIVATE_FOOD_NAME',
     // The signer's multi-sentence cooking recipe, made by `reset --mode cooking` for the cooking-mode Maestro flow alone.
     cookingRecipe: 'E2E_RECIPE_COOKING',
+    // The signer's recipe with two identical lines, made by `reset --mode cooking` for `recipes/detailLineTicks` alone.
+    twinLinesRecipe: 'E2E_RECIPE_TWIN_LINES',
     // The signer's gate-AMBIGUOUS recipe, made by `reset --mode ambiguity` for `recipes/ambiguityReview` alone.
     ambiguityProbeRecipe: 'E2E_RECIPE_AMBIGUITY_PROBE',
     // The word that recipe's food and lines are named for; chosen and verified at provision, like the words below.
@@ -731,6 +775,8 @@ export interface FixtureManifest {
     readonly libraryFillers: readonly FixtureRecipe[];
     /** The signer's multi-sentence cooking recipe (`reset --mode cooking`). Kept apart from `recipes`, which every flow counts. */
     readonly cookingRecipe: FixtureRecipe;
+    /** The signer's recipe with two identical lines (`reset --mode cooking`), kept apart from `recipes` as above. */
+    readonly twinLinesRecipe: FixtureRecipe;
     /** `<CAP_FOOD_BASE_NAME> <runKey>` — what the cap flow types, and the start of every name in `capFoodNames`. */
     readonly capFoodPrefix: string;
     /** The signer's cap foods, `<capFoodPrefix> N` — see {@link CAP_FOOD_BASE_NAME}. */
@@ -787,6 +833,7 @@ export function deriveFixtureManifest(runKey: string, platform: MaestroPlatform,
         needsReviewProbeTitle: runScopedTitle(NEEDS_REVIEW_PROBE_BASE_TITLE, runKey),
         libraryFillers: deriveLibraryFillers(runKey),
         cookingRecipe: deriveCookingRecipe(runKey),
+        twinLinesRecipe: deriveTwinLinesRecipe(runKey),
         capFoodPrefix,
         capFoodNames: Object.freeze(
             Array.from({ length: MAX_SEARCH_FOOD_FILTERS }, (_, index) => `${capFoodPrefix} ${index + 1}`),
@@ -853,6 +900,7 @@ export function manifestToEnvLines(
         `${FIXTURE_ENV_KEYS.privateFoodRecipe}=${manifest.privateFoodRecipe.title}`,
         `${FIXTURE_ENV_KEYS.privateFoodName}=${manifest.privateFoodName}`,
         `${FIXTURE_ENV_KEYS.cookingRecipe}=${manifest.cookingRecipe.title}`,
+        `${FIXTURE_ENV_KEYS.twinLinesRecipe}=${manifest.twinLinesRecipe.title}`,
         `${FIXTURE_ENV_KEYS.ambiguityProbeRecipe}=${manifest.ambiguityProbeTitle}`,
         `${FIXTURE_ENV_KEYS.ambiguityWord}=${probeWords.ambiguityWord}`,
         `${FIXTURE_ENV_KEYS.needsReviewProbeRecipe}=${manifest.needsReviewProbeTitle}`,

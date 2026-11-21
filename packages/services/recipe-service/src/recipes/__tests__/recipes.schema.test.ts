@@ -680,14 +680,11 @@ describe('createRecipeRequestSchema — the optional `source` declaration', () =
     });
 
     /**
-     * `imported_physical` and `imported_paid` are DELIBERATELY not declarable, and their absence is a
-     * narrowing of 004-FR-025 rather than an oversight. Both are private-only classes under C-004, and
-     * `evaluateVisibility` allows either to go private with NO premium check — so admitting them here would
-     * hand a free-tier caller the private recipe 004-FR-028 says must be gated on an entitlement, and
-     * 004-FR-014a's attestation + citation machinery that is supposed to accompany them does not exist yet.
-     * They join the union when 004 builds that gate, not before.
+     * `imported_physical` and `imported_paid` are not declarable through `source`, the curator's field. A cook gives a
+     * recipe `imported_physical` through a `book` statement and `imported_paid` through a `paid_site` statement
+     * (`004-FR-014a`, #374, #376). This refusal stays.
      */
-    it.each(['imported_physical', 'imported_paid'])('REFUSES %s — not declarable until 004 builds its gate', (kind) => {
+    it.each(['imported_physical', 'imported_paid'])('REFUSES %s through source (#374)', (kind) => {
         expect(createAccepts({ source: { sourceType: kind, sourceAttribution: 'A book' } })).toBe(false);
     });
 
@@ -1257,6 +1254,11 @@ describe('a recipe’s own statement — every member names the wording the cook
             wording: wording('statementPublicWeb.v1'),
         },
         book: { kind: 'book', citation: 'Joy of Cooking, p. 12', wording: wording('statementBook.v1') },
+        paid_site: {
+            kind: 'paid_site',
+            citation: 'Sam’s Subscription Kitchen',
+            wording: wording('statementPaidSite.v1'),
+        },
         fromPerson: { kind: 'fromPerson', wording: wording('statementFromPerson.v1') },
     } as const;
 
@@ -1310,6 +1312,17 @@ describe('a recipe’s own statement — every member names the wording the cook
     it('REFUSES a book with a blank citation, and a web statement with an address that is not a usable source', () => {
         expect(createAccepts({ statement: { ...MEMBERS.book, citation: '   ' } })).toBe(false);
         expect(createAccepts({ statement: { ...MEMBERS.public_web, citation: 'https://commise.app/x' } })).toBe(false);
+    });
+
+    it('REFUSES a paid site with a blank citation and with no citation, and names the citation', () => {
+        for (const citation of ['   ', undefined]) {
+            const { citation: _dropped, ...rest } = MEMBERS.paid_site;
+            const statement = citation === undefined ? rest : { ...rest, citation };
+            const result = createRecipeRequestSchema.safeParse(body({ statement }));
+
+            expect(result.success).toBe(false);
+            expect(JSON.stringify(result.error?.issues.map((issue) => issue.path))).toContain('citation');
+        }
     });
 
     it('accepts a statement and its absence on set-visibility, and refuses an explicit null there', () => {

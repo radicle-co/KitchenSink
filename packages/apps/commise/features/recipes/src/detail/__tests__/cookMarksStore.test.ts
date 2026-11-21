@@ -8,6 +8,9 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { EMPTY_COOK_MARKS } from '../cookMarks.js';
 import { createCookMarksStore, memoryCookMarksBackend } from '../cookMarksStore.js';
+import { tickKeyOf } from '../__fixtures__/tickKeys.js';
+
+const [ING_A, ING_B] = [1, 2].map(tickKeyOf);
 
 describe('createCookMarksStore', () => {
     it('reads no marks for an untouched recipe, the same object each time', () => {
@@ -20,10 +23,10 @@ describe('createCookMarksStore', () => {
     it('keeps marks per recipe, and the snapshot stable until the next change', () => {
         const store = createCookMarksStore(memoryCookMarksBackend());
 
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         const first = store.read('user_1', 'rec_1');
 
-        expect([...first.lines]).toEqual(['ing_a']);
+        expect([...first.lines]).toEqual([ING_A]);
         expect(store.read('user_1', 'rec_1')).toBe(first);
         expect(store.read('user_1', 'rec_2')).toBe(EMPTY_COOK_MARKS);
 
@@ -35,7 +38,7 @@ describe('createCookMarksStore', () => {
     it('keeps one cook’s marks from another cook on the same recipe', () => {
         const store = createCookMarksStore(memoryCookMarksBackend());
 
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
 
         expect(store.read('user_2', 'rec_1')).toBe(EMPTY_COOK_MARKS);
     });
@@ -44,20 +47,20 @@ describe('createCookMarksStore', () => {
         const backend = memoryCookMarksBackend();
         const store = createCookMarksStore(backend);
 
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
-        expect(backend.getItem('cook.v1.user_1.rec_1')).toBe('{"lines":["ing_a"],"step":null}');
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
+        expect(backend.getItem('cook.v1.user_1.rec_1')).toBe(`{"lines":["${ING_A}"],"step":null}`);
 
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         expect(backend.getItem('cook.v1.user_1.rec_1')).toBeNull();
     });
 
     it('reads marks a previous page life left in storage', () => {
         const backend = memoryCookMarksBackend();
-        backend.setItem('cook.v1.user_1.rec_1', '{"lines":["ing_b"],"step":3}');
+        backend.setItem('cook.v1.user_1.rec_1', `{"lines":["${ING_B}"],"step":3}`);
 
         const marks = createCookMarksStore(backend).read('user_1', 'rec_1');
 
-        expect([...marks.lines]).toEqual(['ing_b']);
+        expect([...marks.lines]).toEqual([ING_B]);
         expect(marks.currentStep).toBe(3);
     });
 
@@ -69,11 +72,11 @@ describe('createCookMarksStore', () => {
         store.dispatch('user_1', 'rec_1', { kind: 'clear' });
         expect(listener).not.toHaveBeenCalled();
 
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         expect(listener).toHaveBeenCalledTimes(1);
 
         unsubscribe();
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         expect(listener).toHaveBeenCalledTimes(1);
     });
 });
@@ -83,7 +86,7 @@ describe('the session scope', () => {
         const backend = memoryCookMarksBackend();
         const store = createCookMarksStore(backend);
         store.scope('user_1');
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         backend.setItem('editor.draft.v1.user_1', 'kept');
 
         store.scope(undefined);
@@ -95,19 +98,19 @@ describe('the session scope', () => {
 
     it('removes the previous cook’s marks when another cook signs in, and keeps the new cook’s own', () => {
         const backend = memoryCookMarksBackend();
-        backend.setItem('cook.v1.user_1.rec_1', '{"lines":["ing_a"],"step":null}');
-        backend.setItem('cook.v1.user_2.rec_1', '{"lines":["ing_b"],"step":null}');
+        backend.setItem('cook.v1.user_1.rec_1', `{"lines":["${ING_A}"],"step":null}`);
+        backend.setItem('cook.v1.user_2.rec_1', `{"lines":["${ING_B}"],"step":null}`);
         const store = createCookMarksStore(backend);
 
         store.scope('user_2');
 
         expect(backend.getItem('cook.v1.user_1.rec_1')).toBeNull();
-        expect([...store.read('user_2', 'rec_1').lines]).toEqual(['ing_b']);
+        expect([...store.read('user_2', 'rec_1').lines]).toEqual([ING_B]);
     });
 
     it('removes nothing while the cook is not known yet (a page still loading its session)', () => {
         const backend = memoryCookMarksBackend();
-        backend.setItem('cook.v1.user_1.rec_1', '{"lines":["ing_a"],"step":null}');
+        backend.setItem('cook.v1.user_1.rec_1', `{"lines":["${ING_A}"],"step":null}`);
         const store = createCookMarksStore(backend);
 
         store.scope(undefined);
@@ -118,7 +121,7 @@ describe('the session scope', () => {
     it('tells subscribers when it removed marks', () => {
         const store = createCookMarksStore(memoryCookMarksBackend());
         store.scope('user_1');
-        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: 'ing_a' });
+        store.dispatch('user_1', 'rec_1', { kind: 'toggleLine', line: ING_A });
         const listener = vi.fn();
         store.subscribe(listener);
 

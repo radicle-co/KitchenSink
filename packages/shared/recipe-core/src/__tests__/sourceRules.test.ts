@@ -13,7 +13,13 @@ import { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } f
  */
 describe('sourceIsCorrectable', () => {
     const AT = new Date('2026-11-01T00:00:00.000Z');
-    const OPEN = { sourceType: 'user_created', sourceKind: null, firstPublishedAt: null, clonedFromId: null } as const;
+    const OPEN = {
+        sourceType: 'user_created',
+        sourceKind: null,
+        statementKind: null,
+        firstPublishedAt: null,
+        clonedFromId: null,
+    } as const;
 
     it.each([
         ['a never-published recipe with no source', OPEN, true],
@@ -86,6 +92,34 @@ describe('sourceIsCorrectable', () => {
                 clonedFromId: 'r-1',
             },
             false,
+        ],
+        // P7 (fromPersonLock): a stored "From another person" is the one answer the cook cannot change or clear.
+        [
+            'a never-published recipe whose statement is "From another person"',
+            { ...OPEN, statementKind: 'fromPerson' },
+            false,
+        ],
+        [
+            'a published recipe whose statement is "From another person"',
+            { ...OPEN, statementKind: 'fromPerson', firstPublishedAt: AT },
+            false,
+        ],
+        ['a clone holding "From another person"', { ...OPEN, statementKind: 'fromPerson', clonedFromId: 'r-1' }, false],
+        [
+            'a statement kind this client does not know (fails closed)',
+            { ...OPEN, statementKind: 'unrecognised' },
+            false,
+        ],
+        ['an authored statement stays correctable', { ...OPEN, statementKind: 'authored' }, true],
+        [
+            'a source statement over a web copy stays correctable',
+            { ...OPEN, sourceType: 'imported_public', sourceKind: 'public_web', statementKind: 'source' },
+            true,
+        ],
+        [
+            'a source statement over a book stays correctable',
+            { ...OPEN, sourceType: 'imported_physical', sourceKind: 'book', statementKind: 'source' },
+            true,
         ],
     ] as const)('%s', (_name, recipe, expected) => {
         expect(sourceIsCorrectable(recipe)).toBe(expected);

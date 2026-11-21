@@ -135,7 +135,7 @@ describe('IngredientCheckRow (native)', () => {
         expect(row.getAttribute('aria-checked')).toBe('false');
 
         fireEvent.click(row);
-        expect(onToggle).toHaveBeenCalledWith('ing_lamb');
+        expect(onToggle).toHaveBeenCalledWith();
     });
 
     // WCAG 2.5.3, option C (UI Designer, amending Q5): a CONTROL is named by its visible text, glyph included.

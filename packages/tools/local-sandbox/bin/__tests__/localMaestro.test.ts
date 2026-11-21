@@ -6,7 +6,7 @@
  * Each case sources the REAL script (and through it CI's `runMaestroFlows.sh`) in a fresh `bash`, with fake `adb`,
  * `maestro` and `aws` binaries first on `PATH`. Nothing here touches a device, a network or AWS.
  */
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -1177,5 +1177,37 @@ describe('the door falls back to no default stack', () => {
         expect(result.status).toBe(1);
         expect(result.stderr).toContain('local:maestro: LOCAL_MAESTRO_WORKER_SQS_ENDPOINT is not set');
         expect(readFileSync(sandbox.calls, 'utf8')).not.toContain('npm');
+    });
+
+    it('keeps the worker pattern the caller states, so a process matching the default is no worker', () => {
+        // The decoy's command line matches the DEFAULT pattern, so on any machine the default pattern would refuse it.
+        const decoyTag = 'src/local/main.ts';
+        const decoy = spawn(process.execPath, ['-e', 'setTimeout(() => undefined, 30000)', decoyTag], {
+            stdio: 'ignore',
+        });
+
+        try {
+            // The decoy must be visible to pgrep before the script looks, or the test would pass by being early.
+            for (
+                let tries = 0;
+                tries < 50 && spawnSync('pgrep', ['-f', `setTimeout.*${decoyTag}`]).status !== 0;
+                tries += 1
+            ) {
+                spawnSync('sleep', ['0.1']);
+            }
+
+            // Not seen after the wait: the test cannot prove anything, so it must not pass by looking at nothing.
+            expect(spawnSync('pgrep', ['-f', `setTimeout.*${decoyTag}`]).status).toBe(0);
+
+            const sandbox = makeSandbox();
+            const result = run(sandbox, `local_maestro_start_worker '${sandbox.state}'`, {
+                LOCAL_MAESTRO_WORKER_PATTERN: 'no-such-worker-command-line',
+            });
+
+            expect(result.stderr).not.toContain('a parse worker this run did not start is running');
+            expect(result.stderr).toContain('local:maestro: LOCAL_MAESTRO_WORKER_SQS_ENDPOINT is not set');
+        } finally {
+            decoy.kill();
+        }
     });
 });

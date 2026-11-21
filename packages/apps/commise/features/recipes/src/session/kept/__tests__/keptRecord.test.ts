@@ -34,6 +34,22 @@ describe('parseKeptDocument', () => {
         return parsed;
     };
 
+    // ADR-0096: a tick is a content key, of any digest version. An old binding id is not a key and drops by itself.
+    it('keeps tick keys of any version, drops an old binding id, and keeps the timers (mutant: strict regex)', () => {
+        const raw = rawKeptDocument({
+            entries: { r1: makePage({ ticks: [] }) },
+            timers: [makeTimer()],
+        }).replace(
+            '"ticks":[]',
+            '"ticks":["01JINGREDIENT0000000000000A","l1:0123abcd#0","l1:0123abcd#1","l2:deadbeef#0"]',
+        );
+
+        const parsed = ok(raw);
+
+        expect(parsed.doc.entries['r1']).toMatchObject({ ticks: ['l1:0123abcd#0', 'l1:0123abcd#1', 'l2:deadbeef#0'] });
+        expect(parsed.doc.timers).toHaveLength(1);
+    });
+
     it('reads null as absent', () => {
         expect(parseKeptDocument(null)).toEqual({ kind: 'absent' });
     });

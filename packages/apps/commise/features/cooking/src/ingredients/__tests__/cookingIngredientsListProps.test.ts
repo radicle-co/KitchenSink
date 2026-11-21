@@ -17,6 +17,11 @@ describe('CookingIngredientsListProps', () => {
         expectTypeOf<{ kind: 'none' }>().not.toExtend<CookingIngredientsListProps['view']>();
     });
 
+    it('toggles a line by its position in the view, never by an id (mutant: a string parameter)', () => {
+        expectTypeOf<Parameters<CookingIngredientsListProps['onToggle']>>().toEqualTypeOf<[position: number]>();
+        expectTypeOf<Parameters<CookingIngredientsBinding['toggle']>>().toEqualTypeOf<[position: number]>();
+    });
+
     it('takes its three commands from the hook binding unchanged, bar the Undo the list drops', () => {
         expectTypeOf<CookingIngredientsListProps['onToggle']>().toEqualTypeOf<CookingIngredientsBinding['toggle']>();
         expectTypeOf<CookingIngredientsListProps['onSetServings']>().toEqualTypeOf<

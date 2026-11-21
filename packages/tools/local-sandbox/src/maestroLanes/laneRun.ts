@@ -13,6 +13,7 @@
  */
 import { mkdirSync } from 'node:fs';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 import { inspect } from 'node:util';
 
 import { planLanes } from '@kitchensink/e2e-plan';
@@ -106,11 +107,19 @@ export interface LaneRunDeps {
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     readonly staggerMs: number;
+    /** How long a stopped lane has to exit before it is killed. Defaults to {@link STOP_GRACE_MS}. */
+    readonly stopGraceMs?: number;
     log(line: string): void;
 }
 
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
+
+/** How long a lane's group has to be gone after SIGTERM before SIGKILL: a stuck child ignores the first. */
+const STOP_GRACE_MS = 10_000;
+
+/** How often the run asks whether a stopped lane's group is gone. */
+const GROUP_POLL_MS = 25;
 
 const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -308,32 +317,103 @@ async function runPlanned(
             }),
         );
 
-        const exits: Promise<number>[] = [];
+        // Asked once, now: a loss that happened already (a stale forward answered the probe, then the tunnel ended)
+        // is still there to read. `setImmediate` settles only after every queued microtask has run, so a loss that is
+        // already settled wins the race however many `then` or `async` layers wrap it.
+        const losses = plans.map((plan) => plan.adapter.lost());
+        const alreadyLost = await Promise.race([...losses, setImmediate()]);
 
-        for (const lane of lanes) {
-            if (deps.aborted()) {
-                break;
-            }
-
-            if (exits.length > 0) {
-                await sleep(deps.staggerMs);
-            }
-
-            const startedAt = Date.now();
-            const child = deps.spawnLane(lane, envOf(lane));
-            deps.log(`lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`);
-            exits.push(
-                child.exit.then((code) => {
-                    deps.log(
-                        `lane ${laneName(lane)} exited ${code} after ${Math.round((Date.now() - startedAt) / 1000)} s`,
-                    );
-
-                    return code;
-                }),
-            );
+        if (alreadyLost !== undefined) {
+            throw alreadyLost;
         }
 
-        const codes = await Promise.all(exits);
+        const exits: Promise<number>[] = [];
+        const children: LaneChild[] = [];
+        // Work that must end as soon as a tunnel is lost: the stagger wait and the lanes themselves.
+        const unlessLost = <T>(work: Promise<T>): Promise<T> =>
+            Promise.race([
+                work,
+                ...losses.map((loss) =>
+                    loss.then((error) => {
+                        throw error;
+                    }),
+                ),
+            ]);
+        let codes: number[];
+
+        try {
+            for (const lane of lanes) {
+                if (deps.aborted()) {
+                    break;
+                }
+
+                if (exits.length > 0) {
+                    let staggerOver: NodeJS.Timeout | undefined;
+
+                    try {
+                        await unlessLost(
+                            new Promise<void>((resolve) => {
+                                staggerOver = setTimeout(resolve, deps.staggerMs);
+                            }),
+                        );
+                    } finally {
+                        // A loss ends the wait early: the timer must not hold the process for the rest of it.
+                        clearTimeout(staggerOver);
+                    }
+                }
+
+                const startedAt = Date.now();
+                const child = deps.spawnLane(lane, envOf(lane));
+                children.push(child);
+                deps.log(
+                    `lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`,
+                );
+                exits.push(
+                    child.exit.then((code) => {
+                        deps.log(
+                            `lane ${laneName(lane)} exited ${code} after ` +
+                                `${Math.round((Date.now() - startedAt) / 1000)} s`,
+                        );
+
+                        return code;
+                    }),
+                );
+            }
+
+            codes = await unlessLost(Promise.all(exits));
+        } catch (error) {
+            // The lanes would run against a dead forward. Stop them, kill any that ignore it, and let them exit before
+            // the devices go.
+            for (const child of children) {
+                child.stop();
+            }
+
+            // The runner (bash) may exit on SIGTERM while a child of its group stays, so the wait is for the group.
+            const exited = Promise.allSettled(exits).then(async () => {
+                while (children.some((child) => child.running())) {
+                    await sleep(GROUP_POLL_MS);
+                }
+            });
+
+            let graceOver: NodeJS.Timeout | undefined;
+            const grace = new Promise<boolean>((resolve) => {
+                graceOver = setTimeout(() => {
+                    resolve(false);
+                }, deps.stopGraceMs ?? STOP_GRACE_MS);
+            });
+            const exitedInTime = await Promise.race([exited.then(() => true), grace]);
+            clearTimeout(graceOver);
+
+            if (!exitedInTime) {
+                for (const child of children) {
+                    child.stop('SIGKILL');
+                }
+            }
+
+            await exited;
+
+            throw error;
+        }
 
         if (deps.aborted()) {
             return ABORTED;

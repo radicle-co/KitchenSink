@@ -22,7 +22,7 @@ import pg from 'pg';
 import { LOCAL_DB } from '../src/composePlan.js';
 import { alignmentSlots, laneFromEnv } from '../src/alignmentLane.js';
 import { alignPoolIdentities, type AlignmentPorts } from '../src/identityAlignment.js';
-import { stackFrom } from '../src/stackPorts.js';
+import { stackOrRefusal } from '../src/stackPorts.js';
 import { dockerPublishedPort } from './adapters.js';
 
 /**
@@ -62,7 +62,16 @@ async function main(): Promise<void> {
     // The lane's own platform: an iOS lane has pool users of its own (2026-10-13), which this used to skip.
     const slots = alignmentSlots(laneFromEnv(process.env));
 
-    const stack = stackFrom(process.env);
+    const asked = stackOrRefusal('alignIdentities', process.env);
+
+    if (!asked.ok) {
+        process.stderr.write(`${asked.line}\n`);
+        process.exitCode = 1;
+
+        return;
+    }
+
+    const { stack } = asked;
     const identityContainer = stack.containerName('identity');
     const postgresContainer = stack.containerName('postgres');
     // The port the running stack publishes, read from Docker: a door never recomputes it from the environment.

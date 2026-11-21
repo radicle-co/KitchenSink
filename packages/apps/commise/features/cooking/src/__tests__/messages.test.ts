@@ -47,7 +47,6 @@ describe('cookingMessages', () => {
         expect(en.top.ingredients).toBe('Ingredients');
         expect(en.ingredients.title.one).toBe('Ingredients for {servings} \u00b7 1 item');
         expect(en.ingredients.title.other).toBe('Ingredients for {servings} \u00b7 {count} items');
-        expect(en.ingredients.done).toBe('Done');
         expect(en.ingredients.close).toBe('Close ingredients');
         expect(en.ingredients.clear).toBe('Clear ticks');
         expect(en.ingredients.cleared).toBe('Ticks cleared');

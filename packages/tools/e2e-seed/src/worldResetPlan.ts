@@ -51,8 +51,9 @@ export interface WorldResetPlan {
  * alone, and LOCAL only: it stores a verdict row straight into the recipe database, which `requireLocalSeedTarget` refuses
  * for anything but the local stack. The PLAN is `seeded`'s, for the reason `ambiguity`'s is.
  *
- * `cooking` is `seeded` plus the signer's multi-sentence cooking recipe (`manifest.cookingRecipe`), for
- * the cooking-mode Maestro flow alone. Every other mode treats it as residue, by its title.
+ * `cooking` is `seeded` plus the signer's multi-sentence cooking recipe (`manifest.cookingRecipe`) and its recipe with
+ * two identical lines (`manifest.twinLinesRecipe`), for the cooking-mode and line-ticks Maestro flows alone. Every
+ * other mode treats both as residue, by their titles.
  */
 export const RESET_MODES = ['seeded', 'empty', 'ambiguity', 'library', 'needsReview', 'cooking'] as const;
 
@@ -84,7 +85,7 @@ function modeExtras(manifest: FixtureManifest, mode: Exclude<ResetMode, 'empty'>
         case 'library':
             return manifest.libraryFillers;
         case 'cooking':
-            return [manifest.cookingRecipe];
+            return [manifest.cookingRecipe, manifest.twinLinesRecipe];
         case 'seeded':
         case 'ambiguity':
         case 'needsReview':

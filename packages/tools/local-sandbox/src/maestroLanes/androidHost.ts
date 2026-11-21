@@ -12,7 +12,7 @@ import type { Env } from '@kitchensink/e2e-plan/stampRun';
 import { availableMemoryBytes } from '@kitchensink/e2e-plan/hostMemory';
 
 import { consolePort } from './androidSerials.js';
-import type { CommandPort, HostFacts, LaneSpec, RunContext } from './laneTypes.js';
+import { NEVER_LOST, type CommandPort, type HostFacts, type LaneSpec, type RunContext } from './laneTypes.js';
 
 export interface AndroidHost {
     /** The ABI of the emulators this host boots: the test app is built for it. */
@@ -36,6 +36,11 @@ export interface AndroidHost {
      */
     laneEnv(lane: LaneSpec): Readonly<Record<string, string>>;
     teardown(): Promise<void>;
+    /**
+     * Resolves with the reason when the host loses the tunnel its lanes need.
+     * A host with no tunnel returns `NEVER_LOST`.
+     */
+    lost(): Promise<Error>;
 }
 
 export interface LocalAndroidHostOptions {
@@ -142,5 +147,6 @@ export function createLocalAndroidHost(options: LocalAndroidHostOptions): Androi
             MAESTRO_SKIP_INSTALL: '1',
         }),
         teardown: () => Promise.resolve(),
+        lost: () => NEVER_LOST,
     };
 }

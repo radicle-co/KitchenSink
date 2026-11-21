@@ -132,7 +132,7 @@ export function tunnelsFromManifest(manifest: string, hostPorts: HostPorts): rea
 
 export function sshConfigText(options: { readonly host: string; readonly controlPath: string }): string {
     return [
-        '# one ssh connection per run, shared by every shim call',
+        '# the shared master carries every command; the tunnel opens its own connection',
         `# host: ${options.host}`,
         'Host *',
         '    BatchMode yes',

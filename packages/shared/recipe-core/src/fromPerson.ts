@@ -18,8 +18,8 @@ import type { RecipeStatementKindView } from './recipe.types.js';
  * attested "from another person".
  *
  * The second arm closes a way round the first. A cook who said "from another person" and then cleared the statement left a
- * recipe with nothing that remembered it, so it could be published as their own. An explicit later statement (`authored`, a
- * source) is the cook's own answer and replaces it.
+ * recipe with nothing that remembered it, so it could be published as their own. The write path now refuses that later
+ * statement (`sourceIsCorrectable`, ADR-0097), so the only way to a recipe in this state is a recipe cleared before the lock.
  *
  * A kind this reader does not know is NOT read as "from another person": it fails closed in `statementRequiredOf`, which is
  * where an unknown statement is judged.

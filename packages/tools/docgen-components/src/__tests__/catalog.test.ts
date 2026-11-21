@@ -6,6 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { buildEntries } from '../catalog.js';
 import type { ComponentGroup } from '../config.js';
+import { DocgenError } from '../errors.js';
 import { makeImplementation, makeProp } from '../__fixtures__/implementation.js';
 
 const GROUP: ComponentGroup = {
@@ -126,5 +127,105 @@ describe('buildEntries', () => {
 
         expect(buildEntries(GROUP, [bare])[0]?.documented).toBe(false);
         expect(buildEntries(GROUP, [webLeaf, halfDocumented])[0]?.documented).toBe(true);
+    });
+    // One suffix-less file can serve both platforms: its imports resolve per platform, so it has no twin to pair with.
+    // The docblock says so with `@platform shared` (docs are read, never inferred from code shape), and the entry then
+    // lists both platforms rather than reading as a web-only singleton.
+    describe('a shared leaf', () => {
+        const shared = makeImplementation({
+            name: 'Sheet',
+            sourcePath: 'packages/apps/commise/ui/src/button/Sheet.tsx',
+            moduleTags: [{ name: 'platform', text: 'shared' }],
+        });
+
+        it('serves both platforms from its one leaf', () => {
+            const [entry] = buildEntries(GROUP, [shared]);
+
+            expect(entry?.platforms).toEqual(['web', 'native']);
+            expect(entry?.crossPlatform).toBe(true);
+            expect(entry?.implementations).toHaveLength(1);
+        });
+
+        it('reads the tag from the component docblock as well as the module docblock', () => {
+            const tagged = makeImplementation({ moduleTags: [], tags: [{ name: 'platform', text: 'shared' }] });
+
+            expect(buildEntries(GROUP, [tagged])[0]?.platforms).toEqual(['web', 'native']);
+        });
+
+        // The docblock parser ends a tag only at the next tag, so prose written after `@platform shared` rides in its
+        // text and leaves the description. The whole text must be `shared`, so that prose is refused, never swallowed.
+        it('accepts `shared` alone, even with surrounding whitespace', () => {
+            const spaced = makeImplementation({ moduleTags: [{ name: 'platform', text: ' shared\n' }] });
+
+            expect(buildEntries(GROUP, [spaced])[0]?.platforms).toEqual(['web', 'native']);
+        });
+
+        it('refuses prose after the tag, naming the file and saying to write the tag last', () => {
+            const prose = makeImplementation({
+                moduleTags: [{ name: 'platform', text: 'shared\n\nPresentational: props → JSX.' }],
+            });
+
+            expect(() => buildEntries(GROUP, [prose])).toThrow(DocgenError);
+            expect(() => buildEntries(GROUP, [prose])).toThrow(prose.sourcePath);
+            expect(() => buildEntries(GROUP, [prose])).toThrow('write the tag last');
+        });
+
+        it('does not diverge on props, because there is nothing to compare against', () => {
+            expect(buildEntries(GROUP, [shared])[0]?.propsDiverge).toBe(false);
+        });
+
+        it('leaves a leaf with no @platform tag a web-only singleton', () => {
+            expect(buildEntries(GROUP, [webLeaf])[0]?.platforms).toEqual(['web']);
+        });
+
+        // Parse, do not validate: the value set is closed, so a typo is a failure and never a silently ignored tag.
+        it.each([
+            ['web', '"web"'],
+            ['sharde', '"sharde"'],
+            ['', '""'],
+        ])('refuses the unknown @platform value %j, naming the file and the value', (text, quoted) => {
+            const bad = makeImplementation({ moduleTags: [{ name: 'platform', text }] });
+
+            expect(() => buildEntries(GROUP, [bad])).toThrow(DocgenError);
+            expect(() => buildEntries(GROUP, [bad])).toThrow(bad.sourcePath);
+            expect(() => buildEntries(GROUP, [bad])).toThrow(quoted);
+        });
+
+        // The result must not depend on file order: the shared leaf sits first and the typo after it, which a
+        // first-match shortcut would never read.
+        it('refuses a typo on a leaf listed after the shared leaf', () => {
+            const claimsShared = makeImplementation({ moduleTags: [{ name: 'platform', text: 'shared' }] });
+            const typo = makeImplementation({
+                platform: 'native',
+                sourcePath: 'packages/apps/commise/ui/src/button/Button.native.tsx',
+                moduleTags: [{ name: 'platform', text: 'sharde' }],
+            });
+
+            expect(() => buildEntries(GROUP, [claimsShared, typo])).toThrow(
+                'packages/apps/commise/ui/src/button/Button.native.tsx: unknown @platform value "sharde"',
+            );
+        });
+
+        // A group that ships to one platform has nothing for `shared` to span, so the claim is a mistake.
+        it('refuses a shared leaf in a group that ships to one platform', () => {
+            const webOnly: ComponentGroup = { ...GROUP, platforms: ['web'] };
+
+            expect(() => buildEntries(webOnly, [shared])).toThrow(
+                'packages/apps/commise/ui/src/button/Sheet.tsx: declares @platform shared ' +
+                    'but its group ships to web only',
+            );
+        });
+
+        // The claim is one the generator can disprove: a native twin beside it means the file is not shared.
+        it('refuses a shared leaf that has a .native twin in its own entry', () => {
+            const twin = makeImplementation({
+                platform: 'native',
+                sourcePath: 'packages/apps/commise/ui/src/button/Button.native.tsx',
+            });
+            const claimsShared = makeImplementation({ moduleTags: [{ name: 'platform', text: 'shared' }] });
+
+            expect(() => buildEntries(GROUP, [claimsShared, twin])).toThrow(DocgenError);
+            expect(() => buildEntries(GROUP, [claimsShared, twin])).toThrow(claimsShared.sourcePath);
+        });
     });
 });

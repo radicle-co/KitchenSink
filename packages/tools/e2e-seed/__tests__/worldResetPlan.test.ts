@@ -443,17 +443,22 @@ describe('planWorldReset — library mode', () => {
  */
 describe('planWorldReset — cooking mode', () => {
     const cooking = manifest.cookingRecipe;
+    const twin = manifest.twinLinesRecipe;
     const crostini = manifest.privateFoodRecipe;
 
     it('creates the signer recipes AND the cooking recipe against an empty world', () => {
         const plan = planWorldReset(snapshot(), manifest, 'cooking');
 
-        expect(plan.create.map((recipe) => recipe.title)).toEqual([...signerTitles, cooking.title]);
+        expect(plan.create.map((recipe) => recipe.title)).toEqual([...signerTitles, cooking.title, twin.title]);
     });
 
     it('plans nothing against a library that already holds the cooking recipe at its visibility', () => {
         const world = snapshot({
-            recipes: [...settled().recipes, { id: 'cook', title: cooking.title, visibility: cooking.visibility }],
+            recipes: [
+                ...settled().recipes,
+                { id: 'cook', title: cooking.title, visibility: cooking.visibility },
+                { id: 'twin', title: twin.title, visibility: twin.visibility },
+            ],
         });
 
         expect(planWorldReset(world, manifest, 'cooking')).toEqual({
@@ -465,7 +470,11 @@ describe('planWorldReset — cooking mode', () => {
 
     it('replaces a cooking recipe a flow left public', () => {
         const world = snapshot({
-            recipes: [...settled().recipes, { id: 'cook', title: cooking.title, visibility: 'public' }],
+            recipes: [
+                ...settled().recipes,
+                { id: 'cook', title: cooking.title, visibility: 'public' },
+                { id: 'twin', title: twin.title, visibility: twin.visibility },
+            ],
         });
         const plan = planWorldReset(world, manifest, 'cooking');
 
@@ -483,6 +492,19 @@ describe('planWorldReset — cooking mode', () => {
 
             expect(plan.deleteRecipeIds).toContain('cook');
             expect(plan.create.map((recipe) => recipe.title)).not.toContain(cooking.title);
+        },
+    );
+
+    it.each(['seeded', 'ambiguity', 'library', 'empty'] as const)(
+        '⛔ %s mode deletes the twin-lines recipe, so every other flow keeps its count',
+        (mode) => {
+            const world = snapshot({
+                recipes: [...settled().recipes, { id: 'twin', title: twin.title, visibility: twin.visibility }],
+            });
+            const plan = planWorldReset(world, manifest, mode);
+
+            expect(plan.deleteRecipeIds).toContain('twin');
+            expect(plan.create.map((recipe) => recipe.title)).not.toContain(twin.title);
         },
     );
 

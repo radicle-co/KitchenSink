@@ -175,5 +175,6 @@ export function createAndroidAdapter(options: AndroidAdapterOptions): DeviceAdap
         laneEnv: (lane: LaneSpec) => host.laneEnv(lane),
         stopDevice: (lane: LaneSpec) => host.stop(lane),
         teardownHost: () => host.teardown(),
+        lost: () => host.lost(),
     };
 }

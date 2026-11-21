@@ -860,7 +860,7 @@ export interface RecipeDetail extends Recipe {
     viewerRating?: number;
     /**
      * What the cook stated about the recipe (`authored` for "I wrote this", `source` for a stated web page, book or paid
-     * site), ABSENT when nothing was stated. ⛔ OWNER-ONLY, like the two flags below: it is the cook's own attestation, and
+     * site, `fromPerson` for "From another person", which no cook write changes or clears), ABSENT when nothing was stated. ⛔ OWNER-ONLY, like the two flags below: it is the cook's own attestation, and
      * it is never sent to anyone else. A client reads a newer server's kind as `unrecognised`.
      */
     statementKind?: RecipeStatementKindView;

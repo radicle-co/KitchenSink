@@ -19,6 +19,7 @@
   [ADR-0023](0023-curator-declared-provenance.md) §1: the curator grant carries a public-domain record.
   [ADR-0052](0052-food-data-sources.md): its citation of `016-FR-033` now reads the amended FR-033. The food catalog
   rule does not change.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §1 and §5 (a recipe from another person is private for now) and §9 (an accepted rewording suggestion keeps the origin label and adds the AI line).
 - **Relates to:** spec [016](../../../specs/016-legal-compliance-framework/spec.md) `FR-010`, `FR-012`, `FR-015c` to
   `FR-015k`, `FR-016` to `FR-066`, `FR-024a`, `FR-027f`, `FR-030`, `FR-030a`, `FR-033` and `FR-050`. Spec
   [021](../../../specs/021-public-discovery-and-sharing/spec.md) `FR-002` to `FR-006`, `FR-014` to `FR-014h` and

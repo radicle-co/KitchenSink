@@ -15,8 +15,18 @@ const SHOWN = {
     'statementAuthored.v1': [m.answerAuthored, m.hintAuthored],
     'statementPublicWeb.v1': [m.answerWeb, m.hintPrivate],
     'statementBook.v1': [m.answerBook, m.hintPrivate],
+    'statementPaidSite.v1': [m.answerPaidSite, m.hintPaidSite],
     'statementFromPerson.v1': [m.answerPerson, m.hintPerson],
 } as const;
+
+describe('the paid-site field copy', () => {
+    it('is the designer text', () => {
+        expect([m.paidSiteLabel, m.paidSiteError]).toEqual([
+            'Website name or address',
+            'Add the website’s name or address.',
+        ]);
+    });
+});
 
 describe('the statement wordings', () => {
     it('pins the text each version stands for', () => {
@@ -27,6 +37,10 @@ describe('the statement wordings', () => {
             ],
             'statementPublicWeb.v1': ['From a web page', 'Stays private to you.'],
             'statementBook.v1': ['From a cookbook or magazine', 'Stays private to you.'],
+            'statementPaidSite.v1': [
+                'From a paid website',
+                'A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.',
+            ],
             'statementFromPerson.v1': [
                 'From another person',
                 'A recipe someone gave you, like family or a friend. Stays private to you.',

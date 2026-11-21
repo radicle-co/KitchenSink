@@ -5,6 +5,7 @@
  */
 
 import { type Locale, fillTemplate } from '@commise/i18n';
+import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import type { RecipeDetailMessages } from '../messages.js';
 
@@ -29,9 +30,9 @@ export interface PinnedBarFacts {
 /** What {@link pinnedBarFactsOf} reads. */
 export interface PinnedBarFactsInput {
     /** The recipe's lines. A line is an item; a group heading is not. */
-    readonly ingredients: readonly { readonly ingredientId: string }[];
-    /** The ids the cook has ticked. An id with no line (a stale mark) is not counted. */
-    readonly checked: ReadonlySet<string>;
+    readonly ingredients: readonly RecipeIngredientView[];
+    /** The positions, in `ingredients`, of the ticked lines. A position with no line (a stale mark) is not counted. */
+    readonly checked: ReadonlySet<number>;
     /** The serving count the page shows. */
     readonly servings: number;
     /** Whether the list is open. */
@@ -71,7 +72,7 @@ export const pinnedBarFactsOf = ({
     locale,
 }: PinnedBarFactsInput): PinnedBarFacts => {
     const count = ingredients.length;
-    const ticked = ingredients.filter((line) => checked.has(line.ingredientId)).length;
+    const ticked = ingredients.filter((_, position) => checked.has(position)).length;
     const format = new Intl.NumberFormat(locale);
     const items = fillTemplate(
         new Intl.PluralRules(locale).select(count) === 'one' ? copy.pinnedItemsOne : copy.pinnedItemsOther,

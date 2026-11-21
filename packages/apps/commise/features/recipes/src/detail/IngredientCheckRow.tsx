@@ -70,7 +70,7 @@ export const IngredientCheckRow: FC<IngredientCheckRowProps> = ({
                     ingredientDetails.checkLabelWithDetails,
                 )}
                 aria-describedby={statuses.length > 0 ? statusId : undefined}
-                onClick={() => onToggle(ingredient.ingredientId)}
+                onClick={() => onToggle()}
                 className={`flex min-h-11 w-full items-start gap-3 rounded-md px-4 py-2 text-start transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.inset}`}
             >
                 {/* The glyph centres its box on the first line of the `body` text beside it, and grows with it. */}

@@ -6,10 +6,11 @@
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import type { DeviceAdapter, LanePlatform, LaneSpec } from '../laneTypes.js';
+import { NEVER_LOST, type DeviceAdapter, type LanePlatform, type LaneSpec } from '../laneTypes.js';
 import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
 import { spawnRunner } from '../laneProcess.js';
 import type { SharedServices } from '../sharedServices.js';
@@ -40,9 +41,14 @@ function stubRunner(dir: string): string {
     return file;
 }
 
-function fakeAdapter(events: string[], platform: LanePlatform = 'android'): DeviceAdapter {
+function fakeAdapter(
+    events: string[],
+    platform: LanePlatform = 'android',
+    lost: Promise<Error> = NEVER_LOST,
+): DeviceAdapter {
     return {
         platform,
+        lost: () => lost,
         laneCost: { cpus: 1, memBytes: 1 },
         maxLanes: 8,
         hostFacts: () => Promise.resolve({ cpus: 64, load1: 0, memAvailable: 1024 }),
@@ -266,7 +272,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             spawnLane: () => {
                 spawnedAt.push(Date.now());
 
-                return { pid: 0, exit: Promise.resolve(0), stop: () => undefined };
+                return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
             },
         });
         vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date'] });
@@ -274,6 +280,8 @@ describe('runLaneRun — a lane run over fakes', () => {
         try {
             const run = runLaneRun(deps, { platforms: ['android'], requested: 3, selection: 'all' });
 
+            // The run looks for a loss on the next macrotask, which the fake clock does not drive.
+            await setImmediate();
             await vi.advanceTimersByTimeAsync(0);
             expect(spawnedAt, 'the first lane starts at once').toHaveLength(1);
 
@@ -380,6 +388,7 @@ describe('runLaneRun — a lane run over fakes', () => {
             laneEnv = () => ({});
             stopDevice = () => Promise.resolve();
             teardownHost = () => Promise.resolve();
+            lost = () => NEVER_LOST;
         }
 
         await runLaneRun(
@@ -716,5 +725,361 @@ describe('runLaneRun — the green stamp settles after the check', () => {
         await runLaneRun(deps, { platforms: ['android'], selection: 'all' });
 
         expect(calls).toBe(0);
+    });
+});
+
+describe('runLaneRun — a lost tunnel', () => {
+    it('stops the lanes, still tears the host down, and fails with the loss when a tunnel is lost', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                // A lane that runs until it is stopped, as a real flow run does.
+                spawnLane: (lane) => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        running: () => false,
+                        exit,
+                        stop: () => {
+                            events.push(`stopLane ${lane.platform}-${lane.index}`);
+                            finish(143);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('stopLane android-1');
+        expect(events).toContain('stopDevice android-1');
+        expect(events).toContain('teardownHost android');
+        expect(events).toContain('unlock');
+    });
+    it('waits for the stopped lanes to exit before it stops the device', async () => {
+        let loseTunnel: (error: Error) => void = () => undefined;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const { events, deps } = harness();
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: () => {
+                    let finish: (code: number) => void = () => undefined;
+                    const exit = new Promise<number>((resolve) => {
+                        finish = resolve;
+                    });
+                    setTimeout(() => {
+                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                    }, 20);
+
+                    return {
+                        pid: 0,
+                        running: () => false,
+                        exit,
+                        // A real runner takes time to die: it exits after the stop, not with it.
+                        stop: () => {
+                            setTimeout(() => {
+                                events.push('laneExited');
+                                finish(143);
+                            }, 30);
+                        },
+                    };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited with code 255 during the run');
+        expect(events).toContain('laneExited');
+        expect(events.indexOf('laneExited')).toBeLessThan(events.indexOf('stopDevice android-1'));
+    });
+
+    it('still stops the run when the tunnel was lost before the lanes began, and starts no lane', async () => {
+        const { events, deps } = harness();
+        const lost = Promise.resolve(new Error('the tunnel ssh exited with code 255 during the run'));
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: (lane) => {
+                    events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                    return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('during the run');
+        expect(events).not.toContain('spawnLane android-1');
+        expect(events).toContain('teardownHost android');
+    });
+
+    describe('a loss that already happened, however the adapter hands it on', () => {
+        const LOSS = new Error('the tunnel ssh exited with code 255 during the run');
+        const settled = Promise.resolve(LOSS);
+        const handOns: readonly [string, () => Promise<Error>][] = [
+            [
+                'three `.then` wrappers',
+                () =>
+                    settled
+                        .then((e) => e)
+                        .then((e) => e)
+                        .then((e) => e),
+            ],
+            ['an `async` function', async () => settled],
+        ];
+
+        it.each(handOns)('is read through %s: the run fails with it and starts no lane', async (_name, lost) => {
+            const { events, deps } = harness();
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    adapterFor: (platform) => ({ ...fakeAdapter(events, platform), lost }),
+                    spawnLane: (lane) => {
+                        events.push(`spawnLane ${lane.platform}-${lane.index}`);
+
+                        return { pid: 0, exit: Promise.resolve(0), stop: () => undefined, running: () => false };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).not.toContain('spawnLane android-1');
+            expect(events).toContain('teardownHost android');
+        });
+    });
+
+    describe('a loss while the lanes are starting or stopping', () => {
+        const LOSS = new Error('the tunnel ssh exited with code 255 during the run');
+
+        it('acts on a loss during the stagger wait: starts no later lane and stops the one that did', async () => {
+            const { events, deps } = harness({ staggerMs: 3_000 });
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        events.push(`spawnLane ${lane.platform}-${lane.index}`);
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            running: () => false,
+                            exit,
+                            stop: () => {
+                                events.push(`stopLane ${lane.platform}-${lane.index}`);
+                                finish(143);
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 2, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('spawnLane android-1');
+            expect(events).not.toContain('spawnLane android-2');
+            expect(events).toContain('stopLane android-1');
+            expect(events).toContain('teardownHost android');
+        });
+
+        it('kills a lane that ignores the stop once the grace is over, then tears the device down', async () => {
+            const { events, deps } = harness({});
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 30,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            running: () => false,
+                            exit,
+                            // SIGTERM is ignored, as a runner stuck in a child process would.
+                            stop: (signal) => {
+                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal ?? 'SIGTERM'}`);
+
+                                if (signal === 'SIGKILL') {
+                                    finish(137);
+                                }
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane android-1 SIGTERM');
+            expect(events.indexOf('stopLane android-1 SIGKILL')).toBeGreaterThan(
+                events.indexOf('stopLane android-1 SIGTERM'),
+            );
+            expect(events.indexOf('stopLane android-1 SIGKILL')).toBeLessThan(events.indexOf('stopDevice android-1'));
+        });
+
+        it('kills the lane group when the runner exits but a child of it stays', async () => {
+            const { events, deps } = harness({});
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 30,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        let groupAlive = true;
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            // The runner (bash) dies on SIGTERM at once; a child in its group lives on.
+                            exit,
+                            running: () => groupAlive,
+                            stop: (signal) => {
+                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal ?? 'SIGTERM'}`);
+                                finish(143);
+
+                                if (signal === 'SIGKILL') {
+                                    groupAlive = false;
+                                }
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane android-1 SIGKILL');
+            expect(events.indexOf('stopLane android-1 SIGKILL')).toBeLessThan(events.indexOf('stopDevice android-1'));
+        });
+
+        it('kills the lane whose group stays even when another lane is already gone, and waits for it', async () => {
+            const { events, deps } = harness({ staggerMs: 0 });
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 30,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: (lane) => {
+                        let groupAlive = lane.index === 2;
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            exit,
+                            running: () => groupAlive,
+                            stop: (signal) => {
+                                events.push(`stopLane ${lane.index} ${signal ?? 'SIGTERM'}`);
+                                finish(143);
+
+                                if (signal === 'SIGKILL' && groupAlive) {
+                                    // The group takes a moment to go after the kill, as a real one does.
+                                    setTimeout(() => {
+                                        groupAlive = false;
+                                        events.push(`laneGone ${lane.index}`);
+                                    }, 40);
+                                }
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 2, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane 2 SIGKILL');
+            expect(events.indexOf('laneGone 2')).toBeGreaterThan(-1);
+            expect(events.indexOf('laneGone 2')).toBeLessThan(events.indexOf('stopDevice android-2'));
+        });
+
+        it('does not kill a lane that exits within the grace', async () => {
+            const { events, deps } = harness({});
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 500,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    spawnLane: () => {
+                        let finish: (code: number) => void = () => undefined;
+                        const exit = new Promise<number>((resolve) => {
+                            finish = resolve;
+                        });
+
+                        return {
+                            pid: 0,
+                            running: () => false,
+                            exit,
+                            stop: (signal) => {
+                                events.push(`stop ${signal ?? 'SIGTERM'}`);
+                                setTimeout(() => {
+                                    finish(143);
+                                }, 5);
+                            },
+                        };
+                    },
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stop SIGTERM');
+            expect(events).not.toContain('stop SIGKILL');
+        });
     });
 });

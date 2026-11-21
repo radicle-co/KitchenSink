@@ -3,7 +3,7 @@
  * its own process group, logging to the lane's own file. A lane owns no shared service; it starts and kills nothing but
  * its own runner.
  */
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { closeSync, openSync } from 'node:fs';
 import { constants } from 'node:os';
 import path from 'node:path';
@@ -15,12 +15,30 @@ import type { LaneSpec } from './laneTypes.js';
 /** The file in a lane's state folder the runner records the screens its flows showed to. */
 export const SCREEN_RECORD_FILE = 'screenRecord.tsv';
 
+/** The exit code a shell reports: the child's own, or `128 + n` for signal `n`. */
+export const exitCodeOf = (code: number | null, signal: NodeJS.Signals | null): number =>
+    code ?? (signal === null ? 1 : 128 + (constants.signals[signal] ?? 0));
+
+/**
+ * The exit code of a child: its own, `128 + n` for signal `n`, or 1 when it could not start. It handles the child's
+ * `error` event, so a failed spawn ends the child instead of leaving it pending and raising an unhandled event.
+ *
+ * @sideEffect Attaches `error` and `exit` listeners to the child.
+ */
+export const exitOf = (child: ChildProcess): Promise<number> =>
+    new Promise<number>((resolve) => {
+        child.once('error', () => resolve(1));
+        child.once('exit', (code, signal) => resolve(exitCodeOf(code, signal)));
+    });
+
 export interface LaneChild {
     readonly pid: number;
     /** The runner's exit code; a signal is `128 + n`, as a shell reports it. */
     readonly exit: Promise<number>;
-    /** SIGTERM to the lane's whole process group. */
-    stop(): void;
+    /** Whether any process of the lane's group is still alive, as the leader may exit while a child stays. */
+    running(): boolean;
+    /** A signal to the lane's whole process group: SIGTERM unless told otherwise. */
+    stop(signal?: 'SIGTERM' | 'SIGKILL'): void;
 }
 
 /**
@@ -43,20 +61,27 @@ export function spawnRunner(input: {
     });
     closeSync(fd);
 
-    const exit = new Promise<number>((resolve) => {
-        child.on('error', () => resolve(1));
-        child.on('exit', (code, signal) =>
-            resolve(code ?? (signal === null ? 1 : 128 + (constants.signals[signal] ?? 0))),
-        );
-    });
-
     return {
         pid: child.pid ?? -1,
-        exit,
-        stop: () => {
+        exit: exitOf(child),
+        running: () => {
+            if (child.pid === undefined) {
+                return false;
+            }
+
+            try {
+                // Signal 0 only asks whether the group has a process.
+                process.kill(-child.pid, 0);
+
+                return true;
+            } catch {
+                return false;
+            }
+        },
+        stop: (signal = 'SIGTERM') => {
             if (child.pid !== undefined) {
                 try {
-                    process.kill(-child.pid, 'SIGTERM');
+                    process.kill(-child.pid, signal);
                 } catch {
                     // Already gone.
                 }

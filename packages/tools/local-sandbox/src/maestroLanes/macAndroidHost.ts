@@ -89,7 +89,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
             tunnels = tunnelsFromManifest(manifest, options.hostPorts).map((tunnel) =>
                 tunnel.origin === 'recipeOrigin' ? { ...tunnel, macPort: macRecipePort } : tunnel,
             );
-            session.openTunnel(tunnels);
+            await session.openTunnel(tunnels);
         },
         adb,
         boot: async (lane: LaneSpec) => {
@@ -130,6 +130,7 @@ export function createMacAndroidHost(options: MacAndroidHostOptions): AndroidHos
                 KS_MAC_ANDROID_ENV: session.paths.androidEnv,
             };
         },
+        lost: () => session.lost(),
         teardown: () => session.close(),
     };
 }

@@ -16,27 +16,39 @@ import {
     serializeCookMarks,
     type CookMarks,
 } from '../cookMarks.js';
+import { tickKeyOf } from '../__fixtures__/tickKeys.js';
+import type { IngredientTickKey } from '../../common/ingredientTickKey.js';
 
-const marks = (lines: readonly string[], currentStep?: number): CookMarks => ({
+const [ING_A, ING_B, ING_SALT, ING_BUTTER, ING_LEMON] = [1, 2, 3, 4, 5].map(tickKeyOf);
+
+const marks = (lines: readonly IngredientTickKey[], currentStep?: number): CookMarks => ({
     lines: new Set(lines),
     currentStep,
 });
 
 describe('applyCookMark', () => {
     it('checks an unchecked line and unchecks a checked one', () => {
-        const once = applyCookMark(EMPTY_COOK_MARKS, { kind: 'toggleLine', line: 'ing_a' });
-        expect([...once.lines]).toEqual(['ing_a']);
+        const once = applyCookMark(EMPTY_COOK_MARKS, { kind: 'toggleLine', line: ING_A });
+        expect([...once.lines]).toEqual([ING_A]);
 
-        const twice = applyCookMark(once, { kind: 'toggleLine', line: 'ing_a' });
+        const twice = applyCookMark(once, { kind: 'toggleLine', line: ING_A });
         expect([...twice.lines]).toEqual([]);
     });
 
+    it('tells two lines of one digest apart: their ordinals are two keys (mutant: compare by digest)', () => {
+        const [first, second] = [tickKeyOf(9, 0), tickKeyOf(9, 1)];
+        const both = applyCookMark(marks([second]), { kind: 'toggleLine', line: first });
+
+        expect([...both.lines].sort()).toEqual([first, second]);
+        expect([...applyCookMark(marks([first, second]), { kind: 'toggleLine', line: first }).lines]).toEqual([second]);
+    });
+
     it('never mutates the state it was given', () => {
-        const before = marks(['ing_a']);
+        const before = marks([ING_A]);
 
-        applyCookMark(before, { kind: 'toggleLine', line: 'ing_b' });
+        applyCookMark(before, { kind: 'toggleLine', line: ING_B });
 
-        expect([...before.lines]).toEqual(['ing_a']);
+        expect([...before.lines]).toEqual([ING_A]);
     });
 
     it('makes a step current, and a second tap on it clears it', () => {
@@ -54,24 +66,24 @@ describe('applyCookMark', () => {
     });
 
     it('a step tap leaves the checked lines alone, and a line tap leaves the step alone', () => {
-        const both = applyCookMark(applyCookMark(EMPTY_COOK_MARKS, { kind: 'toggleLine', line: 'ing_a' }), {
+        const both = applyCookMark(applyCookMark(EMPTY_COOK_MARKS, { kind: 'toggleLine', line: ING_A }), {
             kind: 'toggleStep',
             step: 2,
         });
 
-        expect([...both.lines]).toEqual(['ing_a']);
+        expect([...both.lines]).toEqual([ING_A]);
         expect(both.currentStep).toBe(2);
     });
 
     it('clear drops the checks AND the current step', () => {
-        expect(applyCookMark(marks(['ing_a', 'ing_b'], 4), { kind: 'clear' })).toBe(EMPTY_COOK_MARKS);
+        expect(applyCookMark(marks([ING_A, ING_B], 4), { kind: 'clear' })).toBe(EMPTY_COOK_MARKS);
     });
 });
 
 describe('hasCookMarks', () => {
     it.each([
         { state: EMPTY_COOK_MARKS, expected: false },
-        { state: marks(['ing_a']), expected: true },
+        { state: marks([ING_A]), expected: true },
         { state: marks([], 1), expected: true },
     ])('$expected for lines=$state.lines.size step=$state.currentStep', ({ state, expected }) => {
         expect(hasCookMarks(state)).toBe(expected);
@@ -80,17 +92,37 @@ describe('hasCookMarks', () => {
 
 describe('the stored form', () => {
     it('round-trips the line keys and the step', () => {
-        const state = marks(['ing_a', 'ing_b'], 2);
+        const state = marks([ING_A, ING_B], 2);
 
         const read = parseCookMarks(serializeCookMarks(state));
 
-        expect([...read.lines]).toEqual(['ing_a', 'ing_b']);
+        expect([...read.lines]).toEqual([ING_A, ING_B]);
         expect(read.currentStep).toBe(2);
     });
 
     it('holds only keys and a number — nothing else of the recipe', () => {
-        expect(JSON.parse(serializeCookMarks(marks(['ing_a'], 2)))).toEqual({ lines: ['ing_a'], step: 2 });
-        expect(JSON.parse(serializeCookMarks(marks(['ing_a'])))).toEqual({ lines: ['ing_a'], step: null });
+        expect(JSON.parse(serializeCookMarks(marks([ING_A], 2)))).toEqual({ lines: [ING_A], step: 2 });
+        expect(JSON.parse(serializeCookMarks(marks([ING_A])))).toEqual({ lines: [ING_A], step: null });
+    });
+
+    it('drops a stored binding id and keeps every key, a newer version too (mutant: no filter, or l1 only)', () => {
+        const raw = `{"lines":["01JINGREDIENT0000000000000A","${ING_A}","l2:deadbeef#0"],"step":2}`;
+
+        const read = parseCookMarks(raw);
+
+        expect([...read.lines]).toEqual([ING_A, 'l2:deadbeef#0']);
+        expect(read.currentStep).toBe(2);
+    });
+
+    it("keeps a newer client's key through a toggle and a write, byte for byte", () => {
+        const [newer] = parseCookMarks('{"lines":["l2:deadbeef#0"],"step":null}').lines;
+        const after = applyCookMark(marks(newer === undefined ? [] : [newer]), { kind: 'toggleLine', line: ING_A });
+
+        expect(JSON.parse(serializeCookMarks(after))).toEqual({ lines: ['l2:deadbeef#0', ING_A], step: null });
+    });
+
+    it('tells a tick key from the old binding id at the boundary: an id reads as no tick, not as an error', () => {
+        expect(parseCookMarks('{"lines":["01JINGREDIENT0000000000000A"],"step":null}').lines.size).toBe(0);
     });
 
     it.each([
@@ -112,6 +144,11 @@ describe('keys', () => {
         expect(cookMarksKey('user_1', 'rec_9')).toBe('cook.v1.user_1.rec_9');
     });
 
+    it("leaves the kept record's namespace alone: a `cook.v2.` key is not cook marks (N3)", () => {
+        expect(isCookMarksKeyOf('cook.v2.user_1.rec_9')).toBe(false);
+        expect(isCookMarksKeyOf('cook.v2.user_1')).toBe(false);
+    });
+
     it('tells one cook’s keys from another’s, even when one id prefixes the other', () => {
         expect(isCookMarksKeyOf('cook.v1.user_1.rec_9', 'user_1')).toBe(true);
         expect(isCookMarksKeyOf('cook.v1.user_10.rec_9', 'user_1')).toBe(false);
@@ -121,14 +158,14 @@ describe('keys', () => {
 
 describe("applyCookMark — clearIngredientTicks (cooking mode's Clear ticks)", () => {
     it('removes every ingredient tick and keeps the current-step marker', () => {
-        const after = applyCookMark(marks(['ing_a', 'ing_b'], 3), { kind: 'clearIngredientTicks' });
+        const after = applyCookMark(marks([ING_A, ING_B], 3), { kind: 'clearIngredientTicks' });
 
         expect([...after.lines]).toEqual([]);
         expect(after.currentStep).toBe(3);
     });
 
     it("is not `clear`: the recipe page's Clear checks still drops the marker too", () => {
-        expect(applyCookMark(marks(['ing_a'], 3), { kind: 'clear' })).toBe(EMPTY_COOK_MARKS);
+        expect(applyCookMark(marks([ING_A], 3), { kind: 'clear' })).toBe(EMPTY_COOK_MARKS);
     });
 
     it('returns the very same state when no ingredient is ticked, so the store writes nothing', () => {
@@ -138,43 +175,43 @@ describe("applyCookMark — clearIngredientTicks (cooking mode's Clear ticks)", 
     });
 
     it('never mutates the state it was given', () => {
-        const before = marks(['ing_a'], 2);
+        const before = marks([ING_A], 2);
 
         applyCookMark(before, { kind: 'clearIngredientTicks' });
 
-        expect([...before.lines]).toEqual(['ing_a']);
+        expect([...before.lines]).toEqual([ING_A]);
     });
 });
 
 describe('applyCookMark — restoreIngredientTicks (Undo of Clear ticks)', () => {
     it('adds the cleared keys back and removes none: a union with the ticks made since', () => {
-        const after = applyCookMark(marks(['ing_salt'], 2), {
+        const after = applyCookMark(marks([ING_SALT], 2), {
             kind: 'restoreIngredientTicks',
-            lines: ['ing_butter', 'ing_lemon'],
+            lines: [ING_BUTTER, ING_LEMON],
         });
 
-        expect([...after.lines].sort()).toEqual(['ing_butter', 'ing_lemon', 'ing_salt']);
+        expect([...after.lines].sort()).toEqual([ING_BUTTER, ING_LEMON, ING_SALT].sort());
         expect(after.currentStep).toBe(2);
     });
 
     it('restores a key that is already ticked once, not twice', () => {
-        const after = applyCookMark(marks(['ing_a']), { kind: 'restoreIngredientTicks', lines: ['ing_a', 'ing_b'] });
+        const after = applyCookMark(marks([ING_A]), { kind: 'restoreIngredientTicks', lines: [ING_A, ING_B] });
 
-        expect([...after.lines].sort()).toEqual(['ing_a', 'ing_b']);
+        expect([...after.lines].sort()).toEqual([ING_A, ING_B]);
     });
 
     it('returns the very same state when there is nothing new to add', () => {
-        const state = marks(['ing_a', 'ing_b']);
+        const state = marks([ING_A, ING_B]);
 
-        expect(applyCookMark(state, { kind: 'restoreIngredientTicks', lines: ['ing_a'] })).toBe(state);
+        expect(applyCookMark(state, { kind: 'restoreIngredientTicks', lines: [ING_A] })).toBe(state);
         expect(applyCookMark(state, { kind: 'restoreIngredientTicks', lines: [] })).toBe(state);
     });
 
     it('never mutates the state it was given', () => {
-        const before = marks(['ing_a']);
+        const before = marks([ING_A]);
 
-        applyCookMark(before, { kind: 'restoreIngredientTicks', lines: ['ing_b'] });
+        applyCookMark(before, { kind: 'restoreIngredientTicks', lines: [ING_B] });
 
-        expect([...before.lines]).toEqual(['ing_a']);
+        expect([...before.lines]).toEqual([ING_A]);
     });
 });

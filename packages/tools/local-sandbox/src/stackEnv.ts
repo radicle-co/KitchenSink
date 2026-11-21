@@ -10,6 +10,7 @@
 import { parseEnv } from 'node:util';
 
 import {
+    defaultPortOf,
     onPublishedPorts,
     labelRefusal,
     refusalLine,
@@ -114,7 +115,7 @@ export function stackEnvOutcome(input: StackEnvInput): StackEnvOutcome {
     }
 
     const { recipes = 0, identity = 0, food = 0, localstack = 0, postgres = 0 } = published;
-    const moved = { 4566: localstack, 5432: postgres };
+    const moved = { [defaultPortOf('localstack')]: localstack, [defaultPortOf('postgres')]: postgres };
     const pairs: readonly (readonly [(typeof STACK_ENV_KEYS)[number], string])[] = [
         ['LOCAL_MAESTRO_RECIPES_CONTAINER', stack.containerName('recipes')],
         ['LOCAL_MAESTRO_POSTGRES_PORT', String(postgres)],

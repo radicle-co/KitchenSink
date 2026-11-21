@@ -22,6 +22,7 @@ export const STATEMENT_WORDINGS_BY_CHOICE = {
     publicWeb: ['statementPublicWeb.v1'],
     book: ['statementBook.v1'],
     fromPerson: ['statementFromPerson.v1'],
+    paidSite: ['statementPaidSite.v1'],
 } as const;
 
 /** Every statement wording, flat. */

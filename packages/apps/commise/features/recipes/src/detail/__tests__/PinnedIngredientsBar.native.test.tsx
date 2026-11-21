@@ -100,7 +100,7 @@ const Page: FC<{ readonly lines?: typeof ingredients; readonly startOpen?: boole
 }) => {
     const page = makeRecipeDetail({ servings: 4, ingredients: lines });
     const scale = useServingScale(page.id, page.servings);
-    const marks = useCookMarks(page.id);
+    const marks = useCookMarks(page.id, page.ingredients);
     const [open, setOpen] = useState(startOpen);
 
     return (

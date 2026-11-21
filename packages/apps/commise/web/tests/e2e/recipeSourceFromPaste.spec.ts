@@ -204,6 +204,42 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
     });
 
+    // AE6 (#374): the paid website is the sixth choice, under "From a web page", and locks at the confirm.
+    test('a paid-website answer with no citation shows the field error; with one it publishes private with that statement', async ({
+        page,
+    }) => {
+        const writes = await pastedRecipeReady(page);
+
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+        await expect(sheetOf(page).getByRole('radio')).toHaveCount(6);
+        await sheetOf(page)
+            .getByRole('radio', { name: /From a paid website/u })
+            .click();
+        await expect(sheetOf(page).getByRole('radio', { name: /From a paid website/u })).toContainText(
+            'Once you confirm, this answer is locked.',
+        );
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        const citation = sheetOf(page).getByLabel('Website name or address');
+
+        await expect(citation).toHaveAccessibleDescription('Add the website’s name or address.');
+        await expect(citation).toBeFocused();
+        expect(published(writes)).toEqual([]);
+
+        await sheetOf(page).getByLabel('Website name or address').fill('Sam’s Subscription Kitchen');
+        await sheetOf(page).getByRole('button', { name: 'Publish', exact: true }).click();
+
+        await expect(page.getByRole('status').filter({ hasText: 'Recipe published.' })).toBeVisible();
+        expect(published(writes)[0]?.body).toMatchObject({
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1' },
+            },
+        });
+        expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
+    });
+
     // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
     test('at 320 px the title field and its error scroll into view above the pinned footer', async ({ page }) => {
         await page.setViewportSize({ width: 320, height: 640 });
@@ -330,5 +366,58 @@ test.describe('removing a saved source (ADR-0095)', () => {
         await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
         await expect(section.getByRole('group', { name: 'Who can see it' })).toBeFocused();
         await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();
+    });
+});
+
+/**
+ * A recipe stored as "From another person" is locked for the cook (P7, ADR-0097, AE8): the cook answers it on the Publish sheet,
+ * the recipe saves private, and reopened in the editor the Source row says the answer and why it cannot change, with no field to
+ * type a link into and no Remove control. The recipes API is intercepted (`utils/recipeApi`, which stores the answer as the
+ * service does); the service's own lock is covered by its integration and LOCAL e2e suites.
+ */
+test.describe('a recipe stored as "From another person" reopens with its Source locked', () => {
+    test('answer it on the Publish sheet, save, reopen: the row names the answer and the reason, with no field and no Remove', async ({
+        page,
+    }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        await mockRecipeApi(page, { viewerId, paidFeatures: 'granted' });
+        await mockFoodApi(page);
+        const writes = recordRecipeWrites(page);
+
+        await openNewRecipe(page);
+        await page.getByLabel('Title').fill('E2E Gran Stew');
+        await chooseCuisine(page);
+        await page.getByRole('combobox', { name: 'Add an ingredient' }).fill('salt');
+        await page
+            .getByRole('group', { name: 'Food catalog' })
+            .getByRole('option', { name: 'Salt', exact: true })
+            .click();
+        await page.getByRole('button', { name: 'Paste steps' }).click();
+        await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Simmer the stock.');
+        await page.getByRole('button', { name: 'Add 1 step' }).click();
+        await page.getByRole('button', { name: 'Publish', exact: true }).click();
+
+        const sheet = page.getByRole('dialog', { name: 'Where is this recipe from?' });
+
+        await sheet.getByRole('radio', { name: 'From another person' }).click();
+        await sheet.getByRole('button', { name: 'Publish', exact: true }).click();
+        await expect(page.getByText('Recipe published.')).toBeVisible();
+
+        const published = writes.filter((write) => write.body?.['status'] === 'published');
+
+        expect(published[0]?.body).toMatchObject({ statement: { kind: 'fromPerson' } });
+
+        // Reopen: the editor reads the stored recipe, not the draft.
+        await page.waitForURL(/\/recipes\/[0-9a-f-]{36}/u);
+        const recipeId = /\/recipes\/([0-9a-f-]{36})/u.exec(page.url())?.[1] ?? '';
+
+        await openRecipeEditor(page, recipeId);
+        const section = editorSection(page, 'Photos & publish');
+
+        await expect(section.getByText('From another person', { exact: true })).toBeVisible();
+        await expect(section.getByText('The source of this recipe can’t be changed.')).toBeVisible();
+        await expect(section.getByRole('textbox', { name: 'Source' })).toHaveCount(0);
+        await expect(section.getByRole('button', { name: 'Remove source' })).toHaveCount(0);
     });
 });

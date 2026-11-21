@@ -20,7 +20,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { makeRecipeDetail } from '../../__fixtures__/index.js';
+import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksProvider } from '../CookMarksProvider.js';
 import { memoryCookMarksBackend } from '../cookMarksStore.js';
 import { useCookMarks, type CookMarksBinding } from '../useCookMarks.js';
@@ -98,18 +98,21 @@ function mount(
             </RecipeServiceProvider>
         </QueryClientProvider>
     );
+    // One recipe object: the page's marks binding and the controller read the same stored lines.
+    const recipe = makeRecipeDetail({
+        id: 'rec_1',
+        ownerId: OWNER,
+        visibility: RecipeVisibility.PUBLIC,
+        ingredients: [makeIngredientView({ ingredientId: 'line_a', name: 'Flour' })],
+        ...over.recipe,
+    });
     const { result } = renderHook(
         () => {
-            marks.current = useCookMarks('rec_1');
+            marks.current = useCookMarks('rec_1', recipe.ingredients);
 
             rendered.current = useRecipeDetailController({
                 id: 'rec_1',
-                recipe: makeRecipeDetail({
-                    id: 'rec_1',
-                    ownerId: OWNER,
-                    visibility: RecipeVisibility.PUBLIC,
-                    ...over.recipe,
-                }),
+                recipe,
                 sessionClaims: over.sessionClaims,
                 profile: over.profile ?? settledProfile(undefined),
                 finishRefused: over.finishRefused ?? false,
@@ -339,7 +342,7 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
 
         expect(result.current.menu).toBeUndefined();
 
-        act(() => marks.current?.toggleLine('line_a'));
+        act(() => marks.current?.toggleLine(0));
 
         expect(result.current.menu?.items.map((item) => item.id)).toEqual(['clearChecks']);
 
@@ -709,6 +712,44 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
         expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, {
             statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } },
         });
+    });
+
+    // 004-FR-014a (#374): the paid-website answer is one private write, the sheet closes, and a saved paid-site recipe is never offered Public.
+    it('the paid-website answer sends PRIVATE with its citation in one write, closes the sheet, and shows no refusal text', async () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsStatement: true } });
+        const setVisibility = vi
+            .spyOn(mounted.client, 'setRecipeVisibility')
+            .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', visibility: RecipeVisibility.PRIVATE }));
+
+        act(() => makePublicItem(mounted)?.onSelect());
+        act(() => mounted.result.current.dialogs.statement.dispatch({ type: 'choose', answer: 'paidSite' }));
+        act(() =>
+            mounted.result.current.dialogs.statement.dispatch({
+                type: 'paidSite',
+                text: ' Sam’s Subscription Kitchen ',
+            }),
+        );
+        await act(async () => mounted.result.current.dialogs.statement.onConfirm());
+
+        expect(setVisibility).toHaveBeenCalledTimes(1);
+        expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, {
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
+            },
+        });
+        await waitFor(() => expect(mounted.result.current.dialogs.statement.open).toBe(false));
+        expect(mounted.result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('a saved paid-site recipe no longer offers Make public', () => {
+        const mounted = mount({
+            ...owner,
+            recipe: { ...PRIVATE, sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' },
+        });
+
+        expect(makePublicItem(mounted)).toBeUndefined();
     });
 
     it('Cancel closes the sheet and sends nothing', () => {

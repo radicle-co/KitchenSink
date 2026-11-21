@@ -3,7 +3,7 @@
  * words as the web leaf, from the same view model. Choosing, answered (each answer), the revealed field, the field error,
  * busy, error, and every dismiss route.
  *
- * The rows a mutant must not survive: the confirm is refused until an answer is chosen; the editor offers five answers and
+ * The rows a mutant must not survive: the confirm is refused until an answer is chosen; the editor offers six answers and
  * the recipe page four; the field and its error are the answer's own; busy disables the list and ignores the platform back
  * route; the effect line is always drawn in the footer.
  */
@@ -65,7 +65,7 @@ describe('SourceStatementSheet (native) — choosing', () => {
         expect(screen.queryByRole('heading', { name: 'Where is this recipe from?' })).toBeNull();
     });
 
-    it('offers five answers on the editor, in order, none checked, in a radio group named by the title', () => {
+    it('offers six answers on the editor, in order, none checked, in a radio group named by the title', () => {
         renderSheet();
 
         const group = screen.getByRole('radiogroup', { name: 'Where is this recipe from?' });
@@ -74,6 +74,7 @@ describe('SourceStatementSheet (native) — choosing', () => {
         expect(radios.map((radio) => radio.textContent)).toEqual([
             expect.stringContaining('I wrote this'),
             expect.stringContaining('From a web page'),
+            expect.stringContaining('From a paid website'),
             expect.stringContaining('From a cookbook or magazine'),
             expect.stringContaining('From another person'),
             expect.stringContaining('Publish privately'),
@@ -81,10 +82,16 @@ describe('SourceStatementSheet (native) — choosing', () => {
         expect(radios.some((radio) => radio.getAttribute('aria-checked') === 'true')).toBe(false);
     });
 
-    it('offers four answers on the recipe page, with no way to publish privately', () => {
+    it('offers five answers on the recipe page, with no way to publish privately', () => {
         renderSheet({ surface: 'recipePage' });
 
-        expect(screen.getAllByRole('radio')).toHaveLength(4);
+        expect(screen.getAllByRole('radio').map((radio) => radio.textContent)).toEqual([
+            expect.stringContaining('I wrote this'),
+            expect.stringContaining('From a web page'),
+            expect.stringContaining('From a paid website'),
+            expect.stringContaining('From a cookbook or magazine'),
+            expect.stringContaining('From another person'),
+        ]);
         expect(screen.queryByRole('radio', { name: 'Publish privately' })).toBeNull();
     });
 
@@ -120,11 +127,14 @@ describe('SourceStatementSheet (native) — answered', () => {
     it.each([
         ['authored', 'I wrote this'],
         ['publicWeb', 'From a web page'],
+        ['paidSite', 'From a paid website'],
         ['book', 'From a cookbook or magazine'],
         ['fromPerson', 'From another person'],
         ['publishPrivately', 'Publish privately'],
     ] as const)('checks %s, and confirming reports it', (answer, name) => {
-        const { onConfirm } = renderSheet({ state: { answer, link: 'https://example.com/r', bookTitle: 'Joy' } });
+        const { onConfirm } = renderSheet({
+            state: { answer, link: 'https://example.com/r', bookTitle: 'Joy', paidSite: 'Sam' },
+        });
 
         expect(screen.getByRole('radio', { name }).getAttribute('aria-checked')).toBe('true');
         fireEvent.click(screen.getByRole('button', { name: 'Publish' }));
@@ -281,5 +291,39 @@ describe('SourceStatementSheet (native) — the field error is announced', () =>
         renderSheet({ state: { answer: 'book' } });
 
         expect(screen.queryByRole('alert')).toBeNull();
+    });
+});
+
+describe('SourceStatementSheet — paid website', () => {
+    it('reveals its own field, sends what is typed as a paidSite change, and shows the lock hint before any choice', () => {
+        const { dispatch } = renderSheet({ state: { answer: 'paidSite' } });
+
+        expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
+        fireEvent.change(screen.getByLabelText('Website name or address'), { target: { value: 'S' } });
+        expect(dispatch).toHaveBeenCalledWith({ type: 'paidSite', text: 'S' });
+        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+    });
+
+    it('caps the citation field at the length the server takes', () => {
+        renderSheet({ state: { answer: 'paidSite' } });
+
+        expect(screen.getByLabelText('Website name or address').getAttribute('maxlength')).toBe('2000');
+    });
+
+    it('shows the citation error under the field, and none before Confirm', () => {
+        renderSheet({ state: { answer: 'paidSite', attempted: true } });
+
+        expect(screen.getByText('Add the website’s name or address.')).toBeTruthy();
+        expect(screen.getByLabelText('Website name or address')).toBeTruthy();
+
+        cleanup();
+        renderSheet({ state: { answer: 'paidSite' } });
+        expect(screen.queryByText('Add the website’s name or address.')).toBeNull();
+    });
+
+    it('says the lock on the recipe page too', () => {
+        renderSheet({ surface: 'recipePage' });
+
+        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
     });
 });

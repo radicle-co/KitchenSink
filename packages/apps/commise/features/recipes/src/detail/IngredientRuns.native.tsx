@@ -31,9 +31,9 @@ export const IngredientRuns: FC<IngredientRunsProps> = ({
                         // The stored position, never `ingredientId`: two lines can share a food.
                         key={position}
                         ingredient={ingredient}
-                        checked={checked.has(ingredient.ingredientId)}
+                        checked={checked.has(position)}
                         allRemoved={allRemoved}
-                        onToggle={onToggle}
+                        onToggle={() => onToggle(position)}
                         divided={lineIndex > 0}
                         {...withReviewAction(reviewAction?.(position, ingredient))}
                     />

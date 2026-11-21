@@ -1,3 +1,5 @@
+import { setImmediate } from 'node:timers/promises';
+
 import { describe, expect, it } from 'vitest';
 
 import { IosAdapter, type IosShell } from '../iosAdapter.js';
@@ -19,21 +21,27 @@ interface Recorder {
     readonly tunnels: string[][];
     readonly files: Map<string, string>;
     stopped: number;
+    exitTunnel(code: number): void;
 }
 
 /** A shell whose answers are scripted by the command line it is asked to run. */
 function makeShell(answers: Record<string, string> = {}): Recorder {
+    let exitTunnel: (code: number) => void = () => undefined;
+    const exited = new Promise<number>((resolve) => {
+        exitTunnel = resolve;
+    });
     const recorder: Recorder = {
         commands: [],
         tunnels: [],
         files: new Map(),
         stopped: 0,
+        exitTunnel: (code) => exitTunnel(code),
         shell: {
             run: (command, args) => {
                 const line = [command, ...args].join(' ');
                 recorder.commands.push(line);
-                const hit = Object.entries({ 'printenv HOME': '/Users/x\n', ...answers }).find(([needle]) =>
-                    line.includes(needle),
+                const hit = Object.entries({ 'printenv HOME': '/Users/x\n', '/health': '200', ...answers }).find(
+                    ([needle]) => line.includes(needle),
                 );
 
                 return Promise.resolve(hit === undefined ? '' : hit[1]);
@@ -47,6 +55,7 @@ function makeShell(answers: Record<string, string> = {}): Recorder {
 
                         return Promise.resolve();
                     },
+                    exited,
                 };
             },
             writeFile: (file, content) => {
@@ -162,11 +171,14 @@ describe('IosAdapter', () => {
         );
     });
 
+    // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
     it('hands the build script the app folder MacSession states, so the script builds no Mac path of its own', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
         await new IosAdapter(options(recorder.shell)).prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
 
-        expect(recorder.commands.some((line) => /buildIosApp\.sh check abc ksIos\/apps\/abc$/u.test(line))).toBe(true);
+        expect(recorder.commands.some((line) => /buildIosApp\.sh check abc ksIos\/apps\/ios\/abc$/u.test(line))).toBe(
+            true,
+        );
     });
 
     it('tunnels the origin ports the app was built with, back to the local services', async () => {
@@ -212,7 +224,8 @@ describe('IosAdapter', () => {
         expect(joined).toContain('laneHost.sh ensure 2 iphone');
         expect(joined).toContain('laneHost.sh erase UDID-2');
         expect(joined).toContain('laneHost.sh boot UDID-2');
-        expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');
+        // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
+        expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/ios/abc');
     });
 
     it('switches password AutoFill off on the booted Simulator through the runner own function, through the shims', async () => {
@@ -325,5 +338,26 @@ describe('IosAdapter', () => {
         await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
         await adapter.teardownHost();
         expect(recorder.stopped).toBe(1);
+    });
+
+    it('answers the loss of its tunnel, so the run learns of it', async () => {
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+        const adapter = new IosAdapter(options(recorder.shell));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        recorder.exitTunnel(255);
+
+        await expect(adapter.lost()).resolves.toEqual(new Error('the tunnel ssh exited with code 255 during the run'));
+    });
+
+    it('has its loss settled as soon as the tunnel exits', async () => {
+        // A loss that already happened is settled when it is asked for (see DeviceAdapter.lost).
+        const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+        const adapter = new IosAdapter(options(recorder.shell));
+        await adapter.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
+        recorder.exitTunnel(255);
+
+        await expect(Promise.race([adapter.lost(), setImmediate()])).resolves.toEqual(
+            new Error('the tunnel ssh exited with code 255 during the run'),
+        );
     });
 });

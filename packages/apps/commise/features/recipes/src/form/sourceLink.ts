@@ -18,6 +18,7 @@ import {
     sourceIsCorrectable,
     RecipeSourceType,
     RecipeVisibility,
+    UNRECOGNISED_STATEMENT_KIND,
     type PrivateRule,
     type RecipeDetail,
     type SourceLink,
@@ -32,7 +33,14 @@ import type { RecipeFormValues } from './values.js';
 /** What the recipe the editor holds says of its source: the server's own answer, `undefined` before the first save. */
 type StoredRecipe = Pick<
     RecipeDetail,
-    'status' | 'sourceType' | 'sourceKind' | 'sourceUrl' | 'clonedFromId' | 'publicNeedsCheck'
+    | 'status'
+    | 'sourceType'
+    | 'sourceKind'
+    | 'statementKind'
+    | 'sourceUrl'
+    | 'sourceAttribution'
+    | 'clonedFromId'
+    | 'publicNeedsCheck'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -80,6 +88,7 @@ const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
     !sourceIsCorrectable({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
+        statementKind: recipe.statementKind ?? null,
         clonedFromId: recipe.clonedFromId,
     });
 
@@ -253,12 +262,44 @@ export function pastedSourcePlanOf(input: {
 export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
     extraction.link !== undefined && extraction.remaining.trim() === '';
 
+/** The answers a locked Source row can name. */
+export type LockedAnswer = 'paidSite' | 'fromPerson';
+
+/**
+ * The words that name a locked answer: ONE map for both platforms' Source row.
+ *
+ * @param answer - The locked answer.
+ * @param words - The statement sheet's answer labels.
+ * @returns The label. Pure.
+ */
+export function lockedAnswerLabel(
+    answer: LockedAnswer,
+    words: { readonly answerPaidSite: string; readonly answerPerson: string },
+): string {
+    switch (answer) {
+        case 'paidSite':
+            return words.answerPaidSite;
+        case 'fromPerson':
+            return words.answerPerson;
+    }
+}
+
 /** Every state of the Source row (the editor spec's table). */
 export type SourceRowModel =
     /** A locked source with no web link: nothing to show. */
     | { readonly kind: 'hidden' }
     /** A locked web source: its site as a link and the address, read only. */
     | { readonly kind: 'locked'; readonly site: string; readonly url: string }
+    /**
+     * A locked answer the cook gave: a paid website (its citation as plain text, with no address to open) or "From another
+     * person" (no citation). `answer` is absent for a statement kind this client does not know: the row then says only that the
+     * source cannot be changed.
+     */
+    | {
+          readonly kind: 'lockedAnswer';
+          readonly answer?: LockedAnswer;
+          readonly citation?: string;
+      }
     | { readonly kind: 'empty'; readonly text: string }
     | { readonly kind: 'filled'; readonly text: string; readonly site: string; readonly fromPaste: boolean }
     | { readonly kind: 'invalid'; readonly text: string }
@@ -280,10 +321,28 @@ export function sourceRowOf(input: {
      * While they type it is plain text, because a half-typed address is not a mistake yet.
      */
     readonly showError: boolean;
+    /** The citation of a paid website the cook has confirmed and no write has yet carried: locked from the confirm. */
+    readonly paidSiteStated?: string;
 }): SourceRowModel {
-    const { values, recipe, fromPaste, showError } = input;
+    const { values, recipe, fromPaste, showError, paidSiteStated } = input;
+
+    if (paidSiteStated !== undefined) {
+        return { kind: 'lockedAnswer', answer: 'paidSite', citation: paidSiteStated };
+    }
 
     if (sourceIsLocked(recipe)) {
+        if (recipe?.sourceKind === 'paid_site') {
+            return { kind: 'lockedAnswer', answer: 'paidSite', citation: recipe.sourceAttribution ?? '' };
+        }
+
+        if (recipe?.statementKind === 'fromPerson') {
+            return { kind: 'lockedAnswer', answer: 'fromPerson' };
+        }
+
+        if (recipe?.statementKind === UNRECOGNISED_STATEMENT_KIND) {
+            return { kind: 'lockedAnswer' };
+        }
+
         const stored = heldAsWebCopy(recipe) ? parseSourceLink(recipe?.sourceUrl ?? '') : undefined;
 
         return stored?.ok === true

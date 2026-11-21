@@ -38,7 +38,7 @@ const GUTTER = nativeTokens.spacing[4];
 /** The native orchestration shell of the recipe page: the bindings under the pure body. */
 export const RecipeDetailView: FC<RecipeDetailViewProps> = (props) => {
     const scale = useServingScale(props.recipe.id, props.recipe.servings);
-    const marks = useCookMarks(props.recipe.id);
+    const marks = useCookMarks(props.recipe.id, props.recipe.ingredients);
     const { width, fontScale } = useWindowDimensions();
     const [screenOn, setScreenOn] = useState(false);
     const [descriptionExpanded, setDescriptionExpanded] = useState(false);

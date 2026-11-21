@@ -4,6 +4,8 @@
  * `npm run docs:after-merge --workspace=@kitchensink/docgen-components`, called from `.husky/post-merge` and from
  * `.husky/post-commit` (for a merge commit, which is how a merge made with `--no-commit` ends).
  *
+ * Started only by those hooks, which set KS_GIT_BIN. A hand run refuses.
+ *
  * The decision reads the INCOMING side, never the merge result. The `docgenRegenerate` merge driver keeps our side of a
  * generated file, so when both branches changed one, `git diff ORIG_HEAD HEAD` shows nothing and would never
  * regenerate: the very case the driver exists for. For a merge commit the script diffs `HEAD^1...HEAD^2`, the incoming

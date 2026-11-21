@@ -8,20 +8,13 @@
 import { inArray, sql, type InferInsertModel, type InferSelectModel } from 'drizzle-orm';
 import { check, index, pgTable, text, timestamp, uuid, varchar } from 'drizzle-orm/pg-core';
 
+import {
+    SOURCE_CORRECTION_GROUNDS,
+    SOURCE_CORRECTION_REASON_MAX_LENGTH,
+    type SourceCorrectionGround,
+} from '@kitchensink/recipe-core';
+
 import { recipes } from './recipes.js';
-
-/**
- * The grounds a correction may name, mirrored from the SQL CHECK. One value now: staff confirmed the owner's request through
- * a challenge to the account's verified email (a staff assertion, not something code can check). Spec 016 adds third-party
- * grounds.
- */
-export const SOURCE_CORRECTION_GROUNDS = ['ownerConfirmedByAccountEmail'] as const;
-
-/** One correction ground. */
-export type SourceCorrectionGround = (typeof SOURCE_CORRECTION_GROUNDS)[number];
-
-/** The longest reason, mirrored from the SQL CHECK. The reason is never logged. */
-export const SOURCE_CORRECTION_REASON_MAX_LENGTH = 1000;
 
 export const recipeSourceCorrections = pgTable(
     'recipe_source_corrections',

@@ -506,3 +506,16 @@ export function privateSlotsFull(used: number, limit: number): RecipeDomainError
         limit,
     });
 }
+
+/**
+ * `VALIDATION_FAILED` (→ 400) — a staff correction named a recipe that holds no source
+ * answer to correct (nothing stated, or the curator's public-domain text), or a web link that is not a usable source. NOTHING was
+ * written. A 400 and not a 404: the recipe exists and is the owner's, so this is about what the request asks for.
+ *
+ * @returns The exception to throw.
+ */
+export function sourceCorrectionInvalidTarget(): HttpException {
+    const message = 'This recipe holds no source answer that can be corrected to that.';
+
+    return apiError('VALIDATION_FAILED', message, { fields: [`answer: ${message}`] });
+}

@@ -21,6 +21,7 @@ import { HealthController } from '../../../health/health.controller.js';
 import { IngredientsController } from '../../../ingredients/ingredients.controller.js';
 import { PhotosController } from '../../../photos/photos.controller.js';
 import { RecipesController } from '../../../recipes/recipes.controller.js';
+import { SourceCorrectionController } from '../../../recipes/sourceCorrection.controller.js';
 import { SearchController } from '../../../search/search.controller.js';
 import { VersionsController } from '../../../versions/versions.controller.js';
 
@@ -122,6 +123,12 @@ describe('throttle wiring — effective per-route limits enforced by the real Th
         ['recipes.remove (write)', RecipesController, RecipesController.prototype.remove, writeLimit],
         ['recipes.clone (write)', RecipesController, RecipesController.prototype.clone, writeLimit],
         ['recipes.setVisibility (write)', RecipesController, RecipesController.prototype.setVisibility, writeLimit],
+        [
+            'recipes.correctSource (write)',
+            SourceCorrectionController,
+            SourceCorrectionController.prototype.correctSource,
+            writeLimit,
+        ],
         ['collections.create (write)', CollectionsController, CollectionsController.prototype.create, writeLimit],
         ['collections.update (write)', CollectionsController, CollectionsController.prototype.update, writeLimit],
         ['collections.remove (write)', CollectionsController, CollectionsController.prototype.remove, writeLimit],

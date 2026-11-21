@@ -25,10 +25,8 @@
 import { RecipeSourceType, type RecipeSourceKind, type RecipeStatementKind } from '@kitchensink/recipe-core';
 
 import { resolveStatementProvenance, type ResolvedProvenance, type StatementAnswer } from './provenancePolicy.js';
+import { SOURCE_CORRECT_SCOPE } from '../recipes.schema.js';
 import { holdsAlready, restatesStored, type StoredSource } from './sourceCorrectionPolicy.js';
-
-/** The grant that lets a staff caller correct a confirmed source answer. Held by staff only; `recipes:import:public` is NOT it. */
-export const SOURCE_CORRECT_SCOPE = 'recipes:source:correct';
 
 /** The answers a recipe can hold, as the correction names them. */
 export type SourceAnswerKind = 'own' | 'person' | 'webPage' | 'book' | 'paidSite';

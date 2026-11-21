@@ -1,0 +1,36 @@
+/**
+ * `POST /api/v1/recipes/{id}/source-correction` — staff change a confirmed source answer (ADR-0099).
+ *
+ * Its own controller, because its caller is staff and not a cook, and it must not widen `RecipesController`'s constructor. It is
+ * canonical-prefix only: no shipped client holds a `v1/` alias of a route that did not exist.
+ *
+ * ⛔ The grant (`recipes:source:correct`) is decided by `evaluateSourceCorrectionScope`, a policy over the principal's scopes, not by
+ * a Guard (ADR-0023, DD18): what is authorised is a value on the request and a row read under lock.
+ */
+import { Body, Controller, HttpCode, HttpStatus, Param, ParseUUIDPipe, Post, UsePipes } from '@nestjs/common';
+import { ZodValidationPipe } from 'nestjs-zod';
+
+import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
+import type { Principal } from '../auth/principal.js';
+import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
+import { SourceCorrectionDto } from './dto/sourceCorrection.dto.js';
+import type { SourceCorrectionResponse } from './recipes.schema.js';
+import { SourceCorrectionService } from './sourceCorrection.service.js';
+
+@Controller('api/v1/recipes')
+@UsePipes(ZodValidationPipe)
+export class SourceCorrectionController {
+    public constructor(private readonly sourceCorrection: SourceCorrectionService) {}
+
+    /** Correct a recipe's source answer. A mutation, so the erasure lock applies to the staff caller as it does to any write. */
+    @Post(':id/source-correction')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async correctSource(
+        @CurrentPrincipal() principal: Principal,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: SourceCorrectionDto,
+    ): Promise<SourceCorrectionResponse> {
+        return this.sourceCorrection.correct(principal, id, body);
+    }
+}

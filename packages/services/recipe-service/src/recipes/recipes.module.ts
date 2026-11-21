@@ -21,6 +21,9 @@ import {
 } from './recipes.tokens.js';
 import { RecipesDal } from './dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
+import { SourceCorrectionsDal } from './dal/sourceCorrections.dal.js';
+import { SourceCorrectionController } from './sourceCorrection.controller.js';
+import { SourceCorrectionService } from './sourceCorrection.service.js';
 import { RecipeStatementAttestationsDal } from './dal/recipeStatementAttestations.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
@@ -64,7 +67,7 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
     // forwardRef: RecipesService records versions on every write; VersionsService drives a recipe write
     // on restore. The two modules depend on each other by design (see VersionsModule's matching ref).
     imports: [forwardRef(() => VersionsModule), IngredientsModule, AnalyticsModule],
-    controllers: [RecipesController, ParseJobsController],
+    controllers: [RecipesController, ParseJobsController, SourceCorrectionController],
     providers: [
         {
             provide: VERIFICATION_QUEUE,
@@ -129,6 +132,9 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // The append-only record of every statement and Public confirmation (migration 0088). INSERT only, always in the
         // write's own transaction, so it holds no client of its own.
         RecipeStatementAttestationsDal,
+        // ADR-0099 — the staff correction: stateless writes over the caller's transaction, and the Command that orders them.
+        SourceCorrectionsDal,
+        SourceCorrectionService,
         // Judges and records every write that can leave a recipe public (ADR-0095): the one owner of both tables above.
         PublicStatementGate,
         {

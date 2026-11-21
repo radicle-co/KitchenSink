@@ -7,8 +7,8 @@
 import { describe, expect, it } from 'vitest';
 import { RecipeSourceType } from '@kitchensink/recipe-core';
 
+import { SOURCE_CORRECT_SCOPE } from '../../recipes.schema.js';
 import {
-    SOURCE_CORRECT_SCOPE,
     evaluateSourceCorrectionScope,
     holdOf,
     type CorrectableRecipe,

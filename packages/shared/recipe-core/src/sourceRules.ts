@@ -119,3 +119,16 @@ export const PRIVATE_ONLY_SOURCE_KEYS: readonly string[] = Object.values(RecipeS
         .filter((sourceKind) => privateRuleOf(sourceType, sourceKind) === 'privateOnly')
         .map((sourceKind) => privateOnlySourceKey(sourceType, sourceKind)),
 );
+
+/**
+ * The grounds a staff correction may name (ADR-0099). One value now: staff confirmed the owner's request through a challenge to
+ * the account's verified email, which is a staff assertion and not something code can check. Spec 016 adds third-party grounds.
+ * The service's wire, the `recipe_source_corrections` CHECK and the runbook read this one list.
+ */
+export const SOURCE_CORRECTION_GROUNDS = ['ownerConfirmedByAccountEmail'] as const;
+
+/** One correction ground. */
+export type SourceCorrectionGround = (typeof SOURCE_CORRECTION_GROUNDS)[number];
+
+/** The longest reason a correction records. The reason is stored for audit and never logged. */
+export const SOURCE_CORRECTION_REASON_MAX_LENGTH = 1000;

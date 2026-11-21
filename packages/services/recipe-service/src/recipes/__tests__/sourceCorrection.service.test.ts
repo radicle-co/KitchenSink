@@ -1,0 +1,265 @@
+/**
+ * The staff source correction (ADR-0099, plan everyAnswerSourceLock U3), over a fake DAL. What a database proves (the clone walk
+ * across rows, the ratchet, the CHECK) is the LOCAL e2e tier's (`sourceCorrection.e2e.test.ts`); what is proved HERE is the order
+ * of the work, what is written for each verdict, and what is logged.
+ *
+ * Every case reads the calls the service made, so a service that wrote in the wrong order, wrote twice, or wrote on a refusal fails.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { RecipeErrorCode } from '@kitchensink/recipe-core';
+
+import type { RecipeTx } from '../../database/unitOfWork.js';
+import type { Principal } from '../../auth/principal.js';
+import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
+import type { CorrectableRecipe } from '../domain/sourceCorrectionScopePolicy.js';
+import { SourceCorrectionService } from '../sourceCorrection.service.js';
+import { SOURCE_CORRECT_SCOPE, type SourceCorrectionRequest } from '../recipes.schema.js';
+
+const OWNER = '01JUOWNER000000000000000A1';
+const STAFF = '01JUSTAFF0000000000000000A';
+const RECIPE_ID = '00000000-0000-4000-8000-0000000000c1';
+const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
+
+const staff = (scopes: string[] = [SOURCE_CORRECT_SCOPE]): Principal => ({
+    userId: STAFF,
+    sub: 'clerk_staff',
+    scopes,
+    permissions: [],
+    roles: [],
+    principalKind: 'real',
+    containment: 'enforce',
+});
+
+const BOOK_RECIPE: CorrectableRecipe = {
+    ownerId: OWNER,
+    sourceType: 'imported_physical',
+    sourceKind: 'book',
+    statementKind: 'source',
+    sourceUrl: null,
+    sourceAttribution: 'Joy of Cooking, p. 12',
+};
+
+const body = (over: Partial<SourceCorrectionRequest> = {}): SourceCorrectionRequest => ({
+    ownerAccountId: OWNER,
+    answer: { kind: 'public_web', citation: LINK },
+    ground: 'ownerConfirmedByAccountEmail',
+    reason: 'Owner asked by email; mailbox challenge passed.',
+    ...over,
+});
+
+/** The calls, in order, so the ORDER of the work is an assertion. */
+function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
+    const calls: string[] = [];
+    const rewrite = vi.fn(async (..._args: unknown[]) => {
+        calls.push('rewrite');
+    });
+    const record = vi.fn(async (..._args: unknown[]) => {
+        calls.push('record');
+    });
+    const holdClones = vi.fn(async (..._args: unknown[]) => {
+        calls.push('holdClones');
+    });
+    const evidence = vi.fn(async (..._args: unknown[]) => {
+        calls.push('evidence');
+    });
+    const lockRecipe = vi.fn(async (..._args: unknown[]) => {
+        calls.push('lockRecipe');
+
+        return recipe ?? undefined;
+    });
+    const lockOwner = vi.fn(async (..._args: unknown[]) => {
+        calls.push('lockOwner');
+
+        return 0;
+    });
+    const transaction = async <T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> => {
+        calls.push('begin');
+
+        return fn(FAKE_TX);
+    };
+    const service = new SourceCorrectionService(
+        { transaction, lockAndCountPrivateSlots: lockOwner },
+        { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones },
+        { insert: evidence },
+    );
+
+    return { service, calls, rewrite, record, holdClones, evidence, lockRecipe, lockOwner };
+}
+
+const captured: string[] = [];
+
+afterEach(() => {
+    vi.restoreAllMocks();
+    captured.length = 0;
+});
+
+function captureLog(): void {
+    vi.spyOn(console, 'log').mockImplementation((line: unknown) => {
+        captured.push(String(line));
+    });
+}
+
+describe('SourceCorrectionService.correct', () => {
+    it('a caller without the grant is forbidden BEFORE any database work', async () => {
+        captureLog();
+        const t = build();
+
+        await expect(t.service.correct(staff([]), RECIPE_ID, body())).rejects.toMatchObject({ status: 403 });
+
+        expect(t.calls).toEqual([]);
+        expect(captured.join('\n')).toContain('source.correctionRefused');
+        expect(captured.join('\n')).toContain('forbidden');
+    });
+
+    it('applies in one transaction, in the lock order: owner lock, recipe lock, rewrite, evidence, record, clones', async () => {
+        const t = build();
+
+        const result = await t.service.correct(staff(), RECIPE_ID, body());
+
+        expect(result).toEqual({ result: 'applied' });
+        expect(t.calls).toEqual(['begin', 'lockOwner', 'lockRecipe', 'rewrite', 'evidence', 'record', 'holdClones']);
+        expect(t.lockOwner).toHaveBeenCalledWith(FAKE_TX, OWNER);
+        expect(t.lockRecipe).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID);
+    });
+
+    it('writes the new answer private, with the hold the policy named, and the evidence under the staffCorrection capture', async () => {
+        const t = build();
+
+        await t.service.correct(staff(), RECIPE_ID, body());
+
+        expect(t.rewrite).toHaveBeenCalledWith(
+            FAKE_TX,
+            expect.objectContaining({
+                recipeId: RECIPE_ID,
+                hold: false,
+                provenance: expect.objectContaining({ sourceKind: 'public_web', sourceUrl: LINK }),
+            }),
+        );
+        expect(t.evidence).toHaveBeenCalledWith(
+            FAKE_TX,
+            expect.objectContaining({ recipeId: RECIPE_ID, capture: 'staffCorrection', sourceKind: 'public_web' }),
+        );
+    });
+
+    it('a correction to "I wrote this" holds the recipe and writes NO evidence', async () => {
+        const t = build();
+
+        await t.service.correct(staff(), RECIPE_ID, body({ answer: { kind: 'authored' } }));
+
+        expect(t.rewrite).toHaveBeenCalledWith(FAKE_TX, expect.objectContaining({ hold: true }));
+        expect(t.evidence).not.toHaveBeenCalled();
+    });
+
+    it('records ONE correction per apply, with the old and the new answer, the actor, the ground and the reason', async () => {
+        const t = build();
+
+        await t.service.correct(staff(), RECIPE_ID, body());
+
+        expect(t.record).toHaveBeenCalledTimes(1);
+        expect(t.record).toHaveBeenCalledWith(FAKE_TX, {
+            recipeId: RECIPE_ID,
+            actorAccountId: STAFF,
+            before: BOOK_RECIPE,
+            after: expect.objectContaining({ sourceKind: 'public_web', sourceUrl: LINK }),
+            ground: 'ownerConfirmedByAccountEmail',
+            reason: 'Owner asked by email; mailbox challenge passed.',
+        });
+    });
+
+    it('holds the OWNER’S clones on every apply, whether or not the recipe itself is held', async () => {
+        for (const answer of [{ kind: 'authored' }, { kind: 'public_web', citation: LINK }] as const) {
+            const t = build();
+
+            await t.service.correct(staff(), RECIPE_ID, body({ answer }));
+
+            expect(t.holdClones).toHaveBeenCalledTimes(1);
+            expect(t.holdClones).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID, OWNER);
+        }
+    });
+
+    it('a restatement is "unchanged": nothing is written, no record is made, nothing is held', async () => {
+        const t = build();
+
+        const result = await t.service.correct(
+            staff(),
+            RECIPE_ID,
+            body({ answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' } }),
+        );
+
+        expect(result).toEqual({ result: 'unchanged' });
+        expect(t.rewrite).not.toHaveBeenCalled();
+        expect(t.evidence).not.toHaveBeenCalled();
+        expect(t.record).not.toHaveBeenCalled();
+        expect(t.holdClones).not.toHaveBeenCalled();
+    });
+
+    it('a missing recipe and a recipe of another owner are the SAME 404, with nothing written', async () => {
+        const missing = build(null);
+        const other = build({ ...BOOK_RECIPE, ownerId: '01JUSOMEONEELSE00000000A1' });
+
+        const a = await missing.service.correct(staff(), RECIPE_ID, body()).catch((error: unknown) => error);
+        const b = await other.service.correct(staff(), RECIPE_ID, body()).catch((error: unknown) => error);
+
+        for (const error of [a, b]) {
+            expect(error).toMatchObject({ code: RecipeErrorCode.RECIPE_NOT_FOUND });
+        }
+
+        expect(a).toEqual(b);
+
+        for (const t of [missing, other]) {
+            expect(t.rewrite).not.toHaveBeenCalled();
+            expect(t.record).not.toHaveBeenCalled();
+        }
+    });
+
+    it('a recipe that holds no answer is a 400 invalid target, with nothing written', async () => {
+        const t = build({ ...BOOK_RECIPE, sourceKind: null, statementKind: null, sourceType: 'user_created' });
+
+        await expect(t.service.correct(staff(), RECIPE_ID, body())).rejects.toMatchObject({ status: 400 });
+
+        expect(t.rewrite).not.toHaveBeenCalled();
+        expect(t.record).not.toHaveBeenCalled();
+    });
+
+    it('a failure in the middle of the apply is not swallowed, and logs no correction', async () => {
+        captureLog();
+        const t = build();
+        t.record.mockRejectedValueOnce(new Error('disk full'));
+
+        await expect(t.service.correct(staff(), RECIPE_ID, body())).rejects.toThrow('disk full');
+
+        expect(captured.join('\n')).not.toContain('"source.corrected"');
+    });
+
+    it('the log line of an apply names kinds and the ground only: no link, citation, reason or account id (Q-3)', async () => {
+        captureLog();
+        const t = build();
+
+        await t.service.correct(staff(), RECIPE_ID, body());
+
+        const line = captured.join('\n');
+
+        expect(line).toContain('source.corrected');
+        expect(line).toContain('"oldKind":"book"');
+        expect(line).toContain('"newKind":"webPage"');
+
+        for (const secret of [LINK, 'allrecipes', 'Joy of Cooking', 'mailbox challenge', OWNER, STAFF, RECIPE_ID]) {
+            expect(line).not.toContain(secret);
+        }
+    });
+
+    it('a refusal logs the refusal kind and the caller, and never the owner or the answer', async () => {
+        captureLog();
+        const t = build(null);
+
+        await t.service.correct(staff(), RECIPE_ID, body()).catch(() => undefined);
+
+        const line = captured.join('\n');
+
+        expect(line).toContain('"refusal":"notFound"');
+        expect(line).toContain(STAFF);
+        expect(line).not.toContain(OWNER);
+        expect(line).not.toContain(LINK);
+    });
+});

@@ -15222,6 +15222,227 @@
             ],
             "type": "object"
         },
+        "sourceCorrectionAnswerSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "fromPerson",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "paid_site",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "sourceCorrectionRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "answer": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "paid_site",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
+                "ground": {
+                    "enum": [
+                        "ownerConfirmedByAccountEmail"
+                    ],
+                    "type": "string"
+                },
+                "ownerAccountId": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "reason": {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ownerAccountId",
+                "answer",
+                "ground",
+                "reason"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "result": {
+                    "enum": [
+                        "applied",
+                        "unchanged"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "result"
+            ],
+            "type": "object"
+        },
         "testResetAcceptedResponseSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,

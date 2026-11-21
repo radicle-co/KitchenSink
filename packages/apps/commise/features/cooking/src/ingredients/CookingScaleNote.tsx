@@ -23,7 +23,13 @@ export const CookingScaleNote: FC<CookingScaleNoteProps> = ({ note, openLabel, o
         </div>
         {onOpen === undefined ? null : (
             <div className={TWO_COLUMN.narrowOnlyWebClassName}>
-                <Button variant="quiet" size="md" onPress={() => onOpen()}>
+                <Button
+                    variant="quiet"
+                    size="md"
+                    onPress={() => {
+                        onOpen();
+                    }}
+                >
                     {openLabel}
                 </Button>
             </div>

@@ -36,7 +36,9 @@ function stubWindow(wide: boolean) {
     return {
         resizeTo: (next: boolean) => {
             matches = next;
-            listeners.forEach((listener) => listener());
+            listeners.forEach((listener) => {
+                listener();
+            });
         },
     };
 }
@@ -163,8 +165,12 @@ describe('CookingScreen ingredients: structure by CSS band', () => {
         fireEvent.click(screen.getByRole('button', { name: 'Ingredients' }));
         expect(screen.getByRole('dialog')).toBeTruthy();
 
-        act(() => media.resizeTo(true));
-        act(() => media.resizeTo(false));
+        act(() => {
+            media.resizeTo(true);
+        });
+        act(() => {
+            media.resizeTo(false);
+        });
 
         expect(screen.queryByRole('dialog')).toBeNull();
     });

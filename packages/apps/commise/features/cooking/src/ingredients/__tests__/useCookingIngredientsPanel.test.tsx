@@ -73,7 +73,9 @@ describe('useCookingIngredientsPanel', () => {
     it('gives the scale note an open button that opens the sheet, once the servings differ', () => {
         const { result } = mount();
 
-        act(() => result.current.scale.setServings(4));
+        act(() => {
+            result.current.scale.setServings(4);
+        });
 
         const note = result.current.panel.scaleNote;
 
@@ -102,7 +104,9 @@ describe('useCookingIngredientsPanel', () => {
         it('keeps the top bar action, the sheet and the open button when narrow, and drops the column', () => {
             const { result } = mount();
 
-            act(() => result.current.scale.setServings(4));
+            act(() => {
+                result.current.scale.setServings(4);
+            });
 
             const narrow = panelForBand(result.current.panel, false);
 
@@ -115,7 +119,9 @@ describe('useCookingIngredientsPanel', () => {
         it('keeps the column and the bare note when wide, and drops the action, the sheet and the open button', () => {
             const { result } = mount();
 
-            act(() => result.current.scale.setServings(4));
+            act(() => {
+                result.current.scale.setServings(4);
+            });
 
             const wide = panelForBand(result.current.panel, true);
 

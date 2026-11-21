@@ -23,7 +23,9 @@ function stubMatchMedia(widthEm: number) {
         matchMedia,
         resizeTo: (next: number) => {
             width = next;
-            listeners.forEach((listener) => listener());
+            listeners.forEach((listener) => {
+                listener();
+            });
         },
         listenerCount: () => listeners.size,
     };
@@ -53,9 +55,13 @@ describe('useIsTwoColumn', () => {
         const media = stubMatchMedia(30);
         const { result } = renderHook(() => useIsTwoColumn());
 
-        act(() => media.resizeTo(60));
+        act(() => {
+            media.resizeTo(60);
+        });
         expect(result.current).toBe(true);
-        act(() => media.resizeTo(30));
+        act(() => {
+            media.resizeTo(30);
+        });
         expect(result.current).toBe(false);
     });
 

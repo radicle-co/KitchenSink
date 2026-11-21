@@ -141,7 +141,7 @@ the whole recipe. The response sets no cookie. The same request with a credentia
 3. **Given** the same address, **When** it is requested with and without a credential, **Then** both responses are byte
    for byte the same, and neither sets a cookie (`021-FR-012`, `021-FR-075`, `021-FR-101`).
 4. **Given** the address has a share mark or any other query string, **When** it is opened, **Then** the page is the same
-   and the cache entry is the same (FR-015, `021-FR-062`).
+   bytes, held in its own cache entry for that query string (FR-015, `021-FR-062`).
 5. **Given** the address has the wrong slug, **When** the recipe is open, **Then** it redirects permanently to the right
    slug. **When** the recipe is not open, **Then** it answers not available, and the title is never revealed (FR-014).
 6. **Given** an open full recipe whose food data is partly unavailable at that moment, **When** it is opened, **Then**
@@ -364,7 +364,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **Q3. The address carries the locale (owner 2026-11-20, reverses the 2026-11-09 answer).** "Every page should have
   locale in it." The public address is `/{locale}/recipe/{id}/{slug}`, and the page's own words follow that locale. The
   page is not cached by the web app (no ISR): the CDN caches it under the cache key (FR-015), which needs no `Accept-Language` and no
-  `Vary: Accept-Language` (FR-015a). The signed-out reader's market is the region of that
+  `Vary: Accept-Language` (FR-015). The signed-out reader's market is the region of that
   locale (003B C-31).
 - **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
   lifts only the API's per-address limit for page renders. It grants no read (FR-016).
@@ -457,12 +457,11 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   locales. A locale-less address MUST redirect to the locale the browser's `Accept-Language` negotiates, and a browser
   that matches no shipped locale MUST go to the default route locale, `en-US` (ADR-0082: the library is open, and a
   browser language is not a market, `025-FR-001`). A bare `en` MUST redirect to the negotiated locale, never straight to
-  a market. The page MUST send `s-maxage` with no `Vary: Accept-Language` header and use no incremental static regeneration. The cache
-  key MUST be the path, which holds the locale, and never a cookie, the `Authorization` header or the
-  `Accept-Language` header (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN key is the URL path plus only Next's
-  own RSC variant (`_rsc` and its request headers). Any other query parameter, the share mark included, is neither read
-  by the render nor a cache entry of its own. U6's share-mark Playwright pair (two requests that differ only in the share
-  mark, the second a CDN hit with the same body) is the proof. The public address and the
+  a market. The page MUST send `s-maxage` with no `Vary: Accept-Language` header, and use no incremental static regeneration. Its
+  response MUST NOT depend on a cookie, the `Authorization` header, the `Accept-Language` header or any query parameter,
+  so every cached copy of one path holds the same bytes (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
+  the full URL, and its key is not configurable. So each distinct query string, a share mark included, is its own cache
+  entry holding the same bytes. The public address and the
   in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
 - **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
   has no copy. The recipe's own text is never translated. The native public view uses the app's own language

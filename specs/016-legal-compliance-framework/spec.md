@@ -484,6 +484,7 @@ The rights label tells the cook who owns the writing.
     - _(Amended, Owner ruling, 2026-11-15.)_ Rows 3 and 4 changed. Facts cards and the linked card are retired. A web
       or paid-site recipe goes public only as a Commise-written version (`FR-077`, `FR-080`). Rows 5 and 7 open to the
       web, under their conditions (2026-11-03).
+    - _(Amended, Owner ruling, 2026-11-20.)_ A cook's copy of a Commise-written public version takes label 2, 'Adapted from' the Commise version. A copy of another cook's copy takes label 6. Both show the Commise credit line, are under CC BY-SA 4.0 (`FR-078`), and go public only after a substantive edit (`001-FR-005b`).
     - Label 3's source type, `imported_public`, means "copied from a publicly reachable page". It is not public
       domain. Public domain text is label 7, and only `FR-015k` makes it so.
     - A verbatim copy from a book, magazine, paid site or other non-public source stays private. The cook can
@@ -506,7 +507,7 @@ The rights label tells the cook who owns the writing.
 
 - **FR-015d**: The label MUST be **derived**, never stored and never chosen by a surface. One pure Policy works it out,
   a sibling of `provenancePolicy.ts`. Its inputs are the recipe's source type, its statement kind (`004-FR-014a`), its
-  `cloned_from_id`, any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
+  `cloned_from_id`, its `source_record_id` (003B), any licence its source page states (`FR-012b`), the curator grant (ADR-0023 §1) and its public-domain record (`FR-015k`, added 2026-11-03,
   ADR-0082). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ The own origin of statement 1a is part of the
   statement kind. A site claim is NOT an input, so a claim that fails never changes a label. Every surface,
   and every rule in another spec that depends on who owns the writing, MUST read that one Policy. `staff-architect`

@@ -476,7 +476,7 @@ creator page.
 - **A cook makes an open recipe private, then public again.** It is open again only after 020 allows it. If its
   checked content changed, a new settle period starts.
 - **Two people share the same recipe.** Each share has its own share mark. The page and its cache are the same for
-  both, because the cache ignores the share mark (FR-062).
+  both, because the response is the same bytes (FR-062, `003A-FR-015`).
 - **A link with a stale slug.** The title changed after the link was sent. The address still works and redirects
   permanently to the canonical slug (FR-010).
 - **A cook with no creator profile.** Their open recipe has no author name on the page, and its structured data has no
@@ -1231,8 +1231,7 @@ Session 2026-11-15.)_
   inside this bound. A preview a social platform already copied is outside our control, and is a residual risk. After any
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
-- **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path plus only Next's own RSC variant (`003A-FR-015`). It MUST ignore every other query
-  parameter (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-20, owner ruling:
+- **FR-062**: Public pages MUST be served from a CDN, cached as `003A-FR-015` states. _(Amended 2026-11-20, owner ruling:
   every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), and the page's own words follow that locale
   (`003A-FR-015`, `003A-FR-015a`). This is safe only
   because the response does not depend on who asked (FR-012, FR-101).
@@ -1316,7 +1315,7 @@ Session 2026-11-15.)_
   authenticator or a WebSocket to any service that adopts the shared CORS policy (ADR-0047). The
   `bearerOnlyPrecondition` guard MUST stay green without a waiver.
 - **FR-101**: A signed-out read path MUST NOT read the `Authorization` header, and MUST answer the same bytes with or
-  without a credential. Only then can a cache keyed on the path serve it (ADR-0020's first trap).
+  without a credential. Only then can a shared cache serve it (ADR-0020's first trap).
 - **FR-102**: A signed-out response MUST be a **public projection**: an allowlist of fields picked from the
   service-owned schema (GR-015), using `Pick`, never `Omit`, so a new field cannot reach the public by default. It
   MUST carry no owner id. _(Amended 2026-11-15.)_ The facts card projection is withdrawn. A Commise-written version

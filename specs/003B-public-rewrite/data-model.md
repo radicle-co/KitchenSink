@@ -162,14 +162,16 @@ The grouped read is one query and does not run the lazy expiry: until the sweep 
 ## Columns on existing tables
 
 - `recipes.public_credit text NULL`: the credit a public version carries, set in the Publish transaction from the
-  credit the cook was shown and the server compared (FR-035). CHECK in (`free`, `paid`), and CHECK `public_credit IS
-NOT NULL` if and only if `source_type = 'commise_written'`. Both are `NOT VALID` then `VALIDATE` (expand-only). The
+  credit the cook was shown and the server compared (FR-035). CHECK in (`free`, `paid`), and CHECK `(public_credit IS NOT NULL) = (source_record_id IS NOT NULL)`.
+  Both are `NOT VALID` then `VALIDATE` (expand-only). The
   display reads this column: `free` shows `credit.basedOn` with the site read through `source_record_id` to the
   record's `source_key`, and `paid` reads no site (FR-060, FR-018). One-way door, named in the feature ADR, owed (T004).
-- `recipes.source_record_id uuid NULL` and `recipes.source_page_key text NULL`: mark a public version. FK
-  `recipe_source_records`, no cascade. CHECK `(source_record_id IS NOT NULL) = (source_type = 'commise_written')`
-  (`source_type` is `NOT NULL`, so the comparison is never unknown), `NOT VALID` then `VALIDATE`. The reader-market term
-  keys on `source_record_id` (C-31, T383), so the pair must hold. The CHECK is added by T029 and asserted by T026 (both mismatched pairs refused with `23514`). A clone of a public version (`recipes.service.ts` clone path) keeps `source_type = 'commise_written'`, `source_record_id` and `public_credit`, sets `source_page_key` to NULL and is a draft (016-FR-015c row 6), so the clone satisfies this CHECK and the `public_credit` CHECK the same way (T392, T393). The rights label after the cloner's edit is derived by the existing label Policy (016-FR-015c, FR-015d, FR-015i). A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
+- `recipes.source_record_id uuid NULL`: the text derives from this source record. It is set on a public version, and on a cook's copy of one. FK `recipe_source_records`, no cascade. It keys the FR-050 wording check, the credit and the CC BY-SA licence and the reader-market term.
+- `recipes.source_page_key text NULL`: the page key. Only a public version holds it.
+- `source_type = 'commise_written'` marks a public version; it keys the public-version label and the page key.
+- CHECKs (each `NOT VALID`, then validated by T030): (1) `source_type <> 'commise_written' OR source_record_id IS NOT NULL`; (2) `source_page_key IS NULL OR source_type = 'commise_written'`; (3) `source_record_id IS NULL OR source_type IN ('commise_written', 'user_created')`. The `public_credit` CHECK becomes `(public_credit IS NOT NULL) = (source_record_id IS NOT NULL)`. T029 adds them and T026 asserts them.
+- A copy of a public version is `user_created`. It keeps `source_record_id`, `public_credit` and `cloned_from_id`, has a NULL `source_page_key`, and starts as a draft. It never holds a page key and never counts for `publicExists` (FR-034).
+- A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
   public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same
   transaction as its cause: delete (the row goes), a 020 rejection, or a publisher opt-out
   (FR-034a).

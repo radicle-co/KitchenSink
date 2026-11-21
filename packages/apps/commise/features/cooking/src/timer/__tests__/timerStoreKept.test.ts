@@ -227,22 +227,51 @@ describe('ended is told once per (id, run)', () => {
         const one = await device.tab();
         const two = await device.tab();
 
-        one.timers.start({ ...STEP, label: undefined, durationMs: 5 * MINUTE });
-        await settle();
-        await two.kept.reread();
-        await settle();
+        const id = one.timers.start({ ...STEP, label: undefined, durationMs: 5 * MINUTE });
 
-        expect(two.timers.getSnapshot().timers).toHaveLength(1);
-        expect(two.ended).toEqual([]);
-
+        await settle();
+        // Tab two never holds the running timer, so its own timeout cannot ring it: only the record can.
         await vi.advanceTimersByTimeAsync(5 * MINUTE);
         await settle();
         await two.kept.reread();
         await settle();
-        await two.kept.reread();
 
-        expect(two.ended.length).toBeLessThanOrEqual(1);
-        expect(two.timers.getSnapshot().timers[0]?.kind).toBe('ringing');
+        expect(two.ended).toEqual([{ kind: 'ended', id, run: 1 }]);
+
+        await two.kept.reread();
+        await settle();
+
+        expect(two.ended).toHaveLength(1);
+    });
+
+    it('a timer that rings a second run in another tab is told again here, once per run', async () => {
+        const device = makeDevice();
+        const one = await device.tab();
+        const two = await device.tab();
+
+        const id = one.timers.start({ ...STEP, label: undefined, durationMs: MINUTE });
+
+        await settle();
+        await vi.advanceTimersByTimeAsync(MINUTE);
+        await settle();
+        await two.kept.reread();
+        await settle();
+        one.timers.command({ kind: 'addTime', id: id ?? '', run: 1, addMs: MINUTE });
+        await settle();
+        await vi.advanceTimersByTimeAsync(MINUTE);
+        await settle();
+
+        expect(one.timers.getSnapshot().timers[0]).toMatchObject({ kind: 'ringing', run: 2 });
+
+        await two.kept.reread();
+        await settle();
+
+        expect(two.ended.map((event) => event.run)).toEqual([1, 2]);
+
+        await two.kept.reread();
+        await settle();
+
+        expect(two.ended).toHaveLength(2);
     });
 });
 

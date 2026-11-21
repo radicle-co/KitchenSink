@@ -194,21 +194,31 @@ const SCRIPT_CASES: readonly GoldenCase[] = [
 ];
 
 /**
- * AE18 (po, qse 2026-11-21): "Adapted" means restructured, so a faithful paraphrase does not earn it and a restructured
- * rewrite does. Each case is defined by its edit operations on {@link ROOTS_BASE}, never by a measure. Our own text.
+ * AE18 (po Q-L3, qse 2026-11-21): "Adapted" means restructured. Each case is defined by its edit operations on
+ * {@link ROOTS_BASE}, never by a measure. Our own text.
  *
- * Case P: every step kept in the original order, each sentence's meaning kept, the wording changed until v1's A, R and
- * F pass. Expected: not earned. v1 alone passes it, so it pins the alignment measure.
+ * Case P': every sentence kept, in order, with its structure, and about one content word in three replaced, spread so
+ * every three-word phrase of the original holds a change. Expected: not earned. v1 as built passes it, so it pins the
+ * alignment measure.
+ *
+ * Case H: a heavy in-order paraphrase, about two thirds of the words changed. Expected: earned, as the named residual
+ * (ADR-0100, OQ9).
  *
  * Case M: the same recipe with the steps merged and their order changed (the seasoning before the cutting, the oven
- * heat moved into the roasting step), new wording. Expected: earned, at v1 alone and with the alignment measure.
+ * heat moved into the roasting step), new wording. Expected: earned.
  */
 const AE18_CASES: readonly GoldenCase[] = [
     {
-        name: 'roots: a faithful in-order paraphrase (AE18 case P)',
+        name: "roots: an in-order paraphrase with about one content word in three replaced (AE18 case P')",
+        baseline: ROOTS_BASE,
+        steps: 'Heat the stove to 220 degrees. Skin the carrots plus parsnips and slice them into chunky batons from our same length. Turn them in one baking tray with oil, one good pinch from salt plus a handful of sprigs from thyme. Roast for forty minutes, flipping once, till the sides are dark plus crisp. Drizzle with honey for the final five minutes plus serve warm.',
+        pass: false,
+    },
+    {
+        name: 'roots: a heavy in-order paraphrase, about two thirds of the words changed (named residual, ADR-0100, OQ9)',
         baseline: ROOTS_BASE,
         steps: 'Bring the oven up to 220 degrees. Scrape your carrots together with the parsnips, then slice them into chunky sticks of equal length. Coat them in a deep baking tray with oil and a generous sprinkling of salt plus some thyme sprigs. Cook for forty minutes in the oven, flipping them once, till the borders darken and crisp up. Trickle honey over for the final five minutes and bring to the table hot.',
-        pass: false,
+        pass: true,
     },
     {
         name: 'roots: the steps merged and reordered (AE18 case M)',
@@ -349,7 +359,18 @@ export const GOLDEN_V1_MEASURES: Readonly<
     },
     'roots: one accent and one combining mark on every word': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
     'roots: the identical text': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
-    'roots: a faithful in-order paraphrase (AE18 case P)': { kept: 4, total: 62, longestRun: 3, newWords: 26 },
+    "roots: an in-order paraphrase with about one content word in three replaced (AE18 case P')": {
+        kept: 8,
+        total: 62,
+        longestRun: 6,
+        newWords: 16,
+    },
+    'roots: a heavy in-order paraphrase, about two thirds of the words changed (named residual, ADR-0100, OQ9)': {
+        kept: 4,
+        total: 62,
+        longestRun: 3,
+        newWords: 26,
+    },
     'roots: the steps merged and reordered (AE18 case M)': { kept: 10, total: 62, longestRun: 5, newWords: 24 },
     'devanagari: the same consonants with other vowel signs': { kept: 10, total: 10, longestRun: 30, newWords: 0 },
 };

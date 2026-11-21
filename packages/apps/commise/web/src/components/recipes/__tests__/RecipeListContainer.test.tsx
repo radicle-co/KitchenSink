@@ -205,7 +205,9 @@ describe('RecipeListContainer (web)', () => {
             // The optimistic write reaches the component through TanStack's notifyManager, a setTimeout(0), so the grid
             // arrives one tick after the click, not inside the act. The PATCH stays pending, so the grid can only be
             // the optimistic view.
-            await vi.waitFor(() => expect(card()).toBe('grid'));
+            await vi.waitFor(() => {
+                expect(card()).toBe('grid');
+            });
             expect(patchSettings).toHaveBeenCalledWith({ recipeViewMode: 'grid' });
             expect(screen.queryByRole('alert')).toBeNull();
             expect(document.cookie).not.toContain('recipes.viewMode');

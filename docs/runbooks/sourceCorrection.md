@@ -1,7 +1,7 @@
 # Correct a recipe's confirmed source answer
 
 Use this runbook when a cook asks staff to change the source answer of a recipe. A cook cannot change a confirmed answer
-(ADR-0099). Staff change it through one route, after the owner proves the request.
+(ADR-0100). Staff change it through one route, after the owner proves the request.
 
 A correction makes the recipe private. It never makes a recipe public. Some corrections also hold the recipe off Public
 for good. The owner's own clones of the recipe become private and held on every correction.

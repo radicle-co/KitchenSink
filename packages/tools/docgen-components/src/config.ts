@@ -118,6 +118,12 @@ export const COMPONENTS_OUT_DIR = 'docs/generated/components';
 export const DESIGN_OUT_DIR = 'docs/generated/design';
 
 /**
+ * Every folder the generator owns. The generator rewrites them, `.gitattributes` gives them the merge driver and the
+ * after-merge script watches them, so a folder added here is added for all three.
+ */
+export const GENERATED_OUTPUT_DIRS = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR] as const;
+
+/**
  * The contract version of the emitted JSON. Consumers (the docs site) branch on it. Bump it when the shape
  * changes incompatibly — never when the CONTENT changes, which happens on every source edit.
  */

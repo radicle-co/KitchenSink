@@ -13,6 +13,7 @@
  * @pattern Composition root (Facade) over the timer store, which a hook reads through context
  * @pattern Observer — the store is read with `useSyncExternalStore` in `useCookingTimers`
  */
+import type { KeptSessionStore } from '@commise/features-recipes/session';
 import { useEffect, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
@@ -23,6 +24,8 @@ import { createTimerStore } from './timerStore.js';
 export interface TimerProviderProps {
     /** Clerk's `userId`: a cook, `null` when signed out, `undefined` while it loads. */
     readonly subject: string | null | undefined;
+    /** The device's kept session store: the record every timer change is written through to. */
+    readonly kept: KeptSessionStore;
     readonly children: ReactNode;
 }
 
@@ -30,12 +33,12 @@ export interface TimerProviderProps {
  * Provide the timer store to the subtree. Orchestration: it constructs the store and decides when it ends, and draws
  * only its children.
  *
- * @param props - The cook and the subtree.
+ * @param props - The cook, the kept store and the subtree.
  * @returns The subtree under the store.
  * @sideEffect Connects the store to the clock and the app focus while mounted, and tells it who is signed in.
  */
-export function TimerProvider({ subject, children }: TimerProviderProps): ReactElement {
-    const [store] = useState(createTimerStore);
+export function TimerProvider({ subject, kept, children }: TimerProviderProps): ReactElement {
+    const [store] = useState(() => createTimerStore(undefined, kept));
 
     useEffect(() => store.connect(), [store]);
     useEffect(() => {

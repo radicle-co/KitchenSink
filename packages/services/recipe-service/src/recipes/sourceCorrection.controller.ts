@@ -1,5 +1,5 @@
 /**
- * `POST /api/v1/recipes/{id}/source-correction` — staff change a confirmed source answer (ADR-0099).
+ * `POST /api/v1/recipes/{id}/source-correction` — staff change a confirmed source answer (ADR-0100).
  *
  * Its own controller, because its caller is staff and not a cook, and it must not widen `RecipesController`'s constructor. It is
  * canonical-prefix only: no shipped client holds a `v1/` alias of a route that did not exist.

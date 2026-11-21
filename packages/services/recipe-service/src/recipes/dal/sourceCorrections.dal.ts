@@ -1,5 +1,5 @@
 /**
- * The writes of a staff source correction (ADR-0099, plan everyAnswerSourceLock U3), every one inside the caller's transaction.
+ * The writes of a staff source correction (ADR-0100, plan everyAnswerSourceLock U3), every one inside the caller's transaction.
  *
  * @pattern Repository — over `recipes` and `recipe_source_corrections`, taking the CALLER'S transaction so the rewrite, its record
  *   and the held clones are one unit that commits or rolls back together.

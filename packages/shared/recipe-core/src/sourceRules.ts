@@ -36,7 +36,7 @@ export interface CorrectableSourceFacts {
 }
 
 /**
- * What the cook may still do to a recipe's source (ADR-0099).
+ * What the cook may still do to a recipe's source (ADR-0100).
  *
  * - `open`: set, replace or clear it.
  * - `downgradeOnly`: a confirmed "I wrote this", which may only become a book or a paid site (the recipe is then private).
@@ -121,7 +121,7 @@ export const PRIVATE_ONLY_SOURCE_KEYS: readonly string[] = Object.values(RecipeS
 );
 
 /**
- * The grounds a staff correction may name (ADR-0099). One value now: staff confirmed the owner's request through a challenge to
+ * The grounds a staff correction may name (ADR-0100). One value now: staff confirmed the owner's request through a challenge to
  * the account's verified email, which is a staff assertion and not something code can check. Spec 016 adds third-party grounds.
  * The service's wire, the `recipe_source_corrections` CHECK and the runbook read this one list.
  */

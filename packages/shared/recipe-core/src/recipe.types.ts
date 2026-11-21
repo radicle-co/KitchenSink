@@ -876,12 +876,12 @@ export interface RecipeDetail extends Recipe {
      */
     publicNeedsStatement?: boolean;
     /**
-     * Whether the cook's answer to "where is this recipe from" is confirmed, so only Commise can change it (ADR-0099).
+     * Whether the cook's answer to "where is this recipe from" is confirmed, so only Commise can change it (ADR-0100).
      * ⛔ OWNER-ONLY and ABSENT for every other viewer; an absent value reads as `false`.
      */
     sourceConfirmed?: boolean;
     /**
-     * Whether a staff correction holds this recipe off Public (ADR-0099). ⛔ OWNER-ONLY and ABSENT for every other viewer; an
+     * Whether a staff correction holds this recipe off Public (ADR-0100). ⛔ OWNER-ONLY and ABSENT for every other viewer; an
      * absent value reads as `false`.
      */
     sourceCorrected?: boolean;

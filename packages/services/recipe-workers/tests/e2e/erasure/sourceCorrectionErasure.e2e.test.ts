@@ -1,5 +1,5 @@
 /**
- * Account erasure and the source lock's two facts (migration 0092, ADR-0099), against a REAL Postgres.
+ * Account erasure and the source lock's two facts (migration 0092, ADR-0100), against a REAL Postgres.
  *
  *  1. A recipe held off Public by a staff correction is never DONATED: the donation sets `visibility = 'public'`, and the CHECK
  *     `recipes_held_is_not_public` would refuse it and roll the whole erasure back, stranding it. The held recipe is removed

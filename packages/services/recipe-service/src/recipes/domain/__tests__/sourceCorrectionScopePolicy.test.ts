@@ -1,5 +1,5 @@
 /**
- * The staff correction policy (ADR-0099, plan everyAnswerSourceLock KTD-6 and U3): a literal table over (stored answer x new answer
+ * The staff correction policy (ADR-0100, plan everyAnswerSourceLock KTD-6 and U3): a literal table over (stored answer x new answer
  * x visibility before), EVERY cell once, with the three mutations that must each fail a cell:
  * "hold on every correction", "no hold on own" and "no hold off a paid site". The visibility before never changes a cell: the
  * policy does not read it, and the test proves that by running each cell on both.

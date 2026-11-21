@@ -1,10 +1,10 @@
 /**
- * @module The kept record, v1 (ADR-0094 section 2): one versioned document per user holding the cook's page ticks,
- * cooking sessions and timers. The format is a one-way door once a client has written it, so every read goes through a
- * strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no recipe text. An
- * ingredient tick is a content key (a line's digest and ordinal, ADR-0096), a hash and a count, so no recipe text
- * either. The record stays v1: `ticks` accepts the same JSON as before (an array of strings), and a string that is
- * not a key is dropped on its own, so one old binding id never costs the document.
+ * @module The kept record, v2 (ADR-0094 section 2; ADR-0099 adds `origin`): one versioned document per user holding the
+ * cook's page ticks, cooking sessions and timers. The format is a one-way door once a client has written it, so every
+ * read goes through a strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no
+ * recipe text. An ingredient tick is a content key (a line's digest and ordinal, ADR-0096), a hash and a count, so no
+ * recipe text either. `ticks` accepts the same JSON as before (an array of strings), and a string that is not a key is
+ * dropped on its own, so one old binding id never costs the document.
  *
  * @pattern Repository — the document schema and its parse/serialize pair are the persistence boundary.
  */
@@ -13,7 +13,7 @@ import { z } from 'zod';
 
 import { ingredientTickKeysSchema } from '../../common/ingredientTickKey.js';
 
-export const KEPT_RECORD_VERSION = 1;
+export const KEPT_RECORD_VERSION = 2;
 export const KEPT_KEY_PREFIX = 'cook.v2.';
 
 /**
@@ -70,6 +70,14 @@ const timerBase = {
      * stored.
      */
     durationMs: z.int().refine(isValidTimerMs),
+    /**
+     * Where the timer came from (cooking-core `TimerOrigin`): an offer names the step line that offered it by index,
+     * never by text, and `null` is a line that is not known. Strict, so no line text can be stored.
+     */
+    origin: z.discriminatedUnion('kind', [
+        z.strictObject({ kind: z.literal('offer'), lineIndex: z.int().nonnegative().nullable() }),
+        z.strictObject({ kind: z.literal('added') }),
+    ]),
 };
 
 /**
@@ -112,13 +120,13 @@ export type PausedTimer = Extract<KeptTimer, { state: 'paused' }>;
 export type RunningTimer = Extract<KeptTimer, { state: 'running' }>;
 
 export interface KeptDocument {
-    readonly v: 1;
+    readonly v: 2;
     readonly rev: number;
     readonly entries: Readonly<Record<string, KeptEntry>>;
     readonly timers: readonly KeptTimer[];
 }
 
-export const EMPTY_KEPT_DOCUMENT: KeptDocument = { v: 1, rev: 0, entries: {}, timers: [] };
+export const EMPTY_KEPT_DOCUMENT: KeptDocument = { v: 2, rev: 0, entries: {}, timers: [] };
 
 export type ParsedKept =
     | { readonly kind: 'absent' }

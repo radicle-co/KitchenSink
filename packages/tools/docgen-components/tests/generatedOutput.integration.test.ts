@@ -32,7 +32,7 @@ import { role } from '@commise/ui/colors';
 import { typeRole } from '@commise/ui/tokens/typography';
 import { describe, expect, it } from 'vitest';
 
-import { COMPONENTS_OUT_DIR, COMPONENT_GROUPS, DESIGN_OUT_DIR, REPO_ROOT } from '../src/config.js';
+import { COMPONENT_GROUPS, GENERATED_OUTPUT_DIRS, REPO_ROOT } from '../src/config.js';
 import { discoverComponentFiles } from '../src/discovery.js';
 import { exportsAComponentName } from '../src/extract.js';
 import { buildArtifacts, readCommittedArtifacts, readGroup } from '../src/generate.js';
@@ -63,6 +63,8 @@ async function filesUnder(directory: string): Promise<readonly string[]> {
     return found.sort();
 }
 
+const byPath = (left: string, right: string): number => left.localeCompare(right);
+
 describe('the committed component + design documentation', () => {
     it('is not empty, so a generator that silently produced nothing cannot pass', () => {
         expect(artifacts.size).toBeGreaterThan(0);
@@ -87,9 +89,11 @@ describe('the committed component + design documentation', () => {
     });
 
     it('holds no file the generator does not produce, so a deleted component leaves no orphan behind', async () => {
-        const onDisk = [...(await filesUnder(COMPONENTS_OUT_DIR)), ...(await filesUnder(DESIGN_OUT_DIR))].sort();
+        const onDisk = (await Promise.all(GENERATED_OUTPUT_DIRS.map((directory) => filesUnder(directory))))
+            .flat()
+            .sort(byPath);
 
-        expect(onDisk).toEqual([...artifacts.keys()].sort());
+        expect(onDisk).toEqual([...artifacts.keys()].sort(byPath));
     });
 
     // Determinism is the precondition of the gate above: output that varies run to run makes it permanently
@@ -195,7 +199,7 @@ describe('the build spec token tables (buildSpec.md §1.4 and §1.5)', () => {
 
 describe('the output directories', () => {
     it('exist, so the docs site has something to read', async () => {
-        for (const directory of [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR]) {
+        for (const directory of GENERATED_OUTPUT_DIRS) {
             expect((await stat(join(REPO_ROOT, directory))).isDirectory()).toBe(true);
         }
     });

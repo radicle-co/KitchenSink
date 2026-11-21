@@ -1,4 +1,4 @@
-# 0099: A confirmed source answer is locked, and staff correct it through one route
+# 0100: A confirmed source answer is locked, and staff correct it through one route
 
 - **Status:** Accepted
 - **Date:** 2026-11-21

@@ -592,7 +592,7 @@ export const setRecipeVisibilityRequestSchema = z.strictObject({
 });
 
 /**
- * The grant that lets a staff caller correct a confirmed source answer (ADR-0099). Granted out of band in Clerk, like
+ * The grant that lets a staff caller correct a confirmed source answer (ADR-0100). Granted out of band in Clerk, like
  * {@link CURATOR_IMPORT_SCOPE}, and a different string on purpose: a curator is not staff.
  */
 export const SOURCE_CORRECT_SCOPE = 'recipes:source:correct';
@@ -611,7 +611,7 @@ export const sourceCorrectionAnswerSchema = z.discriminatedUnion('kind', [
 ]);
 
 /**
- * Request body of `POST /api/v1/recipes/{id}/source-correction` (ADR-0099): staff, who hold {@link SOURCE_CORRECT_SCOPE}, change
+ * Request body of `POST /api/v1/recipes/{id}/source-correction` (ADR-0100): staff, who hold {@link SOURCE_CORRECT_SCOPE}, change
  * the source answer of a recipe whose answer is confirmed. `ownerAccountId` is the owner staff confirmed with the cook by the
  * mailbox challenge of the runbook; a recipe of any other owner answers as if it did not exist. `reason` is kept for audit and is
  * never logged.
@@ -646,7 +646,7 @@ export const sourceCorrectionPreviewQuerySchema = z.object({ ownerAccountId: z.s
 export type SourceCorrectionPreviewQuery = z.infer<typeof sourceCorrectionPreviewQuerySchema>;
 
 /**
- * What staff see before they apply a correction (ADR-0099 runbook): the recipe's title, owner, current answer and visibility.
+ * What staff see before they apply a correction (ADR-0100 runbook): the recipe's title, owner, current answer and visibility.
  * `answer` is `null` for a recipe that holds none, which cannot be corrected. `citation` is the link for a web page, the cook's
  * citation for a book or a paid site, and `null` for "I wrote this" and "from another person". Read-only; the grant decides who
  * may ask, and a missing recipe and a wrong owner answer alike.

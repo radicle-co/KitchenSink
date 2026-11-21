@@ -138,7 +138,7 @@ describe('sourceLockOf, before the answer is confirmed', () => {
 });
 
 /**
- * ADR-0099, plan everyAnswerSourceLock KTD-1: once an answer is confirmed (first publish, Make public with a statement, a staff
+ * ADR-0100, plan everyAnswerSourceLock KTD-1: once an answer is confirmed (first publish, Make public with a statement, a staff
  * correction) the cook can no longer change it, except an own answer, which can only be downgraded to a book or a paid site.
  * A literal table, so a mutant that drops a clause fails one row.
  */

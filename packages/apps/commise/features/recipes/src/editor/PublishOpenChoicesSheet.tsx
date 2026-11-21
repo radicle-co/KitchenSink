@@ -50,6 +50,7 @@ export const PublishOpenChoicesSheet: FC<PublishOpenChoicesSheetProps> = ({
             title={copy.title}
             closeLabel={copy.close}
             size="content"
+            presentation="dialog"
             footer={
                 <div className="flex flex-col gap-3 nav:flex-row nav:justify-end">
                     <Button

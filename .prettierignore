@@ -73,3 +73,8 @@ packages/infra/bootstrap/src/stockTemplate.yaml
 # Byte-for-byte snapshots of the published claude.ai design canvases (docs/design/canvases/README.md). The published
 # canvas is the source of these bytes, so formatting them here would make the snapshot differ from what it records.
 docs/design/canvases/*/
+
+# The difference check's confusables map: DERIVED from Unicode's `confusables.txt` by `generateConfusables.ts`, and held
+# byte-equal to what the generator renders by `confusables.test.ts`. The generator owns these bytes, so `lint-staged`'s
+# `prettier --write` must not reflow them.
+packages/shared/difference-check/src/confusables/confusablesV1.generated.ts

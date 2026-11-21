@@ -1,5 +1,5 @@
 /**
- * Request DTO for `POST /api/v1/recipes/{id}/source-correction` (ADR-0099): a thin `nestjs-zod` adapter over the AUTHORED contract in
+ * Request DTO for `POST /api/v1/recipes/{id}/source-correction` (ADR-0100): a thin `nestjs-zod` adapter over the AUTHORED contract in
  * `../recipes.schema.ts` (CODING_STANDARDS section 15.2). The grant is not decided here: the body is valid for any caller, and the
  * policy answers `403` for one without the staff grant.
  *

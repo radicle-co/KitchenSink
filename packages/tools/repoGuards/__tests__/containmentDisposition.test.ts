@@ -254,7 +254,7 @@ const CONTAINMENT_DISPOSITION: {
             ownerScoped: 'Writes nothing: a batched nutrition read issued as POST so the id list travels in the body.',
         },
         'RecipesController.update': { reaches: ['requestVerification'] },
-        // ADR-0099: a staff correction rewrites the source answer and makes the recipe private and held. It publishes nothing and
+        // ADR-0100: a staff correction rewrites the source answer and makes the recipe private and held. It publishes nothing and
         // requests no verification; the grant (`recipes:source:correct`) is its authorization.
         'SourceCorrectionController.correctSource': {
             ownerScoped:

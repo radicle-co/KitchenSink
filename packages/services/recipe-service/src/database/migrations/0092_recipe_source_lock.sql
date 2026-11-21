@@ -1,4 +1,4 @@
--- 0092 — the persisted facts behind the source lock (P8, ADR-0099): a recipe's source answer is CONFIRMED once, a staff
+-- 0092 — the persisted facts behind the source lock (P8, ADR-0100): a recipe's source answer is CONFIRMED once, a staff
 -- correction can HOLD a recipe off Public, and every correction leaves an append-only RECORD.
 --
 -- ⛔ A COOK NEVER WRITES THESE. Once a recipe's source answer is confirmed, only Commise changes it (owner Q4, 2026-11-19,
@@ -26,7 +26,7 @@
 --    evidence row that answer needs, because 0086's deferred constraint refuses a stated source with none. Evidence only
 --    holds Public; it never opens it.
 --
--- REVERSIBLE BY A MIGRATION WHILE THE APP IS NOT LIVE, ONE-WAY AT LAUNCH (ADR-0099). EXPAND-ONLY: two columns with a default,
+-- REVERSIBLE BY A MIGRATION WHILE THE APP IS NOT LIVE, ONE-WAY AT LAUNCH (ADR-0100). EXPAND-ONLY: two columns with a default,
 -- a table, triggers, and a CHECK on the capture that accepts strictly more than before. Code from the previous release writes
 -- none of it and reads none of it. The new CHECKs hold for every existing row (nothing is held; every published row is
 -- backfilled below).
@@ -50,9 +50,9 @@ ALTER TABLE recipes
         CHECK (NOT (source_correction_hold AND visibility = 'public'));
 
 COMMENT ON COLUMN recipes.source_confirmed_at IS
-    'When the recipe''s source answer was first confirmed (the first publish, a Make public that carries a statement, or a staff correction). Never changed or cleared once set. A cook cannot change a confirmed answer (ADR-0099).';
+    'When the recipe''s source answer was first confirmed (the first publish, a Make public that carries a statement, or a staff correction). Never changed or cleared once set. A cook cannot change a confirmed answer (ADR-0100).';
 COMMENT ON COLUMN recipes.source_correction_hold IS
-    'True once a staff correction that could itself open a Public path was applied to this recipe or to the recipe it was cloned from. Never cleared. A held recipe is never public (ADR-0099).';
+    'True once a staff correction that could itself open a Public path was applied to this recipe or to the recipe it was cloned from. Never cleared. A held recipe is never public (ADR-0100).';
 
 -- 0053's trigger now also confirms the answer on the first publish. It runs BEFORE the ratchet below (triggers fire in name
 -- order: `trg_recipes_first_published_at` sorts before `trg_recipes_source_confirmed_ratchet`).
@@ -74,7 +74,7 @@ BEGIN
             WHEN TG_OP = 'INSERT' THEN coalesce(NEW.first_published_at, now())
             ELSE now()
         END;
-        -- The first publish confirms the source answer, and keeps an earlier confirmation (ADR-0099).
+        -- The first publish confirms the source answer, and keeps an earlier confirmation (ADR-0100).
         NEW.source_confirmed_at := CASE
             WHEN TG_OP = 'INSERT' THEN coalesce(NEW.source_confirmed_at, NEW.first_published_at)
             ELSE coalesce(OLD.source_confirmed_at, NEW.source_confirmed_at, NEW.first_published_at)
@@ -90,7 +90,7 @@ $$ LANGUAGE plpgsql SET search_path = pg_catalog, public, pg_temp;
 CREATE FUNCTION recipes_source_confirmed_ratchet() RETURNS trigger AS $$
 BEGIN
     IF OLD.source_confirmed_at IS NOT NULL AND NEW.source_confirmed_at IS DISTINCT FROM OLD.source_confirmed_at THEN
-        RAISE EXCEPTION 'recipes.source_confirmed_at is set once and never changed or cleared (ADR-0099)'
+        RAISE EXCEPTION 'recipes.source_confirmed_at is set once and never changed or cleared (ADR-0100)'
             USING ERRCODE = 'check_violation';
     END IF;
 
@@ -106,7 +106,7 @@ CREATE TRIGGER trg_recipes_source_confirmed_ratchet
 CREATE FUNCTION recipes_source_correction_hold_ratchet() RETURNS trigger AS $$
 BEGIN
     IF OLD.source_correction_hold AND NOT NEW.source_correction_hold THEN
-        RAISE EXCEPTION 'recipes.source_correction_hold goes from false to true and never back (ADR-0099)'
+        RAISE EXCEPTION 'recipes.source_correction_hold goes from false to true and never back (ADR-0100)'
             USING ERRCODE = 'check_violation';
     END IF;
 

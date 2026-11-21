@@ -1,5 +1,5 @@
 /**
- * The pure policy for a STAFF correction of a confirmed source answer (ADR-0099, plan everyAnswerSourceLock KTD-6).
+ * The pure policy for a STAFF correction of a confirmed source answer (ADR-0100, plan everyAnswerSourceLock KTD-6).
  *
  * DESIGN PATTERN: **Specification / Policy module**, in the shape of `ingredients/domain/correctionScopePolicy.ts` and a sibling of
  * `evaluateSourceCorrection` (what a COOK may change). It answers from its inputs alone: no DB, no principal, no I/O. It is a policy
@@ -177,7 +177,7 @@ export type SourceCorrectionPreviewVerdict =
     | { readonly kind: 'found'; readonly answer: SourceAnswerKind | undefined };
 
 /**
- * Decide the read-only preview a staff command shows before it applies (ADR-0099). The same order as
+ * Decide the read-only preview a staff command shows before it applies (ADR-0100). The same order as
  * `evaluateSourceCorrectionScope`: `forbidden` from the grants alone, then ONE `notFound` for a missing recipe and a wrong owner,
  * so the preview can never be used to learn who owns a recipe. Pure.
  *

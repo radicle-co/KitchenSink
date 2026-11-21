@@ -76,7 +76,7 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
      */
     readonly fromPerson: boolean;
     /**
-     * Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`, migration 0092, ADR-0099).
+     * Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`, migration 0092, ADR-0100).
      * REQUIRED, never defaulted. It refuses a request for Public only. It is a stored fact, so it holds at every route to Public.
      */
     readonly sourceCorrected: boolean;

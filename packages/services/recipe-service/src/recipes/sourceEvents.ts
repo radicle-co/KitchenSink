@@ -1,5 +1,5 @@
 /**
- * The three log events of the source lock (plan everyAnswerSourceLock KTD-11, ADR-0099), each written as one CloudWatch EMF line
+ * The three log events of the source lock (plan everyAnswerSourceLock KTD-11, ADR-0100), each written as one CloudWatch EMF line
  * so the house `Stage` dimension rule holds (DD29). The envelope is `common/emfMetricLine.ts`'s. What is written here is the
  * alarm contract (the namespace and the metric names) and the choice of fields.
  *
@@ -13,7 +13,7 @@ import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetr
 /** The namespace every source-lock metric is published under. */
 export const SOURCE_EVENT_NAMESPACE = 'Commise/RecipeSource';
 
-/** The metric the correction volume alarm watches (ADR-0099 runbook: more than 10 in a day is a leaked scope or a runaway script). */
+/** The metric the correction volume alarm watches (ADR-0100 runbook: more than 10 in a day is a leaked scope or a runaway script). */
 export const SOURCE_CORRECTED_METRIC = 'source.corrected';
 
 /** The routes by which a cook's write can meet the lock. */

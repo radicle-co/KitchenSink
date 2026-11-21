@@ -1,5 +1,5 @@
 /**
- * P8 (ADR-0099, plan everyAnswerSourceLock U2): a CONFIRMED source answer is locked against the cook on every route that writes a
+ * P8 (ADR-0100, plan everyAnswerSourceLock U2): a CONFIRMED source answer is locked against the cook on every route that writes a
  * statement, a staff-corrected recipe is refused Public with SOURCE_CORRECTED, a restatement writes nothing but its attestation, and
  * no log event carries an answer. Over the REAL HTTP pipeline with its dependencies MOCKED (`docs/CODING_STANDARDS.md` section
  * 7.1a): the real policy, service and gate, with the DALs as doubles. That the database sets the confirmation and holds the

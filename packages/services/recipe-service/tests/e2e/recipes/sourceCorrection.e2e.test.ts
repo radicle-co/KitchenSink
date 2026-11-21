@@ -1,5 +1,5 @@
 /**
- * The staff source correction (ADR-0099, plan everyAnswerSourceLock U3) against a real Nest app and a real PostgreSQL.
+ * The staff source correction (ADR-0100, plan everyAnswerSourceLock U3) against a real Nest app and a real PostgreSQL.
  *
  * ## What only this tier can prove
  *
@@ -85,7 +85,7 @@ function correction(answer: SourceCorrectionRequest['answer'], owner = COOK): So
     };
 }
 
-describe('a staff source correction (e2e, ADR-0099)', () => {
+describe('a staff source correction (e2e, ADR-0100)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
     let pool: pg.Pool;

@@ -724,7 +724,7 @@ describe('defaultCloneVisibility — fromPerson', () => {
     });
 });
 
-// ADR-0099: a staff correction holds the recipe off Public, at every route to Public.
+// ADR-0100: a staff correction holds the recipe off Public, at every route to Public.
 describe('the staff-correction hold (migration 0092)', () => {
     const ASK = {
         ...REAL_ENFORCING,

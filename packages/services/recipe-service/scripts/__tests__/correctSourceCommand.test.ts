@@ -1,5 +1,5 @@
 /**
- * The staff correction command (ADR-0099 runbook), against a STUBBED API. Every case reads the requests the stub saw, so a command
+ * The staff correction command (ADR-0100 runbook), against a STUBBED API. Every case reads the requests the stub saw, so a command
  * that sent before it was confirmed, sent after a decline, stopped at a failing id, or printed a wrong line fails here.
  */
 import { describe, expect, it } from 'vitest';

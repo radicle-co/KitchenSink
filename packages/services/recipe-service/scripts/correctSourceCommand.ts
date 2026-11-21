@@ -1,5 +1,5 @@
 /**
- * The staff source-correction command, as a function over its inputs (ADR-0099, `docs/runbooks/sourceCorrection.md`).
+ * The staff source-correction command, as a function over its inputs (ADR-0100, `docs/runbooks/sourceCorrection.md`).
  *
  * @pattern Command — preview every id, confirm once, then one request per id
  *

@@ -1,6 +1,6 @@
 /**
  * `npm run correct-source --workspace=@kitchensink/recipe-service -- ...` — staff correct the confirmed source answer of one or more
- * recipes (ADR-0099). Read `docs/runbooks/sourceCorrection.md` first: the owner's request is confirmed through the mailbox challenge
+ * recipes (ADR-0100). Read `docs/runbooks/sourceCorrection.md` first: the owner's request is confirmed through the mailbox challenge
  * BEFORE this runs, and the preview it prints is checked against the recipes the owner's reply names.
  *
  * The token is the staff caller's Clerk session token, read from `RECIPE_STAFF_TOKEN`. It is never taken from a flag, so it never

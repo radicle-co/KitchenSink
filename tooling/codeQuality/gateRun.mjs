@@ -5,7 +5,9 @@
 //       Finds the files this PR changes, hashes their content at <head>, restores the earlier verdicts from <ledger>
 //       (one sub-directory per earlier run, oldest first, each holding gateVerdict.json), and writes what to judge:
 //       plan.json, judgeBrief.md and changes.diff in <out>. Prints `mode=none|reuse|judge`. A deleted code or test file
-//       is judged too. --rejudge-blocked (a `gate-rerun`) judges a file whose latest verdict is BLOCK again.
+//       is judged too. The brief also lists the merge-base copy of every plan or tasks file the whole PR changes, and
+//       the judged files the checkout holds at the base version. --rejudge-blocked (a `gate-rerun`) judges a file
+//       whose latest verdict is BLOCK again.
 //   node gateRun.mjs record --out <dir> --sha <head> [--judge <file holding the judge's structured output>]
 //       Merges the judge's verdict for the judged files with the carried ones, writes gateVerdict.json (the `gate-<sha>`
 //       artifact) and gateReview.md, and prints `state=` and `description=` for the commit status.
@@ -13,8 +15,8 @@
 // @pattern Adapter — the only file here that touches git and the filesystem for the GATE; the rules are in the Policies.
 // @sideEffect Reads git and the ledger directory, writes into <out>, prints to stdout, sets the exit code.
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
 
 import {
     buildRecord,
@@ -26,7 +28,7 @@ import {
     planRun,
     renderReview,
 } from './gateLedger.mjs';
-import { isDocFile, judgeMode, renderBrief, scopeFindings } from './gateScope.mjs';
+import { isDocFile, judgeMode, renderBrief, restoredFilesOf, scopeFindings, wrapUpSourcesOf } from './gateScope.mjs';
 
 const [command, ...rest] = process.argv.slice(2);
 const arg = (name) => (rest.includes(name) ? rest[rest.indexOf(name) + 1] : undefined);
@@ -65,6 +67,26 @@ function blobIds(repo, head, paths) {
     return ids;
 }
 
+/**
+ * The base copy of every plan or tasks file the whole PR changes or deletes, written under <out>/base/<path>. A path is
+ * absent from the merge base only when `ls-tree` succeeds with no output (`git merge-base` has already failed on a bad
+ * base); a failing git command throws, so the plan
+ * step fails and GATE posts a failure instead of calling a file new because git broke.
+ */
+function baseCopies(repo, mergeBase, out, sources, removed) {
+    const atBase = blobIds(repo, mergeBase, sources);
+    return sources.map((path) => {
+        const gone = removed.includes(path);
+        if (!atBase.has(path)) {
+            return { path, basePath: null };
+        }
+        const basePath = join(out, 'base', path);
+        mkdirSync(dirname(basePath), { recursive: true });
+        writeFileSync(basePath, git(repo, ['show', `${mergeBase}:${path}`]));
+        return { path, basePath, deleted: gone };
+    });
+}
+
 function loadRecords(ledgerDir) {
     if (!existsSync(ledgerDir)) {
         return [];
@@ -92,9 +114,10 @@ function plan() {
     const changed = new Map(names.filter((n) => ids.has(n)).map((n) => [n, ids.get(n)]));
     // A deleted code or test file is judged too (what its deletion removes); a deleted document is not. A deleted
     // file has no content, so its verdict is keyed on a marker and a rerun at the same head still reuses it.
-    const deleted = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', mergeBase, head])
+    const removed = git(repo, ['diff', '--name-only', '--no-renames', '--diff-filter=D', '-z', mergeBase, head])
         .split('\0')
-        .filter((n) => n !== '' && !isDocFile(n));
+        .filter(Boolean);
+    const deleted = removed.filter((n) => !isDocFile(n));
     for (const path of deleted) {
         changed.set(path, DELETED);
     }
@@ -117,6 +140,8 @@ function plan() {
                 files: run.toJudge,
                 deleted: run.toJudge.filter((path) => changed.get(path) === DELETED),
                 diffPath,
+                baseCopies: baseCopies(repo, mergeBase, out, wrapUpSourcesOf([...names, ...removed]), removed),
+                restored: restoredFilesOf(run.toJudge),
             }),
         );
     }

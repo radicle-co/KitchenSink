@@ -1,5 +1,5 @@
 /**
- * The staff source correction (ADR-0099, plan everyAnswerSourceLock U3), over a fake DAL. What a database proves (the clone walk
+ * The staff source correction (ADR-0100, plan everyAnswerSourceLock U3), over a fake DAL. What a database proves (the clone walk
  * across rows, the ratchet, the CHECK) is the LOCAL e2e tier's (`sourceCorrection.e2e.test.ts`); what is proved HERE is the order
  * of the work, what is written for each verdict, and what is logged.
  *

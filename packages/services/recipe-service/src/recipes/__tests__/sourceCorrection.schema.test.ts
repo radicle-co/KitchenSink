@@ -1,5 +1,5 @@
 /**
- * The wire of the staff correction (ADR-0099): the five answers WITHOUT a wording, a strict body, a bounded reason, one ground.
+ * The wire of the staff correction (ADR-0100): the five answers WITHOUT a wording, a strict body, a bounded reason, one ground.
  * Each refusal case changes ONE thing from a body that parses, so a schema that stopped refusing it fails exactly that case.
  */
 import { describe, expect, it } from 'vitest';

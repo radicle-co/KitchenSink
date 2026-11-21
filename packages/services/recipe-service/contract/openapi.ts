@@ -608,7 +608,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
     '/api/v1/recipes/{id}/source-correction': {
         get: {
             operationId: 'previewRecipeSourceCorrection',
-            summary: 'Staff: read what a source correction would change (ADR-0099 runbook preview).',
+            summary: 'Staff: read what a source correction would change (ADR-0100 runbook preview).',
             description:
                 'Requires the staff grant `recipes:source:correct`. Read-only and uncached: it answers the recipe’s title, owner, current source answer and visibility so staff can check them against the owner’s confirmation before they apply. A missing recipe and a recipe of another owner answer the same `404`.',
             parameters: [
@@ -633,7 +633,7 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
         },
         post: {
             operationId: 'correctRecipeSource',
-            summary: 'Staff: correct the confirmed source answer of a recipe (ADR-0099).',
+            summary: 'Staff: correct the confirmed source answer of a recipe (ADR-0100).',
             description:
                 'Requires the staff grant `recipes:source:correct`. The recipe becomes `private` and is held off Public when the new answer is `authored` or `fromPerson`, or the old answer was a paid site; the owner’s clones of it become private and held. Stating the answer the recipe already holds answers `unchanged` and writes nothing. A missing recipe and a recipe of another owner answer the same `404`.',
             parameters: [uuidPathParam('id', 'The recipe id.')],

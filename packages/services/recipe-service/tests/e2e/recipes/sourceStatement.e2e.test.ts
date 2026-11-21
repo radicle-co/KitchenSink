@@ -254,7 +254,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
     // statement after the first publish. The statement stays editable; the evidence row stays and is never cleared.
     /**
-     * Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE batch 3). They asserted that a published recipe's source could be cleared,
+     * Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 3). They asserted that a published recipe's source could be cleared,
      * and that "I wrote this" could become a web link, after the first publish. The first publish confirms the answer (migration
      * 0092), so only Commise changes a confirmed one; a confirmed own answer can only be downgraded to a book or a paid site.
      */

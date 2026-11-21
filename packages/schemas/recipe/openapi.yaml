@@ -904,7 +904,7 @@ paths:
   /api/v1/recipes/{id}/source-correction:
     get:
       operationId: previewRecipeSourceCorrection
-      summary: "Staff: read what a source correction would change (ADR-0099 runbook preview)."
+      summary: "Staff: read what a source correction would change (ADR-0100 runbook preview)."
       security:
         - clerkSessionToken: []
       responses:
@@ -992,7 +992,7 @@ paths:
             maxLength: 255
     post:
       operationId: correctRecipeSource
-      summary: "Staff: correct the confirmed source answer of a recipe (ADR-0099)."
+      summary: "Staff: correct the confirmed source answer of a recipe (ADR-0100)."
       security:
         - clerkSessionToken: []
       responses:

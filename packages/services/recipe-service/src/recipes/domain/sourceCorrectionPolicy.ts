@@ -118,7 +118,7 @@ export function holdsAlready(provenance: ResolvedProvenance, stored: StoredSourc
 export type SourceWriteRoute = 'create' | 'update' | 'setVisibility';
 
 /**
- * Whether a request CONFIRMS the source answer (KTD-3, ADR-0099): the one act the database cannot see. Only Make public with a
+ * Whether a request CONFIRMS the source answer (KTD-3, ADR-0100): the one act the database cannot see. Only Make public with a
  * statement does. A PATCH or a create carrying a statement never confirms: the editor's draft checkpoints state the source
  * before the cook has decided, and a first publish confirms it in the database anyway (migration 0092). Pure.
  *
@@ -167,7 +167,7 @@ export function evaluateSourceCorrection(input: {
 
     // 2. A write that changes nothing is `unchanged` BEFORE the lock, for every kind: it writes nothing, so it can never break a
     // lock. That is what lets a resend (a lost response, a retry after a 409) through, and "from another person" over itself.
-    // An unusable statement never stops here, so it still meets the lock. KTD-2 (ADR-0099): a restatement is compared by kind and
+    // An unusable statement never stops here, so it still meets the lock. KTD-2 (ADR-0100): a restatement is compared by kind and
     // citation, so the same link (by its source key), book title or paid-site citation stated again is such a write.
     if (statement !== null && restatesStored(statement, stored)) {
         return { kind: 'unchanged' };
@@ -184,7 +184,7 @@ export function evaluateSourceCorrection(input: {
     }
 
     // 3. ONE lock rule, shared with the editor (`sourceLockOf`, recipe-core): not stated by the cook, inherited by a clone, "from
-    // another person", an unknown kind, or a confirmed answer (ADR-0099). A confirmed own answer can only be downgraded to a book or
+    // another person", an unknown kind, or a confirmed answer (ADR-0100). A confirmed own answer can only be downgraded to a book or
     // a paid site. The first publish is not part of it.
     // The one move the lock lets through over a past "from another person" attestation: stating it again.
     const restatesFromPerson = stored.attestedFromPerson && statement?.kind === 'fromPerson';

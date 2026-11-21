@@ -212,7 +212,7 @@ describe('the statement rule (e2e)', () => {
 
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
     // statement after the first publish. The cook may change it, and the evidence still keeps the recipe out of Public.
-    /** Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE batch 3): a confirmed web source is relabelled by Commise only. */
+    /** Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 3): a confirmed web source is relabelled by Commise only. */
     it('after the first publish, a confirmed web source cannot become "I wrote this": 403 SOURCE_LOCKED, and Public is still refused', async () => {
         const { id, version } = await create({ visibility: 'private', statement: WEB });
 

@@ -688,7 +688,7 @@ describe('PATCH /api/v1/recipes/{id}', () => {
 
     // Rewritten by the 2026-11-15 owner ruling: this case refused a changed statement after the first publish. The statement
     // is editable now, so the lock is proved on a source a clone inherited, and the change itself is recorded.
-    /** Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE batch 2): the first publish confirms an own answer, so it cannot become "from another person". */
+    /** Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2): the first publish confirms an own answer, so it cannot become "from another person". */
     it('refuses to change a confirmed own answer to "from another person" and records nothing (KTD-1, AE1)', async () => {
         stored = rowOf({ statementKind: 'authored' });
 

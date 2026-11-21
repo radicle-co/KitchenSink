@@ -412,7 +412,7 @@ const SOURCE_CORRECTED_REASON = invalidVisibilityReasonSchema.enum.SOURCE_CORREC
 
 /**
  * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CORRECTED'` (→ 400): a staff correction holds the recipe off Public
- * (ADR-0099). The same shape as {@link fromPersonPrivateOnly}: no new published code.
+ * (ADR-0100). The same shape as {@link fromPersonPrivateOnly}: no new published code.
  *
  * @param reason - The policy's deny-reason, surfaced as the error message.
  * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.

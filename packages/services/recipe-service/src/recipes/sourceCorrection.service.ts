@@ -1,5 +1,5 @@
 /**
- * `SourceCorrectionService` — the staff correction of a confirmed source answer (ADR-0099, plan everyAnswerSourceLock KTD-6).
+ * `SourceCorrectionService` — the staff correction of a confirmed source answer (ADR-0100, plan everyAnswerSourceLock KTD-6).
  *
  * @pattern Command — one correction is one transaction that commits or rolls back whole
  * @pattern Specification — `evaluateSourceCorrectionScope` decides; this class only orders the work and does the I/O
@@ -143,7 +143,7 @@ export class SourceCorrectionService {
     }
 
     /**
-     * What staff see before they apply a correction: the recipe's title, owner, answer and visibility (ADR-0099 runbook).
+     * What staff see before they apply a correction: the recipe's title, owner, answer and visibility (ADR-0100 runbook).
      *
      * Read-only and unlocked: it is display, and `correct` re-decides on the locked row. The same order as `correct`: the grant
      * first, with no read; then ONE answer for a missing recipe and a wrong owner. Nothing is logged on success, and no refusal

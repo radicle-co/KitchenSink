@@ -565,7 +565,7 @@ describe('GR-017 §17-c — every MUTATING request body rejects unknown keys', (
             'listCollectionsQuerySchema',
             'listRecipesQuerySchema',
             'recipeSearchQuerySchema',
-            // ADR-0099: the owner staff confirmed on the correction preview — a READ query like the others, open for the same reason.
+            // ADR-0100: the owner staff confirmed on the correction preview — a READ query like the others, open for the same reason.
             'sourceCorrectionPreviewQuerySchema',
         ]);
 

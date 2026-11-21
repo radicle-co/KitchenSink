@@ -136,7 +136,7 @@ export const recipes = pgTable(
         // `recipes_first_published_at_ratchet` trigger (0053 migration) sets it on the first publish and refuses to
         // change it after, for every writer, so a demotion cannot reopen in-place overwrites.
         firstPublishedAt: timestamp('first_published_at', { withTimezone: true }),
-        // When the recipe's source answer was first confirmed (0092, ADR-0099): the first publish (set by the 0053 trigger), a Make
+        // When the recipe's source answer was first confirmed (0092, ADR-0100): the first publish (set by the 0053 trigger), a Make
         // public that carries a statement, or a staff correction. Once set it never changes: the
         // `recipes_source_confirmed_ratchet` trigger refuses it. A cook cannot change a confirmed answer.
         sourceConfirmedAt: timestamp('source_confirmed_at', { withTimezone: true }),

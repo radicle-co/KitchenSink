@@ -617,7 +617,7 @@ describe('evaluateSourceCorrection — a write that changes nothing is unchanged
 });
 
 /**
- * ADR-0099, KTD-1 and KTD-2: once the answer is confirmed the cook can no longer change it. Every cell once, the cell the oracle
+ * ADR-0100, KTD-1 and KTD-2: once the answer is confirmed the cook can no longer change it. Every cell once, the cell the oracle
  * names: a confirmed own answer can only be downgraded to a book or a paid site, every other confirmed answer refuses every move
  * except saying the same answer again (`unchanged`, the same kind and the same citation).
  */

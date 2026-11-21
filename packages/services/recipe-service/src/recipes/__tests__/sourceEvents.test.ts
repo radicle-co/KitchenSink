@@ -1,5 +1,5 @@
 /**
- * The source lock's three log events (plan everyAnswerSourceLock KTD-11, ADR-0099): each is one EMF line dimensioned by `Stage`
+ * The source lock's three log events (plan everyAnswerSourceLock KTD-11, ADR-0100): each is one EMF line dimensioned by `Stage`
  * alone, and none carries an answer, a citation, a link or a reason (qse Q-3).
  */
 import { describe, expect, it, vi } from 'vitest';

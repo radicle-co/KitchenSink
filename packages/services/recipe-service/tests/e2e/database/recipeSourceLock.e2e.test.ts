@@ -1,6 +1,6 @@
 /**
  * Migration 0092 — the persisted facts behind the source lock (P8, plan everyAnswerSourceLock U1), asserted against a real
- * PostgreSQL as the SERVICE role (ADR-0039, ADR-0099).
+ * PostgreSQL as the SERVICE role (ADR-0039, ADR-0100).
  *
  * ⛔ WHY THIS TIER IS MANDATORY: a unit test cannot observe a trigger that did not fire, a CHECK the migration never added or
  * a cascade the guard swallowed. What is asserted:

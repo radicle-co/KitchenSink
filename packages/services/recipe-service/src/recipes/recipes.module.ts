@@ -132,7 +132,7 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
         // The append-only record of every statement and Public confirmation (migration 0088). INSERT only, always in the
         // write's own transaction, so it holds no client of its own.
         RecipeStatementAttestationsDal,
-        // ADR-0099 — the staff correction: stateless writes over the caller's transaction, and the Command that orders them.
+        // ADR-0100 — the staff correction: stateless writes over the caller's transaction, and the Command that orders them.
         {
             provide: SourceCorrectionsDal,
             inject: [DrizzleProvider],

@@ -120,7 +120,7 @@ export interface RecipeServiceStackProps extends StackProps {
 }
 
 /**
- * The EMF namespace and metric the source-correction volume alarm watches (ADR-0099, plan everyAnswerSourceLock KTD-11).
+ * The EMF namespace and metric the source-correction volume alarm watches (ADR-0100, plan everyAnswerSourceLock KTD-11).
  *
  * ⛔ MUST EQUAL `SOURCE_EVENT_NAMESPACE` and `SOURCE_CORRECTED_METRIC` in `src/recipes/sourceEvents.ts`: the same knowledge on either
  * side of the infra boundary. The alarm extracts by exact namespace, dimension and metric name, so a divergence fails nothing at
@@ -644,7 +644,7 @@ export class RecipeServiceStack extends Stack {
 
         this.serviceUrl = `https://${serviceDomain}`;
 
-        // ── Alarm topic and the source-correction volume alarm (ADR-0099 / ADR-0062) ─────────────────────
+        // ── Alarm topic and the source-correction volume alarm (ADR-0100 / ADR-0062) ─────────────────────
         const alarmTopic = new sns.Topic(this, 'RecipeServiceAlarmTopic', {
             enforceSSL: true,
             displayName: `Recipe service alarms (${stage})`,

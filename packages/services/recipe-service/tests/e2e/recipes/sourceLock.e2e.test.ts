@@ -1,5 +1,5 @@
 /**
- * The source lock (ADR-0099, plan everyAnswerSourceLock U2) against a real Nest app and a real PostgreSQL.
+ * The source lock (ADR-0100, plan everyAnswerSourceLock U2) against a real Nest app and a real PostgreSQL.
  *
  * ## What only this tier can prove
  *
@@ -63,7 +63,7 @@ const BOOK = {
     wording: { version: 'statementBook.v1', locale: 'en' },
 } as const;
 
-describe('a confirmed source answer (e2e, ADR-0099)', () => {
+describe('a confirmed source answer (e2e, ADR-0100)', () => {
     let booted: BootedRecipeApp;
     let baseUrl: string;
     let pool: pg.Pool;

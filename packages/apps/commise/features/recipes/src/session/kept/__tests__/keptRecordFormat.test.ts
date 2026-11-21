@@ -123,10 +123,10 @@ const FIELD_SOURCES = {
 } as const;
 
 /**
- * The reducer holds these and the record does not: `name` has no stored label (ADR-0094 section 2) and `undo` is held
+ * The reducer holds these and the record does not: `label` is not stored (ADR-0094 section 2) and `undo` is held
  * in memory.
  */
-const NOT_STORED = ['name', 'undo'] as const;
+const NOT_STORED = ['label', 'undo'] as const;
 
 /** The four states of a timer, in the order the record lists them. */
 const STATES = ['running', 'paused', 'ringing', 'endedAway'] as const;

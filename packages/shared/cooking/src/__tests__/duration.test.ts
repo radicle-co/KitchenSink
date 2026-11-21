@@ -96,9 +96,23 @@ describe('readDuration: a repeat rate offers the time, because the time is the r
         ['Fry 2 MINUTES PER SIDE', 120],
         ['Fry 3 minutes per   side', 180],
         ['Fry 3 minutes per side of the steak', 180],
-    ])('%s gives %i s', (line, seconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+    ])('%s gives %i s, marked as a time that repeats', (line, seconds) => {
+        expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
         expect(offerSecondsOf({ line })).toBe(seconds);
+    });
+
+    it('keeps the high end of a range and marks it too', () => {
+        expect(readDuration('Fry 3 to 4 minutes per side')).toStrictEqual({
+            kind: 'one',
+            seconds: 180,
+            highSeconds: 240,
+            perRepeat: true,
+        });
+    });
+
+    it('marks no other reading: a plain time and a time before the repeat words carry no mark', () => {
+        expect(readDuration('Bake 20 minutes, then fry per side')).toStrictEqual({ kind: 'one', seconds: 1_200 });
+        expect(readDuration('Fry per side 3 minutes')).toStrictEqual({ kind: 'one', seconds: 180 });
     });
 
     it.each([

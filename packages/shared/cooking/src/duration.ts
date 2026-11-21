@@ -169,7 +169,11 @@ export function readDuration(line: string): DurationReading {
     // Only a span that is exactly one range carries its high end.
     const [only] = amounts;
 
-    return oneReading(total, amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined);
+    return oneReading(
+        total,
+        amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined,
+        REPEAT_RATE_AFTER.test(after),
+    );
 }
 
 /** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */
@@ -210,6 +214,8 @@ export interface Wait {
     readonly highSeconds?: number;
     /** `false` for a time over the longest timer ("marinate 48 hours"): a wait that counts, with no timer. */
     readonly offers: boolean;
+    /** Set when the time is for each repeat ("10 minutes each side"): the step takes it more than once. */
+    readonly perRepeat?: true;
 }
 
 /**
@@ -235,10 +241,11 @@ function waitOf(reading: DurationReading): Wait | undefined {
     }
 
     const offers = isValidTimerMs(reading.seconds * 1_000);
+    const mark = reading.perRepeat === true ? ({ perRepeat: true } as const) : {};
 
     return reading.highSeconds === undefined
-        ? { seconds: reading.seconds, offers }
-        : { seconds: reading.seconds, highSeconds: reading.highSeconds, offers };
+        ? { seconds: reading.seconds, offers, ...mark }
+        : { seconds: reading.seconds, highSeconds: reading.highSeconds, offers, ...mark };
 }
 
 /**

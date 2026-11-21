@@ -288,5 +288,5 @@ export function readWordDuration(line: string): DurationReading {
         return { kind: 'none' };
     }
 
-    return oneReading(only.seconds, only.highSeconds);
+    return oneReading(only.seconds, only.highSeconds, startsWithPhrase(REPEAT_RATE_PHRASES, tokens, only.end));
 }

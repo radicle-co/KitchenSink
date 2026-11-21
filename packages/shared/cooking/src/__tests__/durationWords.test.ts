@@ -177,8 +177,25 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
         ['Fry a minute each side', 60],
         ['Fry an hour per batch', 3_600],
         ['Fry a minute per side', 60],
-    ])('%s gives one duration of %i s', (line, seconds) => {
-        expect(readWordDuration(line)).toEqual({ kind: 'one', seconds });
+    ])('%s gives one duration of %i s, marked as a time that repeats', (line, seconds) => {
+        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
+    });
+
+    it('keeps the high end of a range and marks it too', () => {
+        expect(readWordDuration('Fry three to four minutes per side')).toStrictEqual({
+            kind: 'one',
+            seconds: 180,
+            highSeconds: 240,
+            perRepeat: true,
+        });
+    });
+
+    it('marks no other reading: a plain time and a time before the repeat words carry no mark', () => {
+        expect(readWordDuration('Bake twenty minutes, then fry per side')).toStrictEqual({
+            kind: 'one',
+            seconds: 1_200,
+        });
+        expect(readWordDuration('Fry per side three minutes')).toStrictEqual({ kind: 'one', seconds: 180 });
     });
 
     it.each([

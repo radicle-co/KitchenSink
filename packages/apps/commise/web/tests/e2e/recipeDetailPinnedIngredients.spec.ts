@@ -1,9 +1,10 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { signInWithTicket } from './utils/auth';
 import { route } from './utils/basePath';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { applyTextScale } from './utils/textScale';
 
 /**
  * Owner ruling R1 (`docs/design/uiRefreshWorkshop5/ownerFeedback.md`) and the phone gutter, on the real recipe page:
@@ -371,6 +372,63 @@ for (const width of [430, 375]) {
         });
     });
 }
+
+// #380 (designer D75, rule B): the bar and the open panel together end at half the window, at the largest text, and
+// the rows scroll inside the panel while the bar stays put. The 13 rows at 200% text are taller than the 320 px half of
+// a 640 px window.
+/**
+ * The box of the dialog frame's last child (the open panel; the bar copy is its first) once its animations have
+ * finished. Throws when there is none, so a missing box never passes.
+ */
+async function settledPanelBox(frame: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
+    return frame.evaluate(async (element) => {
+        const panel = element.lastElementChild;
+
+        if (panel === null) {
+            throw new Error('the dialog frame has no panel');
+        }
+
+        await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+        const { x, y, width, height } = panel.getBoundingClientRect();
+
+        return { x, y, width, height };
+    });
+}
+
+test.describe('recipe page at 390 x 640 with 200% text', () => {
+    test.use({ viewport: { width: 390, height: 640 } });
+
+    test('the open bar and panel end at half the window, and the rows scroll inside the panel', async ({ page }) => {
+        await openRecipe(page);
+        await applyTextScale(page, 2);
+        await scrollIntoSteps(page);
+        const bar = page.getByRole('button', { name: /Show list\.$/u });
+
+        await expect(bar).toBeInViewport();
+        await bar.click();
+
+        const frame = page.getByRole('dialog', { name: 'Ingredients for 4' });
+
+        await expect(frame.getByRole('checkbox').first()).toBeVisible();
+        const opened = await settledPanelBox(frame);
+
+        // Only the dialog's own bar copy shows: the trigger beneath it (first in the page, and hidden from the
+        // tree by Radix) is transparent, so none of it peeks out below the copy.
+        await expect(page.getByRole('button', { name: /Hide list\.$/u, includeHidden: true }).first()).toHaveCSS(
+            'opacity',
+            '0',
+        );
+
+        expect(opened.y + opened.height, 'the bar and panel end at half the window').toBeLessThanOrEqual(320);
+
+        // The last row is under the cap until the panel scrolls: scrolling it in moves neither the panel nor the bar.
+        await frame.getByRole('checkbox').last().scrollIntoViewIfNeeded();
+        await expect(frame.getByRole('checkbox').last()).toBeInViewport();
+
+        expect(await settledPanelBox(frame), 'the panel did not move').toEqual(opened);
+        await expect(page.getByRole('button', { name: /Hide list\.$/u })).toBeInViewport();
+    });
+});
 
 test.describe('recipe page at 1280 px', () => {
     test.use({ viewport: { width: 1280, height: 800 } });

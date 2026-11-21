@@ -12,8 +12,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NEVER_LOST, type DeviceAdapter, type LanePlatform, type LaneSpec } from '../laneTypes.js';
 import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
-import { spawnRunner } from '../laneProcess.js';
+import { spawnRunner, type LaneChild } from '../laneProcess.js';
 import type { SharedServices } from '../sharedServices.js';
+import type { StopSignal } from '../stopGroups.js';
 
 const dirs: string[] = [];
 
@@ -73,6 +74,43 @@ function fakeAdapter(
             events.push(`teardownHost ${platform}`);
 
             return Promise.resolve();
+        },
+    };
+}
+
+/** The adapter with a preflight that records itself and fails with `failure` when one is given. */
+function withPreflight(events: string[], adapter: DeviceAdapter, failure?: Error): DeviceAdapter {
+    return {
+        ...adapter,
+        preflight: () => {
+            events.push(`preflight ${adapter.platform}`);
+
+            return failure === undefined ? Promise.resolve() : Promise.reject(failure);
+        },
+    };
+}
+
+/**
+ * A lane child the test controls. `finish` ends its `exit`; `onStart` runs when it is made and `onStop` on each signal.
+ * It reports no group unless `running` says otherwise.
+ */
+function fakeLaneChild(behaviour: {
+    readonly running?: () => boolean;
+    readonly onStart?: () => void;
+    readonly onStop?: (signal: StopSignal, finish: (code: number) => void) => void;
+}): LaneChild {
+    let finish: (code: number) => void = () => undefined;
+    const exit = new Promise<number>((resolve) => {
+        finish = resolve;
+    });
+    behaviour.onStart?.();
+
+    return {
+        pid: 0,
+        exit,
+        running: behaviour.running ?? (() => false),
+        stop: (signal = 'SIGTERM') => {
+            behaviour.onStop?.(signal, finish);
         },
     };
 }
@@ -730,7 +768,7 @@ describe('runLaneRun — the green stamp settles after the check', () => {
 
 describe('runLaneRun — a lost tunnel', () => {
     it('stops the lanes, still tears the host down, and fails with the loss when a tunnel is lost', async () => {
-        let loseTunnel: (error: Error) => void = () => undefined;
+        let loseTunnel!: (error: Error) => void;
         const lost = new Promise<Error>((resolve) => {
             loseTunnel = resolve;
         });
@@ -741,23 +779,17 @@ describe('runLaneRun — a lost tunnel', () => {
                 adapterFor: (platform) => fakeAdapter(events, platform, lost),
                 // A lane that runs until it is stopped, as a real flow run does.
                 spawnLane: (lane) => {
-                    let finish: (code: number) => void = () => undefined;
-                    const exit = new Promise<number>((resolve) => {
-                        finish = resolve;
-                    });
-                    setTimeout(() => {
-                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
-                    }, 20);
-
-                    return {
-                        pid: 0,
-                        running: () => false,
-                        exit,
-                        stop: () => {
+                    return fakeLaneChild({
+                        onStart: () => {
+                            setTimeout(() => {
+                                loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                            }, 20);
+                        },
+                        onStop: (_signal, finish) => {
                             events.push(`stopLane ${lane.platform}-${lane.index}`);
                             finish(143);
                         },
-                    };
+                    });
                 },
             },
             { platforms: ['android'], requested: 1, selection: 'all' },
@@ -770,7 +802,7 @@ describe('runLaneRun — a lost tunnel', () => {
         expect(events).toContain('unlock');
     });
     it('waits for the stopped lanes to exit before it stops the device', async () => {
-        let loseTunnel: (error: Error) => void = () => undefined;
+        let loseTunnel!: (error: Error) => void;
         const lost = new Promise<Error>((resolve) => {
             loseTunnel = resolve;
         });
@@ -780,26 +812,20 @@ describe('runLaneRun — a lost tunnel', () => {
                 ...deps,
                 adapterFor: (platform) => fakeAdapter(events, platform, lost),
                 spawnLane: () => {
-                    let finish: (code: number) => void = () => undefined;
-                    const exit = new Promise<number>((resolve) => {
-                        finish = resolve;
-                    });
-                    setTimeout(() => {
-                        loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
-                    }, 20);
-
-                    return {
-                        pid: 0,
-                        running: () => false,
-                        exit,
+                    return fakeLaneChild({
+                        onStart: () => {
+                            setTimeout(() => {
+                                loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                            }, 20);
+                        },
                         // A real runner takes time to die: it exits after the stop, not with it.
-                        stop: () => {
+                        onStop: (_signal, finish) => {
                             setTimeout(() => {
                                 events.push('laneExited');
                                 finish(143);
                             }, 30);
                         },
-                    };
+                    });
                 },
             },
             { platforms: ['android'], requested: 1, selection: 'all' },
@@ -883,20 +909,13 @@ describe('runLaneRun — a lost tunnel', () => {
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: (lane) => {
                         events.push(`spawnLane ${lane.platform}-${lane.index}`);
-                        let finish: (code: number) => void = () => undefined;
-                        const exit = new Promise<number>((resolve) => {
-                            finish = resolve;
-                        });
 
-                        return {
-                            pid: 0,
-                            running: () => false,
-                            exit,
-                            stop: () => {
+                        return fakeLaneChild({
+                            onStop: (_signal, finish) => {
                                 events.push(`stopLane ${lane.platform}-${lane.index}`);
                                 finish(143);
                             },
-                        };
+                        });
                     },
                 },
                 { platforms: ['android'], requested: 2, selection: 'all' },
@@ -922,24 +941,16 @@ describe('runLaneRun — a lost tunnel', () => {
                     stopGraceMs: 30,
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: (lane) => {
-                        let finish: (code: number) => void = () => undefined;
-                        const exit = new Promise<number>((resolve) => {
-                            finish = resolve;
-                        });
-
-                        return {
-                            pid: 0,
-                            running: () => false,
-                            exit,
+                        return fakeLaneChild({
                             // SIGTERM is ignored, as a runner stuck in a child process would.
-                            stop: (signal) => {
-                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal ?? 'SIGTERM'}`);
+                            onStop: (signal, finish) => {
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
 
                                 if (signal === 'SIGKILL') {
                                     finish(137);
                                 }
                             },
-                        };
+                        });
                     },
                 },
                 { platforms: ['android'], requested: 1, selection: 'all' },
@@ -967,25 +978,19 @@ describe('runLaneRun — a lost tunnel', () => {
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: (lane) => {
                         let groupAlive = true;
-                        let finish: (code: number) => void = () => undefined;
-                        const exit = new Promise<number>((resolve) => {
-                            finish = resolve;
-                        });
 
-                        return {
-                            pid: 0,
+                        return fakeLaneChild({
                             // The runner (bash) dies on SIGTERM at once; a child in its group lives on.
-                            exit,
                             running: () => groupAlive,
-                            stop: (signal) => {
-                                events.push(`stopLane ${lane.platform}-${lane.index} ${signal ?? 'SIGTERM'}`);
+                            onStop: (signal, finish) => {
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
                                 finish(143);
 
                                 if (signal === 'SIGKILL') {
                                     groupAlive = false;
                                 }
                             },
-                        };
+                        });
                     },
                 },
                 { platforms: ['android'], requested: 1, selection: 'all' },
@@ -998,10 +1003,15 @@ describe('runLaneRun — a lost tunnel', () => {
 
         it('kills the lane whose group stays even when another lane is already gone, and waits for it', async () => {
             const { events, deps } = harness({ staggerMs: 0 });
+            // The loss comes after the second lane started, never on a timer: on a slow machine a timer fires before
+            // that lane is spawned, and the case then has no lane 2 to kill.
+            let secondLaneStarted!: () => void;
             const lost = new Promise<Error>((resolve) => {
-                setTimeout(() => {
-                    resolve(LOSS);
-                }, 20);
+                secondLaneStarted = () => {
+                    setTimeout(() => {
+                        resolve(LOSS);
+                    }, 20);
+                };
             });
             const run = runLaneRun(
                 {
@@ -1010,17 +1020,15 @@ describe('runLaneRun — a lost tunnel', () => {
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: (lane) => {
                         let groupAlive = lane.index === 2;
-                        let finish: (code: number) => void = () => undefined;
-                        const exit = new Promise<number>((resolve) => {
-                            finish = resolve;
-                        });
 
-                        return {
-                            pid: 0,
-                            exit,
+                        if (lane.index === 2) {
+                            secondLaneStarted();
+                        }
+
+                        return fakeLaneChild({
                             running: () => groupAlive,
-                            stop: (signal) => {
-                                events.push(`stopLane ${lane.index} ${signal ?? 'SIGTERM'}`);
+                            onStop: (signal, finish) => {
+                                events.push(`stopLane ${String(lane.index)} ${signal}`);
                                 finish(143);
 
                                 if (signal === 'SIGKILL' && groupAlive) {
@@ -1031,7 +1039,7 @@ describe('runLaneRun — a lost tunnel', () => {
                                     }, 40);
                                 }
                             },
-                        };
+                        });
                     },
                 },
                 { platforms: ['android'], requested: 2, selection: 'all' },
@@ -1041,6 +1049,37 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events).toContain('stopLane 2 SIGKILL');
             expect(events.indexOf('laneGone 2')).toBeGreaterThan(-1);
             expect(events.indexOf('laneGone 2')).toBeLessThan(events.indexOf('stopDevice android-2'));
+        });
+
+        it('stops waiting for a lane that survives SIGKILL, says so, and still tears the device down', async () => {
+            const { events, deps } = harness({});
+            const lost = new Promise<Error>((resolve) => {
+                setTimeout(() => {
+                    resolve(LOSS);
+                }, 20);
+            });
+            const run = runLaneRun(
+                {
+                    ...deps,
+                    stopGraceMs: 20,
+                    stopKillWaitMs: 40,
+                    adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                    // A process in uninterruptible sleep: no signal ends it.
+                    spawnLane: (lane) =>
+                        fakeLaneChild({
+                            running: () => true,
+                            onStop: (signal) => {
+                                events.push(`stopLane ${lane.platform}-${String(lane.index)} ${signal}`);
+                            },
+                        }),
+                },
+                { platforms: ['android'], requested: 1, selection: 'all' },
+            );
+
+            await expect(run).rejects.toThrow('during the run');
+            expect(events).toContain('stopLane android-1 SIGKILL');
+            expect(events.some((event) => event.startsWith('log ') && event.includes('after SIGKILL'))).toBe(true);
+            expect(events).toContain('stopDevice android-1');
         });
 
         it('does not kill a lane that exits within the grace', async () => {
@@ -1056,22 +1095,14 @@ describe('runLaneRun — a lost tunnel', () => {
                     stopGraceMs: 500,
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: () => {
-                        let finish: (code: number) => void = () => undefined;
-                        const exit = new Promise<number>((resolve) => {
-                            finish = resolve;
-                        });
-
-                        return {
-                            pid: 0,
-                            running: () => false,
-                            exit,
-                            stop: (signal) => {
-                                events.push(`stop ${signal ?? 'SIGTERM'}`);
+                        return fakeLaneChild({
+                            onStop: (signal, finish) => {
+                                events.push(`stop ${signal}`);
                                 setTimeout(() => {
                                     finish(143);
                                 }, 5);
                             },
-                        };
+                        });
                     },
                 },
                 { platforms: ['android'], requested: 1, selection: 'all' },
@@ -1081,5 +1112,98 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events).toContain('stop SIGTERM');
             expect(events).not.toContain('stop SIGKILL');
         });
+    });
+});
+
+describe('runLaneRun: the preflight of each adapter', () => {
+    it('checks every planned platform before it starts a service, makes a user or boots a device', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) => withPreflight(events, fakeAdapter(events, platform)),
+        };
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } });
+
+        const preflights = events.flatMap((event, at) => (event.startsWith('preflight ') ? [at] : []));
+        const firstWork = events.findIndex((event) =>
+            /^(startServices|createRunUsers|prepareHost|startDevice)/u.test(event),
+        );
+
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual([
+            'preflight android',
+            'preflight ios',
+        ]);
+        expect(Math.max(...preflights)).toBeLessThan(firstWork);
+    });
+
+    it('refuses the run when a preflight fails: no service, no user, no device, and the lock is released', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('no iOS app for key abc');
+
+        expect(
+            events.filter((event) => /^(startServices|createRunUsers|prepareHost|startDevice|setupLane)/u.test(event)),
+        ).toEqual([]);
+        expect(events).toContain('unlock');
+    });
+
+    it('does not preflight the platform that plans no lane, so the other platform still runs', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+            selectFlows: (platform) =>
+                Promise.resolve({ flows: platform === 'ios' ? [] : ['a', 'b'], notes: [], owed: [] }),
+        };
+
+        const code = await runLaneRun(deps, {
+            platforms: ['android', 'ios'],
+            selection: { android: 'all', ios: 'all' },
+        });
+
+        expect(code).toBe(0);
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual(['preflight android']);
+        expect(events.some((event) => event.startsWith('startDevice android'))).toBe(true);
+    });
+
+    it('stops the run before any lane, and tears the host down, when the port probe refuses', async () => {
+        const made = harness();
+        const { events } = made;
+        const spawned = vi.fn<LaneRunDeps['spawnLane']>((lane, env) => made.deps.spawnLane(lane, env));
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            spawnLane: spawned,
+            adapterFor: (platform) => ({
+                ...fakeAdapter(events, platform),
+                prepareHost: () => Promise.reject(new Error('the Mac port 13000 answered 000 on /health')),
+            }),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('the Mac port 13000 answered 000 on /health');
+
+        expect(spawned).not.toHaveBeenCalled();
+        expect(events).toContain('teardownHost android');
     });
 });

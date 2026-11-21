@@ -8,14 +8,16 @@
  *      from `config.ts`, which is the generator's own list, so a third output folder cannot be forgotten.
  *   2. The root `prepare` script runs the installer, since nothing else puts the driver on a machine.
  *   3. The driver keeps the current side (`installMergeDrivers.mjs` sets it to `true`), so the merge ends with no
- *      conflict, and `.husky/post-merge` then regenerates when a merge touched either folder.
+ *      conflict, and the one after-merge script (`bin/afterMerge.ts`, run by `.husky/post-merge` and, for a merge
+ *      commit, by `.husky/post-commit`) regenerates when the INCOMING side changed either folder. It reads the
+ *      incoming side because the driver hides a both-sides change from the merge result.
  *
  * The merge is run in a temp repository that holds the real `.gitattributes`, so dropping the attribute makes the
  * merge conflict again and the test fail. Not covered, by design: GitHub's own conflict check ignores custom drivers,
- * and a merge made with `--no-commit` never runs `post-merge`.
+ * and a rebase runs neither hook (CI's generated-docs check still fails stale output).
  */
 import { execFileSync } from 'node:child_process';
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 
@@ -26,11 +28,13 @@ import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR, REPO_ROOT } from '../config.js';
 const OUT_DIRS = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR] as const;
 const INSTALLER = join(REPO_ROOT, 'scripts/installMergeDrivers.mjs');
 const POST_MERGE = join(REPO_ROOT, '.husky/post-merge');
+const POST_COMMIT = join(REPO_ROOT, '.husky/post-commit');
+const TSX = join(REPO_ROOT, 'node_modules/.bin/tsx');
+const AFTER_MERGE = join(REPO_ROOT, 'packages/tools/docgen-components/bin/afterMerge.ts');
 const TOTALS_FILE = `${COMPONENTS_OUT_DIR}/index.json`;
 
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
 const GIT = '/usr/bin/git';
-const SH = '/bin/sh';
 
 const git = (cwd: string, ...args: string[]): string =>
     execFileSync(GIT, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
@@ -128,16 +132,44 @@ describe('a merge of two PRs that change the same totals line', () => {
     });
 });
 
-describe('the post-merge hook regenerates when a merge touched an output folder', () => {
-    /** A repo where `main` merges a branch that changed `changed`, and the hook runs with a stub `npm` on the path. */
-    function runHookAfterMergeOf(changed: string): string[] {
-        const repo = makeRepo(true);
+describe('the after-merge script regenerates when the incoming side changed an output folder', () => {
+    /** The stub `npm` records its arguments, one line per call, so a test counts the `docs:generate` runs. */
+    function stubNpm(): { readonly bin: string; readonly calls: () => string[] } {
         const bin = mkdtempSync(join(tmpdir(), 'docgenNpm-'));
         scratch.push(bin);
-        const calls = join(bin, 'calls.txt');
-        writeFileSync(join(bin, 'npm'), `#!/bin/sh\necho "$@" >> '${calls}'\n`, 'utf8');
-        chmodSync(join(bin, 'npm'), 0o755);
+        const log = join(bin, 'calls.txt');
+        writeFileSync(
+            join(bin, 'npm.js'),
+            `require('node:fs').appendFileSync(${JSON.stringify(log)}, process.argv.slice(2).join(' ') + '\\n');\n`,
+            'utf8',
+        );
 
+        return {
+            bin,
+            calls: () => {
+                try {
+                    return readFileSync(log, 'utf8').trim().split('\n');
+                } catch {
+                    return [];
+                }
+            },
+        };
+    }
+
+    /** What a hook does: runs the script in the repository, with `npm_execpath` pointing at the stub `npm`. */
+    function runAfterMerge(repo: string, bin: string): void {
+        execFileSync(TSX, [AFTER_MERGE], {
+            cwd: repo,
+            env: { ...process.env, npm_execpath: join(bin, 'npm.js') },
+            stdio: 'ignore',
+        });
+    }
+
+    const GENERATE = 'run docs:generate --workspace=@kitchensink/docgen-components';
+
+    /** `main` merges a branch that changed `changed`, a file `main` never touched. */
+    function mergeOfUntouchedFile(changed: string): { readonly repo: string } {
+        const repo = makeRepo(true);
         git(repo, 'checkout', '-qb', 'feature');
         mkdirSync(join(repo, changed, '..'), { recursive: true });
         writeFileSync(join(repo, changed), 'x\n', 'utf8');
@@ -149,36 +181,84 @@ describe('the post-merge hook regenerates when a merge touched an output folder'
         git(repo, 'commit', '-qm', 'main moves');
         git(repo, 'merge', '-q', '--no-edit', 'feature');
 
-        execFileSync(SH, [POST_MERGE], {
-            cwd: repo,
-            env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
-            stdio: 'ignore',
-        });
-
-        return readFileSafe(calls);
+        return { repo };
     }
 
-    const readFileSafe = (file: string): string[] => {
-        try {
-            return readFileSync(file, 'utf8').trim().split('\n');
-        } catch {
-            return [];
-        }
-    };
+    it.each(OUT_DIRS)('runs docs:generate when a file under %s changed on the incoming side', (directory) => {
+        const { repo } = mergeOfUntouchedFile(`${directory}/groups/a.json`);
+        const npm = stubNpm();
 
-    it.each(OUT_DIRS)('runs docs:generate when a file under %s changed', (directory) => {
-        expect(runHookAfterMergeOf(`${directory}/groups/a.json`)).toEqual([
-            'run docs:generate --workspace=@kitchensink/docgen-components',
-        ]);
+        runAfterMerge(repo, npm.bin);
+
+        expect(npm.calls()).toEqual([GENERATE]);
     });
 
     it('does nothing when the merge touched neither folder', () => {
-        expect(runHookAfterMergeOf('packages/x/readme.md')).toEqual([]);
+        const { repo } = mergeOfUntouchedFile('packages/x/readme.md');
+        const npm = stubNpm();
+
+        runAfterMerge(repo, npm.bin);
+
+        expect(npm.calls()).toEqual([]);
     });
 
-    it('never commits or stages: the author reviews the regenerated files', () => {
-        const hook = readFileSync(POST_MERGE, 'utf8');
+    /**
+     * The case the driver exists for. Both sides changed the same generated file, and the `true` driver keeps ours, so
+     * the merge result shows NO change to it: only the incoming side's own diff tells the script to regenerate.
+     */
+    it('runs docs:generate once when both sides changed the same generated file', () => {
+        const repo = makeRepo(true);
+        expect(mergeTwoPrs(repo).merged).toBe(true);
+        const npm = stubNpm();
 
-        expect(hook).not.toMatch(/git (add|commit)/u);
+        runAfterMerge(repo, npm.bin);
+
+        expect(npm.calls()).toEqual([GENERATE]);
+    });
+
+    it('runs docs:generate once for a merge made with --no-commit and committed by hand', () => {
+        const repo = makeRepo(true);
+        git(repo, 'checkout', '-qb', 'prA');
+        writeTotals(repo, 11);
+        git(repo, 'commit', '-qam', 'A adds a component');
+        git(repo, 'checkout', '-q', 'main');
+        git(repo, 'checkout', '-qb', 'prB');
+        writeTotals(repo, 12);
+        git(repo, 'commit', '-qam', 'B adds a component');
+        git(repo, 'checkout', '-q', 'prA');
+        git(repo, 'merge', '-q', '--no-commit', '--no-ff', 'prB');
+        git(repo, 'commit', '-qm', 'merge prB');
+        const npm = stubNpm();
+
+        runAfterMerge(repo, npm.bin);
+
+        expect(npm.calls()).toEqual([GENERATE]);
+    });
+
+    it('runs docs:generate after a fast-forward pull that changed an output folder', () => {
+        const repo = makeRepo(true);
+        git(repo, 'checkout', '-qb', 'feature');
+        writeTotals(repo, 11);
+        git(repo, 'commit', '-qam', 'feature adds a component');
+        git(repo, 'checkout', '-q', 'main');
+        git(repo, 'merge', '-q', '--ff-only', 'feature');
+        const npm = stubNpm();
+
+        runAfterMerge(repo, npm.bin);
+
+        expect(npm.calls()).toEqual([GENERATE]);
+    });
+});
+
+describe('the hooks call the one script', () => {
+    it.each([POST_MERGE, POST_COMMIT])('%s runs docs:after-merge and never stages or commits', (hook) => {
+        const text = readFileSync(hook, 'utf8');
+
+        expect(text).toContain('npm run docs:after-merge --workspace=@kitchensink/docgen-components');
+        expect(text).not.toMatch(/git (add|commit)/u);
+    });
+
+    it('guards post-commit so only a merge commit runs it', () => {
+        expect(readFileSync(POST_COMMIT, 'utf8')).toMatch(/rev-parse -q --verify HEAD\^2/u);
     });
 });

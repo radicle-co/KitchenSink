@@ -17,6 +17,7 @@ function gitConfig(...args) {
 try {
     gitConfig('merge.docgenRegenerate.name', 'Generated docs: keep ours, regenerate after');
     gitConfig('merge.docgenRegenerate.driver', 'true');
-} catch {
-    // Not a git checkout (an image build or an exported tree): there is no merge to configure.
+} catch (error) {
+    // Not a git checkout (an image build or an exported tree): there is no merge to configure. Say so, and do not fail.
+    console.warn(`installMergeDrivers: the merge driver was not configured (${String(error)})`);
 }

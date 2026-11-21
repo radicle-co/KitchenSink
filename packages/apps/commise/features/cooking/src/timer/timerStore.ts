@@ -253,8 +253,8 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
                     await kept.reread();
                 }
             } catch {
-                // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported inside
-                // the kept store), so this only keeps a defect from becoming an unhandled rejection.
+                // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported
+                // inside the kept store), so this only keeps a defect from becoming an unhandled rejection.
             } finally {
                 inFlight -= 1;
                 resync();

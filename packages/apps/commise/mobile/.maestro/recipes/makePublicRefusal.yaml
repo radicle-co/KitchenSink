@@ -1,13 +1,16 @@
 appId: ${APP_ID}
 ---
-# Why a recipe cannot be public, on a device (board P6, plan makePublicRefusalNotice, AE1). A pasted recipe is published
-# privately with no answer, so the recipe page owes a statement. The cook opens the page's ⋯, chooses Make public (the source sheet opens at once),
-# answers "From a web page" with its link, and the recipe stays private. The page then says why in one standing line, and the
-# ⋯ no longer offers Make public. Mobile mirror of the web Playwright case `makePublicRefusalNotice.spec.ts`.
+# Why a recipe cannot be public, on a device (board P6, plan makePublicRefusalNotice, AE1). A pasted recipe is
+# published privately with no answer, so the recipe page owes a statement. The cook opens the page's ⋯ and chooses Make
+# public. The signer is Pro, so going public frees no slot and Make public opens the source sheet with no confirm first
+# (`recipeMakePublicConsequence`: the web spec's cook has slots, and confirms first). The cook answers "From a web
+# page" with its link, and the recipe stays private. The page then says why in one standing line, and the ⋯ no longer
+# offers Make public. Mobile mirror of the web Playwright case `makePublicRefusalNotice.spec.ts`.
 #
-# What only a device proves: the sheet over the page with the keyboard up for the link field, the line drawn on the page
-# after the sheet closes, and the ⋯ menu rebuilt without Make public. The pure decisions, the announcement and the tones are
-# the component tests' subject on both platforms. The signer is Pro (`visibility.yaml`). Reseeded before it runs.
+# What only a device proves: the sheet over the page with the keyboard up for the link field, the line drawn on the
+# page after the sheet closes, and the ⋯ menu rebuilt without Make public. The pure decisions, the announcement and the
+# tones are the component tests' subject on both platforms. The signer is Pro (`visibility.yaml`), so this flow breaks
+# if the pool signer ever becomes a free cook. Reseeded before it runs.
 - runFlow: ../auth/signin.yaml
 
 - assertVisible: 'My recipes'
@@ -81,7 +84,7 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Make public'
-# The page owes a statement, so Make public opens the source sheet at once, with no confirm first.
+# The signer is Pro, so going public frees no slot: Make public opens the source sheet with no confirm (see the header).
 - extendedWaitUntil:
       visible: 'Where is this recipe from?'
       timeout: 20000

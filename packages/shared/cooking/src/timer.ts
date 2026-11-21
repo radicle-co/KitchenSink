@@ -478,8 +478,8 @@ function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 
  * @param state - The timer state now.
  * @param command - What happened, with the clock it happened at.
  * @returns The next state and the events it raised.
- * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside `MIN_TIMER_MS` to `MAX_TIMER_MS`, or an added time
- *   would take a running timer past 24 h.
+ * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside `MIN_TIMER_MS` to
+ *   `MAX_TIMER_MS`, or an added time would take a running timer past 24 h.
  */
 export function reduceTimer(state: TimerState, command: TimerCommand): TimerResult {
     if (command.kind === 'ring') {

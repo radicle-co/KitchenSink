@@ -183,8 +183,9 @@ describe('the timer model over any command sequence', () => {
 
                         expect(seen.has(key)).toBe(false);
                         seen.add(key);
-                        // TEST-CHANGE (S3a.U3 C1 item 2, AR2): a command settles first, so the timer that rang may be stopped or
-                        // restarted by that same command. It is ringing in that run, or it has left the run it rang in.
+                        // TEST-CHANGE (S3a.U3 C1 item 2, AR2): a command settles first, so the timer that rang may
+                        // be stopped or restarted by that same command. It is ringing in that run, or it has left
+                        // the run it rang in.
                         const now = after.timers.find((t) => t.id === event.id);
 
                         if (now?.run === event.run) {

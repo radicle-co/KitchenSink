@@ -165,7 +165,9 @@ describe('a timer across Finish and Cook it again', () => {
             { wrapper: timerWrapper },
         );
 
-        act(() => begin(result.current.timers));
+        act(() => {
+            begin(result.current.timers);
+        });
 
         if (kind === 'ringing') {
             await act(async () => vi.advanceTimersByTimeAsync(5_000));
@@ -174,15 +176,25 @@ describe('a timer across Finish and Cook it again', () => {
         const before = result.current.timers.order;
 
         expect(before).toHaveLength(1);
-        act(() => result.current.screen.goForward());
-        act(() => result.current.screen.goForward());
-        act(() => result.current.screen.goForward());
-        act(() => result.current.screen.done?.cookAgain.onPress());
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.done?.cookAgain.onPress();
+        });
 
         expect(result.current.timers.order, 'inside the settle').toEqual(before);
 
         await act(async () => vi.advanceTimersByTimeAsync(DONE_SETTLE_MS));
-        act(() => result.current.screen.done?.cookAgain.onPress());
+        act(() => {
+            result.current.screen.done?.cookAgain.onPress();
+        });
 
         expect(result.current.screen.done).toBeNull();
         expect(result.current.timers.order, 'after the settle').toEqual(before);

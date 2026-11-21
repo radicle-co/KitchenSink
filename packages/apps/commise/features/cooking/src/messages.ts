@@ -176,7 +176,7 @@ export interface CookingDurationMessages {
 }
 
 /** The alarm that rings when a timer ends. */
-export interface CookingAlarmMessages {
+interface CookingAlarmMessages {
     /** Under a minute since the end (contains `{label}`). */
     readonly rangJustNow: string;
     /** From a minute since the end (contains `{label}`, `{elapsed}`). */
@@ -188,7 +188,7 @@ export interface CookingAlarmMessages {
 }
 
 /** The boxes of Add a timer: an accessible name and a unit for each. */
-export interface CookingAddTimerMessages {
+interface CookingAddTimerMessages {
     readonly hoursLabel: string;
     readonly minutesLabel: string;
     readonly secondsLabel: string;

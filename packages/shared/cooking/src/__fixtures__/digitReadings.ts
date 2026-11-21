@@ -3,7 +3,7 @@
  * so they keep this shape, and a test compares what the rows record (kind and seconds). Spans are asserted in
  * `durationSpan.test.ts`.
  */
-export type GoldenReading =
+type GoldenReading =
     | { readonly kind: 'none' }
     | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
     | { readonly kind: 'many' };

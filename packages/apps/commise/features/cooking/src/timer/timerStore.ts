@@ -34,7 +34,7 @@ import { mintTimerId } from './mintTimerId.js';
 const MAX_WAIT_MS = 60_000;
 
 /** What a caller says to start a timer: where it is and how long. The store adds the id, the limit and the clock. */
-export interface StartTimer {
+interface StartTimer {
     readonly recipeId: string;
     readonly stepIndex: number;
     readonly stepDigest: string;
@@ -43,7 +43,7 @@ export interface StartTimer {
 }
 
 /** A command as a caller says it: the store adds the clock, and the limit of a restore. */
-export type TimerCall = Exclude<
+type TimerCall = Exclude<
     TimerCommand extends infer C ? (C extends { readonly nowMs: number } ? Omit<C, 'nowMs' | 'limit'> : never) : never,
     { readonly kind: 'start' | 'ring' }
 >;
@@ -114,11 +114,17 @@ export function createTimerStore(initial: TimerState = NO_TIMER): TimerStore {
         arm();
 
         if (moved) {
-            changed.forEach((listener) => listener());
+            for (const listener of changed) {
+                listener();
+            }
         }
 
         if (!quiet) {
-            result.events.forEach((event) => ended.forEach((listener) => listener(event)));
+            for (const event of result.events) {
+                for (const listener of ended) {
+                    listener(event);
+                }
+            }
         }
 
         return result;

@@ -149,7 +149,7 @@ describe('the catalogue joins "step {n}" with a no-break space (R21)', () => {
     ];
 
     it.each(all.filter(([, text]) => /step\s*\{n\}/i.test(text)))('%s has a no-break space', (_path, text) => {
-        expect(/step\s*\{n\}/i.exec(text)?.[0]).toBe(`${/step/i.exec(text)?.[0]}${NBSP}{n}`);
+        expect(text).toMatch(new RegExp(`step${NBSP}\\{n\\}`, 'i'));
     });
 
     it('holds at least the two step messages the scan covers', () => {
@@ -159,8 +159,8 @@ describe('the catalogue joins "step {n}" with a no-break space (R21)', () => {
 
 describe('the six Add a timer keys', () => {
     it('are the three box labels and the three units', () => {
-        expect(Object.keys(en.addTimer).sort()).toEqual(
-            ['hoursLabel', 'hoursUnit', 'minutesLabel', 'minutesUnit', 'secondsLabel', 'secondsUnit'].sort(),
+        expect(new Set(Object.keys(en.addTimer))).toEqual(
+            new Set(['hoursLabel', 'hoursUnit', 'minutesLabel', 'minutesUnit', 'secondsLabel', 'secondsUnit']),
         );
     });
 });

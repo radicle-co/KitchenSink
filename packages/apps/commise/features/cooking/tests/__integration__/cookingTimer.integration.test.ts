@@ -74,7 +74,7 @@ afterEach(() => {
 
     vi.useRealTimers();
     vi.restoreAllMocks();
-    focusManager.setFocused(undefined);
+    focusManager.setFocused();
 });
 
 describe('the app comes to the front', () => {
@@ -207,7 +207,9 @@ describe('Undo at limit 1', () => {
         const before = store.getSnapshot();
 
         expect(before.undo?.id).toBe('t1');
-        expect(() => store.command({ kind: 'restore' })).not.toThrow();
+        expect(() => {
+            store.command({ kind: 'restore' });
+        }).not.toThrow();
         expect(store.getSnapshot()).toBe(before);
     });
 

@@ -46,7 +46,9 @@ function mount(subject: string | null | undefined, strict = false): Mounted {
 
             return read;
         },
-        rerender: (cook) => view.rerender(tree(cook)),
+        rerender: (cook) => {
+            view.rerender(tree(cook));
+        },
         unmount: view.unmount,
     };
 }
@@ -104,7 +106,9 @@ export function timerProviderCases(): void {
                 view.timers().start({ ...STEP, durationMs: 5_000 });
             });
             vi.setSystemTime(Date.now() + MINUTE);
-            act(() => focusManager.setFocused(true));
+            act(() => {
+                focusManager.setFocused(true);
+            });
 
             expect(view.timers().alarmQueue).toHaveLength(1);
 
@@ -113,7 +117,7 @@ export function timerProviderCases(): void {
             expect(vi.getTimerCount()).toBe(0);
         } finally {
             vi.useRealTimers();
-            focusManager.setFocused(undefined);
+            focusManager.setFocused();
         }
     });
 

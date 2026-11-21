@@ -56,19 +56,45 @@ function leadWordOrAll(text: string): string {
     return text.includes(',') && /^\p{L}+$/u.test(lead) ? lead : text;
 }
 
+/** A space or a punctuation mark: what sits between words and after the last one. */
+const MARK = /[\s\p{P}]/u;
+
+/** The text without its trailing spaces and punctuation. A loop from the end, so no pattern can back-track. */
+function withoutTrailingMarks(text: string): string {
+    let end = text.length;
+
+    while (end > 0 && MARK.test(text.charAt(end - 1))) {
+        end -= 1;
+    }
+
+    return text.slice(0, end);
+}
+
+/** The last word of `text` when it ends the text and stands alone (not glued to a digit), else `undefined`. */
+function trailingWord(text: string): { readonly word: string; readonly start: number } | undefined {
+    const last = [...text.matchAll(/\p{L}+/gu)].at(-1);
+
+    if (last === undefined || last.index + last[0].length !== text.length) {
+        return undefined;
+    }
+
+    return last.index === 0 || MARK.test(text.charAt(last.index - 1))
+        ? { word: last[0], start: last.index }
+        : undefined;
+}
+
 /** Drops trailing spaces and punctuation, then a trailing connector word, until neither is left. */
 function withoutTrailingConnectors(text: string): string {
-    let rest = text.replace(/[\s\p{P}]+$/u, '');
+    let rest = withoutTrailingMarks(text);
 
     for (;;) {
-        const word = /(?:^|[\s\p{P}])([\p{L}]+)$/u.exec(rest);
-        const connector = word?.[1];
+        const trailing = trailingWord(rest);
 
-        if (word === null || connector === undefined || !CONNECTOR_WORDS.has(connector.toLowerCase())) {
+        if (trailing === undefined || !CONNECTOR_WORDS.has(trailing.word.toLowerCase())) {
             return rest;
         }
 
-        rest = rest.slice(0, word.index + word[0].length - connector.length).replace(/[\s\p{P}]+$/u, '');
+        rest = withoutTrailingMarks(rest.slice(0, trailing.start));
     }
 }
 

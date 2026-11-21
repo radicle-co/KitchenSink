@@ -4,7 +4,8 @@
 #
 #   buildIosApp.sh content-key       print the key this tree + these origins resolve to (computed here, where git is)
 #   buildIosApp.sh check <key> <app folder>   exit 0 only if the Mac holds an app for <key> whose manifest matches EXACTLY
-#   buildIosApp.sh build <key> <app folder>   sync the source to the Mac, build there, keep the app in <app folder>
+#   buildIosApp.sh build <key> <app folder>   upload a snapshot to the Mac, build it there (one build at a time), keep the
+#                                             app in <app folder>; the job is iosBuildJob.sh (CL-MACLOCK)
 #
 # A stale app is never driven: `check` runs `buildTestApp.sh verify-manifest` over the Mac's manifest, so a missing,
 # different or extra field is a refusal. The key is computed on THIS machine and handed to the build (as CI does), so the
@@ -12,6 +13,7 @@
 #   KS_MAC_HOST, KS_MAC_SSH_CONFIG   as for xcrunShim.sh
 #   CLERK_PUBLISHABLE_KEY            the sandbox Clerk publishable key (pk_test_…); public by design
 #   KS_REPO_ROOT                     the tree to build (default: this script's repository)
+#   KS_MAC_POLL_SECONDS              seconds between looks at the Mac job (default 20)
 set -euo pipefail
 
 # The build folder ends in .noindex so Spotlight skips it: indexing a node_modules tree and derived data held the Mac at
@@ -99,38 +101,89 @@ case "$command_name" in
         [[ "$key" =~ ^[0-9a-f]+$ ]] || die "'$key' is not a content key"
         app="$(app_folder "${3:-}")"
         sha="$(git -C "$REPO_ROOT" rev-parse HEAD)"
-        mac "mkdir -p ksIos/build.noindex/src $(dirname "$app")"
-        # The source only: dependencies are installed on the Mac (their native parts are arm64 macOS), and generated
-        # folders are rebuilt there.
-        rsync -a --delete -e "ssh -F $KS_MAC_SSH_CONFIG" \
-            --exclude node_modules --exclude .git --exclude .worktrees --exclude .turbo \
-            --exclude 'dist*' --exclude '/packages/apps/commise/mobile/ios' --exclude '/packages/apps/commise/mobile/android' \
-            "$REPO_ROOT/" "$KS_MAC_HOST:ksIos/build.noindex/src/"
-        # `npm ci` only when the lockfile changed since the last install here.
-        lock_sha="$(sha256sum "$REPO_ROOT/package-lock.json" | cut -d' ' -f1)"
+        poll_seconds="${KS_MAC_POLL_SECONDS:-20}"
+        [[ "$poll_seconds" =~ ^[0-9]+$ ]] || die "KS_MAC_POLL_SECONDS must be a whole number"
+
+        # One job, one folder: nothing it writes is shared with another job, or with an old copy of this script.
+        host_part="$(hostname -s | tr -c 'A-Za-z0-9' '-' | cut -c1-20)"
+        job="$(date -u +%Y%m%dT%H%M%SZ)-${host_part}-$$"
+        jobs="ksIos/build.noindex/jobs"
+        mac "mkdir -p $jobs/$job/src $(dirname "$app")"
+        # The files git knows (tracked, and untracked but not ignored), and no others: a secret in an ignored file never
+        # leaves this machine, and nothing the build writes (node_modules, dist) is sent. A tracked file deleted from the
+        # tree is skipped, not an error. Dependencies are installed on the Mac (their native parts are arm64 macOS).
+        git -C "$REPO_ROOT" ls-files -z --cached --others --exclude-standard |
+            rsync -a --from0 --files-from=- --ignore-missing-args -e "ssh -F $KS_MAC_SSH_CONFIG" \
+                --exclude '/.worktrees/' \
+                "$REPO_ROOT/" "$KS_MAC_HOST:$jobs/$job/src/"
+
         # The build runs DETACHED on the Mac and this side polls: a Release build outlasts any ssh link on a loaded Mac
-        # (the first real attempt lost its connection mid-compile and the build died with it).
+        # (the first real attempt lost its connection mid-compile and the build died with it). The job script is the
+        # snapshot's own, so it always matches the source it builds. The result is written whole (`mv`), never half.
+        job_dir="$jobs/$job"
+        node_word=''
+        [ -z "$MAC_NODE_BIN" ] || node_word="KS_NODE_BIN=$MAC_NODE_BIN"
+        env_words="PATH=$MAC_PATH DEVELOPER_DIR=$MAC_DEVELOPER_DIR GITHUB_SHA=$sha $node_word"
+        env_words="$env_words EXPO_PUBLIC_RECIPE_API_URL=$EXPO_PUBLIC_RECIPE_API_URL EXPO_PUBLIC_IDENTITY_API_URL=$EXPO_PUBLIC_IDENTITY_API_URL"
+        env_words="$env_words EXPO_PUBLIC_FOOD_API_URL=$EXPO_PUBLIC_FOOD_API_URL EXPO_PUBLIC_IDP_PUBLISHABLE_KEY=$CLERK_PUBLISHABLE_KEY"
+        run_job="env $env_words bash $job_dir/src/packages/tools/local-sandbox/bin/mac/iosBuildJob.sh $job $key $app > $job_dir/build.log 2>&1"
+        mac "nohup sh -c '$run_job; echo \$? > $job_dir/build.rc.tmp; mv $job_dir/build.rc.tmp $job_dir/build.rc' > /dev/null 2>&1 &"
+
+        # One round trip a poll. The result first. Then the phase, and whether the wrapper that should write the result is
+        # gone: its pid dead, or the Mac rebooted since (the pid may then belong to something else).
         # shellcheck disable=SC2016 # the variables are the Mac's
-        mac 'cat > ksIos/build.noindex/build.sh' <<REMOTE
-set -e
-export PATH="\${KS_NODE_BIN:-\$(ls -d \$HOME/.nvm/versions/node/v24*/bin | sort -V | tail -1)}:$MAC_PATH"
-cd ksIos/build.noindex/src
-if [ "\$(cat ../lock.sha 2>/dev/null)" != '$lock_sha' ] || [ ! -d node_modules ]; then rm -f ../lock.sha; npm ci; echo '$lock_sha' > ../lock.sha; fi
-export DEVELOPER_DIR='$MAC_DEVELOPER_DIR' LANG=en_US.UTF-8
-export EXPO_PUBLIC_RECIPE_API_URL='$EXPO_PUBLIC_RECIPE_API_URL' EXPO_PUBLIC_IDENTITY_API_URL='$EXPO_PUBLIC_IDENTITY_API_URL'
-export EXPO_PUBLIC_FOOD_API_URL='$EXPO_PUBLIC_FOOD_API_URL' EXPO_PUBLIC_IDP_PUBLISHABLE_KEY='$CLERK_PUBLISHABLE_KEY'
-export TEST_APP_CONTENT_KEY='$key' GITHUB_SHA='$sha' RUNNER_TEMP=\$HOME/ksIos/build.noindex/tmp
-mkdir -p \$RUNNER_TEMP
-npx turbo run build --filter='@commise/mobile^...'
-bash packages/apps/commise/mobile/scripts/buildTestApp.sh ios
-rm -rf \$HOME/$app && mkdir -p \$HOME/$app
-cp packages/apps/commise/mobile/dist-testApp/ios/* \$HOME/$app/
-tar -xzf \$HOME/$app/app.tar.gz -C \$HOME/$app
-REMOTE
-        mac 'rm -f ksIos/build.noindex/build.rc; nohup sh -c "bash ksIos/build.noindex/build.sh > ksIos/build.noindex/build.log 2>&1; echo \$? > ksIos/build.noindex/build.rc" > /dev/null 2>&1 &'
-        until rc="$(mac 'cat ksIos/build.noindex/build.rc' 2>/dev/null)"; do sleep 20; done
-        [ "$rc" = 0 ] || { mac 'tail -60 ksIos/build.noindex/build.log' >&2 || true; die "the Mac build failed (exit $rc); log: ksIos/build.noindex/build.log on the Mac"; }
-        "$0" check "$key" "$app"
+        poll_command='cd @JOB_DIR@ 2>/dev/null || { echo GONE; exit 0; }
+if [ -f build.rc ]; then echo "RC $(cat build.rc)"; exit 0; fi
+echo "STATE $(cat state 2>/dev/null)"
+if [ -f wrapper ]; then
+    read -r pid boot < wrapper
+    now=$( (sysctl -n kern.boottime 2>/dev/null || cat /proc/sys/kernel/random/boot_id) | tr " \n" "__")
+    if ! kill -0 "$pid" 2>/dev/null || [ "$boot" != "$now" ]; then echo DEAD; fi
+fi'
+        poll_command="${poll_command//@JOB_DIR@/$job_dir}"
+        last_state=''
+        dead=0
+        while :; do
+            if ! answer="$(mac "$poll_command" 2>/dev/null)"; then
+                sleep "$poll_seconds"
+                continue
+            fi
+            case "$answer" in
+                GONE) die "the job folder $job_dir is gone from the Mac (job $job)" ;;
+                RC*)
+                    rc="${answer#RC }"
+                    break
+                    ;;
+            esac
+            state="$(printf '%s\n' "$answer" | sed -n 's/^STATE //p')"
+            if [ -n "$state" ] && [ "$state" != "$last_state" ]; then
+                echo "buildIosApp: $state" >&2
+                last_state="$state"
+            fi
+            # A wrapper that just ended writes its result a moment later: look twice before saying it died.
+            if printf '%s\n' "$answer" | grep -qx DEAD; then
+                dead=$((dead + 1))
+                [ "$dead" -lt 2 ] || die "the build wrapper for job $job is gone and left no result; see $job_dir/build.log on the Mac"
+            else
+                dead=0
+            fi
+            sleep "$poll_seconds"
+        done
+
+        case "$rc" in
+            0)
+                "$0" check "$key" "$app"
+                mac "rm -rf $job_dir"
+                ;;
+            75)
+                holder="$(mac 'cat ksIos/build.noindex/build.owner' 2>/dev/null || echo 'holder unknown')"
+                die "the Mac build lock is held ($holder), job $job gave up waiting"
+                ;;
+            *)
+                mac "tail -60 $job_dir/build.log" >&2 || true
+                die "the Mac build failed (exit $rc), job $job; log: $job_dir/build.log on the Mac"
+                ;;
+        esac
         ;;
     *)
         die 'usage: buildIosApp.sh content-key | check <key> <app folder> | build <key> <app folder>'

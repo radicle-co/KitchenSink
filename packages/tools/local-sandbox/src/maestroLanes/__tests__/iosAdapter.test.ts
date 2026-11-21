@@ -171,11 +171,14 @@ describe('IosAdapter', () => {
         );
     });
 
+    // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
     it('hands the build script the app folder MacSession states, so the script builds no Mac path of its own', async () => {
         const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
         await new IosAdapter(options(recorder.shell)).prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
 
-        expect(recorder.commands.some((line) => /buildIosApp\.sh check abc ksIos\/apps\/abc$/u.test(line))).toBe(true);
+        expect(recorder.commands.some((line) => /buildIosApp\.sh check abc ksIos\/apps\/ios\/abc$/u.test(line))).toBe(
+            true,
+        );
     });
 
     it('tunnels the origin ports the app was built with, back to the local services', async () => {
@@ -221,7 +224,8 @@ describe('IosAdapter', () => {
         expect(joined).toContain('laneHost.sh ensure 2 iphone');
         expect(joined).toContain('laneHost.sh erase UDID-2');
         expect(joined).toContain('laneHost.sh boot UDID-2');
-        expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/abc');
+        // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
+        expect(joined).toContain('laneHost.sh install UDID-2 ksIos/apps/ios/abc');
     });
 
     it('switches password AutoFill off on the booted Simulator through the runner own function, through the shims', async () => {

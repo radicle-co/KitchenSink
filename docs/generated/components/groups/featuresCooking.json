@@ -308,7 +308,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the\nnotice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
+                            "description": "The ingredients column. The frame sets it beside the whole step stack (the notice, top bar, body and foot),\nwhich keeps its own width cap. Web passes it at every width and CSS hides it below L2, native passes it only at\nL2 and L3. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -387,7 +387,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the\nnotice,\ntop bar, body and foot), which keeps its own width cap. Absent: one centred column.",
+                            "description": "The ingredients column. The frame sets it beside the whole step stack (the notice, top bar, body and foot),\nwhich keeps its own width cap. Web passes it at every width and CSS hides it below L2, native passes it only at\nL2 and L3. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {

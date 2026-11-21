@@ -199,9 +199,9 @@ export interface CookingFrameProps {
     /** `aria-busy` on the surface while the recipe loads. */
     readonly busy: boolean;
     /**
-     * The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the
-     * notice,
-     * top bar, body and foot), which keeps its own width cap. Absent: one centred column.
+     * The ingredients column. The frame sets it beside the whole step stack (the notice, top bar, body and foot),
+     * which keeps its own width cap. Web passes it at every width and CSS hides it below L2, native passes it only at
+     * L2 and L3. Absent: one centred column.
      */
     readonly column?: ReactNode;
 }

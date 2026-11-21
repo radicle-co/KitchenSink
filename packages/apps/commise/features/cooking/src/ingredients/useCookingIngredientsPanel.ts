@@ -37,7 +37,7 @@ export interface UseCookingIngredientsPanelInput {
 export interface CookingIngredientsPanel {
     /** The top bar's Ingredients button. Web hides it from the band in CSS, native with `panelForBand`. */
     readonly topAction?: CookingAction;
-    /** The scale note, while the servings differ from the recipe's. Its `onOpen` is gone at two columns. */
+    /** The scale note, while the servings differ from the recipe's. Native's `panelForBand` removes its `onOpen` at two columns, and web keeps it and hides the button in CSS. */
     readonly scaleNote?: CookingScaleNoteProps;
     /** The sheet, closed until the cook opens it. */
     readonly sheet?: CookingIngredientsSheetProps;

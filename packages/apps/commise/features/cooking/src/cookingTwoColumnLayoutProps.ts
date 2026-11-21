@@ -1,7 +1,7 @@
 /**
  * @module cookingTwoColumnLayoutProps — the props of the two-column layout at L2 and L3, on web and native: the
- * ingredients column and the step column. The screen picks this layout by `isTwoColumn` (and the frame mounts it
- * whenever it is given a `column`), so it has no band or mode prop.
+ * ingredients column and the step column. The frame mounts it whenever it is given a `column`, so it has no band or
+ * mode prop. Native gives a `column` only at L2 and L3, and web gives one at every width and hides it in CSS.
  */
 import type { ReactNode } from 'react';
 

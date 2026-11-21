@@ -821,9 +821,10 @@ describe('iosBuildJob.sh: pruning', () => {
         expect([running, recent].map((folder) => existsSync(folder))).toEqual([true, true]);
     });
 
-    it('⛔ keeps a fresh staging folder and removes one older than a day, because a waiting job must not delete the holder`s', async () => {
+    it('⛔ keeps a fresh staging folder and removes one older than a day: the holder`s must survive a waiter', async () => {
         const world = makeWorld();
         const apps = path.join(world.home, 'ksIos', 'apps', 'ios');
+
         const make = (name: string, age: number): string => {
             const folder = path.join(apps, name);
 
@@ -832,6 +833,7 @@ describe('iosBuildJob.sh: pruning', () => {
 
             return folder;
         };
+
         const freshStaging = make('.staging.fresh', AGES.fresh);
         const freshOld = make('keyX.old.123', AGES.fresh);
         const oldStaging = make('.staging.stale', AGES.old);
@@ -843,7 +845,7 @@ describe('iosBuildJob.sh: pruning', () => {
         await until('B to build', () => started(world, 'keyB'));
         release(world, 'keyB');
         expect(await b.exit).toBe(0);
-        // Mutation: drop the age test from the staging prune, and a waiting job deletes the holder's fresh staging folder.
+        // Mutation: drop the age test from the staging prune, and a waiting job deletes the holder's fresh folder.
         expect([freshStaging, freshOld].map((folder) => existsSync(folder))).toEqual([true, true]);
         expect([oldStaging, oldOld].map((folder) => existsSync(folder))).toEqual([false, false]);
     });

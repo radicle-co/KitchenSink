@@ -230,9 +230,9 @@ describe('the props the sheet hands Tamagui’s Sheet', () => {
         expect(engine().moveOnKeyboardChange).toBe(false);
     });
 
-    // Tamagui's frame defaults to a zIndex above every sibling, and a zIndex beats sibling order, so the snackbar's outlet,
-    // the window's last child, drew under it. The engine is given WINDOW_LAYERS.sheet (windowLayers.ts), so the snackbar's
-    // layer is above a number we set.
+    // Tamagui's frame defaults to a zIndex above every sibling, and a zIndex beats sibling order, so the
+    // snackbar's outlet, the window's last child, drew under it. The engine is given WINDOW_LAYERS.sheet
+    // (windowLayers.ts), so the snackbar's layer is above a number we set.
     it('puts the frame in the house sheet layer, below the snackbar', () => {
         renderWithTamagui(<Sheet {...propsFor()} />, 'light', 2);
 

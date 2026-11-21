@@ -241,24 +241,24 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
         expect(writes.some((w) => w.body?.['visibility'] === 'private')).toBe(true);
     });
 
-    // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
     test('AE11: at 390 px and 200 percent text the actions stack, Publish on top, each as wide as the footer, one line each', async ({
         page,
     }) => {
         await openStatementSheet(page, { width: 390, height: 900, scale: 2 });
         const { dismiss, confirm } = await footerActions(page);
-        const note = await sheetOf(page)
-            .getByText('If your answer isn’t true, we can remove the recipe and limit your account.')
-            .boundingBox();
 
+        await expect(sheetOf(page)).toContainText(
+            'If your answer isn’t true, we can remove the recipe and limit your account.',
+        );
         expect(confirm.box.y + confirm.box.height).toBeLessThanOrEqual(dismiss.box.y);
         expect(Math.abs(confirm.box.width - dismiss.box.width)).toBeLessThanOrEqual(1);
         expect(Math.abs(confirm.box.x - dismiss.box.x)).toBeLessThanOrEqual(1);
-        expect(Math.abs(confirm.box.width - (note?.width ?? 0))).toBeLessThanOrEqual(1);
+        expect(Math.abs(confirm.box.width - confirm.rowWidth)).toBeLessThanOrEqual(1);
         expect(dismiss.oneLine).toBe(true);
         expect(confirm.oneLine).toBe(true);
     });
 
+    // At 320 px the pinned footer takes a third of the sheet, so the field and its message sat partly under it.
     test('at 320 px the title field and its error scroll into view above the pinned footer', async ({ page }) => {
         await page.setViewportSize({ width: 320, height: 640 });
         await pastedRecipeReady(page);

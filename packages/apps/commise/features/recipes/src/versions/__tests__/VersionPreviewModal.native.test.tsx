@@ -842,6 +842,7 @@ describe('VersionPreviewModal (native) — the actions across the move', () => {
         ] as const) {
             Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
         }
+
         Object.defineProperty(row, 'offsetWidth', { value: 720, configurable: true });
         act(() => {
             observer.callback?.(
@@ -859,12 +860,29 @@ describe('VersionPreviewModal (native) — the actions across the move', () => {
         };
     }
 
-    it('settles: the actions stay where they are put and are a row on their first render after every move', () => {
+    it('settles: the actions move once, then stay pinned and are a row on their first render after every move', () => {
         render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
 
-        const settled = Array.from({ length: 6 }, () => round()).slice(2);
+        const rounds = Array.from({ length: 6 }, () => round());
 
-        expect(new Set(settled.map((entry) => entry.unpinned)).size).toBe(1);
-        expect(settled.every((entry) => entry.startedAsRow)).toBe(true);
+        // The first round's stacked footer (320) passes half the frame, so the actions DO move into the scroller; the
+        // seeded row (150) then moves them back and they stay. A version where nothing ever moves fails the first line.
+        expect(rounds[0]?.unpinned).toBe(true);
+        expect(rounds.slice(2).every((entry) => !entry.unpinned && entry.startedAsRow)).toBe(true);
+    });
+
+    // One opening's lifetime (as `BottomSheetPanel` has): a width measured in one opening is not the next one's, so a
+    // reopen after a rotation does not paint the old form for a frame.
+    it('starts stacked on a reopen: the width measured in the last opening is not carried over', () => {
+        const props = baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff });
+        const { rerender } = render(<VersionPreviewModal {...props} />);
+
+        round();
+        expect(appliedStyle(actionsRow(), 'flex-direction')).toBe('row');
+
+        act(() => rerender(<VersionPreviewModal {...props} open={false} />));
+        act(() => rerender(<VersionPreviewModal {...props} open />));
+
+        expect(appliedStyle(actionsRow(), 'flex-direction')).toBe('column-reverse');
     });
 });

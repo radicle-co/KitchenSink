@@ -9,7 +9,7 @@
         "props": 1097,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 151,
-        "implementationsWithComponentDoc": 136,
+        "implementationsWithComponentDoc": 137,
         "documentedProps": 953,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
@@ -4013,7 +4013,7 @@
                             "text": "Decorator — wraps one action with the share it takes in a row"
                         }
                     ],
-                    "description": "",
+                    "description": "One action's share of a `DialogActions` row: `inRow` makes it an equal share, otherwise it adds nothing.",
                     "tags": [],
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",

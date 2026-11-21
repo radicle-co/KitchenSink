@@ -62,8 +62,8 @@ import {
  */
 const SIDE_BY_SIDE_FROM = 600;
 
-export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
-    open,
+/** The open modal. Mounted only while open, so its measured heights and the actions' width memento last ONE opening. */
+const OpenVersionPreview: FC<VersionPreviewModalProps> = ({
     version,
     isLoading,
     error,
@@ -86,10 +86,6 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     // The actions change height with their form and remount when they move (above), so the width they last measured is
     // held here, above the move, and the remounted actions start as the form they had (`dialogActionsWidth.ts`).
     const actionsWidth = useDialogActionsWidthMemento();
-
-    if (!open) {
-        return null;
-    }
 
     // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
     // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
@@ -288,6 +284,9 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
         </FullScreenSheet>
     );
 };
+
+export const VersionPreviewModal: FC<VersionPreviewModalProps> = (props) =>
+    props.open ? <OpenVersionPreview {...props} /> : null;
 
 const styles = StyleSheet.create({
     // The sheet's own surface is a 16 dp gap column; the frame and the pinned top keep that rhythm.

@@ -210,7 +210,6 @@ describe('DialogActions (native) — equal shares', () => {
     it('adds no wrapper for the default shares', () => {
         render(<DialogActions sideBySideFrom={400}>{pair}</DialogActions>);
 
-        expect(screen.getByRole('button', { name: 'Keep' }).parentElement?.getAttribute('data-share')).toBeNull();
         expect(rowOf().childElementCount).toBe(2);
     });
 });

@@ -46,21 +46,38 @@ export async function openStatementSheet(
     await expect(sheetOf(page)).toBeVisible();
 }
 
-/** The two footer actions' boxes and whether each label is one line (its box under 1.5 times its line height, qse C-4). */
+/**
+ * The two footer actions' boxes, the width of the actions' row, and whether each label is one line (the label's own text
+ * box under 1.5 times its line height, qse C-4). Measured from the button found by role: no text locator.
+ */
 export async function footerActions(page: Page) {
     const read = async (name: string) => {
         const button = sheetOf(page).getByRole('button', { name, exact: true });
         const box = await button.boundingBox();
-        const label = await button.getByText(name, { exact: true }).evaluate((element) => ({
-            height: element.getBoundingClientRect().height,
-            lineHeight: Number.parseFloat(getComputedStyle(element).lineHeight),
-        }));
+        const label = await button.evaluate((element) => {
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+            const range = document.createRange();
+
+            for (let node = walker.nextNode(); node !== null; node = walker.nextNode()) {
+                if ((node.textContent ?? '').trim() !== '') {
+                    range.selectNodeContents(node);
+
+                    return {
+                        height: range.getBoundingClientRect().height,
+                        lineHeight: Number.parseFloat(getComputedStyle(node.parentElement ?? element).lineHeight),
+                        rowWidth: element.closest('[data-dialog-actions]')?.getBoundingClientRect().width ?? 0,
+                    };
+                }
+            }
+
+            throw new Error('The action has no text.');
+        });
 
         if (box === null) {
             throw new Error(`The ${name} action has no box.`);
         }
 
-        return { box, oneLine: label.height < 1.5 * label.lineHeight };
+        return { box, oneLine: label.height < 1.5 * label.lineHeight, rowWidth: label.rowWidth };
     };
 
     return { dismiss: await read('Keep as draft'), confirm: await read('Publish') };

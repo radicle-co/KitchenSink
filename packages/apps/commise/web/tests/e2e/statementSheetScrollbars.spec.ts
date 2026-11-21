@@ -30,17 +30,21 @@ test.describe('the statement sheet actions with classic scrollbars shown', () =>
         expect(before.confirm!.y).toBeLessThan(before.dismiss!.y);
         expect(before.confirm!.x).toBe(before.dismiss!.x);
 
+        const overflowsNow = () =>
+            sheetOf(page).evaluate((dialog) =>
+                [...dialog.querySelectorAll('*')].some(
+                    (element) =>
+                        element.scrollHeight > element.clientHeight && getComputedStyle(element).overflowY === 'auto',
+                ),
+            );
+
+        // The body fits before the resize, so the scrollbar is not there yet.
+        expect(await overflowsNow()).toBe(false);
+
         // A short window makes the body overflow the dialog, so its scrollbar arrives.
         await page.setViewportSize({ width: 1280, height: 420 });
 
-        const overflows = await sheetOf(page).evaluate((dialog) =>
-            [...dialog.querySelectorAll('*')].some(
-                (element) =>
-                    element.scrollHeight > element.clientHeight && getComputedStyle(element).overflowY === 'auto',
-            ),
-        );
-
-        expect(overflows).toBe(true);
+        expect(await overflowsNow()).toBe(true);
 
         const after = { confirm: await confirm.boundingBox(), dismiss: await dismiss.boundingBox() };
 

@@ -10,6 +10,7 @@
  */
 import { styled, YStack } from 'tamagui';
 
+/** One action's share of a `DialogActions` row: `inRow` makes it an equal share, otherwise it adds nothing. */
 export const EqualShare = styled(YStack, {
     name: 'DialogActionsEqualShare',
     minWidth: 0,

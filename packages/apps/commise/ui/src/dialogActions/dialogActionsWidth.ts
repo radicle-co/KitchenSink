@@ -8,7 +8,7 @@
  * once. Its own layout still wins and is recorded back.
  *
  * React only (no React Native import), so the `@commise/ui/dialog-actions` export resolves on web too. The seed is an
- * opaque number to the frame. No provider: `DialogActions` seeds `null`, as before.
+ * opaque number to the frame. Limit: one `DialogActions` row per provider; a nested row would share the slot. No provider: `DialogActions` seeds `null`, as before.
  *
  * @pattern Memento injected through Context — the frame holds the state, the actions restore from it on remount.
  */

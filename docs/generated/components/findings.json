@@ -4,7 +4,7 @@
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
         "cross-platform-props-diverge": 30,
-        "missing-component-doc": 168,
+        "missing-component-doc": 167,
         "missing-module-doc": 24,
         "platform-singleton": 105,
         "ref-api": 22,
@@ -321,14 +321,6 @@
             "severity": "gap",
             "component": "designSystem/dialogActions/DialogActions",
             "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
-            "message": "the component declaration has no JSDoc summary",
-            "evidence": []
-        },
-        {
-            "rule": "missing-component-doc",
-            "severity": "gap",
-            "component": "designSystem/dialogActions/EqualShare",
-            "sourcePath": "packages/apps/commise/ui/src/dialogActions/EqualShare.native.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
         },

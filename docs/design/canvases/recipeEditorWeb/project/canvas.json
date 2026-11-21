@@ -1003,6 +1003,34 @@
       "w": 390,
       "h": 2424,
       "title": "Recipe editor, why Public is refused (web, 390)"
+    },
+    "RecipeEditorSourceLockWeb1280.dc.html": {
+      "x": 0,
+      "y": 27332,
+      "w": 1280,
+      "h": 3754,
+      "title": "Recipe editor, the Source row locked (web, 1280)"
+    },
+    "RecipeEditorSourceLockWeb390.dc.html": {
+      "x": 1360,
+      "y": 27332,
+      "w": 390,
+      "h": 5730,
+      "title": "Recipe editor, the Source row locked (web, 390)"
+    },
+    "RecipeEditorSourceSheetWeb1280.dc.html": {
+      "x": 0,
+      "y": 33462,
+      "w": 1280,
+      "h": 2642,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (web, 1280)"
+    },
+    "RecipeEditorSourceSheetWeb390.dc.html": {
+      "x": 1360,
+      "y": 33462,
+      "w": 390,
+      "h": 4934,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (web, 390)"
     }
   },
   "order": [
@@ -1147,7 +1175,11 @@
     "RecipeEditorStatementPaidSiteWeb1280.dc.html",
     "RecipeEditorStatementPaidSiteWeb390.dc.html",
     "RecipeEditorRefusalNoticeWeb1280.dc.html",
-    "RecipeEditorRefusalNoticeWeb390.dc.html"
+    "RecipeEditorRefusalNoticeWeb390.dc.html",
+    "RecipeEditorSourceLockWeb1280.dc.html",
+    "RecipeEditorSourceLockWeb390.dc.html",
+    "RecipeEditorSourceSheetWeb1280.dc.html",
+    "RecipeEditorSourceSheetWeb390.dc.html"
   ],
   "notes": {
     "row0": {

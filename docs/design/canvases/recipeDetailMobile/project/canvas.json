@@ -1115,6 +1115,27 @@
       "w": 820,
       "h": 3338,
       "title": "Recipe detail, why it stays private (mobile, iPad 820)"
+    },
+    "RecipeSourceLockDetailIphone390.dc.html": {
+      "x": 0,
+      "y": 44675,
+      "w": 390,
+      "h": 2428,
+      "title": "Recipe detail, a locked or corrected source (mobile, iPhone 390)"
+    },
+    "RecipeSourceLockDetailAndroid384.dc.html": {
+      "x": 470,
+      "y": 44675,
+      "w": 384,
+      "h": 2438,
+      "title": "Recipe detail, a locked or corrected source (mobile, Android 384)"
+    },
+    "RecipeSourceLockDetailIpad820.dc.html": {
+      "x": 934,
+      "y": 44675,
+      "w": 820,
+      "h": 2148,
+      "title": "Recipe detail, a locked or corrected source (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1275,7 +1296,10 @@
     "RecipeMakePublicStatementPaidSiteIpad820.dc.html",
     "RecipeRefusalNoticeIphone390.dc.html",
     "RecipeRefusalNoticeAndroid384.dc.html",
-    "RecipeRefusalNoticeIpad820.dc.html"
+    "RecipeRefusalNoticeIpad820.dc.html",
+    "RecipeSourceLockDetailIphone390.dc.html",
+    "RecipeSourceLockDetailAndroid384.dc.html",
+    "RecipeSourceLockDetailIpad820.dc.html"
   ],
   "notes": {
     "row0": {

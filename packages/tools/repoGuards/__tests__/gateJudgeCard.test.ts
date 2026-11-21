@@ -132,4 +132,14 @@ describe('the staff-code-quality card, GATE mode', () => {
     it('10. the playbook says its Length and Body do not apply in CI', () => {
         expect(playbookGate()).toContain('In CI, **Length** and **Body** below do not apply');
     });
+
+    it('11. step 5 keeps the owner wrap-up deferral and asks a schema change for its local e2e', () => {
+        const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
+
+        expect(step).toContain('wrap-up PR');
+        expect(step).toContain('already exists on the base branch');
+        expect(step).toContain('never deferred');
+        expect(step).toContain('schema → the local e2e of CODING_STANDARDS §7.1a');
+        expect(step).not.toContain('migration integration test');
+    });
 });

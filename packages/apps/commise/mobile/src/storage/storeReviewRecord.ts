@@ -10,7 +10,7 @@
 import { createStoreReviewRecord } from '@commise/features-cooking/storeReview';
 
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
-import { nativeExclusiveRunner, nativeKeptPort } from './keptSessionStore.js';
+import { nativeExclusiveRunner, nativeKeptPort } from './deviceStorage.js';
 
 /** The phone's one store-review record. */
 export const nativeStoreReviewRecord = createStoreReviewRecord({

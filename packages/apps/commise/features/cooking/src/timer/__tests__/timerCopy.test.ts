@@ -56,13 +56,21 @@ describe('shownDuration', () => {
         expect(shownDuration(ms, en.duration)).toBe(text);
     });
 
-    it('puts seconds after the minutes or the hours, never dropping them', () => {
+    // D81 (designer): when seconds show, each shape is its own key and minutes always carry "min".
+    it('uses one key for each shape that carries seconds', () => {
         expect(shownDuration(MIN + 30_000, en.duration)).toBe(
-            `${fillTemplate(en.duration.minutesOnly, { m: 1 })} ${fillTemplate(en.duration.secondsOnly, { s: 30 })}`,
+            fillTemplate(en.duration.minutesSeconds, { m: 1, s: 30 }),
         );
-        expect(shownDuration(HOUR + 5_000, en.duration)).toBe(
-            `${fillTemplate(en.duration.hoursOnly, { h: 1 })} ${fillTemplate(en.duration.secondsOnly, { s: 5 })}`,
+        expect(shownDuration(HOUR + 5_000, en.duration)).toBe(fillTemplate(en.duration.hoursSeconds, { h: 1, s: 5 }));
+        expect(shownDuration(HOUR + 30 * MIN + 15_000, en.duration)).toBe(
+            fillTemplate(en.duration.hoursMinutesSeconds, { h: 1, m: 30, s: 15 }),
         );
+    });
+
+    it("says the designer's three shapes with their units", () => {
+        expect(en.duration.minutesSeconds).toBe('{m} min {s} sec');
+        expect(en.duration.hoursSeconds).toBe('{h} h {s} sec');
+        expect(en.duration.hoursMinutesSeconds).toBe('{h} h {m} min {s} sec');
     });
 
     it('shows nothing as zero seconds', () => {

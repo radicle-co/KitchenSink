@@ -163,6 +163,12 @@ export interface CookingDurationMessages {
     readonly minutesOnly: string;
     /** Shown: "30 sec" (contains `{s}`). */
     readonly secondsOnly: string;
+    /** Shown with seconds (designer D81): "1 min 30 sec" (contains `{m}`, `{s}`). */
+    readonly minutesSeconds: string;
+    /** Shown with seconds: "1 h 5 sec" (contains `{h}`, `{s}`). */
+    readonly hoursSeconds: string;
+    /** Shown with seconds: "1 h 30 min 15 sec" (contains `{h}`, `{m}`, `{s}`). */
+    readonly hoursMinutesSeconds: string;
     /** Rang-ago only: "1 h 5 min" (contains `{h}`, `{m}`). */
     readonly hoursMinutesAgo: string;
     /** Spoken words, one part each. */
@@ -300,6 +306,9 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             hoursOnly: '{h} h',
             minutesOnly: '{m} min',
             secondsOnly: '{s} sec',
+            minutesSeconds: '{m} min {s} sec',
+            hoursSeconds: '{h} h {s} sec',
+            hoursMinutesSeconds: '{h} h {m} min {s} sec',
             hoursMinutesAgo: '{h} h {m} min',
             hours: { one: '{count} hour', other: '{count} hours' },
             minutes: { one: '{count} minute', other: '{count} minutes' },

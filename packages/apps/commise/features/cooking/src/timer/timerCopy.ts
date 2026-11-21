@@ -36,8 +36,8 @@ export function timerLabel(
 }
 
 /**
- * A length as shown: "1 h 30", "2 h", "25 min", "30 sec". Seconds follow the hours or minutes after a space ("1 min 30
- * sec"), which the designer's table does not define: recorded in reviews/0021 for the designer.
+ * A length as shown: "1 h 30", "2 h", "25 min", "30 sec". With seconds each shape is its own key ("1 h 30 min 15
+ * sec", designer D81); "1 h 30" is only for a length with no seconds.
  *
  * @param durationMs - A length in ms. Negative reads as zero.
  * @param copy - The duration copy.
@@ -45,21 +45,30 @@ export function timerLabel(
  */
 export function shownDuration(durationMs: number, copy: CookingDurationMessages): string {
     const { hours, minutes, seconds } = partsOf(durationMs);
-    const parts: string[] = [];
+
+    if (seconds > 0) {
+        if (hours > 0 && minutes > 0) {
+            return fillTemplate(copy.hoursMinutesSeconds, { h: hours, m: minutes, s: seconds });
+        }
+
+        if (hours > 0) {
+            return fillTemplate(copy.hoursSeconds, { h: hours, s: seconds });
+        }
+
+        return minutes > 0
+            ? fillTemplate(copy.minutesSeconds, { m: minutes, s: seconds })
+            : fillTemplate(copy.secondsOnly, { s: seconds });
+    }
 
     if (hours > 0 && minutes > 0) {
-        parts.push(fillTemplate(copy.hoursMinutes, { h: hours, m: minutes }));
-    } else if (hours > 0) {
-        parts.push(fillTemplate(copy.hoursOnly, { h: hours }));
-    } else if (minutes > 0) {
-        parts.push(fillTemplate(copy.minutesOnly, { m: minutes }));
+        return fillTemplate(copy.hoursMinutes, { h: hours, m: minutes });
     }
 
-    if (seconds > 0 || parts.length === 0) {
-        parts.push(fillTemplate(copy.secondsOnly, { s: seconds }));
+    if (hours > 0) {
+        return fillTemplate(copy.hoursOnly, { h: hours });
     }
 
-    return parts.join(' ');
+    return minutes > 0 ? fillTemplate(copy.minutesOnly, { m: minutes }) : fillTemplate(copy.secondsOnly, { s: 0 });
 }
 
 /**

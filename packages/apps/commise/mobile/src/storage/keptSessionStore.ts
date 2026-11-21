@@ -28,8 +28,8 @@ export const nativeKeptPort: KeptPort = {
 
 const queues = new Map<string, SerialQueue>();
 
-/** One serial queue per lock name. */
-const runner: ExclusiveRunner = (name, work) => {
+/** One serial queue per lock name. Shared by every record that writes this device's storage with a read first. */
+export const nativeExclusiveRunner: ExclusiveRunner = (name, work) => {
     const queue = queues.get(name) ?? createSerialQueue();
 
     queues.set(name, queue);
@@ -40,7 +40,7 @@ const runner: ExclusiveRunner = (name, work) => {
 /** The phone's one kept store. A runner always exists here, so `warn` is never called. */
 export const nativeKeptSessionStore = createKeptSessionStore({
     port: nativeKeptPort,
-    exclusiveOf: () => runner,
+    exclusiveOf: () => nativeExclusiveRunner,
     now: () => new Date().toISOString(),
     report: reportErrorToSentry,
     warn: () => undefined,

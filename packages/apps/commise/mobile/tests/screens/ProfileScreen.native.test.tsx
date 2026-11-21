@@ -51,6 +51,10 @@ vi.mock('@clerk/expo', () => ({
     useClerk: () => ({ signOut: vi.fn(), loaded: true, status: 'ready', session: null }),
 }));
 vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({ useSignOutAndVerify: () => ({ signOutAndVerify }) }));
+// The erase flow's `leave` step clears the store-review record first (S12 U2); the record has its own suite.
+vi.mock('../../src/storage/storeReviewRecord.js', () => ({
+    nativeStoreReviewRecord: { clear: vi.fn(() => Promise.resolve()) },
+}));
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: vi.fn() }));
 vi.mock('../../src/hooks/useUpdateProfile.js', () => ({ useUpdateProfile: vi.fn() }));
 vi.mock('../../src/hooks/useDeleteAccount.js', () => ({ useDeleteAccount: vi.fn() }));

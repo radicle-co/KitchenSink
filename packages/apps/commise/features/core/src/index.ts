@@ -73,3 +73,8 @@ export {
     createRoadmapPlaceholders,
 } from './roadmapWidgets.js';
 export type { RoadmapWidgetId, RoadmapWidgetSpec } from './roadmapWidgets.js';
+
+// === Session interruption ledger (FR-036) ===
+
+export { INTERRUPTION_KINDS, anyShown, markShown } from './sessionInterruptions.js';
+export type { InterruptionKind } from './sessionInterruptions.js';

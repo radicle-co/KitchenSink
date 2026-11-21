@@ -7,6 +7,8 @@
  * mechanical edits are derived from it by the named transform, so the derivation is part of the frozen case.
  */
 
+import { synthWord } from './synthetic.js';
+
 /** One golden pair and the answer v1 gives for it. */
 export interface GoldenCase {
     /** A short name, unique in the set. */
@@ -239,8 +241,122 @@ const AE18_CASES: readonly GoldenCase[] = [
     },
 ];
 
+/** A short baseline, near the 20-shingle minimum (23 distinct shingles): the short band of the spinning cases. */
+const EGGS_BASE =
+    'Whisk two eggs with salt. Melt butter in a pan and pour in the eggs. Stir gently until just set, then serve on warm toast.';
+
+/** A long baseline (about 200 distinct shingles): the long band of the spinning cases. */
+const BREAD_BASE =
+    'Start the bread the night before. Pour the warm water into a large bowl, sprinkle the yeast over it and leave it alone for ten minutes until it foams. Stir in the honey and the olive oil, then add the flour and salt a little at a time, working the mixture with a wooden spoon until it pulls away from the sides. Tip the dough onto a clean counter and knead it firmly for about eight minutes, until it feels smooth and springs back when pressed. Place it in an oiled bowl, cover the bowl with a damp cloth and keep it somewhere warm until it has doubled in size, which usually takes about two hours. Press the air out gently, shape the dough into a tight round and set it on a floured tray. Cover it again and let it rise for another forty minutes while the oven heats to 230 degrees. Slash the top with a sharp knife, slide the tray onto the middle shelf and bake for thirty minutes, until the crust is deep brown and the loaf sounds hollow when you tap the bottom. Cool it on a rack for at least an hour before slicing, because the crumb needs time to set.';
+
+/**
+ * A seeded stream of numbers in [0, 1). mulberry32 is eight lines and a case needs only a draw that never changes: a
+ * library's generator may change its stream in a release, and that would move a frozen case.
+ *
+ * @param seed - The seed.
+ * @returns The next number each call.
+ */
+function seededDraw(seed: number): () => number {
+    let state = seed;
+
+    return () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+/**
+ * Replace the words at the given positions with synthetic words, the way a spinner does.
+ *
+ * @param text - Words one space apart.
+ * @param isReplaced - Whether the word at an index is replaced.
+ * @returns The edited text.
+ */
+function spin(text: string, isReplaced: (index: number) => boolean): string {
+    return text
+        .split(' ')
+        .map((word, index) => (isReplaced(index) ? synthWord(index) : word))
+        .join(' ');
+}
+
+/**
+ * Spinning (U2 spike, qse 2026-11-21): the original with a fraction of its words swapped for new ones. No sentence
+ * is rewritten, and a person would call every one of these the same text. A, R and F all compare contiguous runs, so
+ * v1 as first built passed every one. Expected: not earned. The draw is seeded, so each case never changes.
+ */
+const SPINNING_CASES: readonly GoldenCase[] = [
+    {
+        name: 'bread: every third word replaced, from the third',
+        baseline: BREAD_BASE,
+        steps: spin(BREAD_BASE, (index) => index % 3 === 2),
+        pass: false,
+    },
+    {
+        name: 'bread: every second word replaced, from the second',
+        baseline: BREAD_BASE,
+        steps: spin(BREAD_BASE, (index) => index % 2 === 1),
+        pass: false,
+    },
+    {
+        name: 'eggs: a seeded draw replacing each word with a chance of one in three (short baseline)',
+        baseline: EGGS_BASE,
+        steps: spin(
+            EGGS_BASE,
+            (
+                (draw) => () =>
+                    draw() < 1 / 3
+            )(seededDraw(5)),
+        ),
+        pass: false,
+    },
+    {
+        name: 'bread: a seeded draw replacing each word with a chance of one in three (long baseline)',
+        baseline: BREAD_BASE,
+        steps: spin(
+            BREAD_BASE,
+            (
+                (draw) => () =>
+                    draw() < 1 / 3
+            )(seededDraw(5)),
+        ),
+        pass: false,
+    },
+];
+
+/**
+ * Reorder and spin together (redteam R2-2): the base's sentences in the reverse order, and in each sentence one word
+ * in three replaced. Defined by its edits. po labels it not earned: the sentences are the original's and only
+ * single words changed.
+ */
+const REORDER_SPIN_CASE: GoldenCase = {
+    name: 'roots: the sentences reversed and one word in three of each replaced (redteam R2-2)',
+    baseline: ROOTS_BASE,
+    steps: ROOTS_BASE.split('. ')
+        .map((sentence) => sentence.replace(/\.$/u, ''))
+        .reverse()
+        .map((sentence, sentenceIndex) =>
+            sentence
+                .split(' ')
+                .map((word, index) => (index % 3 === 1 ? synthWord(sentenceIndex * 40 + index) : word))
+                .join(' '),
+        )
+        .join('. ')
+        .concat('.'),
+    pass: false,
+};
+
 /** The whole golden set. */
-export const GOLDEN_V1: readonly GoldenCase[] = [...PASSING, ...FAILING, ...SCRIPT_CASES, ...AE18_CASES];
+export const GOLDEN_V1: readonly GoldenCase[] = [
+    ...PASSING,
+    ...FAILING,
+    ...SCRIPT_CASES,
+    ...AE18_CASES,
+    ...SPINNING_CASES,
+    REORDER_SPIN_CASE,
+];
 
 /**
  * The measures v1 reported for each case when it was frozen (2026-11-21). A change in any number fails the golden test,
@@ -383,5 +499,25 @@ export const GOLDEN_V1_MEASURES: Readonly<
         newWords: 26,
     },
     'roots: the steps merged and reordered (AE18 case M)': { kept: 10, total: 62, longestRun: 5, newWords: 24 },
+    'bread: every third word replaced, from the third': { kept: 0, total: 203, longestRun: 2, newWords: 69 },
+    'bread: every second word replaced, from the second': { kept: 0, total: 203, longestRun: 1, newWords: 103 },
+    'eggs: a seeded draw replacing each word with a chance of one in three (short baseline)': {
+        kept: 3,
+        total: 23,
+        longestRun: 4,
+        newWords: 10,
+    },
+    'bread: a seeded draw replacing each word with a chance of one in three (long baseline)': {
+        kept: 35,
+        total: 203,
+        longestRun: 7,
+        newWords: 79,
+    },
+    'roots: the sentences reversed and one word in three of each replaced (redteam R2-2)': {
+        kept: 0,
+        total: 62,
+        longestRun: 2,
+        newWords: 21,
+    },
     'devanagari: the same consonants with other vowel signs': { kept: 10, total: 10, longestRun: 30, newWords: 0 },
 };

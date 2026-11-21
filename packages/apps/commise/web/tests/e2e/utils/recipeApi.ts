@@ -1051,6 +1051,12 @@ export interface MockRecipeApiOptions {
      * `403 PRIVATE_SLOTS_FULL`, and answers a `granted` viewer (a premium cook) with `unlimited`.
      */
     readonly privateSlotLimit?: number;
+    /**
+     * Recipe ids whose Make public the stubbed service refuses with `400 INVALID_VISIBILITY` and `details.reason:
+     * 'STATEMENT_REQUIRED'` until the write carries a `statement` (ADR-0095). A write that carries one stores its source and
+     * kind as the service does (`sourceOfStatement`, `statementKindOf`), and a third-party answer leaves the recipe Private.
+     */
+    readonly statementOwedFor?: readonly string[];
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
     readonly viewerId?: string;
     /** Collections to seed the store with (defaults to none — the collection list starts empty). */
@@ -1166,6 +1172,7 @@ export async function mockRecipeApi(
     // What the stubbed recipe service treats the viewer as — the real one decides from roles, which `granted` stands for.
     const tier: 'free' | 'premium' = paidFeatures === 'granted' ? 'premium' : 'free';
     const privateSlotLimit = options.privateSlotLimit ?? E2E_PRIVATE_SLOT_LIMIT;
+    const statementOwedFor = new Set(options.statementOwedFor ?? []);
     const authorHandles = options.authorHandles ?? {};
     const collectionsPageSize = options.collectionsPageSize ?? 20;
     const store = new Map<string, RecipeDetail>();
@@ -1883,8 +1890,24 @@ export async function mockRecipeApi(
                 return route.fulfill({ status: 403, json: privateSlotsFullBody(privateSlotsUsed(), privateSlotLimit) });
             }
 
+            const statement = body()['statement'];
+
+            // ADR-0095: a recipe that owes a statement is refused Public until the write carries one.
+            if (body()['visibility'] === 'public' && statement === undefined && statementOwedFor.has(id)) {
+                return route.fulfill({
+                    status: 400,
+                    json: {
+                        code: 'INVALID_VISIBILITY',
+                        message: 'Say where this recipe is from.',
+                        details: { reason: 'STATEMENT_REQUIRED' },
+                    },
+                });
+            }
+
             const updated = {
                 ...current,
+                ...sourceOfStatement(statement),
+                ...statementKindOf(statement),
                 visibility: (body()['visibility'] as RecipeVisibility) ?? current.visibility,
             };
             store.set(id, updated);

@@ -27,7 +27,7 @@ const observers = new Set<{
     readonly observer: ResizeObserver;
 }>();
 
-class RecordingResizeObserver {
+class RecordingResizeObserver implements ResizeObserver {
     private readonly record: {
         readonly callback: ResizeObserverCallback;
         readonly observed: Set<Element>;
@@ -53,7 +53,7 @@ class RecordingResizeObserver {
 }
 
 beforeEach(() => {
-    globalThis.ResizeObserver = RecordingResizeObserver as unknown as typeof ResizeObserver;
+    globalThis.ResizeObserver = RecordingResizeObserver;
 });
 
 afterEach(() => {

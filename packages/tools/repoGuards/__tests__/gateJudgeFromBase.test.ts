@@ -37,12 +37,13 @@ const policyAlternatives = async (): Promise<string[]> => {
 
 /** The shell `pattern` of the judge-source step, exactly as written between its single quotes. */
 const shellPattern = (): string => {
-    const match = /^\s*pattern='([^']+)'\s*$/mu.exec(gateYml);
+    const match = /^ *pattern='([^']+)' *$/mu.exec(gateYml);
 
     if (match === null) {
         throw new Error("gate.yml has no `pattern='...'` line in the judge-source step");
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off, so match[1] is typed string but is undefined if the group did not take part.
     return match[1] ?? '';
 };
 

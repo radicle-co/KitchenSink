@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
+import { setImmediate } from 'node:timers/promises';
 
 import { globSync } from 'glob';
 import ts from 'typescript';
@@ -351,7 +352,7 @@ describe('MacSession', () => {
             rec.exitTunnel(255);
             await expect(opening).rejects.toThrow(/exited with code 255 before/u);
             const askedAtRefusal = rec.asked();
-            await new Promise((resolve) => setTimeout(resolve, 0));
+            await setImmediate();
 
             // One ask may already have been on its way when the tunnel ended. None may follow it.
             expect(rec.asked() - askedAtRefusal).toBeLessThanOrEqual(1);

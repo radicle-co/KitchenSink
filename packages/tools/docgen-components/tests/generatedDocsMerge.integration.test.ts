@@ -53,9 +53,15 @@ afterEach(() => {
 const WORKSPACE_DIR = 'packages/tools/docgen-components';
 const WORKSPACE_NAME = '@kitchensink/docgen-components';
 
-/** The stub `docs:generate`: records a call in `DOCGEN_CALLS_FILE`, and edits the tracked totals file as a real run does. */
-const RECORD_CALL =
-    "const fs = require('node:fs'); fs.appendFileSync(process.env.DOCGEN_CALLS_FILE, 'generate\\n'); fs.appendFileSync(process.env.DOCGEN_TOTALS_FILE, '\\n')";
+/**
+ * The stub `docs:generate`: records a call in `DOCGEN_CALLS_FILE`, and edits the tracked totals file as a real run
+ * does. It is embedded in a shell-quoted npm script, so it holds no double quote.
+ */
+const RECORD_CALL = [
+    "const fs = require('node:fs')",
+    "fs.appendFileSync(process.env.DOCGEN_CALLS_FILE, 'generate\\n')",
+    "fs.appendFileSync(process.env.DOCGEN_TOTALS_FILE, '\\n')",
+].join('; ');
 
 /**
  * A repository with the real `.gitattributes`, one totals file on `main`, the driver installed when asked, and a

@@ -68,6 +68,7 @@ function makeMac(manifestKey: string): MacWorld {
     const localBin = path.join(root, 'localBin');
     const macBin = path.join(root, 'macBin');
     const appDir = path.join(macHome, APP_FOLDER);
+
     for (const dir of [macHome, localBin, macBin, appDir]) {
         mkdirSync(dir, { recursive: true });
     }
@@ -107,6 +108,7 @@ function makeMac(manifestKey: string): MacWorld {
         'builtInRun=local',
     ];
     writeFileSync(path.join(appDir, 'testApp.manifest'), `${manifest.join('\n')}\n`);
+
     return { root, macHome, localBin, macBin, appDir };
 }
 
@@ -118,6 +120,7 @@ function addApp(world: MacWorld, name: string, bakedKey: string | null): string 
         path.join(bundle, 'Info.plist'),
         bakedKey === null ? 'CFBundleName=Commise\n' : `${BAKED_KEY_NAME}=${bakedKey}\n`,
     );
+
     return bundle;
 }
 
@@ -232,10 +235,12 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
         const root = mkdtempSync(path.join(tmpdir(), 'bakeContentKey-'));
         roots.push(root);
         const ios = path.join(root, 'ios');
+
         for (const plist of plists) {
             mkdirSync(path.join(ios, path.dirname(plist)), { recursive: true });
             writeFileSync(path.join(ios, plist), '');
         }
+
         const bin = path.join(root, 'bin');
         mkdirSync(bin);
         const log = path.join(root, 'plutil.log');
@@ -249,6 +254,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
                   .split('\n')
                   .filter((line) => line !== '')
             : [];
+
         return { status: result.status, stderr: result.stderr, plutilCalls: calls };
     }
 

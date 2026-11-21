@@ -9,6 +9,7 @@ export { useRecipeServiceClients } from './useRecipeServiceClients.js';
 export type { RecipeServiceClients, UseRecipeServiceClientsOptions } from './useRecipeServiceClients.js';
 export { RecipeServicesTree } from './RecipeServicesTree.js';
 export type { RecipeServicesTreeProps } from './RecipeServicesTree.js';
+export { endsCookSession } from './endsCookSession.js';
 export { createKeptSessionStore } from './kept/keptSessionStore.js';
 export type { KeptSessionStore, KeptSessionStoreDeps, KeptSnapshot } from './kept/keptSessionStore.js';
 export { ingredientTickKeysSchema } from '../common/ingredientTickKey.js';

@@ -95,7 +95,10 @@ jobs:
             # ⛔ THE JUDGE COMES FROM THE BASE, NEVER THE HEAD. Everything the agent loads as instructions is replaced by the
             # base's copy: `.claude/` (agent card, skills AND settings, whose hooks would otherwise run PR-supplied code
             # with the OAuth token in reach), `.mcp.json`, and every `CLAUDE.md`, `CLAUDE.local.md` and `AGENTS.md` at any
-            # depth (project memory). A head copy that does not exist at the base is deleted.
+            # depth (project memory). It also replaces the standards the card cites: `docs/CODING_STANDARDS.md` and every file
+            # under `docs/engineering/`, `docs/architecture/`, `docs/adr/` and `adr/`, so a PR cannot loosen the rule it is
+            # judged by. A head copy that does not exist at the base is deleted. The same set is `RESTORED_FROM_BASE` in
+            # tooling/codeQuality/gateScope.mjs, and a repoGuards test keeps the two equal.
             - name: Install the judge from the base branch
               id: judge-source
               if: steps.plan.outputs.go == 'true'
@@ -112,7 +115,7 @@ jobs:
                   fi
                   # grep exits 1 on no match, which is not an error here; exit 2 (a real error) still fails the step.
                   pick() { grep "$@" || [ "$?" -eq 1 ]; }
-                  pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/'
+                  pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude(/|$)|^docs/CODING_STANDARDS\.md$|^docs/engineering(/|$)|^docs/architecture(/|$)|^docs/adr(/|$)|^adr(/|$)'
                   git ls-files -z | pick -zE "$pattern" | xargs -0 -r git rm -q -f --
                   rm -rf .claude
                   git ls-tree -r -z --name-only "$BASE_SHA" | pick -zE "$pattern" |

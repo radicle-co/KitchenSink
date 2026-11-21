@@ -11,6 +11,7 @@ import path from 'node:path';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import type { LaneSpec } from './laneTypes.js';
+import { processGroup, type StopSignal } from './stopGroups.js';
 
 /** The file in a lane's state folder the runner records the screens its flows showed to. */
 export const SCREEN_RECORD_FILE = 'screenRecord.tsv';
@@ -38,7 +39,7 @@ export interface LaneChild {
     /** Whether any process of the lane's group is still alive, as the leader may exit while a child stays. */
     running(): boolean;
     /** A signal to the lane's whole process group: SIGTERM unless told otherwise. */
-    stop(signal?: 'SIGTERM' | 'SIGKILL'): void;
+    stop(signal?: StopSignal): void;
 }
 
 /**
@@ -64,29 +65,7 @@ export function spawnRunner(input: {
     return {
         pid: child.pid ?? -1,
         exit: exitOf(child),
-        running: () => {
-            if (child.pid === undefined) {
-                return false;
-            }
-
-            try {
-                // Signal 0 only asks whether the group has a process.
-                process.kill(-child.pid, 0);
-
-                return true;
-            } catch {
-                return false;
-            }
-        },
-        stop: (signal = 'SIGTERM') => {
-            if (child.pid !== undefined) {
-                try {
-                    process.kill(-child.pid, signal);
-                } catch {
-                    // Already gone.
-                }
-            }
-        },
+        ...processGroup(child.pid ?? -1),
     };
 }
 

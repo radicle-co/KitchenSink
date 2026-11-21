@@ -1120,4 +1120,14 @@ describe('a command settles the list first', () => {
 
         expect(result.events.map((e) => e.id)).toEqual(['t1']);
     });
+
+    it('a restore that rings the restored timer comes after the ring of another due timer', () => {
+        const held = run([{ kind: 'cancel', id: 't2', run: 1, nowMs: 10 * SECOND }], many(2)).state;
+        const result = reduceTimer(held, { kind: 'restore', limit: 10, nowMs: 95 * MINUTE });
+
+        expect(result.events).toEqual([
+            { kind: 'ended', id: 't1', run: 1 },
+            { kind: 'ended', id: 't2', run: 1 },
+        ]);
+    });
 });

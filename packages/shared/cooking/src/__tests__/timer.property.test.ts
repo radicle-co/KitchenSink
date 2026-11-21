@@ -177,23 +177,18 @@ describe('the timer model over any command sequence', () => {
             fc.property(stepsWithLimit, ([steps, limit]) => {
                 const seen = new Set<string>();
 
-                for (const { before, after, events } of trace(steps, limit)) {
+                for (const { before, events, nowMs } of trace(steps, limit)) {
                     for (const event of events) {
                         const key = `${event.id}:${event.run}`;
 
                         expect(seen.has(key)).toBe(false);
                         seen.add(key);
-                        // TEST-CHANGE (S3a.U3 C1 item 2, AR2): a command settles first, so the timer that rang may
-                        // be stopped or restarted by that same command. It is ringing in that run, or it has left
-                        // the run it rang in.
-                        const now = after.timers.find((t) => t.id === event.id);
+                        // TEST-CHANGE (S3a.U3 C1 item 3, AR2; qse 0075): a command settles first, so the timer
+                        // that rang may be stopped or restarted by that same command. The check reads the state
+                        // before the command: the timer was running in that run and its end had passed.
+                        const was = holdersOf(before).find((t) => t.id === event.id);
 
-                        if (now?.run === event.run) {
-                            expect(now.kind).toBe('ringing');
-                        } else {
-                            expect(now === undefined || now.run > event.run).toBe(true);
-                        }
-
+                        expect(was?.kind === 'running' && was.run === event.run && was.endsAt <= nowMs).toBe(true);
                         expect(before.timers.find((t) => t.id === event.id)?.kind).not.toBe('ringing');
                     }
                 }

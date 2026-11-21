@@ -269,8 +269,9 @@ export function readWordDuration(line: string): DurationReading {
         return { kind: 'none' };
     }
 
-    const first = found[only.start];
-    const last = found[only.end - 1];
+    // `at` is typed `T | undefined`, so the guard below is a real one whatever `noUncheckedIndexedAccess` says.
+    const first = found.at(only.start);
+    const last = found.at(only.end - 1);
 
     if (first === undefined || last === undefined) {
         return { kind: 'none' };

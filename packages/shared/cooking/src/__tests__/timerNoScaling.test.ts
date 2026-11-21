@@ -2,7 +2,7 @@
  * Cook time does not scale with yield (FR-034a), so no part of the timer may be able to take a servings figure. The
  * rule is structural: nothing the timer modules import, directly or through the modules those import, is about scaling,
  * servings or yield, so a scale factor has no way in. Imports are read from the whole source, wrapped over several
- * lines or not.
+ * lines or not, and a dynamic import counts like a static one.
  */
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
@@ -10,13 +10,17 @@ import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 const SRC = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
-/** Every module specifier a file imports or re-exports from, wherever its line breaks fall. */
+/**
+ * Every module specifier a file imports, re-exports from, requires or imports dynamically, read by the TypeScript
+ * scanner, so a line break changes nothing and a specifier in a comment or a string is not one.
+ */
 function specifiersOf(source: string): readonly string[] {
-    return [...source.matchAll(/\b(?:from|import)\s*['"]([^'"]+)['"]/gu)].map((match) => match[1] ?? '');
+    return ts.preProcessFile(source, true, true).importedFiles.map((file) => file.fileName);
 }
 
 /** Resolves a workspace package specifier from a file to its source file, or `undefined` for any other package. */
@@ -114,5 +118,27 @@ describe('the closure reader itself', () => {
             "import {\n    a,\n    b,\n} from './scaleRecipe.js';\nexport { c } from '@x/servings';\nimport './plain.js';";
 
         expect(specifiersOf(source)).toEqual(['./scaleRecipe.js', '@x/servings', './plain.js']);
+    });
+
+    // S3a.U3 C1 item 6 (S14 minor 1): the reader is the TypeScript scanner's, not a regex over the text.
+    it('sees a dynamic import, which a timer module could use to reach scaling late', () => {
+        expect(specifiersOf("const late = await import('./scaleRecipe.js');")).toEqual(['./scaleRecipe.js']);
+    });
+
+    it('sees a type-only import and a require', () => {
+        expect(specifiersOf("import type { A } from './servings.js';\nconst b = require('./yield.js');")).toEqual([
+            './servings.js',
+            './yield.js',
+        ]);
+    });
+
+    it('does not report a specifier that is only written in a comment or a string', () => {
+        const source = [
+            "// import './scaleRecipe.js';",
+            "/* export { c } from '@x/servings'; */",
+            'export const note = "from \'./yield.js\'";',
+        ].join('\n');
+
+        expect(specifiersOf(source)).toEqual([]);
     });
 });

@@ -5549,6 +5549,16 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/timer/TimerProvider",
+            "sourcePath": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
             "rule": "missing-module-doc",
             "severity": "gap",
             "component": "web/app/[locale]/collections/[id]/CollectionDetailPage",

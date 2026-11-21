@@ -3,6 +3,7 @@ import { recipeStepSchema } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import { CORPUS_OFFERS, NEGATIVE_LINES, POSITIVE_LINE_OFFERS } from '../src/__fixtures__/corpusOffers.js';
+import { oneIn } from '../src/__fixtures__/oneIn.js';
 import { GOLDEN_CORPUS_STEPS } from '../src/__fixtures__/stepLinesGolden.js';
 
 /**
@@ -49,7 +50,9 @@ describe('times written in words, over the corpus steps a cook walks', () => {
     });
 
     it('gives a word range its high end through the barrel', () => {
-        expect(readDuration('Ten to fifteen minutes')).toEqual({ kind: 'one', seconds: 600, highSeconds: 900 });
+        expect(readDuration('Ten to fifteen minutes')).toEqual(
+            oneIn('Ten to fifteen minutes', 'Ten to fifteen minutes', 600, 900),
+        );
     });
 });
 

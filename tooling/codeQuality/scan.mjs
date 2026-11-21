@@ -257,6 +257,14 @@ function packageRoot(file) {
     }
     return '';
 }
+/** True when `dir` is the repo root or has a package below it: scanning it would scan packages the change never touched. */
+function holdsPackage(dir) {
+    if (dir === '.') {
+        return true;
+    }
+    const r = sh('git', ['ls-files', '--', `:(glob)${dir}/**/package.json`], { cwd: repo });
+    return r.out.trim() !== '';
+}
 function groupByPackage(list) {
     const g = new Map();
     for (const f of list) {
@@ -622,7 +630,7 @@ await tool('jscpd', () => {
     // scans only itself). Every package keeps its package root.
     const scanDirs = [];
     for (const [root, group] of groupByPackage(codeFiles)) {
-        const dirs = root === '' ? group.map((f) => (dirname(f) === '.' ? f : dirname(f))) : [root];
+        const dirs = root === '' ? group.map((f) => (holdsPackage(dirname(f)) ? f : dirname(f))) : [root];
         scanDirs.push(...new Set(dirs));
     }
     for (const root of scanDirs) {

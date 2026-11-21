@@ -54,9 +54,14 @@ describe('scan.mjs jscpd for a code file outside every package', () => {
         writeFileSync(join(repo, 'scripts', 'tool.mjs'), 'export const a = 1;\n');
         git('add', 'scripts/tool.mjs');
         git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'two');
+        mkdirSync(join(repo, 'tools', 'pkg'), { recursive: true });
+        writeFileSync(join(repo, 'tools', 'pkg', 'package.json'), '{}\n');
+        writeFileSync(join(repo, 'tools', 'loose.mjs'), 'export const c = 3;\n');
+        git('add', 'tools/pkg/package.json', 'tools/loose.mjs');
+        git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'three');
         writeFileSync(join(repo, 'rootTool.mjs'), 'export const b = 2;\n');
         git('add', 'rootTool.mjs');
-        git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'three');
+        git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-qm', 'four');
     });
     after(() => rmSync(root, { recursive: true, force: true }));
 
@@ -72,7 +77,11 @@ describe('scan.mjs jscpd for a code file outside every package', () => {
     };
 
     it('scans the changed file directory and never the repository root', () => {
-        assert.deepEqual(scanPaths('HEAD~2..HEAD~1'), [join(repo, 'scripts')]);
+        assert.deepEqual(scanPaths('HEAD~3..HEAD~2'), [join(repo, 'scripts')]);
+    });
+
+    it('scans a file in a folder that holds a package as that file alone', () => {
+        assert.deepEqual(scanPaths('HEAD~2..HEAD~1'), [join(repo, 'tools', 'loose.mjs')]);
     });
 
     it('scans a file directly in the repository root as that file alone', () => {

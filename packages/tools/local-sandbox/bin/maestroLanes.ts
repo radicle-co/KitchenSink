@@ -40,7 +40,8 @@ import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroL
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
-import { processGroup, stopTargets } from '../src/maestroLanes/stopGroups.js';
+import { processGroup } from '../src/maestroLanes/stopGroups.js';
+import { startService } from '../src/maestroLanes/serviceProcess.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { BASE_ENVIRONMENT_SCRIPT } from '../src/maestroLanes/baseEnvironmentScript.js';
@@ -217,33 +218,15 @@ function serviceSpecs(root: string, settings: LocalSettings, env: Env): readonly
     ];
 }
 
-/** Start one service and wait until it is ready: a consumer prints `draining`, the worker is alive after 8 s. */
-async function startService(spec: ServiceSpec, env: Env, root: string): Promise<RunningService> {
+/** Start one service in its own group and wait until it is ready. */
+const startServiceFor = (spec: ServiceSpec, env: Env, root: string): Promise<RunningService> => {
     const log = path.join(STATE_DIR, `service.${spec.name}.log`);
-    const { pid } = spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root);
-    const group = processGroup(pid);
-    const consumer = spec.name !== 'parseWorker';
 
-    for (let waited = 0; waited < 60; waited += 1) {
-        await delay(1_000);
-
-        if (!pidIsAlive(pid)) {
-            throw new Error(`maestro:lanes: ${spec.name} exited - log: ${log}`);
-        }
-
-        if (consumer ? readFileSync(log, 'utf8').includes('draining') : waited >= 8) {
-            return {
-                pid,
-                stop: async () => {
-                    await stopTargets([group]);
-                },
-            };
-        }
-    }
-
-    group.stop('SIGTERM');
-    throw new Error(`maestro:lanes: ${spec.name} was not ready in 60 s - log: ${log}`);
-}
+    return startService(spec, {
+        log,
+        spawn: () => spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root),
+    });
+};
 
 const laneEnvFor = (base: Env, lane: LaneSpec): Env => ({
     ...base,
@@ -373,7 +356,7 @@ async function startServices(base: Env, settings: LocalSettings) {
                 return `its queue ${spec.queueUrl} is not in LocalStack (${error instanceof Error ? error.name : String(error)})`;
             }
         },
-        start: (spec) => startService(spec, base, root),
+        start: (spec) => startServiceFor(spec, base, root),
         resetPool: async (lane) => {
             await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.platform}-${lane.index}`, [
                 'packages/tools/e2e-seed/src/resetPool.ts',

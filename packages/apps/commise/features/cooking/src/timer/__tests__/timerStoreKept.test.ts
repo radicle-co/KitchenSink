@@ -379,9 +379,17 @@ describe('the record is the truth across tabs', () => {
 
         two.timers.start({ ...STEP, stepIndex: 5, label: undefined, durationMs: 10 * MINUTE });
         await settle();
+
+        const seen: (string | undefined)[] = [];
+
+        one.timers.subscribe(() => seen.push(one.timers.getSnapshot().undo?.id));
         one.timers.command({ kind: 'restore' });
         await settle();
 
+        // The screen is told the moment the Undo is back, and again when the record is read: a bare assignment of
+        // the Undo notifies no one at the first of the two.
+        expect(seen.filter((undoId) => undoId === id)).toHaveLength(2);
+        expect(seen.at(-1)).toBe(id);
         expect(one.timers.getSnapshot().undo?.id).toBe(id);
         expect(stored(device).timers).toHaveLength(1);
         expect(one.timers.getSnapshot().timers.map((t) => t.id)).toEqual(stored(device).timers.map((t) => t.id));

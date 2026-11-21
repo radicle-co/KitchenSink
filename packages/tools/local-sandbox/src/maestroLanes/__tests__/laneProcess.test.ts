@@ -1,4 +1,4 @@
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -20,6 +20,19 @@ afterEach(() => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+/** Wait until a log file holds the text, so a test never guesses how long a runner takes to start. */
+async function waitForLog(file: string, text: string): Promise<void> {
+    for (let tries = 0; tries < 250; tries += 1) {
+        if (existsSync(file) && readFileSync(file, 'utf8').includes(text)) {
+            return;
+        }
+
+        await delay(20);
+    }
+
+    throw new Error(`${file} never held ${text}`);
+}
 
 function runnerWith(body: string): { readonly script: string; readonly dir: string } {
     const dir = mkdtempSync(path.join(tmpdir(), 'laneProcess-'));
@@ -69,7 +82,7 @@ describe('spawnRunner', () => {
     });
 
     it('passes its signal on: a runner that ignores SIGTERM survives stop(), and SIGKILL ends its group', async () => {
-        const { script, dir } = runnerWith("trap '' TERM\nsleep 30 &\nwait\n");
+        const { script, dir } = runnerWith("trap '' TERM\necho ready\nsleep 30 &\nwait\n");
         const child = spawnRunner({
             script,
             cwd: dir,
@@ -77,7 +90,8 @@ describe('spawnRunner', () => {
             log: path.join(dir, 'log'),
         });
         children.push(child);
-        await delay(200);
+        // The trap is set before the runner says ready, so SIGTERM cannot arrive earlier.
+        await waitForLog(path.join(dir, 'log'), 'ready');
 
         child.stop();
         await delay(200);

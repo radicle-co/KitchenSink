@@ -258,7 +258,7 @@ describe('MacSession', () => {
 
                 await expect(session.openTunnel(FORWARDS)).rejects.toThrow(/not an HTTP code/u);
                 await expect(session.openTunnel(FORWARDS)).rejects.toThrow(
-                    reply === '' ? /answered ""/u : /answered "bash: curl: command not found"/u,
+                    new RegExp(`answered ${JSON.stringify(reply)}`, 'u'),
                 );
                 expect(rec.calls.filter((c) => c.args.join(' ').includes('127.0.0.1:3000/health'))).toHaveLength(2);
             }
@@ -310,6 +310,21 @@ describe('MacSession', () => {
             rec.exitTunnel(255);
             await Promise.resolve();
             await Promise.resolve();
+
+            await expect(session.lost()).resolves.toEqual(
+                new Error('the tunnel ssh exited with code 255 during the run'),
+            );
+        });
+
+        it('keeps a loss that happened before close(): lost() asked after close() still resolves with it', async () => {
+            const rec = recorder();
+            const session = make(rec.shell);
+            await session.open(run);
+            await session.openTunnel(FORWARDS);
+            rec.exitTunnel(255);
+            await Promise.resolve();
+            await Promise.resolve();
+            await session.close();
 
             await expect(session.lost()).resolves.toEqual(
                 new Error('the tunnel ssh exited with code 255 during the run'),
@@ -380,21 +395,23 @@ describe('MacSession', () => {
 });
 
 describe('macPathsOf — the one builder of Mac paths', () => {
+    /** Rewritten on purpose (CL-MACLOCK): the iOS app moved to ksIos/apps/ios/<key>, a folder no old script writes. */
     it('builds every path under the Mac HOME when it knows it', () => {
         const paths = macPathsOf('/Users/x');
 
         expect(paths.laneHome(2)).toBe('/Users/x/ksIos/lanes/lane2');
         expect(paths.runTree('r1')).toBe('/Users/x/ksIos/run/r1');
-        expect(paths.iosApp('abc')).toBe('/Users/x/ksIos/apps/abc');
+        expect(paths.iosApp('abc')).toBe('/Users/x/ksIos/apps/ios/abc');
         expect(paths.androidApp('abc')).toBe('/Users/x/ksIos/apps/android/abc');
         expect(paths.androidEnv).toBe('/Users/x/ksAndroid/env.sh');
         expect(paths.androidSdk).toBe('/Users/x/ksAndroid/sdk');
     });
 
+    /** Rewritten on purpose (CL-MACLOCK): the iOS app moved to ksIos/apps/ios/<key>, a folder no old script writes. */
     it('builds the same paths relative to HOME for a command that runs there', () => {
         const paths = macPathsOf();
 
-        expect(paths.iosApp('abc')).toBe('ksIos/apps/abc');
+        expect(paths.iosApp('abc')).toBe('ksIos/apps/ios/abc');
         expect(paths.androidApp('abc')).toBe('ksIos/apps/android/abc');
         expect(paths.laneHome(1)).toBe('ksIos/lanes/lane1');
     });

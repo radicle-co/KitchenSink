@@ -7,8 +7,8 @@
  * not the caller, decides when the end has come. That is what keeps "ended" at most once per run however many sources
  * fire.
  *
- * The list holds up to `limit` timers, named by the caller on `start` and `restore` (see `TIMER_LIMIT`). One held
- * snapshot can be brought back by Undo. The order cooks see (`timerOrder`) and the order alarms sound (`alarmQueue`)
+ * The list holds up to `limit` timers (see `TIMER_LIMIT`), each labelled by the caller on `start`. One held snapshot
+ * can be brought back by Undo. The order cooks see (`timerOrder`) and the order alarms sound (`alarmQueue`)
  * are read here and nowhere else.
  *
  * The reducer has no servings input, because cook time does not scale with yield (FR-034a).
@@ -27,6 +27,15 @@ export const MAX_TIMER_MS = 86_400_000;
 /** How many timers a cook may hold at once. S6.U1 raises it to 10; this is the one authority for the rule. */
 export const TIMER_LIMIT = 1;
 
+/**
+ * What a row calls its timer: a name the cook typed, or the words read from the step's line. The reducer only carries
+ * it. Whether a number follows the words is the copy layer's rule (po P23), which tells the two kinds apart.
+ */
+export interface TimerLabel {
+    readonly kind: 'typed' | 'line';
+    readonly text: string;
+}
+
 /** What every timer carries. */
 export interface TimerBase {
     /** Stable for the timer's life, so anything that names this timer outside the reducer can name it by id. */
@@ -40,8 +49,8 @@ export interface TimerBase {
     readonly stepDigest: string;
     /** 1, 2, 3 ... unique among the timers and the held Undo on the same recipe and step. */
     readonly ordinal: number;
-    /** What the cook typed, or the label derived from the line. `undefined` means the cook gave none and none could be derived. */
-    readonly name: string | undefined;
+    /** What the cook typed, or the label read from the line. `undefined`: none, so the row says "Step {n}". */
+    readonly label: TimerLabel | undefined;
     /** The length of the current run's countdown, so the row can say "of 1 h 30". */
     readonly durationMs: number;
 }
@@ -105,7 +114,11 @@ export interface TimerMove {
     readonly stepDigest: string;
 }
 
-/** Every command names the clock it ran at, in ms. A command for a timer names its id, so a stale one is harmless. */
+/**
+ * Every command names the clock it ran at, in ms. A command for a timer names its id and the run it was meant for, so a
+ * stale one is harmless: it applies only while the timer is still in that run. `discardUndo` names the id alone,
+ * because Undo holds one timer.
+ */
 export type TimerCommand =
     | {
           readonly kind: 'start';
@@ -113,17 +126,25 @@ export type TimerCommand =
           readonly recipeId: string;
           readonly stepIndex: number;
           readonly stepDigest: string;
-          readonly name: string | undefined;
+          readonly label: TimerLabel | undefined;
           readonly durationMs: number;
           readonly limit: number;
           readonly nowMs: number;
       }
     | {
-          readonly kind: 'pause' | 'resume' | 'cancel' | 'stop' | 'discardUndo';
+          readonly kind: 'pause' | 'resume' | 'cancel' | 'stop';
           readonly id: string;
+          readonly run: number;
           readonly nowMs: number;
       }
-    | { readonly kind: 'addTime'; readonly id: string; readonly addMs: number; readonly nowMs: number }
+    | { readonly kind: 'discardUndo'; readonly id: string; readonly nowMs: number }
+    | {
+          readonly kind: 'addTime';
+          readonly id: string;
+          readonly run: number;
+          readonly addMs: number;
+          readonly nowMs: number;
+      }
     | { readonly kind: 'restore'; readonly limit: number; readonly nowMs: number }
     | { readonly kind: 'ring'; readonly nowMs: number }
     | { readonly kind: 'rematch'; readonly moves: readonly TimerMove[]; readonly nowMs: number };
@@ -157,9 +178,9 @@ const atLimit = (state: TimerState): TimerResult => ({ state, events: [], refuse
 
 /** The fields every kind of timer shares, so a kind change never forgets one. */
 function baseOf(timer: ActiveTimer): TimerBase {
-    const { id, run, recipeId, stepIndex, stepDigest, ordinal, name, durationMs } = timer;
+    const { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs } = timer;
 
-    return { id, run, recipeId, stepIndex, stepDigest, ordinal, name, durationMs };
+    return { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs };
 }
 
 /**
@@ -185,6 +206,10 @@ function withTimer(state: TimerState, id: string, next: ActiveTimer | undefined)
         ? state.timers.filter((t) => t.id !== id)
         : state.timers.map((t) => (t.id === id ? next : t));
 }
+
+/** The timer a by-id command is for: the one with this id, only while it is still in the run the command names. */
+const timerFor = (state: TimerState, command: { readonly id: string; readonly run: number }) =>
+    state.timers.find((t) => t.id === command.id && t.run === command.run);
 
 const sameStep = (a: TimerBase, recipeId: string, stepIndex: number) =>
     a.recipeId === recipeId && a.stepIndex === stepIndex;
@@ -246,7 +271,7 @@ function start(state: TimerState, command: Extract<TimerCommand, { kind: 'start'
         stepIndex: command.stepIndex,
         stepDigest: command.stepDigest,
         ordinal: lowestFreeOrdinal(holders(state), command.recipeId, command.stepIndex),
-        name: command.name,
+        label: command.label,
         durationMs: command.durationMs,
         endsAt: command.nowMs + command.durationMs,
     };
@@ -282,7 +307,7 @@ function restore(state: TimerState, command: Extract<TimerCommand, { kind: 'rest
 }
 
 function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addTime' }>): TimerResult {
-    const timer = state.timers.find((t) => t.id === command.id);
+    const timer = timerFor(state, command);
 
     if (timer === undefined || timer.kind === 'paused') {
         return quiet(state);
@@ -300,11 +325,6 @@ function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addT
         };
 
         return quiet({ timers: withTimer(state, timer.id, next), undo: state.undo });
-    }
-
-    // A running timer that has already reached its end is left for `ring`, whose edge is the one source of `ended`.
-    if (command.nowMs >= timer.endsAt) {
-        return quiet(state);
     }
 
     assertDuration(timer.endsAt - command.nowMs + command.addMs);
@@ -381,29 +401,16 @@ function rematch(state: TimerState, moves: readonly TimerMove[]): TimerResult {
     return quiet({ timers: state.timers.map(apply), undo: state.undo === undefined ? undefined : apply(state.undo) });
 }
 
-/**
- * Apply one command. Pure: the state given is never changed.
- *
- * A command that names another timer, or does not apply to the state, returns the same state object and no events and
- * never throws (a double tap, a late source). A `start` or a `restore` at the limit returns the same state with
- * `refused: 'limit'`. Only a value no timer can have is refused with a typed error.
- *
- * @param state - The timer state now.
- * @param command - What happened, with the clock it happened at.
- * @returns The next state and the events it raised.
- * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside `MIN_TIMER_MS` to `MAX_TIMER_MS`, or an added time
- *   would take a running timer past 24 h.
- */
-export function reduceTimer(state: TimerState, command: TimerCommand): TimerResult {
+/** The command on a settled list. `reduceTimer` settles first, so no running timer here is past its end. */
+function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 'ring' }>): TimerResult {
     switch (command.kind) {
         case 'start':
             return start(state, command);
 
         case 'pause': {
-            const timer = state.timers.find((t) => t.id === command.id);
+            const timer = timerFor(state, command);
 
-            // At or past the end the ring is due, and it must not be lost to a pause.
-            if (timer?.kind !== 'running' || command.nowMs >= timer.endsAt) {
+            if (timer?.kind !== 'running') {
                 return quiet(state);
             }
 
@@ -417,7 +424,7 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
         }
 
         case 'resume': {
-            const timer = state.timers.find((t) => t.id === command.id);
+            const timer = timerFor(state, command);
 
             if (timer?.kind !== 'paused') {
                 return quiet(state);
@@ -433,7 +440,7 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
         }
 
         case 'cancel': {
-            const timer = state.timers.find((t) => t.id === command.id);
+            const timer = timerFor(state, command);
 
             if (timer === undefined || (timer.kind !== 'running' && timer.kind !== 'paused')) {
                 return quiet(state);
@@ -452,11 +459,8 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
         case 'addTime':
             return addTime(state, command);
 
-        case 'ring':
-            return ring(state, command.nowMs);
-
         case 'stop': {
-            const timer = state.timers.find((t) => t.id === command.id);
+            const timer = timerFor(state, command);
 
             return timer !== undefined && isWaitingForCook(timer)
                 ? quiet({ timers: withTimer(state, timer.id, undefined), undo: state.undo })
@@ -466,6 +470,35 @@ export function reduceTimer(state: TimerState, command: TimerCommand): TimerResu
         case 'rematch':
             return rematch(state, command.moves);
     }
+}
+
+/**
+ * Apply one command. Pure: the state given is never changed.
+ *
+ * Every command settles the list first: `ring` runs at the command's own instant, and the command then acts on the
+ * settled state. So a running timer at or past its end is already ringing when a +5, a pause or a stop reaches it, the
+ * edge into ringing is made in one place, and the events are the ring's followed by the command's. `restore` rings the
+ * held timer itself, because the held timer is not in the list.
+ *
+ * A command that names another timer or another run, or does not apply to the state, changes nothing beyond that
+ * settle and never throws (a double tap, a late source). A `start` or a `restore` at the limit gives the settled state
+ * with `refused: 'limit'`. Only a value no timer can have is refused with a typed error.
+ *
+ * @param state - The timer state now.
+ * @param command - What happened, with the clock it happened at.
+ * @returns The next state and the events it raised.
+ * @throws {InvalidTimerDurationError} When a `start` or `addTime` length is outside `MIN_TIMER_MS` to
+ *   `MAX_TIMER_MS`, or an added time would take a running timer past 24 h.
+ */
+export function reduceTimer(state: TimerState, command: TimerCommand): TimerResult {
+    if (command.kind === 'ring') {
+        return ring(state, command.nowMs);
+    }
+
+    const settled = ring(state, command.nowMs);
+    const result = applyCommand(settled.state, command);
+
+    return settled.events.length === 0 ? result : { ...result, events: [...settled.events, ...result.events] };
 }
 
 /** Where a timer sorts in the cook's list: ended first, then running by end instant, then paused by time left. */

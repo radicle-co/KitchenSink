@@ -36,11 +36,13 @@ export async function openStatementSheet(
     await page.getByRole('button', { name: 'Paste steps' }).click();
     await page.getByRole('textbox', { name: 'Steps', exact: true }).fill('Simmer the stock.');
     await page.getByRole('button', { name: 'Add 1 step' }).click();
+
     if (view.overlayScrollbars === true) {
         // Playwright's Chromium draws classic scrollbars, so an overlay one is simulated: with no scrollbar to draw, a
         // `scrollbar-gutter: stable` region reserves nothing, as it does under an overlay scrollbar.
         await page.addStyleTag({ content: '* { scrollbar-width: none; }' });
     }
+
     await applyTextScale(page, view.scale);
     await page.getByRole('button', { name: 'Publish', exact: true }).click();
     await expect(sheetOf(page)).toBeVisible();

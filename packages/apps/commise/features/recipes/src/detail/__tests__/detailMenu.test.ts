@@ -4,7 +4,7 @@
  * Clear checks. Clear checks is offered only while a mark is set. "Make private" is offered when the host says Private
  * is offered (`offersPrivate`: granted or upsell — under `hidden` no paid feature and no upsell is visible, owner ruling
  * 2026-10-13); what choosing it does is the host's (`useGatedPrivate`). "Make public" is offered on a private
- * recipe, whatever the paid-feature state, except a book or paid-site recipe, which can never be public (`mayBePublic`).
+ * recipe, whatever the paid-feature state, except one with a refusal reason, which is never offered Make public (`mayBePublic`: no reason applies).
  */
 import { describe, expect, it } from 'vitest';
 

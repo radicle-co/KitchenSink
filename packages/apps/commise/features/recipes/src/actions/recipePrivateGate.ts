@@ -131,16 +131,6 @@ export function privateRuleForDraft(
 }
 
 /**
- * Whether a recipe under `rule` may ever be public. Pure.
- *
- * @returns `false` only for a book or paid-site recipe (`privateOnly`, 004 FR-014a): the server refuses Public for it, so no
- *   surface offers it.
- */
-export function mayBePublic(rule: PrivateRule): boolean {
-    return rule !== 'privateOnly';
-}
-
-/**
  * Whether the cook holds MORE private recipes than they have slots (a downgrade). Pure. At exactly the limit they are
  * "all in use", not over it.
  */

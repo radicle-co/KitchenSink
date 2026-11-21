@@ -179,7 +179,7 @@ describe('RadioList (native) at a system text scale', () => {
 
                 // The leading is capped at 2x, so past the cap the slot stays as tall as at 2x.
                 expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(line);
-                expect(getComputedStyle(slot).height).toBe(`${line}px`);
+                expect(getComputedStyle(slot).height).toBe(`${String(line)}px`);
                 expect(getComputedStyle(slot).alignItems).toBe('center');
                 expect(getComputedStyle(circle).width).toBe('18px');
                 expect(getComputedStyle(circle).height).toBe('18px');

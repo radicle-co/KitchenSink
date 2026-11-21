@@ -1,0 +1,125 @@
+/**
+ * The writer's answer, read as data (spec 027 FR-046).
+ *
+ * DESIGN PATTERN: parse, don't validate, at a third-party boundary. A zod `strictObject` describes the one
+ * document the prompt asked for. Anything else is refused and nothing is guessed, repaired or trimmed to fit.
+ *
+ * The refusals are separate so the caller can count them (FR-066):
+ * - `unreadable`: not JSON, or not the shape asked for;
+ * - `outsideList`: readable parts that are not the step list, such as prose around the JSON, a code fence, or a
+ *   field the prompt never asked for;
+ * - `overCap`: more steps than the caller's cap;
+ * - `unsafeText`: a step holding a link, an address, markup or any character outside the language's alphabet (see
+ *   `alphabet.ts`).
+ *
+ * This reader checks the SHAPE and the CHARACTERS of the text only. Truth to the recipe is checked later in the
+ * pipeline (spec 027 FR-040, the two-way fact check).
+ *
+ * Whether each `covers` index points at a real source step, and which source steps must be covered, needs the source
+ * recipe, which is not in the answer. The rewrite step that holds both checks it.
+ */
+import { z } from 'zod';
+
+import { ALPHABET_BY_LANGUAGE, canonicalText } from './alphabet.js';
+
+import type { OutputLanguage } from './alphabet.js';
+
+/** The largest `cap` a caller may pass. A bound far above any real recipe that still catches a typo. */
+export const MAX_ANSWER_CAP = 1_000;
+
+/** The most text one rewritten step may hold (contract `rewrittenSteps.api.md`). */
+export const MAX_REWRITTEN_STEP_CHARS = 2_000;
+
+const stepSchema = z.strictObject({
+    text: z.string().refine((text) => text.trim() !== '' && [...text].length <= MAX_REWRITTEN_STEP_CHARS),
+    covers: z.array(z.number().int().nonnegative()).min(1),
+});
+
+const answerSchema = z.strictObject({ steps: z.array(stepSchema).min(1) });
+
+/** One step of the writer's result. */
+export type RewrittenStep = z.infer<typeof stepSchema>;
+
+/** Why an answer was refused. */
+export type StepAnswerRefusal = 'unreadable' | 'outsideList' | 'overCap' | 'unsafeText';
+
+/** A readable answer, or the reason it was refused. */
+export type StepAnswer =
+    { readonly ok: true; readonly steps: readonly RewrittenStep[] } | { readonly refused: StepAnswerRefusal };
+
+/**
+ * Read the writer's answer.
+ *
+ * @param text - The model's reply, verbatim.
+ * @param cap - The most steps the caller accepts: an integer from 1 to {@link MAX_ANSWER_CAP}.
+ * @param language - The output language the steps are written in. Defaults to English.
+ * @returns The steps, or the refusal. Pure.
+ * @throws {RangeError} When `cap` is not an integer from 1 to {@link MAX_ANSWER_CAP}.
+ */
+export function parseStepAnswer(text: string, cap: number, language: OutputLanguage = 'en'): StepAnswer {
+    if (!Number.isInteger(cap) || cap < 1 || cap > MAX_ANSWER_CAP) {
+        throw new RangeError(`cap must be an integer from 1 to ${MAX_ANSWER_CAP}`);
+    }
+
+    let json: unknown;
+
+    try {
+        json = JSON.parse(text);
+    } catch {
+        // Prose or a code fence around an otherwise valid answer is text outside the list, not an unreadable one.
+        return { refused: looksLikeWrappedAnswer(text) ? 'outsideList' : 'unreadable' };
+    }
+
+    // The cap comes first so an oversized answer is not parsed step by step.
+    if (
+        typeof json === 'object' &&
+        json !== null &&
+        'steps' in json &&
+        Array.isArray(json.steps) &&
+        json.steps.length > cap
+    ) {
+        return { refused: 'overCap' };
+    }
+
+    const parsed = answerSchema.safeParse(json);
+
+    if (!parsed.success) {
+        const extraKey = parsed.error.issues.some((issue) => issue.code === 'unrecognized_keys');
+        const otherFault = parsed.error.issues.some((issue) => issue.code !== 'unrecognized_keys');
+
+        // A field we did not ask for beside an otherwise valid answer. Any other fault wins: it is unreadable.
+        return { refused: extraKey && !otherFault ? 'outsideList' : 'unreadable' };
+    }
+
+    const { prose, addressRule } = ALPHABET_BY_LANGUAGE[language];
+    // Canonical first: a decomposed letter composes and passes, and other space characters become a plain space.
+    // The steps handed back are the canonical text that was checked.
+    const steps = parsed.data.steps.map((step) => ({ ...step, text: canonicalText(step.text) }));
+
+    if (steps.some(({ text: step }) => !prose.test(step) || addressRule(step))) {
+        return { refused: 'unsafeText' };
+    }
+
+    return { ok: true, steps };
+}
+
+/**
+ * Whether text that is not JSON holds a valid answer inside it.
+ *
+ * @param text - The reply that failed `JSON.parse`.
+ * @returns True when the first `{` to the last `}` is a valid answer. Pure.
+ */
+function looksLikeWrappedAnswer(text: string): boolean {
+    const start = text.indexOf('{');
+    const end = text.lastIndexOf('}');
+
+    if (start === -1 || end <= start) {
+        return false;
+    }
+
+    try {
+        return answerSchema.safeParse(JSON.parse(text.slice(start, end + 1))).success;
+    } catch {
+        return false;
+    }
+}

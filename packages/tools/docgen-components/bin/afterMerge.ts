@@ -56,7 +56,9 @@ function generate(): void {
     });
 }
 
-const outputFolders = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR];
+// npm runs this script from the workspace folder, so a plain `docs/generated/...` would name a path under it: `:(top)`
+// anchors each folder at the repository root, wherever the script is started.
+const outputFolders = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR].map((folder) => `:(top)${folder}`);
 const isMergeCommit = git(['rev-parse', '-q', '--verify', 'HEAD^2']) !== null;
 const incoming = isMergeCommit
     ? git(['diff', '--name-only', 'HEAD^1...HEAD^2', '--', ...outputFolders])

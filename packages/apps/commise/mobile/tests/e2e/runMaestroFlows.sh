@@ -1972,7 +1972,7 @@ maestro_run_flows() {
     # subset. `maestro_shard_selection`'s stderr names the stage that refused.
     local verdict
     # ⛔ A one-off run names its own flows (`maestro:lanes --one-off`): none has a row in the registry, so the registry
-    # selection is not asked. The door has already given each lane its own list, so nothing is packed here either.
+    # selection is not asked. `maestro_one_off_selection` packs the lane's own share of the staged ids.
     if [ -n "${MAESTRO_ONE_OFF_FLOWS:-}" ]; then
         verdict=$(maestro_one_off_selection) || return 1
     elif ! verdict=$(maestro_shard_selection "$platform" "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \

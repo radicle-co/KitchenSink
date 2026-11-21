@@ -1174,6 +1174,20 @@ describe('runLaneRun: one-off flows', () => {
             expect(order).toEqual(['lock', 'stage', 'prepareHost android', 'unstage', 'unlock']);
         });
 
+        it('runs the ids staging answered, not the raw paths of the request', async () => {
+            const made = harness();
+            const deps: LaneRunDeps = { ...made.deps, ...staged(made.events, ['oneOff/run1/shots']) };
+
+            await runLaneRun(deps, {
+                platforms: ['android'],
+                requested: 1,
+                selection: 'all',
+                oneOffs: ['/tmp/shots.yaml'],
+            });
+
+            expect(envOf(laneFile(made.state, 1))['MAESTRO_ONE_OFF_FLOWS']).toBe('oneOff/run1/shots');
+        });
+
         it('removes the staged flows when the run fails, and when it is stopped', async () => {
             const failing = harness();
             const failDeps: LaneRunDeps = {

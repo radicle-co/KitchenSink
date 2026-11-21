@@ -99,18 +99,27 @@ describe('runMaestroFlows.sh one-off-selection', () => {
         expect(out.stdout).toBe('');
     });
 
-    it.each(['recipes/rating', '../x', 'oneOff/run1', 'oneOff/run1/a/b', 'oneOff/run1/.hidden', 'oneOff/../shots'])(
-        'refuses the id %j, which is not a staged name',
-        (id) => {
-            const out = selection(cwdWith(), id);
+    it.each([
+        'recipes/rating',
+        '../x',
+        'oneOff/run1',
+        'oneOff/run1/a/b',
+        'oneOff/run1/.hidden',
+        'oneOff/../shots',
+        'oneOff/../recipes/rating',
+        'oneOff/run1/../rating',
+    ])('refuses the id %j, which is not a staged name, even when a committed file answers to it', (id) => {
+        const out = selection(cwdWith('recipes/rating', 'oneOff/run1/placeholder'), id);
 
-            expect(out.code).toBe(2);
-            expect(out.stderr).toContain(id);
-        },
-    );
+        expect(out.code).toBe(2);
+        expect(out.stderr).toContain(id);
+    });
 
-    it('refuses an empty list rather than run nothing', () => {
-        expect(selection(cwdWith(), '  ').code).toBe(2);
+    it.each(['', '  '])('refuses the empty list %j rather than run nothing, with nothing on stdout', (ids) => {
+        const out = selection(cwdWith(), ids);
+
+        expect(out.code).toBe(2);
+        expect(out.stdout).toBe('');
     });
 });
 

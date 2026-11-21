@@ -7,7 +7,8 @@
  * runner, the Mac sync and the lanes then see an ordinary file under `.maestro/`.
  *
  * A relative `runFlow`, `runScript` or `addMedia` target in a one-off resolves from its STAGED folder, so it is checked
- * before anything is copied: it must exist, and it must stay inside `.maestro/`.
+ * before anything is copied: it must exist, and it must stay inside `.maestro/`. The check is lexical, so a symlink
+ * inside `.maestro/` can still point out of it; that is accepted on a developer's own machine.
  *
  * @pattern Command-with-undo: {@link stageOneOffs} does the copy and returns its own `remove`.
  * @sideEffect {@link stageOneOffs} writes and deletes folders under `maestroDir`.
@@ -122,6 +123,12 @@ export function stageOneOffs(input: {
     readonly runId: string;
 }): StagedOneOffs {
     const { maestroDir, paths, runId } = input;
+
+    // A run that names nothing must stop here: an empty id list would let the door pick the suite's flows instead.
+    if (paths.length === 0) {
+        throw new Error('maestro:lanes: --one-off named no flow file');
+    }
+
     const plan = planOneOffs(paths, runId);
     const targetDir = `${ONE_OFF_DIR}/${runId}`;
     const problems = plan.flatMap((one) => {
@@ -160,4 +167,18 @@ export function stageOneOffs(input: {
             }
         },
     };
+}
+
+/**
+ * The `LaneRunDeps` part that stages `--one-off` flows: nothing for a run without the flag, so the changed-flow
+ * selection runs as before, and `stageOneOffs` over exactly the paths named for a run with it.
+ */
+export function oneOffStaging(input: {
+    readonly oneOffs: readonly string[] | undefined;
+    readonly maestroDir: string;
+    readonly runId: string;
+}): { readonly stageOneOffs?: () => StagedOneOffs } {
+    const { oneOffs, maestroDir, runId } = input;
+
+    return oneOffs === undefined ? {} : { stageOneOffs: () => stageOneOffs({ maestroDir, paths: oneOffs, runId }) };
 }

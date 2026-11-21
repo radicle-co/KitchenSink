@@ -4,7 +4,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { planOneOffs, referenceProblems, stageOneOffs } from '../oneOffStage.js';
+import { oneOffStaging, planOneOffs, referenceProblems, stageOneOffs } from '../oneOffStage.js';
 
 const dirs: string[] = [];
 
@@ -98,7 +98,22 @@ describe('referenceProblems: relative targets resolve from the staged folder', (
     });
 });
 
+describe('referenceProblems: a target that climbs to exactly the parent of .maestro', () => {
+    it('is refused even though the parent exists', () => {
+        const problems = referenceProblems('- runFlow: ../../..\n', 'oneOff/run1', () => true);
+
+        expect(problems).toHaveLength(1);
+        expect(problems[0]).toContain('outside .maestro/');
+    });
+});
+
 describe('stageOneOffs', () => {
+    it('refuses a run that names no file, so no wiring slip can fall back to the suite', () => {
+        const { maestroDir } = world();
+
+        expect(() => stageOneOffs({ maestroDir, paths: [], runId: 'run1' })).toThrow('no flow file');
+    });
+
     it('copies each flow into oneOff/<runId>/ before anything runs, and removes the run folder afterwards', () => {
         const { maestroDir, sources } = world();
         const source = write(sources, 'shots.yaml', '- runFlow: ../../signinHome.yaml\n');
@@ -150,5 +165,21 @@ describe('stageOneOffs', () => {
         expect(() => {
             staged.remove();
         }).not.toThrow();
+    });
+});
+
+describe('oneOffStaging: how the door wires --one-off into the run', () => {
+    it('gives a run with no --one-off no staging, so the changed-flow selection runs as before', () => {
+        expect(oneOffStaging({ oneOffs: undefined, maestroDir: '/m', runId: 'run1' })).toEqual({});
+    });
+
+    it('stages exactly the paths named on the command line, under the run id', () => {
+        const { maestroDir, sources } = world();
+        const source = write(sources, 'shots.yaml', '- launchApp\n');
+        const staging = oneOffStaging({ oneOffs: [source], maestroDir, runId: 'run1' });
+        const staged = staging.stageOneOffs?.();
+
+        expect(staged?.ids).toEqual(['oneOff/run1/shots']);
+        staged?.remove();
     });
 });

@@ -202,4 +202,14 @@ describe('the staff-code-quality card, GATE mode', () => {
         expect(rule).not.toContain('PR body names');
         expect(rule).not.toContain('PR body must name');
     });
+
+    it('14. §7.1 names the §7.1b deferral beside its absolutes, so the standard does not contradict itself', () => {
+        const mandate = between(fold(rawStandards), '### 7.1 Test Mandate', '### 7.1a');
+        const gate = between(mandate, 'This is a **HARD MERGE GATE.**', '- **"It can\'t run in this environment"');
+
+        expect(mandate).not.toContain('ZERO EXCEPTIONS');
+        expect(mandate).not.toContain('no exceptions');
+        expect(mandate).toContain('with **one exception, the end-to-end wrap-up in §7.1b**');
+        expect(gate).toContain('§7.1b');
+    });
 });

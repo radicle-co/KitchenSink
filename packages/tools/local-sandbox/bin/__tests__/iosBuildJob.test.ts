@@ -821,7 +821,7 @@ describe('iosBuildJob.sh: pruning', () => {
         expect([running, recent].map((folder) => existsSync(folder))).toEqual([true, true]);
     });
 
-    it('⛔ keeps a fresh staging folder and removes one older than a day: the holder`s must survive a waiter', async () => {
+    it('⛔ keeps a fresh staging folder and removes one older than a day, so a waiter spares the holder`s', async () => {
         const world = makeWorld();
         const apps = path.join(world.home, 'ksIos', 'apps', 'ios');
 

@@ -32,8 +32,9 @@ change the answer in the editor.
    per-user lock, then `FOR UPDATE`, and does not bump the version.
 5. **The lock is one function**, `sourceLockOf(facts)` in recipe-core: `open`, `downgradeOnly` or `locked`. It
    replaces the boolean `sourceIsCorrectable`. A locked answer refuses the cook with the typed 403 `SOURCE_LOCKED`.
-6. **Trust model.** Integrity rests on two things. Staff hold the scope, which is set in Clerk `public_metadata` and
-   revoked there (session tokens are short-lived). And the runbook asks the owner to prove the mailbox, which code
+6. **Trust model.** Integrity rests on two things. Staff hold the scope. Every `admin` and `superuser` account
+   holds `recipes:source:correct` through `ROLE_SCOPES` (owner ruling 2026-10-15), and a scope can also be set in Clerk
+   `public_metadata`. Revocation is a role change or a `public_metadata` change in Clerk (session tokens are short-lived). And the runbook asks the owner to prove the mailbox, which code
    cannot check.
 
 ## Consequences

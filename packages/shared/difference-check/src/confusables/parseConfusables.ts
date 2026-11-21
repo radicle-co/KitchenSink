@@ -78,7 +78,7 @@ export function renderConfusablesModule(map: ConfusablesMap): string {
         '/**',
         ' * GENERATED from `confusables.txt` (Unicode Security Mechanisms, UTS #39, version 16.0.0) by `generateConfusables.ts`.',
         ' * Do not edit: change the data file and run `npm run generate:confusables`. A unit test holds this module equal to what',
-        ' * the generator renders from the file. Unicode License V3: see `UNICODE_LICENSE.txt` beside the data file.',
+        ' * the generator renders from the file. Unicode License V3: see `unicodeLicense.txt` beside the data file.',
         ' */',
         'export const CONFUSABLES_V1: Readonly<Record<string, string>> = {',
         ...lines,

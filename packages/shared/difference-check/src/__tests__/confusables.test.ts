@@ -14,7 +14,7 @@ import { parseConfusables, renderConfusablesModule } from '../confusables/parseC
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const TXT = readFileSync(join(HERE, '..', 'confusables', 'confusables.txt'), 'utf8');
-const LICENSE = readFileSync(join(HERE, '..', 'confusables', 'UNICODE_LICENSE.txt'), 'utf8');
+const LICENSE = readFileSync(join(HERE, '..', 'confusables', 'unicodeLicense.txt'), 'utf8');
 
 /** The vendored file, Unicode Security Mechanisms 16.0.0, from unicode.org/Public/security/16.0.0/confusables.txt. */
 const PINNED_SHA256 = '95bd0aad6dced5ebc63436f459c06ab21a8d107cd842fb57f5c3a1e91bca8611';

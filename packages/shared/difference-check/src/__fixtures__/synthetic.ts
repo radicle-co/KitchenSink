@@ -45,3 +45,22 @@ export function synthWords(count: number, start = 0): string[] {
 export function textOf(words: readonly string[]): string {
     return words.join(' ');
 }
+
+/**
+ * A seeded stream of numbers in [0, 1). mulberry32 is eight lines and a case needs only a draw that never changes: a
+ * library's generator may change its stream in a release, and that would move a frozen case.
+ *
+ * @param seed - The seed.
+ * @returns The next number each call.
+ */
+export function seededDraw(seed: number): () => number {
+    let state = seed;
+
+    return () => {
+        state = (state + 0x6d2b79f5) | 0;
+        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
+        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
+
+        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
+    };
+}

@@ -63,19 +63,21 @@ describe('measure R: no shared nine-token run', () => {
 
 describe('measure F: at least five new stemmed words', () => {
     const baseline = synthWords(60);
-    /** Every other baseline word: no shared shingle, no new word. */
-    const scattered = baseline.filter((_, index) => index % 2 === 0);
+    /** Every third baseline word: no shared shingle, no new word, and L holds (20 of 60 aligned). */
+    const scattered = baseline.filter((_, index) => index % 3 === 0);
 
     it('passes with 5 new words', () => {
         const result = differenceCheckV1(textOf(baseline), textOf([...scattered, ...synthWords(5, 2000)]));
 
-        expect(result).toMatchObject({ newWords: 5, kept: 0, longestRun: 1, pass: true });
+        expect(result).toMatchObject({ newWords: 5, kept: 0, longestRun: 1, aligned: 20, pass: true });
+        expect(20 * result.aligned).toBeLessThanOrEqual(9 * result.alignTotal);
     });
 
     it('fails with 4 new words', () => {
         const result = differenceCheckV1(textOf(baseline), textOf([...scattered, ...synthWords(4, 2000)]));
 
-        expect(result).toMatchObject({ newWords: 4, pass: false });
+        expect(result).toMatchObject({ newWords: 4, aligned: 20, pass: false });
+        expect(20 * result.aligned).toBeLessThanOrEqual(9 * result.alignTotal);
     });
 
     it('adds nothing for new numbers or units alone', () => {
@@ -183,8 +185,10 @@ describe('stage order (KTD-2)', () => {
         const before = quantityRows((index) => `${binary(index + 2)} ml`);
         const after = quantityRows((index) => `${binary(index + 66)} ml`);
 
-        expect(differenceCheckV1(before, after).pass).toBe(false);
-        expect(skeletonFirst(before, after).pass).toBe(true);
+        // Both orders fail the pair on L (every word is kept), so the order shows in F: the right order sees no new
+        // word, the skeleton first reads every changed number as one.
+        expect(differenceCheckV1(before, after)).toMatchObject({ newWords: 0, pass: false });
+        expect(skeletonFirst(before, after).newWords).toBeGreaterThanOrEqual(5);
     });
 
     it('180C changed to 350F and nothing else fails', () => {
@@ -315,5 +319,89 @@ describe('cost (qse F-11)', () => {
 
         expect(baseline.length).toBeGreaterThan(80_000);
         expect(differenceCheckV1(baseline, steps).longestRun).toBeGreaterThan(0);
+    });
+});
+
+describe('measure L: the in-order alignment of content words, pass when 20 * aligned <= 9 * alignTotal', () => {
+    // 40 content words. The new text keeps every second one in order and fills the gaps with new words, so no
+    // three-token shingle and no run is shared and A, R and F pass: only L can fail the pair.
+    const baseline = synthWords(40);
+    const withKept = (kept: number) =>
+        textOf(
+            baseline
+                .slice(0, kept * 2)
+                .flatMap((word, index) => (index % 2 === 0 ? [word, synthWord(500 + index)] : [])),
+        );
+
+    it('passes at exactly 45 percent aligned (18 of 40)', () => {
+        const result = differenceCheckV1(textOf(baseline), withKept(18));
+
+        expect(result).toMatchObject({ kept: 0, longestRun: 1, aligned: 18, alignTotal: 40, pass: true });
+    });
+
+    it('fails with one aligned token more (19 of 40)', () => {
+        const result = differenceCheckV1(textOf(baseline), withKept(19));
+
+        expect(result).toMatchObject({ kept: 0, longestRun: 1, aligned: 19, alignTotal: 40, pass: false });
+    });
+
+    it('fails a copy of the words in the original order that A, R and F pass: spinning (Covers AE18)', () => {
+        const spun = textOf(baseline.map((word, index) => (index % 3 === 2 ? synthWord(900 + index) : word)));
+        const result = differenceCheckV1(textOf(baseline), spun);
+
+        expect(result.pass).toBe(false);
+        expect(result.aligned).toBe(baseline.length - Math.floor(baseline.length / 3));
+    });
+
+    it('does not read step order: the same words in the reverse order align on one token', () => {
+        const result = differenceCheckV1(textOf(baseline), textOf(baseline.slice().reverse()));
+
+        expect(result.aligned).toBe(1);
+    });
+
+    it('never passes a baseline with no content word, though A, R and F pass (fails closed)', () => {
+        // 30 distinct three-token shingles made of stopwords and quantities only.
+        const stops = ['the', 'and', 'of', 'a', 'to', 'in', 'with', 'for', 'on', 'it'];
+        const filler = Array.from(
+            { length: 40 },
+            (_, index) =>
+                `${stops[index % 10] ?? 'the'} ${stops[(index * 3 + 1) % 10] ?? 'a'} ${String(index * 7 + 1)}`,
+        ).join(' ');
+        const result = differenceCheckV1(filler, textOf(synthWords(40, 1000)));
+
+        expect(result).toMatchObject({ alignTotal: 0, aligned: 0, kept: 0 });
+        expect(result.total).toBeGreaterThanOrEqual(20);
+        expect(result.pass).toBe(false);
+    });
+});
+
+describe('stage 6: the content filter of L (KTD-2)', () => {
+    // 30 content words, each followed by a filter word, against the same 30 content words with other filter words.
+    // Without the filter the two sequences share the content words and the filter words alike.
+    const content = synthWords(30);
+
+    it('drops a stopword from both sides: it adds nothing to aligned or alignTotal', () => {
+        const withStop = differenceCheckV1(
+            textOf(content.flatMap((word) => [word, 'the'])),
+            textOf(synthWords(30, 2000).flatMap((word) => [word, 'the'])),
+        );
+
+        expect(withStop).toMatchObject({ aligned: 0, alignTotal: 30 });
+    });
+
+    it('drops a number and a unit from both sides', () => {
+        const withQuantities = differenceCheckV1(
+            textOf(content.flatMap((word) => [word, '350', 'minutes'])),
+            textOf(synthWords(30, 2000).flatMap((word) => [word, '350', 'minutes'])),
+        );
+
+        expect(withQuantities).toMatchObject({ aligned: 0, alignTotal: 30 });
+    });
+
+    it('keeps an ingredient word like any content word: no list removes it (po 2026-11-21)', () => {
+        const withIngredient = (word: string) => textOf([word, ...content]);
+        const result = differenceCheckV1(withIngredient('onion'), withIngredient('onion'));
+
+        expect(result).toMatchObject({ aligned: 31, alignTotal: 31 });
     });
 });

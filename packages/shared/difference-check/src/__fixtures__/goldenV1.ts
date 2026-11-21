@@ -7,7 +7,7 @@
  * mechanical edits are derived from it by the named transform, so the derivation is part of the frozen case.
  */
 
-import { synthWord } from './synthetic.js';
+import { seededDraw, synthWord } from './synthetic.js';
 
 /** One golden pair and the answer v1 gives for it. */
 export interface GoldenCase {
@@ -57,17 +57,6 @@ const REWRITES: Readonly<Record<string, readonly string[]>> = {
 
 /** The base each rewrite set belongs to. */
 const BASES: Readonly<Record<string, string>> = { sauce: SAUCE_BASE, pancakes: PANCAKE_BASE, roots: ROOTS_BASE };
-
-/**
- * The ingredient list of each base, one entry per ingredient, written from the base text alone and in our own words. It
- * is part of every case: the alignment measure removes these words from the compare. After the alignment measure ran,
- * an edit needs a qse TEST-CHANGE record.
- */
-export const INGREDIENTS_TEXT: Readonly<Record<string, string>> = {
-    sauce: 'olive oil, onion, garlic, tin of tomatoes, salt, black pepper, basil leaves, pasta',
-    pancakes: 'flour, salt, eggs, milk',
-    roots: 'carrots, parsnips, oil, salt, thyme, honey',
-};
 
 /** A mechanical edit: a named transform of the base text that v1 must NOT pass. */
 interface Transform {
@@ -180,7 +169,12 @@ const FAILING: readonly GoldenCase[] = Object.entries(BASES).flatMap(([dish, bas
         steps: transform.apply(baseline),
         pass: false,
     })),
-    { name: `${dish}: the identical text`, baseline, steps: baseline, pass: false },
+    {
+        name: `${dish}: the identical text`,
+        baseline,
+        steps: baseline,
+        pass: false,
+    },
 ]);
 
 /**
@@ -250,25 +244,6 @@ const BREAD_BASE =
     'Start the bread the night before. Pour the warm water into a large bowl, sprinkle the yeast over it and leave it alone for ten minutes until it foams. Stir in the honey and the olive oil, then add the flour and salt a little at a time, working the mixture with a wooden spoon until it pulls away from the sides. Tip the dough onto a clean counter and knead it firmly for about eight minutes, until it feels smooth and springs back when pressed. Place it in an oiled bowl, cover the bowl with a damp cloth and keep it somewhere warm until it has doubled in size, which usually takes about two hours. Press the air out gently, shape the dough into a tight round and set it on a floured tray. Cover it again and let it rise for another forty minutes while the oven heats to 230 degrees. Slash the top with a sharp knife, slide the tray onto the middle shelf and bake for thirty minutes, until the crust is deep brown and the loaf sounds hollow when you tap the bottom. Cool it on a rack for at least an hour before slicing, because the crumb needs time to set.';
 
 /**
- * A seeded stream of numbers in [0, 1). mulberry32 is eight lines and a case needs only a draw that never changes: a
- * library's generator may change its stream in a release, and that would move a frozen case.
- *
- * @param seed - The seed.
- * @returns The next number each call.
- */
-function seededDraw(seed: number): () => number {
-    let state = seed;
-
-    return () => {
-        state = (state + 0x6d2b79f5) | 0;
-        let mixed = Math.imul(state ^ (state >>> 15), 1 | state);
-        mixed = (mixed + Math.imul(mixed ^ (mixed >>> 7), 61 | mixed)) ^ mixed;
-
-        return ((mixed ^ (mixed >>> 14)) >>> 0) / 4294967296;
-    };
-}
-
-/**
  * Replace the words at the given positions with synthetic words, the way a spinner does.
  *
  * @param text - Words one space apart.
@@ -329,10 +304,12 @@ const SPINNING_CASES: readonly GoldenCase[] = [
 /**
  * Reorder and spin together (redteam R2-2): the base's sentences in the reverse order, and in each sentence one word
  * in three replaced. Defined by its edits. po labels it not earned: the sentences are the original's and only
- * single words changed.
+ * single words changed. Measure L reads the order of the words, so reversing the sentences breaks the alignment and v1
+ * EARNS the case (aligned .20). It is pinned at v1's answer as a named residual (ADR-0100, OQ9), as R2-2 says, and
+ * P4b's re-check rules on it before Public depends on the fact.
  */
 const REORDER_SPIN_CASE: GoldenCase = {
-    name: 'roots: the sentences reversed and one word in three of each replaced (redteam R2-2)',
+    name: 'roots: the sentences reversed and one word in three of each replaced (named residual, ADR-0100, OQ9)',
     baseline: ROOTS_BASE,
     steps: ROOTS_BASE.split('. ')
         .map((sentence) => sentence.replace(/\.$/u, ''))
@@ -345,7 +322,7 @@ const REORDER_SPIN_CASE: GoldenCase = {
         )
         .join('. ')
         .concat('.'),
-    pass: false,
+    pass: true,
 };
 
 /** The whole golden set. */
@@ -369,155 +346,392 @@ export const GOLDEN_V1: readonly GoldenCase[] = [
 export const GOLDEN_V1_MEASURES: Readonly<
     Record<
         string,
-        { readonly kept: number; readonly total: number; readonly longestRun: number; readonly newWords: number }
+        {
+            readonly kept: number;
+            readonly total: number;
+            readonly longestRun: number;
+            readonly newWords: number;
+            readonly aligned: number;
+            readonly alignTotal: number;
+        }
     >
 > = {
-    'sauce: a genuine rewrite, 1': { kept: 0, total: 67, longestRun: 2, newWords: 19 },
-    'sauce: a genuine rewrite, 2': { kept: 0, total: 67, longestRun: 2, newWords: 22 },
-    'sauce: a genuine rewrite, 3': { kept: 0, total: 67, longestRun: 2, newWords: 21 },
-    'sauce: a genuine rewrite, 4': { kept: 1, total: 67, longestRun: 3, newWords: 17 },
-    'sauce: a genuine rewrite, 5': { kept: 0, total: 67, longestRun: 2, newWords: 16 },
-    'pancakes: a genuine rewrite, 1': { kept: 0, total: 81, longestRun: 2, newWords: 27 },
-    'pancakes: a genuine rewrite, 2': { kept: 1, total: 81, longestRun: 3, newWords: 17 },
-    'pancakes: a genuine rewrite, 3': { kept: 0, total: 81, longestRun: 2, newWords: 23 },
-    'pancakes: a genuine rewrite, 4': { kept: 1, total: 81, longestRun: 3, newWords: 13 },
-    'pancakes: a genuine rewrite, 5': { kept: 1, total: 81, longestRun: 3, newWords: 14 },
-    'roots: a genuine rewrite, 1': { kept: 2, total: 62, longestRun: 3, newWords: 16 },
-    'roots: a genuine rewrite, 2': { kept: 3, total: 62, longestRun: 4, newWords: 17 },
-    'roots: a genuine rewrite, 3': { kept: 0, total: 62, longestRun: 2, newWords: 24 },
-    'roots: a genuine rewrite, 4': { kept: 4, total: 62, longestRun: 3, newWords: 11 },
-    'roots: a genuine rewrite, 5': { kept: 0, total: 62, longestRun: 2, newWords: 22 },
-    'sauce: a copy with every number changed': { kept: 58, total: 67, longestRun: 29, newWords: 1 },
-    'sauce: the same text in capitals': { kept: 67, total: 67, longestRun: 64, newWords: 0 },
-    'sauce: a typo in every sixth word': { kept: 51, total: 67, longestRun: 29, newWords: 6 },
-    'sauce: a synonym for the words the spinner knows': { kept: 43, total: 67, longestRun: 19, newWords: 8 },
-    'sauce: the sentences in the reverse order': { kept: 61, total: 67, longestRun: 22, newWords: 0 },
-    'sauce: half of the steps deleted': { kept: 33, total: 67, longestRun: 35, newWords: 1 },
+    'sauce: a genuine rewrite, 1': { kept: 0, total: 67, longestRun: 2, newWords: 19, aligned: 6, alignTotal: 38 },
+    'sauce: a genuine rewrite, 2': { kept: 0, total: 67, longestRun: 2, newWords: 22, aligned: 5, alignTotal: 38 },
+    'sauce: a genuine rewrite, 3': { kept: 0, total: 67, longestRun: 2, newWords: 21, aligned: 7, alignTotal: 38 },
+    'sauce: a genuine rewrite, 4': { kept: 1, total: 67, longestRun: 3, newWords: 17, aligned: 8, alignTotal: 38 },
+    'sauce: a genuine rewrite, 5': { kept: 0, total: 67, longestRun: 2, newWords: 16, aligned: 12, alignTotal: 38 },
+    'pancakes: a genuine rewrite, 1': { kept: 0, total: 81, longestRun: 2, newWords: 27, aligned: 8, alignTotal: 41 },
+    'pancakes: a genuine rewrite, 2': { kept: 1, total: 81, longestRun: 3, newWords: 17, aligned: 8, alignTotal: 41 },
+    'pancakes: a genuine rewrite, 3': { kept: 0, total: 81, longestRun: 2, newWords: 23, aligned: 7, alignTotal: 41 },
+    'pancakes: a genuine rewrite, 4': { kept: 1, total: 81, longestRun: 3, newWords: 13, aligned: 13, alignTotal: 41 },
+    'pancakes: a genuine rewrite, 5': { kept: 1, total: 81, longestRun: 3, newWords: 14, aligned: 9, alignTotal: 41 },
+    'roots: a genuine rewrite, 1': { kept: 2, total: 62, longestRun: 3, newWords: 16, aligned: 10, alignTotal: 31 },
+    'roots: a genuine rewrite, 2': { kept: 3, total: 62, longestRun: 4, newWords: 17, aligned: 9, alignTotal: 31 },
+    'roots: a genuine rewrite, 3': { kept: 0, total: 62, longestRun: 2, newWords: 24, aligned: 7, alignTotal: 31 },
+    'roots: a genuine rewrite, 4': { kept: 4, total: 62, longestRun: 3, newWords: 11, aligned: 9, alignTotal: 31 },
+    'roots: a genuine rewrite, 5': { kept: 0, total: 62, longestRun: 2, newWords: 22, aligned: 7, alignTotal: 31 },
+    'sauce: a copy with every number changed': {
+        kept: 58,
+        total: 67,
+        longestRun: 29,
+        newWords: 1,
+        aligned: 35,
+        alignTotal: 38,
+    },
+    'sauce: the same text in capitals': {
+        kept: 67,
+        total: 67,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
+    },
+    'sauce: a typo in every sixth word': {
+        kept: 51,
+        total: 67,
+        longestRun: 29,
+        newWords: 6,
+        aligned: 35,
+        alignTotal: 38,
+    },
+    'sauce: a synonym for the words the spinner knows': {
+        kept: 43,
+        total: 67,
+        longestRun: 19,
+        newWords: 8,
+        aligned: 29,
+        alignTotal: 38,
+    },
+    'sauce: the sentences in the reverse order': {
+        kept: 61,
+        total: 67,
+        longestRun: 22,
+        newWords: 0,
+        aligned: 11,
+        alignTotal: 38,
+    },
+    'sauce: half of the steps deleted': {
+        kept: 33,
+        total: 67,
+        longestRun: 35,
+        newWords: 1,
+        aligned: 19,
+        alignTotal: 38,
+    },
     'sauce: the whole text with a zero-width joiner inside every word': {
         kept: 67,
         total: 67,
         longestRun: 64,
         newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
     },
-    'sauce: Cyrillic look-alikes for six letters': { kept: 67, total: 67, longestRun: 64, newWords: 0 },
+    'sauce: Cyrillic look-alikes for six letters': {
+        kept: 67,
+        total: 67,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
+    },
     'sauce: the full text with a long padding paragraph that never repeats its words': {
         kept: 67,
         total: 67,
         longestRun: 64,
         newWords: 20,
+        aligned: 38,
+        alignTotal: 38,
     },
     'sauce: a dotted capital I in place of i in every word (qse P4-Q4)': {
         kept: 67,
         total: 67,
         longestRun: 64,
         newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
     },
     'sauce: new words that are only accent variants of baseline words (qse P4-Q4)': {
         kept: 67,
         total: 67,
         longestRun: 64,
         newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
     },
-    'sauce: one accent and one combining mark on every word': { kept: 67, total: 67, longestRun: 64, newWords: 0 },
-    'sauce: the identical text': { kept: 67, total: 67, longestRun: 64, newWords: 0 },
-    'pancakes: a copy with every number changed': { kept: 76, total: 81, longestRun: 45, newWords: 1 },
-    'pancakes: the same text in capitals': { kept: 81, total: 81, longestRun: 64, newWords: 0 },
-    'pancakes: a typo in every sixth word': { kept: 71, total: 81, longestRun: 41, newWords: 4 },
-    'pancakes: a synonym for the words the spinner knows': { kept: 53, total: 81, longestRun: 15, newWords: 7 },
-    'pancakes: the sentences in the reverse order': { kept: 74, total: 81, longestRun: 22, newWords: 0 },
-    'pancakes: half of the steps deleted': { kept: 41, total: 81, longestRun: 43, newWords: 1 },
+    'sauce: one accent and one combining mark on every word': {
+        kept: 67,
+        total: 67,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 38,
+        alignTotal: 38,
+    },
+    'sauce: the identical text': { kept: 67, total: 67, longestRun: 64, newWords: 0, aligned: 38, alignTotal: 38 },
+    'pancakes: a copy with every number changed': {
+        kept: 76,
+        total: 81,
+        longestRun: 45,
+        newWords: 1,
+        aligned: 40,
+        alignTotal: 41,
+    },
+    'pancakes: the same text in capitals': {
+        kept: 81,
+        total: 81,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
+    },
+    'pancakes: a typo in every sixth word': {
+        kept: 71,
+        total: 81,
+        longestRun: 41,
+        newWords: 4,
+        aligned: 37,
+        alignTotal: 41,
+    },
+    'pancakes: a synonym for the words the spinner knows': {
+        kept: 53,
+        total: 81,
+        longestRun: 15,
+        newWords: 7,
+        aligned: 33,
+        alignTotal: 41,
+    },
+    'pancakes: the sentences in the reverse order': {
+        kept: 74,
+        total: 81,
+        longestRun: 22,
+        newWords: 0,
+        aligned: 13,
+        alignTotal: 41,
+    },
+    'pancakes: half of the steps deleted': {
+        kept: 41,
+        total: 81,
+        longestRun: 43,
+        newWords: 1,
+        aligned: 19,
+        alignTotal: 41,
+    },
     'pancakes: the whole text with a zero-width joiner inside every word': {
         kept: 81,
         total: 81,
         longestRun: 64,
         newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
     },
-    'pancakes: Cyrillic look-alikes for six letters': { kept: 81, total: 81, longestRun: 64, newWords: 0 },
+    'pancakes: Cyrillic look-alikes for six letters': {
+        kept: 81,
+        total: 81,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
+    },
     'pancakes: the full text with a long padding paragraph that never repeats its words': {
         kept: 81,
         total: 81,
         longestRun: 64,
         newWords: 19,
+        aligned: 41,
+        alignTotal: 41,
     },
     'pancakes: a dotted capital I in place of i in every word (qse P4-Q4)': {
         kept: 81,
         total: 81,
         longestRun: 64,
         newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
     },
     'pancakes: new words that are only accent variants of baseline words (qse P4-Q4)': {
         kept: 81,
         total: 81,
         longestRun: 64,
         newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
     },
-    'pancakes: one accent and one combining mark on every word': { kept: 81, total: 81, longestRun: 64, newWords: 0 },
-    'pancakes: the identical text': { kept: 81, total: 81, longestRun: 64, newWords: 0 },
-    'roots: a copy with every number changed': { kept: 56, total: 62, longestRun: 42, newWords: 1 },
-    'roots: the same text in capitals': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
-    'roots: a typo in every sixth word': { kept: 43, total: 62, longestRun: 23, newWords: 7 },
-    'roots: a synonym for the words the spinner knows': { kept: 48, total: 62, longestRun: 30, newWords: 5 },
-    'roots: the sentences in the reverse order': { kept: 54, total: 62, longestRun: 19, newWords: 0 },
-    'roots: half of the steps deleted': { kept: 31, total: 62, longestRun: 33, newWords: 0 },
+    'pancakes: one accent and one combining mark on every word': {
+        kept: 81,
+        total: 81,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 41,
+        alignTotal: 41,
+    },
+    'pancakes: the identical text': { kept: 81, total: 81, longestRun: 64, newWords: 0, aligned: 41, alignTotal: 41 },
+    'roots: a copy with every number changed': {
+        kept: 56,
+        total: 62,
+        longestRun: 42,
+        newWords: 1,
+        aligned: 29,
+        alignTotal: 31,
+    },
+    'roots: the same text in capitals': {
+        kept: 62,
+        total: 62,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
+    },
+    'roots: a typo in every sixth word': {
+        kept: 43,
+        total: 62,
+        longestRun: 23,
+        newWords: 7,
+        aligned: 26,
+        alignTotal: 31,
+    },
+    'roots: a synonym for the words the spinner knows': {
+        kept: 48,
+        total: 62,
+        longestRun: 30,
+        newWords: 5,
+        aligned: 26,
+        alignTotal: 31,
+    },
+    'roots: the sentences in the reverse order': {
+        kept: 54,
+        total: 62,
+        longestRun: 19,
+        newWords: 0,
+        aligned: 9,
+        alignTotal: 31,
+    },
+    'roots: half of the steps deleted': {
+        kept: 31,
+        total: 62,
+        longestRun: 33,
+        newWords: 0,
+        aligned: 15,
+        alignTotal: 31,
+    },
     'roots: the whole text with a zero-width joiner inside every word': {
         kept: 62,
         total: 62,
         longestRun: 64,
         newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
     },
-    'roots: Cyrillic look-alikes for six letters': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
+    'roots: Cyrillic look-alikes for six letters': {
+        kept: 62,
+        total: 62,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
+    },
     'roots: the full text with a long padding paragraph that never repeats its words': {
         kept: 62,
         total: 62,
         longestRun: 64,
         newWords: 20,
+        aligned: 31,
+        alignTotal: 31,
     },
     'roots: a dotted capital I in place of i in every word (qse P4-Q4)': {
         kept: 62,
         total: 62,
         longestRun: 64,
         newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
     },
     'roots: new words that are only accent variants of baseline words (qse P4-Q4)': {
         kept: 62,
         total: 62,
         longestRun: 64,
         newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
     },
-    'roots: one accent and one combining mark on every word': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
-    'roots: the identical text': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
+    'roots: one accent and one combining mark on every word': {
+        kept: 62,
+        total: 62,
+        longestRun: 64,
+        newWords: 0,
+        aligned: 31,
+        alignTotal: 31,
+    },
+    'roots: the identical text': { kept: 62, total: 62, longestRun: 64, newWords: 0, aligned: 31, alignTotal: 31 },
+    'devanagari: the same consonants with other vowel signs': {
+        kept: 10,
+        total: 10,
+        longestRun: 30,
+        newWords: 0,
+        aligned: 30,
+        alignTotal: 30,
+    },
     "roots: an in-order paraphrase with about one content word in three replaced (AE18 case P')": {
         kept: 8,
         total: 62,
         longestRun: 6,
         newWords: 16,
+        aligned: 17,
+        alignTotal: 31,
     },
     'roots: a heavy in-order paraphrase, about two thirds of the words changed (named residual, ADR-0100, OQ9)': {
         kept: 4,
         total: 62,
         longestRun: 3,
         newWords: 26,
+        aligned: 12,
+        alignTotal: 31,
     },
-    'roots: the steps merged and reordered (AE18 case M)': { kept: 10, total: 62, longestRun: 5, newWords: 24 },
-    'bread: every third word replaced, from the third': { kept: 0, total: 203, longestRun: 2, newWords: 69 },
-    'bread: every second word replaced, from the second': { kept: 0, total: 203, longestRun: 1, newWords: 103 },
+    'roots: the steps merged and reordered (AE18 case M)': {
+        kept: 10,
+        total: 62,
+        longestRun: 5,
+        newWords: 24,
+        aligned: 10,
+        alignTotal: 31,
+    },
+    'bread: every third word replaced, from the third': {
+        kept: 0,
+        total: 203,
+        longestRun: 2,
+        newWords: 69,
+        aligned: 69,
+        alignTotal: 106,
+    },
+    'bread: every second word replaced, from the second': {
+        kept: 0,
+        total: 203,
+        longestRun: 1,
+        newWords: 103,
+        aligned: 62,
+        alignTotal: 106,
+    },
     'eggs: a seeded draw replacing each word with a chance of one in three (short baseline)': {
         kept: 3,
         total: 23,
         longestRun: 4,
         newWords: 10,
+        aligned: 8,
+        alignTotal: 15,
     },
     'bread: a seeded draw replacing each word with a chance of one in three (long baseline)': {
         kept: 35,
         total: 203,
         longestRun: 7,
         newWords: 79,
+        aligned: 65,
+        alignTotal: 106,
     },
-    'roots: the sentences reversed and one word in three of each replaced (redteam R2-2)': {
+    'roots: the sentences reversed and one word in three of each replaced (named residual, ADR-0100, OQ9)': {
         kept: 0,
         total: 62,
         longestRun: 2,
         newWords: 21,
+        aligned: 6,
+        alignTotal: 31,
     },
-    'devanagari: the same consonants with other vowel signs': { kept: 10, total: 10, longestRun: 30, newWords: 0 },
 };

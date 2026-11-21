@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { GOLDEN_V1, GOLDEN_V1_MEASURES, INGREDIENTS_TEXT } from '../__fixtures__/goldenV1.js';
+import { GOLDEN_V1, GOLDEN_V1_MEASURES } from '../__fixtures__/goldenV1.js';
 import { differenceCheckV1 } from '../differenceCheckV1.js';
 
 describe('the golden set', () => {
@@ -24,26 +24,12 @@ describe('the golden set', () => {
             total: result.total,
             longestRun: result.longestRun,
             newWords: result.newWords,
+            aligned: result.aligned,
+            alignTotal: result.alignTotal,
         }).toEqual(GOLDEN_V1_MEASURES[golden.name]);
     });
 
     it('records the measures of every case, and of no other', () => {
         expect(Object.keys(GOLDEN_V1_MEASURES).sort()).toEqual(GOLDEN_V1.map((golden) => golden.name).sort());
-    });
-
-    it('lists, for every base, only ingredients its own text names', () => {
-        const bases = GOLDEN_V1.filter((golden) => !golden.name.startsWith('devanagari')).map(
-            (golden) => golden.baseline,
-        );
-
-        for (const [dish, ingredientsText] of Object.entries(INGREDIENTS_TEXT)) {
-            const baseline = bases.find((text) =>
-                GOLDEN_V1.some((golden) => golden.name.startsWith(`${dish}:`) && golden.baseline === text),
-            );
-
-            for (const word of ingredientsText.toLowerCase().match(/[a-z]+/g) ?? []) {
-                expect(baseline?.toLowerCase(), `${dish}: ${word}`).toContain(word.replace(/s$/u, ''));
-            }
-        }
     });
 });

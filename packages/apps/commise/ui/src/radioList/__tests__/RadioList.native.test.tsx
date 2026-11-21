@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -8,6 +8,7 @@ import type { RadioListOption, RadioListProps } from '../props.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * RadioList (native) — a `radiogroup` of whole-row `radio`s with `aria-checked`, rendered through react-native-web:
@@ -118,6 +119,69 @@ describe('RadioList (native)', () => {
             for (const radio of within(group).getAllByRole('radio')) {
                 expect(getComputedStyle(radio).minHeight).toBe(`${String(touchFloor())}px`);
             }
+        });
+    });
+});
+
+/**
+ * U2 (plan largeTextSheet, #398): the answer rows draw on the design-system `Text`, so the label (cardTitle 16 / 20) and
+ * the hint (meta 14 / 20) honour the 2x cap, and the radio circle sits on the label's first line at every scale. These
+ * cases fail at 6b88df26a, where the rows draw on React Native's `Text` at the raw token size.
+ */
+describe('RadioList (native) at a system text scale', () => {
+    const OPTION: readonly RadioListOption[] = [{ id: 'a', label: 'Written by me', hint: 'I wrote it myself' }];
+
+    const renderAt = (textScale: number) =>
+        renderWithTamagui(
+            <RadioList label="Where is this recipe from?" options={OPTION} value={undefined} onChange={vi.fn()} />,
+            'light',
+            textScale,
+        );
+
+    const styleOf = (text: string) => getComputedStyle(screen.getByText(text));
+
+    it('past the cap (3.571) the label draws at 32 and the hint at 28, not at the platform’s uncapped size', () => {
+        renderAt(3.571);
+
+        expect(styleOf('Written by me').fontSize).toBe('32px');
+        expect(styleOf('I wrote it myself').fontSize).toBe('28px');
+    });
+
+    it('inside the cap (1.786) the label and hint draw at their role size times the scale, with no clamp', () => {
+        renderAt(1.786);
+
+        expect(Number.parseFloat(styleOf('Written by me').fontSize)).toBeCloseTo(16 * 1.786, 2);
+        expect(Number.parseFloat(styleOf('I wrote it myself').fontSize)).toBeCloseTo(14 * 1.786, 2);
+    });
+
+    it.each([
+        [1, 1],
+        [2, 11],
+    ] as const)(
+        'at scale %s the 18 dp circle is offset by (leading - 18) / 2 = %s, so it centres on the label’s first line',
+        (textScale, offset) => {
+            withPlatformOs('android', () => {
+                renderAt(textScale);
+
+                const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
+
+                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(20 * textScale);
+                expect(Number.parseFloat(getComputedStyle(circle as Element).marginTop)).toBe(offset);
+            });
+        },
+    );
+
+    it('on iOS the offset is read from the snapped leading the label draws with', () => {
+        withPlatformOs('ios', () => {
+            renderAt(2);
+
+            const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
+            const drawnLeading = Number.parseFloat(styleOf('Written by me').lineHeight);
+
+            expect(Number.parseFloat(getComputedStyle(circle as Element).marginTop)).toBeCloseTo(
+                (drawnLeading - 18) / 2,
+                5,
+            );
         });
     });
 });

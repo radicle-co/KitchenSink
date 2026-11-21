@@ -3,16 +3,21 @@
  *
  * A `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint
  * to the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps
- * the native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action` ring when checked), the
- * label that wraps, then the hint under it. A pressed row takes the theme's press wash, as `ChipRow` does. Colours come
- * from the theme at render, so it repaints in the dark scheme. Nothing animates.
+ * the native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action`
+ * ring when checked), the label that wraps, then the hint under it. Label and hint draw on the design-system `Text` (roles
+ * `cardTitle` and `meta`), so they honour the 2x cap and the iOS leading snap (ADR-0080 §8, react-native#58970), and the
+ * circle is offset to centre on the label's first line. A pressed row takes the theme's press wash, as `ChipRow` does.
+ * Colours come from the theme at render, so it repaints in the dark scheme. Nothing animates.
  *
  * Controlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  */
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StyleSheet, View } from 'react-native';
 
+import { scaledTypeSize } from '../text/scaledType.js';
+import { Text } from '../text/Text.native.js';
+import { useTextScale } from '../text/useTextScale.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
@@ -33,6 +38,10 @@ export function RadioList<Id extends string>({
 }: RadioListProps<Id>) {
     const { colors } = useTheme();
     const wash = usePressFill();
+    // The circle stays 18 dp and sits on the label's FIRST line at every scale: half of what the label's leading has over it.
+    // The leading is read from the same scaled, snapped metrics the label draws with (`Text`, role `cardTitle`).
+    const textScale = useTextScale();
+    const circleTop = (scaledTypeSize('cardTitle', textScale).lineHeight - RADIO_SIZE) / 2;
 
     return (
         <View collapsable={false} role="radiogroup" aria-label={label} style={styles.group}>
@@ -64,15 +73,20 @@ export function RadioList<Id extends string>({
                             importantForAccessibility="no-hide-descendants"
                             style={[
                                 styles.radio,
+                                { marginTop: circleTop },
                                 checked
                                     ? { borderWidth: 5, borderColor: colors.action }
                                     : { borderWidth: 2, borderColor: colors.lineControl },
                             ]}
                         />
                         <View style={styles.words}>
-                            <Text style={[styles.label, { color: colors.ink }]}>{option.label}</Text>
+                            <Text typeRole="cardTitle" color="$ink">
+                                {option.label}
+                            </Text>
                             {option.hint === undefined ? null : (
-                                <Text style={[styles.hint, { color: colors.inkMuted }]}>{option.hint}</Text>
+                                <Text typeRole="meta" color="$inkMuted">
+                                    {option.hint}
+                                </Text>
                             )}
                         </View>
                     </Pressable>
@@ -96,6 +110,4 @@ const styles = StyleSheet.create({
     },
     radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2, alignSelf: 'flex-start' },
     words: { flex: 1, minWidth: 0 },
-    label: nativeTokens.type.cardTitle,
-    hint: nativeTokens.type.meta,
 });

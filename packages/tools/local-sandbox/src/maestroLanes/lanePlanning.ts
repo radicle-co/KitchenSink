@@ -131,12 +131,17 @@ export interface LaneArgs {
     readonly staggerSeconds: number;
     /** The class of the iOS lanes of this run: the iPhone default, or an iPad for the 820 pt layouts. */
     readonly iosDevice: IosDevice;
+    /**
+     * Flow files that are not committed (`--one-off <path.yaml>`, repeatable). A run with one runs only these: no
+     * selector and no committed flow is involved. Absent when none is named.
+     */
+    readonly oneOffs?: readonly string[];
 }
 
 const DEFAULT_STAGGER_SECONDS = 20;
 
 /**
- * Read `--platform android|ios|both [--lanes <n>] [--flows <f...>] [--ios-device iphone|ipad]`. `FULL_SUITE=1` runs
+ * Read `--platform android|ios|both [--lanes <n>] [--flows <f...> | --one-off <path>...] [--ios-device iphone|ipad]`. `FULL_SUITE=1` runs
  * everything, `MAESTRO_LANE_STAGGER_SECONDS` (whole seconds, default 20) spaces the lane starts, and the flag beats
  * `E2E_IOS_DEVICE`, which beats the iPhone default. Pure.
  *
@@ -157,6 +162,7 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
                 lanes: { type: 'string' },
                 flows: { type: 'boolean' },
                 'ios-device': { type: 'string' },
+                'one-off': { type: 'string', multiple: true },
             },
         });
     } catch (error) {
@@ -183,6 +189,20 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
         throw new Error('maestro:lanes: name flows after --flows, and only there');
     }
 
+    const oneOffs = parsed.values['one-off'] ?? [];
+
+    if (oneOffs.some((path) => path.trim() === '')) {
+        throw new Error('maestro:lanes: --one-off needs the path of a flow file');
+    }
+
+    if (oneOffs.length > 0 && flows === true) {
+        throw new Error('maestro:lanes: --one-off runs only its own flows: it cannot be combined with --flows');
+    }
+
+    if (oneOffs.length > 0 && env['FULL_SUITE'] === '1') {
+        throw new Error('maestro:lanes: --one-off runs only its own flows: it cannot be combined with FULL_SUITE=1');
+    }
+
     const stagger = env['MAESTRO_LANE_STAGGER_SECONDS'];
 
     if (stagger !== undefined && !/^\d+$/u.test(stagger)) {
@@ -201,6 +221,7 @@ export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<stri
         ...(lanes === undefined ? {} : { requested: Number(lanes) }),
         selection: env['FULL_SUITE'] === '1' ? 'all' : flows === true ? parsed.positionals : 'changed',
         staggerSeconds: stagger === undefined ? DEFAULT_STAGGER_SECONDS : Number(stagger),
+        ...(oneOffs.length === 0 ? {} : { oneOffs }),
     };
 }
 

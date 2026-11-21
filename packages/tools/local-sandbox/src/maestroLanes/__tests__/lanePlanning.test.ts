@@ -212,3 +212,31 @@ describe('platformTurns — which platforms run together', () => {
         expect(platformTurns(platforms, host)).toEqual([platforms]);
     });
 });
+
+describe('parseLaneArgs: one-off flows', () => {
+    const android = ['--platform', 'android'];
+
+    it('reads each --one-off path, in order', () => {
+        const args = parseLaneArgs([...android, '--one-off', '/tmp/a.yaml', '--one-off', 'b.yaml'], {});
+
+        expect(args.oneOffs).toEqual(['/tmp/a.yaml', 'b.yaml']);
+    });
+
+    it('has no one-offs unless one is named', () => {
+        expect(parseLaneArgs(android, {})).not.toHaveProperty('oneOffs');
+    });
+
+    it('refuses a one-off beside --flows, because a one-off run runs only its own flows', () => {
+        expect(() => parseLaneArgs([...android, '--flows', 'home', '--one-off', 'a.yaml'], {})).toThrow(
+            /--one-off.*--flows/u,
+        );
+    });
+
+    it('refuses a one-off under FULL_SUITE=1, which asks for every committed flow', () => {
+        expect(() => parseLaneArgs([...android, '--one-off', 'a.yaml'], { FULL_SUITE: '1' })).toThrow(/FULL_SUITE/u);
+    });
+
+    it('refuses a blank --one-off path', () => {
+        expect(() => parseLaneArgs([...android, '--one-off', '  '], {})).toThrow(/--one-off/u);
+    });
+});

@@ -18,7 +18,8 @@
         "./hostMemory": "./src/hostMemory.ts",
         "./checkScope": "./src/checkScope.ts",
         "./checkScopeGraph": "./src/checkScopeGraph.ts",
-        "./laneCosts": "./src/laneCosts.ts"
+        "./laneCosts": "./src/laneCosts.ts",
+        "./maestroFlows": "./src/maestroFlows.ts"
     },
     "scripts": {
         "test": "vitest run",

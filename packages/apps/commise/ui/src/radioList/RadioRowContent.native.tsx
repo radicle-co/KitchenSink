@@ -21,13 +21,16 @@ import { TextScaleContext } from '../text/textScaleContext.native.js';
 /** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
 const RADIO_SIZE = 18;
 
-/** The circle and the words of one row, top-aligned, taking the row's width so the words can wrap. */
+/**
+ * The circle and the words of one row, top-aligned, taking the row's width so the words can wrap. The three longhands are
+ * what React Native's Yoga resolves `flex: 1` to (grow 1, shrink 0, basis 0), written out so a test can read them.
+ */
 export const RadioRowContent = styled(XStack, {
     name: 'RadioRowContent',
     alignItems: 'flex-start',
     gap: '$3',
     flexGrow: 1,
-    flexShrink: 1,
+    flexShrink: 0,
     flexBasis: 0,
 });
 

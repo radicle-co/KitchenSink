@@ -41,7 +41,8 @@ const BUILD_STUB_PATH = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 const KEY = 'abc123';
 const APP = macPathsOf().iosApp(KEY);
 const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
-const TIMEOUT_MS = 90_000;
+// Under the 30 s test limit, so a hung client ends here and not as an orphan after the case timed out.
+const TIMEOUT_MS = 25_000;
 /** The limit of the case that runs two client builds, in milliseconds. */
 const TWO_BUILDS_TIMEOUT_MS = 30_000;
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
@@ -113,7 +114,15 @@ function makeWorld(): World {
         path.join(world.bin, 'ssh'),
         `#!/usr/bin/env bash\ncmd="\${@: -1}"\nprintf 'SSH %s\\n' "$cmd" >> "${world.sshLog}"\n` +
             // A poll is the command that starts with `cd`; the fake counts them so a case can wait for the client's looks.
-            `[[ "$cmd" == cd\\ ksIos/build.noindex/jobs/* ]] && echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
+            // FAIL_POLL makes the link drop; POLL_ANSWERS holds one answer per line.
+            `if [[ "$cmd" == cd\\ ksIos/build.noindex/jobs/* ]]; then\n` +
+            `    echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
+            `    [ -z "$FAIL_POLL" ] || exit 255\n` +
+            `    if [ -n "$POLL_ANSWERS" ] && [ -s "$POLL_ANSWERS" ]; then\n` +
+            // An answer line of LINK_DROP is a dropped link for that one look.
+            `        answer="$(head -n 1 "$POLL_ANSWERS")"\n        sed -i 1d "$POLL_ANSWERS"\n` +
+            `        [ "$answer" != LINK_DROP ] || exit 255\n` +
+            `        printf '%s\\n' "$answer" | sed 's/;/\\n/g'\n        exit 0\n    fi\nfi\n` +
             `cd "${world.macHome}"\nexport HOME="${world.macHome}"\nexec bash -c "$cmd"\n`,
     );
     // `-e <ssh command>` is dropped and `host:` becomes the Mac's HOME, as a login would resolve it: the real rsync then copies locally.
@@ -238,6 +247,21 @@ describe('buildIosApp.sh build: the upload', () => {
         expect(existsSync(path.join(tree, '.git'))).toBe(false);
     });
 
+    it.each(['/opt/a b', "/opt/a'b", '/opt/a;b'])(
+        '⛔ refuses a KS_MAC_NODE_BIN with a quote, space or metacharacter (%s) before it reaches the Mac',
+        (nodeBin) => {
+            const world = makeWorld();
+            const repo = makeRepo(world, readFileSync(REAL_JOB_SCRIPT, 'utf8'));
+
+            const result = build(world, repo, { KS_MAC_NODE_BIN: nodeBin });
+
+            // Mutation: no `plain` check on it, and the value goes into the remote command as typed.
+            expect(result.status).not.toBe(0);
+            expect(result.stderr).toContain('KS_MAC_NODE_BIN holds a character that is not allowed');
+            expect(existsSync(world.sshLog)).toBe(false);
+        },
+    );
+
     it('publishes the app under ksIos/apps/ios/<key> and removes the job folder when the build passed', () => {
         const world = makeWorld();
         const repo = makeRepo(world, readFileSync(REAL_JOB_SCRIPT, 'utf8'));
@@ -324,6 +348,24 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.stderr.match(/waiting for the build lock: job=other/gu)).toHaveLength(1);
     });
 
+    it('⛔ shows the job log reason when exit 75 is a refusal beside an earlier build (stop it, not wait)', () => {
+        const world = makeWorld();
+        const repo = makeRepo(
+            world,
+            fakeJob(
+                `echo 'iosBuildJob: an earlier build (job old, process group 7) still runs; stop it, then build again' > "$d/build.log"\n` +
+                    `printf '%s %s\\n' "$$" x > "$d/wrapper"\nexit 75`,
+            ),
+        );
+
+        const result = build(world, repo);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('still runs; stop it');
+        expect(result.stderr).toContain('did not start (exit 75)');
+        expect(result.stderr).not.toContain('gave up waiting');
+    });
+
     it('⛔ dies and names the job when the Mac rebooted since the wrapper started, even if its pid is alive again', () => {
         const world = makeWorld();
         // A live pid (this job's own) beside a boot id that is not the Mac's: a reused pid after a reboot.
@@ -337,6 +379,67 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.status).not.toBe(0);
         expect(job).toBeDefined();
         expect(result.stderr).toContain(job);
+    });
+
+    it('⛔ gives up and names the job when the Mac cannot be reached for the whole give-up time', () => {
+        const world = makeWorld();
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        const result = build(world, repo, { FAIL_POLL: '1', KS_MAC_POLL_GIVE_UP_SECONDS: '3' });
+        const [job] = jobIdsIn(sshCommands(world).join('\n'));
+
+        // Mutation: retry for ever, and a Mac that went away holds the client until someone stops it.
+        expect(result.error).toBeUndefined();
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain(job);
+        expect(result.stderr).toMatch(/cannot reach the Mac/u);
+    });
+
+    it('⛔ counts the give-up time from the latest drop: two short drops far apart are not one long one', () => {
+        const world = makeWorld();
+        const answers = path.join(world.root, 'answers');
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        // Give-up is 3 s and each look waits 1 s. The good looks between the drops last longer than the give-up time.
+        writeFileSync(
+            answers,
+            [
+                'LINK_DROP',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'LINK_DROP',
+                'STATE a',
+                'RC 3',
+                '',
+            ].join('\n'),
+        );
+
+        const result = build(world, repo, {
+            POLL_ANSWERS: answers,
+            KS_MAC_POLL_SECONDS: '1',
+            KS_MAC_POLL_GIVE_UP_SECONDS: '3',
+        });
+
+        // Mutation: never clear the drop time after a good look, and the second short drop gives up at once.
+        expect(result.stderr).not.toMatch(/cannot reach the Mac/u);
+        expect(result.stderr).toContain('exit 3');
+    });
+
+    it('does not read two dead answers apart as a dead wrapper: a live answer between them resets the count', () => {
+        const world = makeWorld();
+        const answers = path.join(world.root, 'answers');
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        writeFileSync(answers, ['STATE a;DEAD', 'STATE a', 'STATE a;DEAD', 'STATE a', 'RC 3', ''].join('\n'));
+
+        const result = build(world, repo, { POLL_ANSWERS: answers });
+
+        // Mutation: never reset the count, and the second dead answer ends the build early.
+        expect(result.stderr).not.toMatch(/wrapper/u);
+        expect(result.stderr).toContain('exit 3');
     });
 
     it('keeps the job folder and shows the log tail when the build failed', () => {

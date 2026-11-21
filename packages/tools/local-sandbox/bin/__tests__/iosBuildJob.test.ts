@@ -48,7 +48,7 @@ const WAIT_MS = 15_000;
 const BUILD_STUB = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 
 /** What the stub build does for one key, written to `mode.<key>`. */
-type StubMode = 'block' | 'fail3' | 'leaveGroup' | 'leaveSession' | 'leaveDeaf';
+type StubMode = 'block' | 'fail3' | 'fail75' | 'leaveGroup' | 'leaveSession' | 'leaveDeaf';
 
 interface World {
     readonly root: string;
@@ -60,6 +60,8 @@ interface World {
 
 interface Job {
     readonly child: ChildProcess;
+    /** The job's pid and its group id: it was spawned detached. Never 0, so a signal can never reach the runner's group. */
+    readonly pid: number;
     readonly exit: Promise<number | null>;
 }
 
@@ -76,6 +78,7 @@ touch "$STUB_DIR/start.$k"
 mode="$(cat "$STUB_DIR/mode.$k" 2>/dev/null || echo block)"
 case "$mode" in
     fail3) echo "end $k" >> "$STUB_DIR/events.log"; exit 3 ;;
+    fail75) echo "end $k" >> "$STUB_DIR/events.log"; exit 75 ;;
     leaveSession) setsid sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     leaveDeaf) bash -c 'trap "" TERM; exec sleep 300' > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     leaveGroup) sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
@@ -150,23 +153,29 @@ function upload(
 
 /**
  * Runs the real job script as a detached process group leader, as the client's `nohup sh -c` does.
+ * `limits` are the script's optional wait and build limits in seconds; `bin` is the PATH folder in front.
  *
  * @sideEffect Spawns a process, recorded so `afterEach` can stop what the test leaves.
  */
-function startJob(world: World, job: string, key: string): Job {
+function startJob(world: World, job: string, key: string, limits: readonly string[] = [], bin = world.bin): Job {
     const err = openSync(path.join(world.root, `${job}.err`), 'a');
-    const child = spawn(BASH, [JOB_SCRIPT, job, key, `ksIos/apps/ios/${key}`], {
+    const child = spawn(BASH, [JOB_SCRIPT, job, key, `ksIos/apps/ios/${key}`, ...limits], {
         detached: true,
         // The job's stderr goes to a file in the world, so a failing case can say why the job died.
         stdio: ['ignore', 'ignore', err],
-        env: { HOME: world.home, PATH: `${world.bin}:${SYSTEM_PATH}`, STUB_DIR: world.stub },
+        env: { HOME: world.home, PATH: `${bin}:${SYSTEM_PATH}`, STUB_DIR: world.stub },
     });
 
     closeSync(err);
     jobs.push(child);
 
+    if (child.pid === undefined) {
+        throw new Error(`the job ${job} did not start`);
+    }
+
     return {
         child,
+        pid: child.pid,
         exit: new Promise((resolve) => {
             child.once('exit', (code) => {
                 resolve(code);
@@ -338,7 +347,7 @@ describe('iosBuildJob.sh: one build at a time', () => {
             await until('A to build', () => started(world, 'keyA'));
             const build = pidOf(world, 'pid.keyA');
 
-            process.kill(a.child.pid ?? 0, signal);
+            process.kill(a.pid, signal);
 
             expect(await a.exit).toBe(143);
             // Mutation: no TERM trap, and the build keeps running in the shared tree while the next job starts.
@@ -362,7 +371,7 @@ describe('iosBuildJob.sh: one build at a time', () => {
         const b = startJob(world, 'jobB', 'keyB');
 
         await until('B to wait for A', () => /waiting for the build lock: job=jobA/u.test(stateOf(world, 'jobB')));
-        process.kill(b.child.pid ?? 0, 'SIGTERM');
+        process.kill(b.pid, 'SIGTERM');
         expect(await b.exit).toBe(143);
 
         // Mutation: write `released` on every exit, and the live holder A reads as released.
@@ -477,5 +486,385 @@ describe('iosBuildJob.sh: what it leaves behind', () => {
         expect(await startJob(world, 'jobA', 'keyA').exit).toBe(0);
         // Mutation: rsync without `--checksum` sees size and time match and keeps the other squad's bytes.
         expect(readFileSync(marker(world, 'seen.f.keyA'), 'utf8')).toBe('BBBB');
+    });
+});
+
+/** The text the job wrote to its stderr, which is where a refusal says why. */
+const errOf = (world: World, job: string): string => {
+    const file = path.join(world.root, `${job}.err`);
+
+    return existsSync(file) ? readFileSync(file, 'utf8') : '';
+};
+
+/** A process of its own group that stays until the test ends: stands for a live holder or a live old build. */
+function liveGroupLeader(): ChildProcess {
+    const child = spawn('/bin/sleep', ['300'], { detached: true, stdio: 'ignore' });
+
+    jobs.push(child);
+
+    return child;
+}
+
+/** The boot the script records: the kernel's boot id, as `iosBuildJob.sh` writes it. */
+const bootOf = (): string => readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').replaceAll(/\s/gu, '_');
+
+const AGES = { old: 3 * 24 * 3600, fresh: 0 } as const;
+
+function ageFolder(folder: string, ageSeconds: number): void {
+    const then = new Date(Date.now() - ageSeconds * 1000);
+
+    utimesSync(folder, then, then);
+}
+
+describe('iosBuildJob.sh: a build group that outlived its wrapper (stale holder)', () => {
+    it('⛔ refuses to build beside a live group of an earlier job, and builds once that group has ended', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        const group = Number(/pgid=(\d+)/u.exec(readFileSync(path.join(buildRoot(world), 'build.owner'), 'utf8'))?.[1]);
+
+        // The wrapper dies without cleaning up: the kernel frees the lock, and the build group runs on.
+        process.kill(a.pid, 'SIGKILL');
+        await a.exit;
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        // Mutation: no stale-holder check, and B builds beside A's live group in the shared tree.
+        expect(await b.exit).toBe(75);
+        expect(errOf(world, 'jobB')).toMatch(/earlier build \(job jobA, process group \d+\) still runs/u);
+        expect(started(world, 'keyB')).toBe(false);
+
+        killQuietly(-group);
+        await until('A`s group to end', () => !alive(group));
+        upload(world, 'jobC', 'keyC');
+        const c = startJob(world, 'jobC', 'keyC');
+
+        await until('C to build', () => started(world, 'keyC'));
+        release(world, 'keyC');
+        expect(await c.exit).toBe(0);
+    });
+
+    it('does not refuse for a recorded group whose start time is not the live process`s (a reused group id)', async () => {
+        const world = makeWorld();
+        const reused = liveGroupLeader();
+
+        mkdirSync(buildRoot(world), { recursive: true });
+        writeFileSync(
+            path.join(buildRoot(world), 'build.owner'),
+            `job=old pid=1 pgid=${String(reused.pid ?? 0)} since=then lstart=Mon Jan  1 00:00:00 2001\n`,
+        );
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        // Mutation: judge by "a process in the group is alive" alone, and a reused group id blocks every build.
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+    });
+});
+
+describe('iosBuildJob.sh: a refusal leaves the earlier build on record', () => {
+    it('⛔ keeps the earlier group in build.owner after refusing, so the next job refuses too', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        const owner = path.join(buildRoot(world), 'build.owner');
+        const group = Number(/pgid=(\d+)/u.exec(readFileSync(owner, 'utf8'))?.[1]);
+
+        process.kill(a.pid, 'SIGKILL');
+        await a.exit;
+        upload(world, 'jobB', 'keyB');
+        expect(await startJob(world, 'jobB', 'keyB').exit).toBe(75);
+
+        // Mutation: take `locked` before the check, and the refusal writes "released" over the record, which erases the
+        // group the next job must still refuse for.
+        expect(readFileSync(owner, 'utf8')).toContain(`pgid=${String(group)}`);
+        expect(readFileSync(owner, 'utf8')).not.toMatch(/^released/u);
+        upload(world, 'jobC', 'keyC');
+        expect(await startJob(world, 'jobC', 'keyC').exit).toBe(75);
+        expect(started(world, 'keyC')).toBe(false);
+
+        killQuietly(-group);
+        await until('A`s group to end', () => !alive(group));
+    });
+});
+
+describe('iosBuildJob.sh: the limits', () => {
+    it('⛔ stops a build that outlasts its limit: exit 124, the group gone, the lock free', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        upload(world, 'jobB', 'keyB');
+        const a = startJob(world, 'jobA', 'keyA', ['10800', '1']);
+
+        await until('A to build', () => started(world, 'keyA'));
+        const build = pidOf(world, 'pid.keyA');
+
+        // Mutation: no limit, and a hung build holds the lock until someone stops it.
+        expect(await a.exit).toBe(124);
+        expect(alive(build)).toBe(false);
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to take the lock', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+    });
+
+    it('⛔ names itself as the holder while it syncs, so a waiter never reads the previous holder`s line', async () => {
+        const world = makeWorld();
+        const slowBin = path.join(world.root, 'slowBin');
+
+        mkdirSync(slowBin);
+        // A rsync that says it has started and waits, so the job is held inside its sync step.
+        writeFileSync(
+            path.join(slowBin, 'rsync'),
+            `#!/usr/bin/env bash\ntouch "$STUB_DIR/syncing"\nwhile [ ! -f "$STUB_DIR/syncGo" ]; do sleep 0.05; done\nexec /usr/bin/rsync "$@"\n`,
+        );
+        chmodSync(path.join(slowBin, 'rsync'), 0o755);
+        // The previous holder's record: what a waiter would read if the new holder wrote nothing.
+        mkdirSync(buildRoot(world), { recursive: true });
+        writeFileSync(path.join(buildRoot(world), 'build.owner'), 'released job=jobOld since=then\n');
+        upload(world, 'jobA', 'keyA');
+        upload(world, 'jobB', 'keyB');
+        const a = startJob(world, 'jobA', 'keyA', [], `${slowBin}:${world.bin}`);
+
+        await until('A to be inside its sync', () => existsSync(marker(world, 'syncing')));
+        const b = startJob(world, 'jobB', 'keyB', ['1']);
+
+        // Mutation: write the holder record after the sync, and B reads `released job=jobOld` here.
+        await until('B to name A', () => /waiting for the build lock: job=jobA /u.test(stateOf(world, 'jobB')));
+        expect(await b.exit).toBe(75);
+        writeFileSync(marker(world, 'syncGo'), '');
+        await until('A to build', () => started(world, 'keyA'));
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
+    });
+
+    it('⛔ never exits 75 for a build that itself exits 75, because 75 means the lock was not taken', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA', {}, 'fail75');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        // Mutation: pass the build's code through, and the client reads a failed build as "the lock was not taken".
+        expect(await a.exit).toBe(1);
+        expect(errOf(world, 'jobA')).toContain('exited 75');
+    });
+
+    it('⛔ gives up waiting for the lock after its limit: exit 75, naming the holder', async () => {
+        const world = makeWorld();
+
+        mkdirSync(buildRoot(world), { recursive: true });
+        writeFileSync(path.join(buildRoot(world), 'build.owner'), 'job=other pid=1 pgid=2 since=then lstart=x\n');
+        // The lock is held from outside the script, as another squad's job holds it.
+        const holder = spawn(
+            '/usr/bin/perl',
+            [
+                '-e',
+                'use Fcntl qw(:flock); $| = 1; open(my $f, ">>", $ARGV[0]) or die; flock($f, LOCK_EX) or die; print "held\\n"; sleep 300',
+                path.join(buildRoot(world), 'build.lock'),
+            ],
+            { detached: true, stdio: ['ignore', 'pipe', 'ignore'] },
+        );
+
+        jobs.push(holder);
+        await new Promise((resolve) => holder.stdout.once('data', resolve));
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB', ['1']);
+
+        // Mutation: wait for ever.
+        expect(await b.exit).toBe(75);
+        expect(errOf(world, 'jobB')).toContain('job=other');
+        expect(started(world, 'keyB')).toBe(false);
+    });
+});
+
+describe('iosBuildJob.sh: what perl says about the lock', () => {
+    /** A `perl` first on PATH that answers for the checks the job makes, and runs the real one otherwise. */
+    function withFakePerl(world: World, body: string): string {
+        const bin = path.join(world.root, 'fakeperl');
+
+        mkdirSync(bin, { recursive: true });
+        writeFileSync(path.join(bin, 'perl'), `#!/bin/bash\n${body}\nexec /usr/bin/perl "$@"\n`);
+        chmodSync(path.join(bin, 'perl'), 0o755);
+
+        return `${bin}:${world.bin}`;
+    }
+
+    it('⛔ refuses a perl whose flock is emulated, because emulated flock gives no exclusion at all', async () => {
+        const world = makeWorld();
+        const bin = withFakePerl(world, 'case "$*" in *d_flock*) exit 1 ;; esac');
+
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA', [], bin);
+
+        // Mutation: skip the check, and the stub build starts.
+        expect(await a.exit).toBe(1);
+        expect(errOf(world, 'jobA')).toContain('flock');
+        expect(started(world, 'keyA')).toBe(false);
+    });
+
+    it('⛔ dies on a flock error that is not "busy", instead of waiting for ever', async () => {
+        const world = makeWorld();
+        const bin = withFakePerl(world, 'case "$*" in *LOCK_NB*) exit 2 ;; esac');
+
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA', [], bin);
+
+        // Mutation: read exit 2 as "busy", and the job waits its whole limit for a lock nobody holds.
+        expect(await a.exit).toBe(1);
+        expect(errOf(world, 'jobA')).toContain('could not take the build lock');
+    });
+});
+
+describe('iosBuildJob.sh: the lock file is replaced under a waiter', () => {
+    it('⛔ a waiter takes the lock on the file that is there now, and a later job waits for it, not beside it', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        upload(world, 'jobB', 'keyB');
+        upload(world, 'jobC', 'keyC');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to wait', () => /waiting for the build lock/u.test(stateOf(world, 'jobB')));
+        rmSync(path.join(buildRoot(world), 'build.lock'));
+        release(world, 'keyA');
+        await a.exit;
+        await until('B to build', () => started(world, 'keyB'));
+        const c = startJob(world, 'jobC', 'keyC');
+
+        await until('C to wait for B', () => /waiting for the build lock: job=jobB/u.test(stateOf(world, 'jobC')));
+        // Mutation: lock a file other than the one at the path, and C builds beside B.
+        expect(existsSync(path.join(buildRoot(world), 'build.lock'))).toBe(true);
+        expect(started(world, 'keyC')).toBe(false);
+        release(world, 'keyB');
+        await b.exit;
+        await until('C to build', () => started(world, 'keyC'));
+        release(world, 'keyC');
+        expect(await c.exit).toBe(0);
+    });
+});
+
+describe('iosBuildJob.sh: the lock file removed between the open and the flock', () => {
+    it('⛔ does not build on a lock file that was removed, and locks the one at the path', async () => {
+        const world = makeWorld();
+        const bin = path.join(world.root, 'fakeperl');
+
+        mkdirSync(bin, { recursive: true });
+        // The first lock attempt finds the file gone, as if another squad cleared the folder after the job opened it.
+        writeFileSync(
+            path.join(bin, 'perl'),
+            '#!/bin/bash\ncase "$*" in *LOCK_NB*) [ -e "$STUB_DIR/removed" ] || { touch "$STUB_DIR/removed"; rm -f build.lock; } ;; esac\nexec /usr/bin/perl "$@"\n',
+        );
+        chmodSync(path.join(bin, 'perl'), 0o755);
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA', [], `${bin}:${world.bin}`);
+
+        await until('A to build', () => started(world, 'keyA'));
+        // Mutation: no inode check, and A holds a lock on a file nobody can reach, so a second job takes the real one.
+        expect(existsSync(path.join(buildRoot(world), 'build.lock'))).toBe(true);
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
+    });
+});
+
+describe('iosBuildJob.sh: pruning', () => {
+    it('removes old job folders that finished or lost their wrapper and old staging folders, and nothing that is alive', async () => {
+        const world = makeWorld();
+        const alivePid = liveGroupLeader().pid ?? 0;
+
+        const make = (name: string, files: Record<string, string>, age: number): string => {
+            const folder = jobFolder(world, name);
+
+            mkdirSync(folder, { recursive: true });
+
+            for (const [file, body] of Object.entries(files)) {
+                writeFileSync(path.join(folder, file), body);
+            }
+
+            ageFolder(folder, age);
+
+            return folder;
+        };
+
+        const finished = make('oldFinished', { 'build.rc': '0\n' }, AGES.old);
+        const lost = make('oldLost', { wrapper: `999999 ${bootOf()}\n` }, AGES.old);
+        const rebooted = make('oldRebooted', { wrapper: `${String(alivePid)} otherboot\n` }, AGES.old);
+        const running = make('oldRunning', { wrapper: `${String(alivePid)} ${bootOf()}\n` }, AGES.old);
+        const recent = make('recent', { 'build.rc': '0\n' }, AGES.fresh);
+        const staging = path.join(world.home, 'ksIos', 'apps', 'ios', '.staging.oldJob');
+
+        mkdirSync(staging, { recursive: true });
+        ageFolder(staging, AGES.old);
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: prune nothing, prune by age alone (running goes), or skip the staging folders.
+        expect([finished, lost, rebooted, staging].map((folder) => existsSync(folder))).toEqual([
+            false,
+            false,
+            false,
+            false,
+        ]);
+        expect([running, recent].map((folder) => existsSync(folder))).toEqual([true, true]);
+    });
+
+    it('⛔ keeps a fresh staging folder and removes one older than a day, so a waiter spares the holder`s', async () => {
+        const world = makeWorld();
+        const apps = path.join(world.home, 'ksIos', 'apps', 'ios');
+
+        const make = (name: string, age: number): string => {
+            const folder = path.join(apps, name);
+
+            mkdirSync(folder, { recursive: true });
+            ageFolder(folder, age);
+
+            return folder;
+        };
+
+        const freshStaging = make('.staging.fresh', AGES.fresh);
+        const freshOld = make('keyX.old.123', AGES.fresh);
+        const oldStaging = make('.staging.stale', AGES.old);
+        const oldOld = make('keyY.old.456', AGES.old);
+
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: drop the age test from the staging prune, and a waiting job deletes the holder's fresh folder.
+        expect([freshStaging, freshOld].map((folder) => existsSync(folder))).toEqual([true, true]);
+        expect([oldStaging, oldOld].map((folder) => existsSync(folder))).toEqual([false, false]);
+    });
+
+    it('prunes a finished job folder even when its recorded wrapper pid is alive again', async () => {
+        const world = makeWorld();
+        const folder = jobFolder(world, 'oldDone');
+
+        mkdirSync(folder, { recursive: true });
+        writeFileSync(path.join(folder, 'build.rc'), '0\n');
+        writeFileSync(path.join(folder, 'wrapper'), `${String(liveGroupLeader().pid ?? 0)} ${bootOf()}\n`);
+        ageFolder(folder, AGES.old);
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: ask only whether the wrapper lives, and a finished folder is kept for as long as its pid is reused.
+        expect(existsSync(folder)).toBe(false);
     });
 });

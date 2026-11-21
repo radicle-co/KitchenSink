@@ -297,8 +297,9 @@ carries the procedure, time budget and exact report body. Do not improvise the f
 
 - **A deferred end-to-end tier is not a "missing required test tier".** When the PR body names the feature's wrap-up
   task as the home of the story's end-to-end flows (Playwright, Maestro, local or deployed e2e; CLAUDE.md "Cheapest
-  tier first"), do not file the missing flows. Missing unit, component or integration tests are still a major finding, and so is a deferral the PR
-  body does not name.
+  tier first"), do not file the missing flows. Missing unit, component or integration tests are still a major
+  finding, and so is a deferral the PR body does not name. An e2e test that is the only proof (a schema or migration
+  change's local e2e, a real-dependency constraint) is never deferred, and its absence is a major finding.
 - **Anchor everything** at `path:line`. An unanchored claim about the code is an assumption — label it.
 - **Verified vs assumed**: what you ran and read, versus what you inferred.
 - **Never invent** a path, symbol, rule ID, threshold, standards section or ADR number.

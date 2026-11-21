@@ -258,8 +258,8 @@ export function stepWaitsOf(input: StepWaitsInput): StepWaits {
     };
 }
 
-/** A length split into hours, minutes and seconds. */
-export interface DurationParts {
+/** A length split into hours, minutes and seconds. (`@commise/ui` has its own `DurationParts`.) */
+export interface HmsParts {
     readonly hours: number;
     readonly minutes: number;
     readonly seconds: number;
@@ -271,7 +271,7 @@ export interface DurationParts {
  * @param totalSeconds - A whole number of seconds.
  * @returns The three parts, each below its carry except hours. Pure.
  */
-export function durationParts(totalSeconds: number): DurationParts {
+export function durationParts(totalSeconds: number): HmsParts {
     return {
         hours: Math.floor(totalSeconds / 3_600),
         minutes: Math.floor((totalSeconds % 3_600) / 60),

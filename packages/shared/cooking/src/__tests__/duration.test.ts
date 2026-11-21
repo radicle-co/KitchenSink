@@ -6,7 +6,7 @@ import { describe, expect, it } from 'vitest';
 
 import { oneIn } from '../__fixtures__/oneIn.js';
 import { MIN_TIMER_MS } from '../timer.js';
-import { durationParts, elapsedParts, offerSecondsOf, readDuration } from '../duration.js';
+import { durationParts, elapsedParts, offerSecondsOf, readDuration, type HmsParts } from '../duration.js';
 
 describe('readDuration', () => {
     it.each([
@@ -223,6 +223,13 @@ describe('offerSecondsOf', () => {
 });
 
 describe('durationParts', () => {
+    // S3a.U3 C1 item 7: the type is HmsParts, because `@commise/ui` already exports a different `DurationParts`.
+    it('gives the three parts as an HmsParts', () => {
+        const parts: HmsParts = durationParts(3_905);
+
+        expect(parts).toEqual({ hours: 1, minutes: 5, seconds: 5 });
+    });
+
     it.each([
         [5_400, { hours: 1, minutes: 30, seconds: 0 }],
         [30, { hours: 0, minutes: 0, seconds: 30 }],

@@ -81,7 +81,7 @@ export type {
     TimerState,
 } from './timer.js';
 export { durationParts, elapsedParts, offerSecondsOf, readDuration, stepWaitsOf } from './duration.js';
-export type { DurationParts, ElapsedParts, OfferInput, StepWaits, StepWaitsInput, Wait } from './duration.js';
+export type { HmsParts, ElapsedParts, OfferInput, StepWaits, StepWaitsInput, Wait } from './duration.js';
 export { jobShapeOf } from './jobShape.js';
 export type { JobRow, JobShape, JobShapeInput, JobStepInput, JobTotal } from './jobShape.js';
 export type { DurationReading, ReadingSpan } from './durationReading.js';

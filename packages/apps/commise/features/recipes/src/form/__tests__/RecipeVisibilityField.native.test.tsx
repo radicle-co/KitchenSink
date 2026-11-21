@@ -99,6 +99,8 @@ interface HarnessProps {
     readonly onFreeASlot?: () => void;
     /** Why Public is refused for the draft (`publicRefusalOf`): the field says that reason's line. Absent is `none`. */
     readonly publicRefusal?: PublicRefusal;
+    /** The passive line the host gives when no sheet will ask. */
+    readonly confirmLine?: string;
 }
 
 /** The host's wiring, as `usePrivateChoice` hands it over: the field decides from what the cook may still keep. */
@@ -112,6 +114,7 @@ const Harness: FC<HarnessProps> = ({
     onConfirmPublic,
     onFreeASlot,
     publicRefusal,
+    confirmLine,
 }) => {
     const facts: RecipePrivateFacts = givenFacts ?? {
         rule: 'slots',
@@ -137,6 +140,7 @@ const Harness: FC<HarnessProps> = ({
             onConfirmPublic={onConfirmPublic ?? (() => change({ ...values, visibility: 'public' }))}
             onChange={change}
             {...(publicRefusal === undefined ? {} : { publicRefusal })}
+            {...(confirmLine === undefined ? {} : { confirmLine })}
         />
     );
 };
@@ -619,6 +623,7 @@ describe('RecipeVisibilityField (native) - an unavailable Public card and the fo
  * dimmed but focusable, described by the reason alone, never a live region, and pressing it changes nothing.
  */
 describe('RecipeVisibilityField (native) - the reason on the refused Public card (P6)', () => {
+    const CONFIRM = 'By making this public, you confirm it is your own recipe.';
     const lines = recipeActionMessages.en.publicRefusal;
     const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
 
@@ -628,12 +633,14 @@ describe('RecipeVisibilityField (native) - the reason on the refused Public card
             standing: { kind: 'full', used: 50, limit: 50 },
             state: 'upsell',
         };
-        render(<Harness paidFeatures="upsell" facts={facts} publicRefusal="policy.webPage" />);
+        render(<Harness paidFeatures="upsell" facts={facts} publicRefusal="policy.webPage" confirmLine={CONFIRM} />);
 
         expect(handed.get('Public')).toMatchObject({ disabled: true, hint: lines.policyWebPage });
         expect(screen.getByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
         expect(screen.getByText(v.wayMakePublic)).toBeTruthy();
         expect(screen.getByText(v.wayDelete)).toBeTruthy();
+        // The host gives a passive line; with Public refused it is never drawn.
+        expect(screen.queryByText(CONFIRM)).toBeNull();
     });
 
     it.each([

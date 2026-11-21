@@ -30,6 +30,7 @@ import { Sheet } from 'tamagui';
 
 import { motionPropsOf } from '../motion/motionPropsOf.js';
 import type { EngineTransition } from './sheetEngineLifecycle.js';
+import { WINDOW_LAYERS } from '../overlay/windowLayers.js';
 
 /** Props for {@link SheetEngine}. */
 export interface SheetEngineProps {
@@ -49,6 +50,7 @@ export const SheetEngine: FC<SheetEngineProps> = ({ open, onTransition, reduceMo
     return (
         <Sheet
             modal={false}
+            zIndex={WINDOW_LAYERS.sheet}
             open={open}
             onTransition={onTransition}
             disableDrag

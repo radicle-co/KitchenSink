@@ -14,13 +14,13 @@ const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
 const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', label: undefined } as const;
 
-/** Every store a case made, so none outlives it. */
-const made: ReturnType<typeof createTimerStore>[] = [];
+/** Each connection a case made, so none outlives it. */
+const connections: (() => void)[] = [];
 
 const storeOf = (initial?: TimerState) => {
     const store = createTimerStore(initial);
 
-    made.push(store);
+    connections.push(store.connect());
 
     return store;
 };
@@ -68,8 +68,8 @@ beforeEach(() => {
 });
 
 afterEach(() => {
-    for (const store of made.splice(0)) {
-        store.dispose();
+    for (const disconnect of connections.splice(0)) {
+        disconnect();
     }
 
     vi.useRealTimers();
@@ -286,13 +286,14 @@ describe('a change of cook', () => {
     });
 });
 
-describe('the store ends with dispose', () => {
+describe('the store ends with its disconnect', () => {
     it('clears its timeout and stops hearing the foreground', () => {
         const store = createTimerStore();
         const told = listen(store);
+        const disconnect = store.connect();
 
         store.start({ ...STEP, durationMs: 5 * SECOND });
-        store.dispose();
+        disconnect();
 
         expect(vi.getTimerCount()).toBe(0);
 
@@ -300,5 +301,19 @@ describe('the store ends with dispose', () => {
         focusManager.setFocused(true);
 
         expect(told).toEqual([]);
+    });
+
+    it('works after a disconnect and a connect again (StrictMode runs an effect, its cleanup, and the effect)', () => {
+        const store = createTimerStore();
+        const told = listen(store);
+
+        store.connect()();
+        connections.push(store.connect());
+        store.start({ ...STEP, durationMs: 5 * SECOND });
+        vi.setSystemTime(T0 + MINUTE);
+        focusManager.setFocused(true);
+
+        expect(told).toHaveLength(1);
+        expect(vi.getTimerCount()).toBe(0);
     });
 });

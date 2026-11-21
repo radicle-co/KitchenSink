@@ -62,8 +62,11 @@ export interface TimerStore {
     readonly onEnded: (listener: (event: TimerEvent) => void) => () => void;
     /** Tells the store who is signed in (Clerk's `userId`): a change of cook ends the session. */
     readonly observeCook: (subject: string | null | undefined) => void;
-    /** Stops the timeout and the foreground subscription. */
-    readonly dispose: () => void;
+    /**
+     * Starts the timeout and hears the app come to the front. Returns the way to stop, which clears both. Apart from
+     * the creation, so a React effect can run it twice (StrictMode) and leave one connection.
+     */
+    readonly connect: () => () => void;
 }
 
 /** The instant the earliest running timer ends, or `undefined` when none runs. */
@@ -78,12 +81,13 @@ function earliestEnd(state: TimerState): number | undefined {
  *
  * @param initial - The state to start from. Tests build several-timer states with it; the app starts empty.
  * @returns The store.
- * @sideEffect Subscribes to the app focus and sets a timeout when a timer runs. `dispose` undoes both.
+ * @sideEffect None until `connect`, which subscribes to the app focus and sets a timeout while a timer runs.
  */
 export function createTimerStore(initial: TimerState = NO_TIMER): TimerStore {
     let state = initial;
     let heldCook: string | null = null;
     let timeout: ReturnType<typeof setTimeout> | undefined;
+    let connected = false;
     const changed = new Set<() => void>();
     const ended = new Set<(event: TimerEvent) => void>();
 
@@ -94,7 +98,7 @@ export function createTimerStore(initial: TimerState = NO_TIMER): TimerStore {
 
         const end = earliestEnd(state);
 
-        if (end !== undefined) {
+        if (connected && end !== undefined) {
             const wait = Math.max(0, Math.min(MAX_WAIT_MS, end - Date.now()));
 
             timeout = setTimeout(() => apply({ kind: 'ring', nowMs: Date.now() }), wait);
@@ -141,14 +145,6 @@ export function createTimerStore(initial: TimerState = NO_TIMER): TimerStore {
         }
     }
 
-    const stopListeningToFocus = focusManager.subscribe((focused) => {
-        if (focused) {
-            apply({ kind: 'ring', nowMs: Date.now() });
-        }
-    });
-
-    arm();
-
     return {
         getSnapshot: () => state,
         subscribe(listener) {
@@ -189,10 +185,22 @@ export function createTimerStore(initial: TimerState = NO_TIMER): TimerStore {
 
             heldCook = subject;
         },
-        dispose() {
-            clearTimeout(timeout);
-            timeout = undefined;
-            stopListeningToFocus();
+        connect() {
+            connected = true;
+
+            const stopListeningToFocus = focusManager.subscribe((focused) => {
+                if (focused) {
+                    apply({ kind: 'ring', nowMs: Date.now() });
+                }
+            });
+
+            arm();
+
+            return () => {
+                connected = false;
+                stopListeningToFocus();
+                arm();
+            };
         },
     };
 }

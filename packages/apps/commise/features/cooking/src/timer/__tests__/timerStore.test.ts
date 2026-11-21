@@ -17,17 +17,19 @@ afterEach(() => {
 describe('createTimerStore', () => {
     it('starts empty, and a start gives the id the timer holds', () => {
         const store = createTimerStore();
+        const disconnect = store.connect();
 
         expect(store.getSnapshot().timers).toEqual([]);
 
         const id = store.start({ ...STEP, durationMs: 5 * MINUTE });
 
         expect(store.getSnapshot().timers[0]).toMatchObject({ id, kind: 'running', run: 1 });
-        store.dispose();
+        disconnect();
     });
 
     it('tells a subscriber once per change, and not after it stops', () => {
         const store = createTimerStore();
+        const disconnect = store.connect();
         const listener = vi.fn();
         const stop = store.subscribe(listener);
 
@@ -39,11 +41,12 @@ describe('createTimerStore', () => {
         store.command({ kind: 'cancel', id: store.getSnapshot().timers[0]?.id ?? '', run: 1 });
 
         expect(listener).toHaveBeenCalledTimes(1);
-        store.dispose();
+        disconnect();
     });
 
     it('keeps the same snapshot and tells nobody when a command changes nothing', () => {
         const store = createTimerStore();
+        const disconnect = store.connect();
         const listener = vi.fn();
 
         store.start({ ...STEP, durationMs: 5 * MINUTE });
@@ -54,11 +57,12 @@ describe('createTimerStore', () => {
 
         expect(store.getSnapshot()).toBe(before);
         expect(listener).not.toHaveBeenCalled();
-        store.dispose();
+        disconnect();
     });
 
     it('tells an ended listener once, and not after it stops', () => {
         const store = createTimerStore();
+        const disconnect = store.connect();
         const heard = vi.fn();
         const stop = store.onEnded(heard);
 
@@ -73,6 +77,6 @@ describe('createTimerStore', () => {
         vi.advanceTimersByTime(5_000);
 
         expect(heard).toHaveBeenCalledTimes(1);
-        store.dispose();
+        disconnect();
     });
 });

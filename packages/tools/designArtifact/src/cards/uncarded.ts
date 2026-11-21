@@ -18,6 +18,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         'Artifact-only native component: the native ScrollHost with plain children, for canvas markup that cannot pass a render-prop child. It is a board device and not a product component, and the product component it wraps (ScrollHost) has the card.',
     ButtonLabel:
         "The native Button's label (the Text `cardTitle` role coloured by the Button's surface). A part of Button, never placed on its own; the Button card covers it.",
+    EqualShare:
+        "The native DialogActions' equal-share wrapper (one child grows to an equal share of a row when `shares` is `equal`). A part of DialogActions, never placed on its own; the DialogActions card covers it.",
     DesignSystemProvider:
         'Native-only Tamagui provider the app mounts once. It draws nothing of its own and is not placed by a screen; previews are themed by the `data-theme` attribute.',
     DesignSystemTheme:

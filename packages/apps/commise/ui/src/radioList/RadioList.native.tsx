@@ -3,11 +3,11 @@
  *
  * A `radiogroup` of whole-row `Pressable` radios with `aria-checked`. Each row is named by its label and hands its hint
  * to the platform as `accessibilityHint`, read after the name as the web leaf's `aria-describedby` is. Each row keeps
- * the native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action`
- * ring when checked), the label that wraps, then the hint under it. Label and hint draw on the design-system `Text` (roles
- * `cardTitle` and `meta`), so they honour the 2x cap and the iOS leading snap (ADR-0080 §8, react-native#58970), and the
- * circle sits centred in a slot one label line tall (`RadioMark`), so it stays beside the first line. A pressed row takes the theme's press wash, as `ChipRow` does.
- * Colours come from the theme at render, so it repaints in the dark scheme. Nothing animates.
+ * the native touch floor and is its own bordered card: the radio circle (`RadioMark`, which owns its size and rings),
+ * the label that wraps, then the hint under it. Label and hint draw on the design-system `Text` (roles `cardTitle` and
+ * `meta`), so they honour the 2x cap and the iOS leading snap (ADR-0080 §8, react-native#58970). The circle sits in a
+ * slot one label line tall, so it stays beside the label's first line. A pressed row takes the theme's press wash, as
+ * `ChipRow` does. Colours come from the theme at render, so it repaints in the dark scheme. Nothing animates.
  *
  * Controlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.
  *

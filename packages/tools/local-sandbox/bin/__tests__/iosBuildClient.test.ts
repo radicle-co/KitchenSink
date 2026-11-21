@@ -52,13 +52,14 @@ const BASH = '/bin/bash';
 vi.setConfig({ testTimeout: 30_000 });
 const GIT = '/usr/bin/git';
 
-/** The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes. */
+/** The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes, with the content key baked in. */
 const BUILD_STUB_BODY = `#!/usr/bin/env bash
 case "$1" in
     verify-manifest) exit 0 ;;
     ios)
         mkdir -p packages/apps/commise/mobile/dist-testApp/ios stage
-        echo built > stage/Fake.app
+        mkdir -p stage/Fake.app
+        echo "KSTestAppContentKey=$TEST_APP_CONTENT_KEY" > stage/Fake.app/Info.plist
         tar -czf packages/apps/commise/mobile/dist-testApp/ios/app.tar.gz -C stage .
         rm -rf stage
         echo "contentKey=$TEST_APP_CONTENT_KEY" > packages/apps/commise/mobile/dist-testApp/ios/testApp.manifest
@@ -131,6 +132,12 @@ function makeWorld(): World {
         );
     }
 
+    // The baked-key check (CL-BAKEDKEY) asks `codesign` for the seal and `plutil` for the key in the app's Info.plist.
+    writeExecutable(path.join(world.bin, 'codesign'), '#!/usr/bin/env bash\nexit 0\n');
+    writeExecutable(
+        path.join(world.bin, 'plutil'),
+        '#!/usr/bin/env bash\ngrep "^$2=" "$6" | cut -d= -f2- | tr -d "\\n"\n',
+    );
     writeExecutable(
         path.join(world.bin, 'xcodebuild'),
         `#!/usr/bin/env bash\nprintf 'Xcode 27.2\\nBuild version 27B52\\n'\n`,

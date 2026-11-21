@@ -142,4 +142,26 @@ describe('the staff-code-quality card, GATE mode', () => {
         expect(step).toContain('schema → the local e2e of CODING_STANDARDS §7.1a');
         expect(step).not.toContain('migration integration test');
     });
+
+    it('12. a deferred e2e counts only when the wrap-up task is already on the base branch, because the judge never sees the PR body', () => {
+        const bullet = between(
+            card,
+            'A deferred end-to-end tier is not a "missing required test tier".',
+            '**Anchor everything**',
+        );
+        const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
+
+        for (const [name, text] of [
+            ['the card bullet', bullet],
+            ['playbook step 5', step],
+        ] as const) {
+            expect(text, name).toContain('already exists on the base branch');
+            expect(text, name).toContain('plan or tasks file');
+            expect(text, name).toContain("covers this story's flows");
+            expect(text, name).toContain('A wrap-up task that this diff adds or changes does not count');
+        }
+
+        expect(bullet).not.toContain('PR body names');
+        expect(step).not.toContain('PR body must name');
+    });
 });

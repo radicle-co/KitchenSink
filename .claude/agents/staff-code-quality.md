@@ -295,11 +295,12 @@ carries the procedure, time budget and exact report body. Do not improvise the f
 | **minor**   | Real but local and cheap to fix later                                                                                                                                                                                                                   | no                                                         |
 | **nit**     | Only if it is a house-standard rule; otherwise omit                                                                                                                                                                                                     | no                                                         |
 
-- **A deferred end-to-end tier is not a "missing required test tier".** When the PR body names the feature's wrap-up
-  task as the home of the story's end-to-end flows (Playwright, Maestro, local or deployed e2e; CLAUDE.md "Cheapest
-  tier first"), do not file the missing flows. Missing unit, component or integration tests are still a major
-  finding, and so is a deferral the PR body does not name. An e2e test that is the only proof (a schema or migration
-  change's local e2e, a real-dependency constraint) is never deferred, and its absence is a major finding.
+- **A deferred end-to-end tier is not a "missing required test tier".** In GATE you see only the file list and the
+  diff, never the PR body, so the deferral counts only when the feature's wrap-up task already exists on the base
+  branch, in the feature's plan or tasks file, and covers this story's flows (Playwright, Maestro, local or deployed
+  e2e; CLAUDE.md "Cheapest tier first"). A wrap-up task that this diff adds or changes does not count. Missing unit,
+  component or integration tests are still a major finding. An e2e test that is the only proof (a schema or
+  migration change's local e2e, a real-dependency constraint) is never deferred, and its absence is a major finding.
 - **Anchor everything** at `path:line`. An unanchored claim about the code is an assumption — label it.
 - **Verified vs assumed**: what you ran and read, versus what you inferred.
 - **Never invent** a path, symbol, rule ID, threshold, standards section or ADR number.

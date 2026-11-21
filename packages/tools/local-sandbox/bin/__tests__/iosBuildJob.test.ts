@@ -319,6 +319,26 @@ describe('iosBuildJob.sh: one build at a time', () => {
         release(world, 'keyB');
         expect(await b.exit).toBe(0);
     });
+
+    it('⛔ leaves the holder`s record alone when a job that never held the lock is stopped', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        upload(world, 'jobB', 'keyB');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to wait for A', () => /waiting for the build lock: job=jobA/u.test(stateOf(world, 'jobB')));
+        process.kill(b.child.pid ?? 0, 'SIGTERM');
+        expect(await b.exit).toBe(143);
+
+        // Mutation: write `released` on every exit, and the live holder A reads as released.
+        expect(readFileSync(path.join(buildRoot(world), 'build.owner'), 'utf8')).toMatch(/^job=jobA /u);
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
+    });
 });
 
 describe('iosBuildJob.sh: what it leaves behind', () => {

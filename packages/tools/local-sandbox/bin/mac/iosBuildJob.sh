@@ -44,7 +44,7 @@ mine="jobs/$job"
 [ -d "$mine/src" ] || die "no snapshot at $root/$mine/src"
 
 child=''
-sig=0
+locked=0
 
 # One line of what this job is doing; the client prints it each time it changes.
 say() {
@@ -73,6 +73,8 @@ end_group() {
 on_exit() {
     end_group
     rm -rf "$mine/src"
+    # Only the holder says "released": a job that never held the lock must not overwrite the live holder's record.
+    [ "$locked" = 1 ] || return 0
     printf 'released job=%s since=%s\n' "$job" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build.owner.tmp
     mv build.owner.tmp build.owner
 }
@@ -108,6 +110,7 @@ while :; do
     esac
 done
 
+locked=1
 printf 'job=%s pid=%s pgid=- since=%s\n' "$job" "$$" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > build.owner.tmp
 mv build.owner.tmp build.owner
 

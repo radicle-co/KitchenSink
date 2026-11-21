@@ -231,9 +231,14 @@
             "outputs": []
         },
         "@kitchensink/local-sandbox#test": {
-            // `localMaestro.test.ts` reads the CI Maestro workflow it mirrors.
+            // `localMaestro.test.ts` reads the CI Maestro workflow it mirrors. `iosBuildJob.test.ts` and
+            // `iosBuildClient.test.ts` stand a stub in at the path `iosBuildJob.sh` runs, the build script's own.
             "dependsOn": ["^build"],
-            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/.github/workflows/_ci-heavy.yml"],
+            "inputs": [
+                "$TURBO_DEFAULT$",
+                "$TURBO_ROOT$/.github/workflows/_ci-heavy.yml",
+                "$TURBO_ROOT$/packages/apps/commise/mobile/scripts/buildTestApp.sh"
+            ],
             "outputs": []
         },
         "@kitchensink/recipe-import-core#test:integration": {

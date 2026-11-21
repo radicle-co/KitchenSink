@@ -25,9 +25,9 @@ export interface TimerStep {
  * @param step - The step the timer is matched to now (a gone recipe passes no lines).
  * @param copy - The timer copy.
  * @returns What the cook typed, as typed; else, for a timer a step line offered, that line's label (the line the timer
- *   stored by index); else "Step {n}", also for an offer whose line is not known or not in the step. The origin decides,
- *   never the length or the absence of a typed name, so an offered timer keeps its name after "+ time" and a reload.
- *   The ordinal is not here: it goes with the step (designer). Pure.
+ *   stored by its index in `step.lines`); else "Step {n}", also for an offer whose line is not known or not in the
+ *   step. The origin decides, never the length or the absence of a typed name, so an offered timer keeps its name
+ *   after "+ time" and a reload. The ordinal is not here: it goes with the step (designer). Pure.
  */
 export function timerLabel(
     timer: Pick<ActiveTimer, 'label' | 'origin'>,

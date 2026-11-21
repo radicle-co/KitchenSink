@@ -112,7 +112,7 @@ const OpenVersionPreview: FC<VersionPreviewModalProps> = ({
                     <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
                         {preview.keepCurrent}
                     </Button>
-                    {showContent && (
+                    {showContent ? (
                         <Button
                             icon="rotateCcw"
                             busy={isRestoring}
@@ -123,7 +123,7 @@ const OpenVersionPreview: FC<VersionPreviewModalProps> = ({
                         >
                             {isRestoring ? preview.restoringThis : preview.restoreThis}
                         </Button>
-                    )}
+                    ) : null}
                 </DialogActions>
             </DialogActionsWidthContext.Provider>
         </View>

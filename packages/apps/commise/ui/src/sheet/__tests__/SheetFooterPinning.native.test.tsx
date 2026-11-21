@@ -372,7 +372,9 @@ describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
         expect(isRow()).toBe(true);
 
         // A body instance that mounts now starts stacked: the memento wraps the footer only.
-        act(() => rerender(sheet('second')));
+        act(() => {
+            rerender(sheet('second'));
+        });
         const bodyRow = screen.getByRole('button', { name: 'Body keep' }).parentElement as HTMLElement;
 
         expect(getComputedStyle(bodyRow).flexDirection).toBe('column-reverse');
@@ -419,7 +421,9 @@ describe('Sheet (native) — a focused body field while the footer moves (AE16)'
 
         const field = screen.getByLabelText('Quantity');
 
-        act(() => field.focus());
+        act(() => {
+            field.focus();
+        });
         expect(document.activeElement).toBe(field);
 
         // The keyboard shrinks the sheet: 144 > 120, so the footer moves into the scroll region.

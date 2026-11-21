@@ -208,7 +208,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 onViewVersions={onViewVersions}
             />
             {/* The owner's visibility notice (§6.4, board P6). */}
-            {owner ? <RecipeVisibilityNotice notice={visibilityNotice} announcement={visibilityAnnouncement} /> : null}
+            {!!owner && <RecipeVisibilityNotice notice={visibilityNotice} announcement={visibilityAnnouncement} />}
             <RecipeSourceLine
                 {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
                 {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}

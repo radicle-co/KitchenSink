@@ -13,8 +13,7 @@
  * fixtures of the execution file. Nothing else about the model can be proved offline: see the PR for the live runs.
  */
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -50,6 +49,9 @@ const step = (id: string): Step => {
     return found;
 };
 
+const jobTimeout = (parse(readFileSync(GATE_YML, 'utf8')) as { jobs: { gate: { 'timeout-minutes': number } } }).jobs
+    .gate['timeout-minutes'];
+
 const judgeSteps = steps.filter((candidate) => candidate.uses?.startsWith('anthropics/claude-code-action@'));
 
 const dirs: string[] = [];
@@ -76,7 +78,12 @@ function retryAllowed(executionFile: string | undefined): boolean {
         writeFileSync(file, executionFile);
     }
 
-    return spawnSync('/usr/bin/jq', ['-e', filter, file], { encoding: 'utf8' }).status === 0;
+    const run = spawnSync('jq', ['-e', filter, file], { encoding: 'utf8' });
+
+    // A missing jq must fail the test, not read as "no retry".
+    expect(run.error).toBeUndefined();
+
+    return run.status === 0;
 }
 
 /** Runs the `retry` step's own shell with a temp RUNNER_TEMP and GITHUB_OUTPUT, and returns what it wrote to the output. */
@@ -120,7 +127,54 @@ function verdictCheck(structuredOutput: string): 'failed' | 'accepted' {
         env: { ...verdict.env, PATH: '/usr/bin:/bin', STRUCTURED_OUTPUT: structuredOutput },
     });
 
-    return run.stdout.includes('posted failure') ? 'failed' : 'accepted';
+    expect(run.error).toBeUndefined();
+
+    if (run.status === 0 && run.stdout.includes('posted failure')) {
+        return 'failed';
+    }
+
+    // Accepted only when the script ran to its end: exit 0 and the last line is `accepted`.
+    return run.status === 0 && run.stdout.trimEnd().endsWith('accepted') ? 'accepted' : 'failed';
+}
+
+interface ChoiceInput {
+    readonly retryRan: string;
+    readonly retryOutcome: string;
+    readonly retryOutput: string;
+    readonly firstOutcome: string;
+    readonly firstOutput?: string;
+}
+
+/**
+ * Runs the verdict step's own selection block and returns what it chose: `<outcome> <output>`, or the fail-closed
+ * description that names the run that failed.
+ */
+function verdictChoice(input: ChoiceInput): string {
+    const run = (step('verdict').run ?? '').split('\n');
+    const start = run.findIndex((line) => line.includes('RETRY_RAN'));
+    const end = run.findIndex((line, index) => index > start && line.trim() === 'fi');
+
+    if (start === -1 || end === -1) {
+        throw new Error('the verdict step has no selection block on RETRY_RAN');
+    }
+
+    const script = `${run.slice(start, end + 1).join('\n')}\nif [ "$JUDGE_OUTCOME" != success ]; then echo "failed: $WHICH step ended as $JUDGE_OUTCOME"; else printf '%s %s' "$JUDGE_OUTCOME" "$STRUCTURED_OUTPUT"; fi\n`;
+    const out = spawnSync('/bin/bash', ['-c', script], {
+        encoding: 'utf8',
+        env: {
+            PATH: '/usr/bin:/bin',
+            FIRST_OUTCOME: input.firstOutcome,
+            FIRST_OUTPUT: input.firstOutput ?? '',
+            RETRY_RAN: input.retryRan,
+            RETRY_OUTCOME: input.retryOutcome,
+            RETRY_OUTPUT: input.retryOutput,
+        },
+    });
+
+    expect(out.error).toBeUndefined();
+    expect(out.status, out.stderr).toBe(0);
+
+    return out.stdout;
 }
 
 const result = (fields: Record<string, unknown>): string =>
@@ -187,14 +241,19 @@ describe('gate.yml judge retry', () => {
         expect(closing).toMatch(/prose\s+report\s+alone/u);
     });
 
-    it('reads the retry answer in the verdict step through env, never an expression inside run', () => {
+    it('reads both judge answers in the verdict step through env and chooses between them in bash', () => {
         const verdict = step('verdict');
+        const env = verdict.env ?? {};
 
-        for (const name of ['STRUCTURED_OUTPUT', 'JUDGE_OUTCOME']) {
-            const value = verdict.env?.[name] ?? '';
+        expect(env['FIRST_OUTCOME']).toBe('${{ steps.judge.outcome }}');
+        expect(env['FIRST_OUTPUT']).toBe('${{ steps.judge.outputs.structured_output }}');
+        expect(env['RETRY_RAN']).toBe('${{ steps.retry.outputs.retry }}');
+        expect(env['RETRY_OUTCOME']).toBe('${{ steps.judge-retry.outcome }}');
+        expect(env['RETRY_OUTPUT']).toBe('${{ steps.judge-retry.outputs.structured_output }}');
 
-            expect(value, name).toContain('judge-retry');
-            expect(value, name).toContain('steps.judge.');
+        for (const name of ['JUDGE_OUTCOME', 'STRUCTURED_OUTPUT']) {
+            // No `a && b || c` fallback to the first run's answer: the choice is made in the script.
+            expect(env[name], name).toBeUndefined();
         }
 
         for (const id of ['retry', 'verdict']) {
@@ -202,9 +261,70 @@ describe('gate.yml judge retry', () => {
         }
     });
 
+    it('names which run failed, and picks the retry answer only when the retry ran', () => {
+        expect(
+            verdictChoice({ retryRan: 'true', retryOutcome: 'failure', retryOutput: '', firstOutcome: 'success' }),
+        ).toMatch(/retry judge.*failure/u);
+        expect(
+            verdictChoice({
+                retryRan: 'true',
+                retryOutcome: 'success',
+                retryOutput: '{"a":1}',
+                firstOutcome: 'failure',
+            }),
+        ).toBe('success {"a":1}');
+        // The retry ran but produced nothing: the first run's output must NOT stand in for it.
+        expect(
+            verdictChoice({
+                retryRan: 'true',
+                retryOutcome: 'success',
+                retryOutput: '',
+                firstOutcome: 'success',
+                firstOutput: '{"v":"PASS"}',
+            }),
+        ).toBe('success ');
+        expect(verdictChoice({ retryRan: '', retryOutcome: '', retryOutput: '', firstOutcome: 'failure' })).toMatch(
+            /first judge.*failure/u,
+        );
+        expect(
+            verdictChoice({
+                retryRan: '',
+                retryOutcome: '',
+                retryOutput: '',
+                firstOutcome: 'success',
+                firstOutput: '{"v":1}',
+            }),
+        ).toBe('success {"v":1}');
+    });
+
+    it('keeps the job timeout at least the sum of the step limits', () => {
+        const total = steps.reduce((sum, candidate) => sum + (candidate['timeout-minutes'] ?? 0), 0);
+
+        expect(jobTimeout).toBeGreaterThanOrEqual(total);
+    });
+
     describe('the retry filter', () => {
         it('retries a judge that finished with a success result and no structured output', () => {
             expect(retryAllowed(result({ subtype: 'success', is_error: false, num_turns: 16 }))).toBe(true);
+        });
+
+        it('does not retry when the first run already wrote BLOCK in prose: a retry would re-roll the verdict', () => {
+            const prose = result({
+                subtype: 'success',
+                is_error: false,
+                result: 'Verdict: BLOCK. The diff adds a cast.',
+            });
+
+            expect(retryAllowed(prose)).toBe(false);
+            expect(retryStepOutput(prose)).toBe('retry=false\n');
+        });
+
+        it('still retries a prose result that never says BLOCK', () => {
+            expect(retryAllowed(result({ subtype: 'success', is_error: false, result: 'Verdict: PASS.' }))).toBe(true);
+        });
+
+        it('does not retry a run that ended over the turn limit', () => {
+            expect(retryAllowed(result({ subtype: 'error_max_turns', is_error: false, num_turns: 61 }))).toBe(false);
         });
 
         it('does not retry a result that has the structured output', () => {

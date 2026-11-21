@@ -27,7 +27,7 @@ Every answer is `Cache-Control: no-store`. The CDN caches the web page (research
 | -------------------------------------------------------------- | ------ | --------------------------------------- |
 | Open                                                           | `200`  | `PublicRecipeView`                      |
 | Not available: every closed case, a malformed id, a missing id | `404`  | `{ "code": "NOT_AVAILABLE" }`, one body |
-| Author standing unknown                                        | `503`  | `{ "code": "UNAVAILABLE" }`             |
+| The recipe's own author's standing unknown                     | `503`  | `{ "code": "UNAVAILABLE" }`             |
 | Past the edge rate limit (production)                          | `429`  | the edge's body, with `Retry-After`     |
 
 The `404` body is the same bytes for every closed case. It never says why.
@@ -84,7 +84,7 @@ interface PublicCreditChain {
 interface PublicCredit {
     checker: CreditCook | null;
     basedOnUrl: string | null; // the free source site's address (021-FR-014), else null
-    adaptedFromId: string | null; // the nearest source's recipe id while openToWeb(source), else null
+    adaptedFromId: string | null; // the recipe the label names as the source while openToWeb, else null; null when the standing read fails (fail closed)
 }
 
 interface PublicFull extends PublicFacts {
@@ -115,11 +115,11 @@ interface PublicFull extends PublicFacts {
 provenance, `sourceLine` and `sourcePhrase` (the verbatim pasted or imported line is owner-only,
 `transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A Commise-written
 version never carries the wording of the cook's private copy or a source photo (`021-FR-014`). The
-allowlist tests fail when any other key appears. `creditChain` is the one credit-chain key, and its inner keys are exactly those in `PublicCreditChain`. `credit` carries exactly the keys of `PublicCredit`, and the checker has one home, `credit.checker`: a public version's checker is a `formerMember` when `isPseudonymizedAuthorHandle` is true. `credit.adaptedFromId` is the nearest source's recipe id when `openToWeb(source)` is true and null otherwise, and the page builds the link with `publicRecipePath` (private, held, deleted, closed or suspended, erased); when identity cannot be read it is null and the read does not answer `503`. The allowlist test is `packages/services/recipe-service/src/publicRead/domain/__tests__/publicRecipeProjection.test.ts` (U4).
+allowlist tests fail when any other key appears. `creditChain` is the one credit-chain key, and its inner keys are exactly those in `PublicCreditChain`. `credit` carries exactly the keys of `PublicCredit`, and the checker has one home, `credit.checker`: a public version's checker is a `formerMember` when `isPseudonymizedAuthorHandle` is true. `credit.adaptedFromId` is the recipe the label names as the source when `openToWeb` of it is true and null otherwise (private, held, deleted, closed or suspended, erased), and the page builds the link with `publicRecipePath`. The standing comes from 003A U4a's `AuthorStandingPort`, through 003B T394. It fails closed: an `unknown` standing for a credited cook or for the source reads as `unnamed` for every such cook who is not erased (checked after erasure) and gives a null `adaptedFromId`, and the read stays `200`; only the recipe's own author's `unknown` standing answers `503` (the table above). The allowlist test is `packages/services/recipe-service/src/publicRead/domain/__tests__/publicRecipeProjection.test.ts` (U4).
 
 **No author for an erased cook.** A recipe whose author standing is `erased` carries no author field and never the
 pseudonymous handle `user_{ULID}`, which embeds the user id (spec FR-012, owner ruling Q8). No creator field is
-projected for anyone until 012's creator profiles ship, with one exception: names in a copy's credit chain, including the copy's own owner (`adaptedBy`), and the checker line, as `bylineOf` shows them, an @username included (spec Q8, owner 2026-11-20). `creditChain` is the `PublicCreditChain` above, computed by the server. An erased or NULL owner gives `{ kind: 'formerMember' }` (the client reads "a former member"), an owner with no name gives `{ kind: 'unnamed' }` ("a Commise cook"), never `user_{ULID}`. No account id is on the wire. The only recipe id in the credit is `credit.adaptedFromId`: the id of the nearest source, and only while that source is open to the web (`openToWeb`, failing closed), whose own public address already carries it. An entry's stored recipe id never reaches the wire.
+projected for anyone until 012's creator profiles ship, with one exception: names in a copy's credit chain, including the copy's own owner (`adaptedBy`), and the checker line, as `bylineOf` shows them, an @username included (spec Q8, owner 2026-11-20). `creditChain` is the `PublicCreditChain` above, computed by the server. An erased or NULL owner gives `{ kind: 'formerMember' }` (the client reads "a former member"), an owner with no name, or whose account is closed or suspended, gives `{ kind: 'unnamed' }` ("a Commise cook"), never `user_{ULID}`. No account id is on the wire. The only recipe id in the credit is `credit.adaptedFromId`: the id of the recipe the label names as the source, and only while that source is open to the web (`openToWeb`, failing closed), whose own public address already carries it. An entry's stored recipe id never reaches the wire.
 
 **Comments (owner ruling 2026-11-09, spec Q6).** Comments are not built yet. In the release that ships them,
 `PublicFull` gains `comments`, picked from the comments schema: each comment's text, its date and its commenter's

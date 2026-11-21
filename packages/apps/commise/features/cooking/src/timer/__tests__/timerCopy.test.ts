@@ -21,28 +21,23 @@ const NBSP = ' ';
 const MIN = 60_000;
 const HOUR = 60 * MIN;
 
+// Designer (ordinal ruling, 2026-11-20): the ordinal goes with the step ("Simmer · step 2 (2)"), and S3a holds one timer, so
+// the label never carries it. S6 adds the key on the step side with its first reader.
 describe('timerLabel', () => {
-    it('says typed text with no number, even for a later ordinal', () => {
-        expect(timerLabel({ label: { kind: 'typed', text: 'Rice' }, ordinal: 2 }, 3, en.timer)).toBe('Rice');
+    it('says typed text as typed', () => {
+        expect(timerLabel({ label: { kind: 'typed', text: 'Rice' } }, 3, en.timer)).toBe('Rice');
     });
 
-    it('says the line label for ordinal 1, with no number', () => {
-        expect(timerLabel({ label: { kind: 'line', text: 'Roast' }, ordinal: 1 }, 3, en.timer)).toBe('Roast');
+    it('says the line label as read', () => {
+        expect(timerLabel({ label: { kind: 'line', text: 'Roast' } }, 3, en.timer)).toBe('Roast');
     });
 
-    it('adds the ordinal after a line label from ordinal 2', () => {
-        expect(timerLabel({ label: { kind: 'line', text: 'Roast' }, ordinal: 2 }, 3, en.timer)).toBe(
-            fillTemplate(en.timer.ordinal, { label: 'Roast', ordinal: 2 }),
-        );
+    it('says "Step n" with no label', () => {
+        expect(timerLabel({ label: undefined }, 3, en.timer)).toBe(fillTemplate(en.timer.stepLabel, { n: 3 }));
     });
 
-    it('says "Step n" with no label, and adds the ordinal from 2', () => {
-        const base = fillTemplate(en.timer.stepLabel, { n: 3 });
-
-        expect(timerLabel({ label: undefined, ordinal: 1 }, 3, en.timer)).toBe(base);
-        expect(timerLabel({ label: undefined, ordinal: 2 }, 3, en.timer)).toBe(
-            fillTemplate(en.timer.ordinal, { label: base, ordinal: 2 }),
-        );
+    it('holds no ordinal key', () => {
+        expect(Object.keys(en.timer)).toEqual(['stepLabel']);
     });
 });
 

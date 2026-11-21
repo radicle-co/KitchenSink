@@ -149,8 +149,6 @@ export interface CookingAllStepsMessages {
 export interface CookingTimerMessages {
     /** The name of a timer with no label (contains `{n}`, the step number, joined with a no-break space). */
     readonly stepLabel: string;
-    /** A line label or step name told apart from its sibling on the same step (contains `{label}`, `{ordinal}`). */
-    readonly ordinal: string;
 }
 
 /** A length of time: shown as digits and units, and spoken as words. */
@@ -299,7 +297,6 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         },
         timer: {
             stepLabel: 'Step\u00a0{n}',
-            ordinal: '{label} ({ordinal})',
         },
         duration: {
             hoursMinutes: '{h} h {m}',

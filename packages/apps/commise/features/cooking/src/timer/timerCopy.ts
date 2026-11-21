@@ -15,24 +15,14 @@ const partsOf = (ms: number): HmsParts => durationParts(Math.floor(Math.max(0, m
 /**
  * The name of a timer in a row, a control name or the alarm.
  *
- * @param timer - Its label and its ordinal among the timers on the same step.
+ * @param timer - Its label.
  * @param stepNumber - The 1-based step number it was started from.
  * @param copy - The timer copy.
- * @returns What the cook typed, as typed. Otherwise the line label, or "Step {n}", with " ({ordinal})" after it from
- *   the second timer on the step. Pure.
+ * @returns What the cook typed, as typed, else the line label, else "Step {n}". The ordinal is not here: it goes with the
+ *   step (designer), and S3a holds one timer. Pure.
  */
-export function timerLabel(
-    timer: Pick<ActiveTimer, 'label' | 'ordinal'>,
-    stepNumber: number,
-    copy: CookingTimerMessages,
-): string {
-    if (timer.label?.kind === 'typed') {
-        return timer.label.text;
-    }
-
-    const base = timer.label?.text ?? fillTemplate(copy.stepLabel, { n: stepNumber });
-
-    return timer.ordinal > 1 ? fillTemplate(copy.ordinal, { label: base, ordinal: timer.ordinal }) : base;
+export function timerLabel(timer: Pick<ActiveTimer, 'label'>, stepNumber: number, copy: CookingTimerMessages): string {
+    return timer.label?.text ?? fillTemplate(copy.stepLabel, { n: stepNumber });
 }
 
 /**

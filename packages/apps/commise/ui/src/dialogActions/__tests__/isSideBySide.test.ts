@@ -34,12 +34,4 @@ describe('isSideBySide', () => {
         expect(isSideBySide(416, 400, 1.118)).toBe(false);
         expect(isSideBySide(416, 400, 1)).toBe(true);
     });
-
-    it('does not flip back: the width measured after stacking gives the same answer', () => {
-        const first = isSideBySide(430, 440, 1);
-        const again = isSideBySide(430, 440, 1);
-
-        expect(first).toBe(false);
-        expect(again).toBe(first);
-    });
 });

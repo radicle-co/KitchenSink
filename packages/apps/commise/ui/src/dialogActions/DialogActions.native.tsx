@@ -31,7 +31,8 @@ import type { DialogActionsProps } from './props.js';
 export const DialogActions: FC<DialogActionsProps> = ({ sideBySideFrom, shares = 'content', children }) => {
     const memento = useContext(DialogActionsWidthContext);
     const [width, setWidth] = useState<number | null>(memento?.width ?? null);
-    const sideBySide = isSideBySide(width, sideBySideFrom, useTextScale());
+    const textScale = useTextScale();
+    const sideBySide = isSideBySide(width, sideBySideFrom, textScale);
 
     return (
         <View

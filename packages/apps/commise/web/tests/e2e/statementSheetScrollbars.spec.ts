@@ -1,4 +1,10 @@
 import { expect, test } from '@playwright/test';
+import type { RecipeDetail } from '@kitchensink/recipe-core';
+
+import { signInWithTicket } from './utils/auth';
+import { mockFoodApi } from './utils/foodApi';
+import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
+import { SHEET_EDITOR_VIEWPORT, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
 
 import { footerActions, openStatementSheet, sheetOf } from './utils/statementSheet';
 
@@ -61,4 +67,62 @@ test.describe('the statement sheet actions with classic scrollbars shown', () =>
             expect(confirm.oneLine).toBe(true);
         });
     }
+
+    // Overlay scrollbars are SIMULATED (`scrollbar-width: none` leaves the reserved gutter empty): Playwright's Chromium
+    // draws classic ones. The 400 px row box is whole, so the actions sit side by side in equal shares (AE12).
+    for (const scale of [1, 2] as const) {
+        test(`AE11b and AE12 (overlay, simulated): at 1280 px and ${String(scale * 100)} percent text the actions sit side by side in equal shares, one line each`, async ({
+            page,
+        }) => {
+            await openStatementSheet(page, { width: 1280, height: 900, scale, overlayScrollbars: true });
+            const { dismiss, confirm } = await footerActions(page);
+
+            expect(dismiss.box.x).toBeLessThan(confirm.box.x);
+            expect(Math.abs(dismiss.box.y - confirm.box.y)).toBeLessThanOrEqual(1);
+            expect(Math.abs(dismiss.box.width - confirm.box.width)).toBeLessThanOrEqual(1);
+            expect(dismiss.oneLine).toBe(true);
+            expect(confirm.oneLine).toBe(true);
+        });
+    }
+
+    // R9 (redteam 2): the ingredient line editor is the house sheet, `max-w-lg` 512 px, so its row box is 449 px with the
+    // gutter reserved and stays side by side under CLASSIC scrollbars, as on main.
+    test('the ingredient line editor keeps Cancel and Done side by side at 1280 px', async ({ page }) => {
+        await signInWithTicket(page);
+        const viewerId = await readViewerAppId(page);
+        const garlic: RecipeDetail['ingredients'][number] = {
+            ingredientId: '99999999-9999-4999-8999-999999999992',
+            foodId: 'food_garlic',
+            name: 'Garlic',
+            quantity: { kind: 'exact', value: 2 },
+            unit: 'clove',
+            isUserEntered: false,
+            resolutionStatus: 'RESOLVED',
+        };
+        const recipeId = 'ec000000-0000-4000-8000-000000000028';
+
+        await mockRecipeApi(page, {
+            viewerId,
+            recipes: [
+                makeRecipeDetail({
+                    id: recipeId,
+                    ownerId: viewerId,
+                    title: 'Garlic supper',
+                    cuisine: 'Italian',
+                    status: 'draft',
+                    currentVersion: 1,
+                    ingredients: [garlic],
+                }),
+            ],
+        });
+        await mockFoodApi(page);
+        await page.setViewportSize(SHEET_EDITOR_VIEWPORT);
+        await openRecipeEditor(page, recipeId);
+        const sheet = await openIngredientEditor(page, 'Garlic');
+        const cancel = await sheet.getByRole('button', { name: 'Cancel', exact: true }).boundingBox();
+        const done = await sheet.getByRole('button', { name: 'Done', exact: true }).boundingBox();
+
+        expect(cancel!.x).toBeLessThan(done!.x);
+        expect(Math.abs(cancel!.y - done!.y)).toBeLessThanOrEqual(1);
+    });
 });

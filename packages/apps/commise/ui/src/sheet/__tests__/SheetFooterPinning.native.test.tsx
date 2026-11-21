@@ -319,6 +319,7 @@ describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
         ] as const) {
             Object.defineProperty(node, 'offsetHeight', { value: size, configurable: true });
         }
+
         Object.defineProperty(actionsRow(), 'offsetWidth', { value: ACTIONS_WIDTH, configurable: true });
         reportLayout();
 

@@ -21,6 +21,8 @@ import { isFooterUnpinned, UNMEASURED_FOOTER, type PinnedFooterMeasure } from '.
 export interface PinnedFooter {
     /** Whether the footer scrolls with the content instead of staying pinned. */
     readonly unpinned: boolean;
+    /** The footer's last measured height, 0 before the first report. Kept while the footer is away. */
+    readonly footerHeight: number;
     /** For the frame. */
     readonly onFrameLayout: (event: LayoutChangeEvent) => void;
     /** For the pinned top row (the one that holds the exit). */
@@ -47,6 +49,7 @@ export function usePinnedFooter(): PinnedFooter {
 
     return {
         unpinned: isFooterUnpinned(measure),
+        footerHeight: measure.footer,
         onFrameLayout: record('frame'),
         onTopLayout: record('pinnedTop'),
         onFooterLayout: record('footer'),

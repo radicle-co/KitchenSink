@@ -16,7 +16,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { JSX, ReactNode } from 'react';
 
 import { OverlayHost } from '../../overlay/OverlayHost.native.js';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { WINDOW_LAYERS } from '../../overlay/windowLayers.js';
+import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import { SnackbarOutlet } from '../SnackbarOutlet.native.js';
 import type { SnackbarApi, SnackbarHandle, SnackbarInput } from '../props.js';
@@ -294,5 +295,21 @@ describe('SnackbarOutlet outside a snackbar host', () => {
         render(<SnackbarOutlet presenting depth={1} />);
 
         expect(screen.queryByRole('status')).toBeNull();
+    });
+
+    it('draws its region in the snackbar layer, above the sheet engine frame', () => {
+        render(
+            <SnackbarHost>
+                <Window label="Ingredients">
+                    <Shower input={{ message: 'Ticks cleared' }} />
+                </Window>
+            </SnackbarHost>,
+        );
+
+        showFrom('Ticks cleared');
+
+        const [region] = regionsHolding('Ticks cleared');
+
+        expect(resolvedStyle(region as HTMLElement, 'zIndex')).toBe(String(WINDOW_LAYERS.snackbar));
     });
 });

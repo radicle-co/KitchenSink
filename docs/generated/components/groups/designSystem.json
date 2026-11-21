@@ -6,11 +6,11 @@
     "coverage": {
         "components": 94,
         "implementations": 151,
-        "props": 980,
+        "props": 983,
         "documentedComponents": 94,
         "implementationsWithModuleDoc": 151,
         "implementationsWithComponentDoc": 137,
-        "documentedProps": 883,
+        "documentedProps": 886,
         "classifiedComponents": 87,
         "componentsWithPatternTag": 94,
         "crossPlatformComponents": 57
@@ -10099,6 +10099,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The height of a footer at the window's foot, so the snackbar sits above it. 0 when there is none.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/OverlayHost.native.tsx"
+                        },
+                        {
                             "name": "onDismissRequest",
                             "type": "DismissRequest",
                             "typeDetail": null,
@@ -13689,6 +13698,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
                         },
                         {
+                            "name": "pinning",
+                            "type": "PinnedFooter",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The footer's measurements and decision, when the sheet owns them (the snackbar's offset reads them too); the panel measures its own otherwise.",
+                            "declaredIn": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx"
+                        },
+                        {
                             "name": "presentation",
                             "type": "enum",
                             "typeDetail": [
@@ -14554,7 +14572,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host.\n\nA React Native `Modal` is a window of its own, so a snackbar the host draws at the app root sits under an open sheet\nor dialog, where its Undo cannot be reached. `OverlayHost` mounts one outlet in every window it opens. While the\nwindow presents, the outlet registers with the host and keeps a polite `status` region mounted, empty until the host\nhands it the snackbar. The region exists before any snackbar arrives, which is what lets the change be announced.\nOnly the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar\nis in one place at a time and is read out once.\n\nIt is an orchestration component: it owns the registration with the host and draws a styled region.\n\nIt sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window\nthe page's tab bar is not on screen.\n\nshortcut: does not account for a pinned sheet footer's height, so it can cover the footer; publish the footer height\nand sit above it when the first footered sheet shows a snackbar.",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarOutlet}: the place an open window offers the snackbar host.\n\nA React Native `Modal` is a window of its own, so a snackbar the host draws at the app root sits under an open sheet\nor dialog, where its Undo cannot be reached. `OverlayHost` mounts one outlet in every window it opens. While the\nwindow presents, the outlet registers with the host and keeps a polite `status` region mounted, empty until the host\nhands it the snackbar. The region exists before any snackbar arrives, which is what lets the change be announced.\nOnly the outlet on top draws, and the host draws in its own place only while no outlet is registered, so the snackbar\nis in one place at a time and is read out once.\n\nIt is an orchestration component: it owns the registration with the host and draws a styled region.\n\nIt sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window\nthe page's tab bar is not on screen. Over a footer at the window's foot it sits `SNACKBAR_GAP` above the footer's\ntop (designer D78). Its layer is above the sheet engine's frame (`WINDOW_LAYERS`).\n\nshortcut: does not account for a pinned sheet footer's height, so it can cover the footer; publish the footer height\nand sit above it when the first footered sheet shows a snackbar.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -14569,7 +14587,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - Whether the window presents, and how deep it is nested."
+                            "text": "props - Whether the window presents, how deep it is nested, and the height of its pinned footer."
                         },
                         {
                             "name": "returns",
@@ -14590,6 +14608,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "How many windows deep this window is: 1 when opened from the app, 2 inside another window, and so on.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx"
+                        },
+                        {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "The height of a footer at the window's foot, bottom inset included, or 0 when none is (designer D78). The\nsnackbar then sits one gap above the footer's top and never covers it.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx"
                         },
                         {

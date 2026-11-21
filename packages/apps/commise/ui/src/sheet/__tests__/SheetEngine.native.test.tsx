@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MODAL_CLOSE_EVENT } from '../../testing/modalCloseEvent.native.js';
 import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { WINDOW_LAYERS } from '../../overlay/windowLayers.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
 import { SHEET_EXIT_FALLBACK_MS } from '../sheetEngineLifecycle.js';
@@ -221,6 +222,14 @@ describe('the props the sheet hands Tamagui’s Sheet', () => {
     // Designer ruling 2026-11-02: a drag from the handle and the title row only; a drag in the content never moves the sheet.
     // Tamagui 3.1.9 drags a frame from anywhere on it and cannot limit the zone, so its drag is off and the panel's swipe asks
     // the host to close.
+    // Tamagui's frame defaults to a zIndex of 100_001 and a zIndex beats sibling order, so the snackbar's outlet, the
+    // window's last child, drew under it. The engine is given its layer, so the snackbar's is above a number we set.
+    it('puts the frame in the house sheet layer, below the snackbar', () => {
+        renderWithTamagui(<Sheet {...propsFor()} />, 'light', 2);
+
+        expect(engine().zIndex).toBe(WINDOW_LAYERS.sheet);
+    });
+
     it('turns the engine’s own drag off, and keeps the keyboard with our avoider', () => {
         render(<Sheet {...propsFor()} />);
 

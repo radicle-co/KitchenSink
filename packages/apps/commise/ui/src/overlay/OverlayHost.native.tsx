@@ -38,6 +38,8 @@ export interface OverlayHostProps extends Omit<ModalProps, 'onRequestClose' | 'c
      * exit plays keeps its window visible, and passes `false` here so the snackbar moves back at once.
      */
     readonly presenting?: boolean;
+    /** The height of a footer at the window's foot, so the snackbar sits above it. 0 when there is none. */
+    readonly footHeight?: number;
     readonly children: ReactNode;
 }
 
@@ -47,7 +49,13 @@ export interface OverlayHostProps extends Omit<ModalProps, 'onRequestClose' | 'c
  * @param props - The Modal props and the host's dismissal policy.
  * @returns The Modal, with the window's back scope and dismiss sink published to its children.
  */
-export const OverlayHost: FC<OverlayHostProps> = ({ onDismissRequest, presenting, children, ...modalProps }) => {
+export const OverlayHost: FC<OverlayHostProps> = ({
+    onDismissRequest,
+    presenting,
+    footHeight,
+    children,
+    ...modalProps
+}) => {
     // Created once per host: the registry's identity is what every descendant registration is held against.
     const [scope] = useState(createBackInterceptRegistry);
     const depth = useContext(OverlayDepthContext) + 1;
@@ -61,7 +69,11 @@ export const OverlayHost: FC<OverlayHostProps> = ({ onDismissRequest, presenting
             </BackInterceptContext.Provider>
             {/* Last, so the snackbar draws above the window's own content. React Native's `visible` is true unless
                 set. */}
-            <SnackbarOutlet presenting={presenting ?? modalProps.visible ?? true} depth={depth} />
+            <SnackbarOutlet
+                presenting={presenting ?? modalProps.visible ?? true}
+                depth={depth}
+                {...(footHeight === undefined ? {} : { footHeight })}
+            />
         </Modal>
     );
 };

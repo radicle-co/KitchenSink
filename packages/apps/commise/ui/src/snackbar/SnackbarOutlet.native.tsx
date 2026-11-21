@@ -11,7 +11,8 @@
  * It is an orchestration component: it owns the registration with the host and draws a styled region.
  *
  * It sits `SNACKBAR_GAP` above the window's own bottom safe area, not above the page's bottom chrome: inside a window
- * the page's tab bar is not on screen.
+ * the page's tab bar is not on screen. Over a footer at the window's foot it sits `SNACKBAR_GAP` above the footer's
+ * top (designer D78). Its layer is above the sheet engine's frame (`WINDOW_LAYERS`).
  *
  * shortcut: does not account for a pinned sheet footer's height, so it can cover the footer; publish the footer height
  * and sit above it when the first footered sheet shows a snackbar.
@@ -23,6 +24,7 @@ import { useContext, useEffect, useId, type FC } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { styled, View } from 'tamagui';
 
+import { WINDOW_LAYERS } from '../overlay/windowLayers.js';
 import { SNACKBAR_GAP } from './props.js';
 import { SnackbarOutletContext } from './snackbarOutletContext.js';
 
@@ -33,6 +35,8 @@ const OutletRegion = styled(View, {
     left: '$4',
     right: '$4',
     alignItems: 'center',
+    // Above the sheet engine's frame: a `zIndex` beats sibling order.
+    zIndex: WINDOW_LAYERS.snackbar,
     pointerEvents: 'box-none',
 });
 
@@ -42,17 +46,22 @@ export interface SnackbarOutletProps {
     readonly presenting: boolean;
     /** How many windows deep this window is: 1 when opened from the app, 2 inside another window, and so on. */
     readonly depth: number;
+    /**
+     * The height of a footer at the window's foot, bottom inset included, or 0 when none is (designer D78). The
+     * snackbar then sits one gap above the footer's top and never covers it.
+     */
+    readonly footHeight?: number;
 }
 
 /**
  * The snackbar's place in one open window.
  *
- * @param props - Whether the window presents, and how deep it is nested.
+ * @param props - Whether the window presents, how deep it is nested, and the height of its pinned footer.
  * @returns The window's status region, holding the snackbar when this outlet is on top; nothing outside a host or
  *     while the window does not present.
  * @sideEffect Registers the outlet with the host while the window presents.
  */
-export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ presenting, depth }) => {
+export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ presenting, depth, footHeight = 0 }) => {
     const outlets = useContext(SnackbarOutletContext);
     const token = useId();
     const insets = useSafeAreaInsets();
@@ -72,7 +81,12 @@ export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ presenting, depth }) =
     }
 
     return (
-        <OutletRegion collapsable={false} role="status" aria-live="polite" bottom={insets.bottom + SNACKBAR_GAP}>
+        <OutletRegion
+            collapsable={false}
+            role="status"
+            aria-live="polite"
+            bottom={(footHeight > 0 ? footHeight : insets.bottom) + SNACKBAR_GAP}
+        >
             {outlets.top === token ? outlets.snackbar : null}
         </OutletRegion>
     );

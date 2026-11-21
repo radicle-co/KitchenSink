@@ -100,6 +100,27 @@ function retryStepOutput(executionFile: string | undefined): string {
     return readFileSync(output, 'utf8');
 }
 
+/**
+ * Runs the verdict step's own shape check on a judge output, with the local jq, and returns what it did: `failed` when it
+ * posted the fail-closed status, `accepted` when it let the output through to the record.
+ */
+function verdictCheck(structuredOutput: string): 'failed' | 'accepted' {
+    const verdict = step('verdict');
+    const check = /^\s*if ! .*\bjq\b.*; then\n[\s\S]*?^\s*fi\n/mu.exec(verdict.run ?? '');
+
+    if (check === null) {
+        throw new Error('the verdict step has no jq shape check');
+    }
+
+    const script = `post() { echo "posted $*"; }\n${check[0]}\necho accepted\n`;
+    const run = spawnSync('/bin/bash', ['-c', script], {
+        encoding: 'utf8',
+        env: { ...verdict.env, PATH: '/usr/bin:/bin', STRUCTURED_OUTPUT: structuredOutput },
+    });
+
+    return run.stdout.includes('posted failure') ? 'failed' : 'accepted';
+}
+
 const result = (fields: Record<string, unknown>): string =>
     JSON.stringify([{ type: 'system', subtype: 'init' }, { type: 'assistant' }, { type: 'result', ...fields }]);
 
@@ -251,6 +272,29 @@ describe('gate.yml judge retry', () => {
                 ),
             ).toBe('retry=false\n');
             expect(retryStepOutput(undefined)).toBe('retry=false\n');
+        });
+    });
+
+    describe('the verdict step`s shape check', () => {
+        // jq 1.6 exits 0 for `printf '' | jq -e <filter>`, so the check must refuse an empty or invalid output itself.
+        it.each([
+            ['an empty output', ''],
+            ['text that is not JSON', 'not json'],
+            ['a verdict with no findings', '{"verdict":"PASS"}'],
+            ['a verdict that is neither PASS nor BLOCK', '{"verdict":"MAYBE","findings":[]}'],
+            ['findings that are not a list', '{"verdict":"PASS","findings":{}}'],
+        ])('fails closed on %s', (_name, output) => {
+            expect(verdictCheck(output)).toBe('failed');
+        });
+
+        it.each([
+            ['a PASS', '{"verdict":"PASS","findings":[]}'],
+            [
+                'a BLOCK with a finding',
+                '{"verdict":"BLOCK","findings":[{"severity":"blocking","title":"t","detail":"d"}]}',
+            ],
+        ])('lets %s through', (_name, output) => {
+            expect(verdictCheck(output)).toBe('accepted');
         });
     });
 });

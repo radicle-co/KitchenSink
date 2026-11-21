@@ -391,7 +391,8 @@ jobs:
                       done
                       # The record step writes into the directory the seal made read-only.
                       chmod -R u+w "$GATE_DIR"
-                      if ! printf '%s' "$STRUCTURED_OUTPUT" | jq -e '(.verdict == "PASS" or .verdict == "BLOCK") and (.findings | type == "array")' >/dev/null 2>&1; then
+                      # --argjson refuses empty or invalid JSON on every jq version; `printf '' | jq -e` exits 0 on jq 1.6.
+                      if ! jq -en --argjson out "$STRUCTURED_OUTPUT" '$out | (.verdict == "PASS" or .verdict == "BLOCK") and (.findings | type == "array")' >/dev/null 2>&1; then
                           post failure "GATE failed closed: the judge returned no valid structured verdict"
                           exit 0
                       fi

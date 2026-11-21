@@ -30,16 +30,56 @@
 export interface ResizeObserverRecord {
     /** The callback of the observer most recently constructed. */
     callback: ResizeObserverCallback | undefined;
+    /** The observer most recently constructed, which `reportResize` hands back to the callback. */
+    observer: ResizeObserver | undefined;
     /** The nodes currently watched. */
     readonly observed: Set<Element>;
 }
 
 /** The record. */
-export const resizeObserver: ResizeObserverRecord = { callback: undefined, observed: new Set<Element>() };
+export const resizeObserver: ResizeObserverRecord = {
+    callback: undefined,
+    observer: undefined,
+    observed: new Set<Element>(),
+};
+
+/**
+ * A resize entry for a node: its target and its measured box, with the box-size lists empty (jsdom has no layout).
+ *
+ * @param target - The node that resized.
+ * @returns The entry the callback receives.
+ */
+export function resizeEntryOf(target: Element): ResizeObserverEntry {
+    return {
+        target,
+        contentRect: target.getBoundingClientRect(),
+        borderBoxSize: [],
+        contentBoxSize: [],
+        devicePixelContentBoxSize: [],
+    };
+}
+
+/**
+ * Fire the most recent observer's callback with a real entry for each node, as a layout pass would. It does nothing
+ * until an observer exists. Wrap it in `act`.
+ *
+ * @sideEffect Calls the observer's callback.
+ * @param targets - The nodes to report; every watched node when omitted.
+ */
+export function reportResize(targets: Iterable<Element> = resizeObserver.observed): void {
+    const { callback, observer } = resizeObserver;
+
+    if (callback === undefined || observer === undefined) {
+        return;
+    }
+
+    callback([...targets].map(resizeEntryOf), observer);
+}
 
 globalThis.ResizeObserver = class {
     public constructor(callback: ResizeObserverCallback) {
         resizeObserver.callback = callback;
+        resizeObserver.observer = this;
     }
 
     public observe(target: Element): void {

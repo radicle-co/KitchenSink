@@ -145,6 +145,58 @@ export interface CookingAllStepsMessages {
     readonly timerJoin: string;
 }
 
+/** The name of a timer: a label, or the step it was started on. */
+export interface CookingTimerMessages {
+    /** The name of a timer with no label (contains `{n}`, the step number, joined with a no-break space). */
+    readonly stepLabel: string;
+}
+
+/** A length of time: shown as digits and units, and spoken as words. */
+export interface CookingDurationMessages {
+    /** Shown, hours and minutes: "1 h 30" (contains `{h}`, `{m}`). The offer and shown times only. */
+    readonly hoursMinutes: string;
+    /** Shown and rang-ago: "2 h" (contains `{h}`). */
+    readonly hoursOnly: string;
+    /** Shown and rang-ago: "25 min" (contains `{m}`). */
+    readonly minutesOnly: string;
+    /** Shown: "30 sec" (contains `{s}`). */
+    readonly secondsOnly: string;
+    /** Shown with seconds (designer D81): "1 min 30 sec" (contains `{m}`, `{s}`). */
+    readonly minutesSeconds: string;
+    /** Shown with seconds: "1 h 5 sec" (contains `{h}`, `{s}`). */
+    readonly hoursSeconds: string;
+    /** Shown with seconds: "1 h 30 min 15 sec" (contains `{h}`, `{m}`, `{s}`). */
+    readonly hoursMinutesSeconds: string;
+    /** Rang-ago only: "1 h 5 min" (contains `{h}`, `{m}`). */
+    readonly hoursMinutesAgo: string;
+    /** Spoken words, one part each. */
+    readonly hours: PluralText;
+    readonly minutes: PluralText;
+    readonly seconds: PluralText;
+}
+
+/** The alarm that rings when a timer ends. */
+interface CookingAlarmMessages {
+    /** Under a minute since the end (contains `{label}`). */
+    readonly rangJustNow: string;
+    /** From a minute since the end (contains `{label}`, `{elapsed}`). */
+    readonly rangAgo: string;
+    /** The headline when the line gives no check text (contains `{duration}`). */
+    readonly headlineFallback: string;
+    /** The body when the line gives none (contains `{n}`, joined to "Step" with a no-break space, and `{line}`). */
+    readonly bodyFallback: string;
+}
+
+/** The boxes of Add a timer: an accessible name and a unit for each. */
+interface CookingAddTimerMessages {
+    readonly hoursLabel: string;
+    readonly minutesLabel: string;
+    readonly secondsLabel: string;
+    readonly hoursUnit: string;
+    readonly minutesUnit: string;
+    readonly secondsUnit: string;
+}
+
 /** Every string the cooking surface says. */
 export interface CookingMessages {
     readonly top: CookingTopMessages;
@@ -158,6 +210,10 @@ export interface CookingMessages {
     readonly empty: CookingEmptyMessages;
     readonly gone: CookingGoneMessages;
     readonly allSteps: CookingAllStepsMessages;
+    readonly timer: CookingTimerMessages;
+    readonly duration: CookingDurationMessages;
+    readonly alarm: CookingAlarmMessages;
+    readonly addTimer: CookingAddTimerMessages;
 }
 
 export const cookingMessages: LocalizedMessages<CookingMessages> = {
@@ -238,6 +294,36 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             timersRunning: { one: 'Timer running', other: '{count} timers running' },
             timersPaused: { one: 'Timer paused', other: '{count} timers paused' },
             timerJoin: ' \u00b7 ',
+        },
+        timer: {
+            stepLabel: 'Step\u00a0{n}',
+        },
+        duration: {
+            hoursMinutes: '{h} h {m}',
+            hoursOnly: '{h} h',
+            minutesOnly: '{m} min',
+            secondsOnly: '{s} sec',
+            minutesSeconds: '{m} min {s} sec',
+            hoursSeconds: '{h} h {s} sec',
+            hoursMinutesSeconds: '{h} h {m} min {s} sec',
+            hoursMinutesAgo: '{h} h {m} min',
+            hours: { one: '{count} hour', other: '{count} hours' },
+            minutes: { one: '{count} minute', other: '{count} minutes' },
+            seconds: { one: '{count} second', other: '{count} seconds' },
+        },
+        alarm: {
+            rangJustNow: '{label} timer \u00b7 rang just now',
+            rangAgo: '{label} timer \u00b7 rang {elapsed} ago',
+            headlineFallback: '{duration} timer done',
+            bodyFallback: 'Step\u00a0{n}: {line}',
+        },
+        addTimer: {
+            hoursLabel: 'Hours',
+            minutesLabel: 'Minutes',
+            secondsLabel: 'Seconds',
+            hoursUnit: 'h',
+            minutesUnit: 'min',
+            secondsUnit: 'sec',
         },
     },
 };

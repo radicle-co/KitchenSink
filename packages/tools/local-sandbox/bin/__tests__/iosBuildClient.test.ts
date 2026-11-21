@@ -345,6 +345,24 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.stderr.match(/waiting for the build lock: job=other/gu)).toHaveLength(1);
     });
 
+    it('⛔ shows the job log reason when exit 75 is a refusal beside an earlier build (stop it, not wait)', () => {
+        const world = makeWorld();
+        const repo = makeRepo(
+            world,
+            fakeJob(
+                `echo 'iosBuildJob: an earlier build (job old, process group 7) still runs; stop it, then build again' > "$d/build.log"\n` +
+                    `printf '%s %s\\n' "$$" x > "$d/wrapper"\nexit 75`,
+            ),
+        );
+
+        const result = build(world, repo);
+
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('still runs; stop it');
+        expect(result.stderr).toContain('did not start (exit 75)');
+        expect(result.stderr).not.toContain('gave up waiting');
+    });
+
     it('⛔ dies and names the job when the Mac rebooted since the wrapper started, even if its pid is alive again', () => {
         const world = makeWorld();
         // A live pid (this job's own) beside a boot id that is not the Mac's: a reused pid after a reboot.

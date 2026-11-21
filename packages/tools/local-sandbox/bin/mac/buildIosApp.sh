@@ -188,8 +188,9 @@ fi'
                 mac "rm -rf $job_dir"
                 ;;
             75)
-                holder="$(mac 'cat ksIos/build.noindex/build.owner' 2>/dev/null || echo 'holder unknown')"
-                die "the Mac build lock is held ($holder), job $job gave up waiting"
+                # 75 has two causes (lock not taken in time, an earlier build's group still runs): show the job's own reason.
+                mac "tail -60 $job_dir/build.log" >&2 || true
+                die "the Mac build did not start (exit 75), job $job; log: $job_dir/build.log on the Mac"
                 ;;
             *)
                 mac "tail -60 $job_dir/build.log" >&2 || true

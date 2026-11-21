@@ -22,13 +22,16 @@ afterEach(() => {
 });
 
 /** A service whose leader (sh) exits on SIGTERM at once while its child traps SIGTERM and needs time to finish. */
-function serviceWith(childBody: string): { readonly dir: string; readonly spawn: () => { pid: number }; log: string } {
+function serviceWith(
+    childBody: string,
+    announce = true,
+): { readonly dir: string; readonly spawn: () => { pid: number }; log: string } {
     const dir = mkdtempSync(path.join(tmpdir(), 'serviceProcess-'));
     dirs.push(dir);
     const child = path.join(dir, 'child.sh');
     const leader = path.join(dir, 'leader.sh');
     writeFileSync(child, childBody);
-    writeFileSync(leader, `/bin/sh ${child} &\necho draining\nwait\n`);
+    writeFileSync(leader, `/bin/sh ${child} &\n${announce ? 'echo draining\n' : ''}wait\n`);
     const log = path.join(dir, 'service.log');
 
     return {
@@ -73,5 +76,15 @@ describe('startService stop', () => {
         await running.stop();
 
         expect(processGroup(running.pid).running()).toBe(false);
+    });
+
+    it('stops a service that ignores SIGTERM and never gets ready before it rejects', async () => {
+        const service = serviceWith(`trap '' TERM\nwhile :; do sleep 0.05; done\n`, false);
+        const started = startService(spec, { ...service, pollMs: 1, stop: { graceMs: 100, killWaitMs: 2_000 } });
+
+        await expect(started).rejects.toThrow(/was not ready in 60 s/u);
+
+        // The service's group id is the last pid spawned; the child must be gone, not left behind by a SIGTERM-only stop.
+        expect(pids.every((pid) => !processGroup(pid).running())).toBe(true);
     });
 });

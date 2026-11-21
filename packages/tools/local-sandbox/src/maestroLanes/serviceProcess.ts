@@ -49,7 +49,7 @@ export async function startService(spec: ServiceSpec, start: ServiceStart): Prom
         }
     }
 
-    group.stop('SIGTERM');
+    await stopTargets([group], start.stop);
 
     throw new Error(`maestro:lanes: ${spec.name} was not ready in 60 s - log: ${start.log}`);
 }

@@ -773,7 +773,7 @@ Session 2026-11-15.)_
   `noindex` and MUST be left out of sitemaps. While the recipe it came from is open, the clone MUST show an "adapted
   from" link to it. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
   `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0093.)_ A clone never copies a cook's
-  private copy of an imported recipe, only a public form a reader can see. A copy of a public version carries its credit chain (003B `recipe_credits`), and its credit line reads the chain, never the "adapted from" link.
+  private copy of an imported recipe, only a public form a reader can see. A copy of a public version carries its credit chain (003B `recipe_credits`), and its credit line reads the chain. Its one "adapted from" link is `rights.adaptedFromLink` ("See the recipe this was adapted from"), an element of the credit block directly under label line 1, naming the nearest source only (`credit.adaptedFromId`) and present only while that source is open to the web (003A `openToWeb`), never a name in the label.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
   The label "Public domain" is derived from the grant plus a passing record (`016-FR-015d`). There is no new

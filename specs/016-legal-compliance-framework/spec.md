@@ -540,10 +540,10 @@ The rights label tells the cook who owns the writing.
       words", and no claim that the cook owns their changes. The row 6 words above ("Their words stay theirs. Your
       changes are yours.") apply to a copy of one cook's own recipe and never to these two.
         - From a version Commise wrote. On the recipe: `rights.adaptedFromCommise`, "Adapted by {cook} from a version
-          Commise wrote. Shared under CC BY-SA 4.0." ("CC BY-SA 4.0" links to the licence deed). `{cook}` comes from `bylineOf` (an erased owner reads "a former member"). When the cook publishes an unedited copy: `editor.visibility.publicNeedsEdit`, "Change the steps or ingredients to make your copy public." Then `rights.publishCreditNotice`, "Other cooks will see the credit line."
+          Commise wrote. Shared under CC BY-SA 4.0." ("CC BY-SA 4.0" links to the licence deed). `{cook}` comes from `bylineOf` (an erased owner reads "a former member", an owner with no name "a Commise cook"). The credit block also carries `rights.adaptedFromLink`, "See the recipe this was adapted from", while the source is open to the web. When the cook publishes an unedited copy: `editor.visibility.publicNeedsEdit`, "Change the steps or ingredients to make your copy public." Then `rights.publishCreditNotice`, "Other cooks will see the credit line."
         - From several cooks (a copy of a copy). On the recipe: `rights.adaptedChain`, line 1 "Adapted by {cook} from
           {source}’s copy." and line 2 "Based on a version Commise wrote. Shared under CC BY-SA 4.0." The earlier
-          cooks are listed behind `rights.chainShow` and `rights.chainHide`, and an erased account reads "a former member"
+          cooks are listed behind `rights.chainShow` and `rights.chainHide`, and an erased account reads "a former member" and a cook with no name "a Commise cook"
           (`bylineOf`, no separate key). There is no self link: consecutive entries by the same cook collapse into one
           and `{source}` is the nearest earlier cook who is a different cook (003B `FR-062b`). When the cook publishes: as the version above.
     - A family or friend recipe with no credit given says "From a family member or friend".

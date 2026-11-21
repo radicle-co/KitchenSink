@@ -379,7 +379,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   sitemap and its fast removal path. 021 MUST then remove it (`021-FR-020a`, FR-017).
 - **Q8. Recipes an erased cook left public → open, with no author name.** A recipe the cook chose to leave public at
   erasure stays readable signed out, shown without the deleted author's name. `021-FR-002` rule 7 is amended for that
-  case only. Suspended and closed authors still close their recipes (FR-012). Exception (owner, 2026-11-20): a copy's credit chain and the checker line show cooks' display names (003B FR-062b); an erased cook reads "a former member". No other creator field until 012. _Reading:_ the erasure keeps two kinds of
+  case only. Suspended and closed authors still close their recipes (FR-012). Exception (owner, 2026-11-20): a copy's credit chain, including the copy's own owner (`creditChain.adaptedBy`, as in "Adapted by Sam from Alex's copy"), and the checker line show whatever `bylineOf` shows for that cook, an @username included (003B FR-062b); an erased cook in the chain reads "a former member", an erased checker reads "checked by a cook" (`credit.writtenNoCook`), and a cook with no name reads "a Commise cook". No other creator field until 012. _Reading:_ the erasure keeps two kinds of
   recipe public, the ones the cook elected to donate and the ones that were already public, and both carry the same
   consent. This spec reads the ruling as covering both. If the owner meant donated recipes only, the erasure job's
   stored election (`account_erasure_jobs.publish_recipe_ids`) tells them apart.
@@ -442,7 +442,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   A recipe the cook left public when they erased their account is the one exception (owner ruling 2026-11-09, Q8,
   amending `021-FR-002` rule 7): an `erased` standing does not close a public, published recipe. It is shown with no
   author name and no pseudonym, because the pseudonymous handle the erasure writes carries the user id. Suspended,
-  closed and unknown standings still close the recipe. Exception: names in a copy's credit chain and the checker line (spec Q8, owner 2026-11-20).
+  closed and unknown standings still close the recipe. Exception: names in a copy's credit chain, including the copy's own owner (`adaptedBy`), and the checker line, as `bylineOf` shows them, an @username included (spec Q8, owner 2026-11-20).
 
 #### D. Caching, purge and rate limits
 
@@ -579,7 +579,7 @@ native public view shows the offline state with Try again. The web page is serve
 
 ## Open questions for the owner
 
-None. The owner answered all eight on 2026-11-09. The answers are recorded under Clarifications, Session
+None of the eight remain open. The owner answered all eight on 2026-11-09. The answers are recorded under Clarifications, Session
 2026-11-09.
 
-Owed (a design task, not an owner question): the strings a signed-out reader sees for a copy's credit chain: `staff-ux-engineer` SPECIFY. Open: whether the signed-out page names the copy's owner, which the 2026-11-20 exception (chain and checker line) does not cover.
+Closed (2026-11-20): the signed-out page names the copy's owner (`creditChain.adaptedBy`). "Yes, show names" covers the copy's owner, as in the owner's example "Adapted by Sam from Alex's copy" (Sam owns the copy), so `{cook}` shows on a signed-out page and an erased owner reads "a former member". The signed-out strings are the designer's and are in 003B research R8 (`rights.adaptedFromCommise`, `rights.adaptedChain`, `rights.chainShow`, `rights.chainHide`, `rights.adaptedFromLink`, and the byline unnamed strings, "a Commise cook" and "Commise cook").

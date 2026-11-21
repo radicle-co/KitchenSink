@@ -67,10 +67,24 @@ interface PublicFacts {
     photos: { url: string }[]; // thumbnails only (FR-026)
 }
 
+// CreditCook is creditCookSchema (003B FR-062b): a cook, an erased account, or a cook with no name.
+type CreditCook =
+    | { kind: 'cook'; displayName: string | null; username: string | null } // at least one name non-blank
+    | { kind: 'formerMember' }
+    | { kind: 'unnamed' };
+
+// PublicCreditChain is 003B's CreditChain (FR-062b), the same schema and the same bytes as the recipe read.
 interface PublicCreditChain {
-    source: { displayName: string | null; recipeUrl: string | null } | null;
-    hidden: { displayName: string | null }[];
-    checker: { displayName: string | null };
+    adaptedBy: CreditCook; // the copy's owner
+    source: CreditCook | null; // null is the Commise fallback
+    hidden: CreditCook[]; // newest first; the disclosure's {count} is hidden.length
+}
+
+// Exactly these keys. The checker has one home, credit.checker.
+interface PublicCredit {
+    checker: CreditCook | null;
+    basedOnUrl: string | null; // the free source site's address (021-FR-014), else null
+    adaptedFromId: string | null; // the nearest source's recipe id while openToWeb(source), else null
 }
 
 interface PublicFull extends PublicFacts {
@@ -89,9 +103,11 @@ interface PublicFull extends PublicFacts {
     steps: { position: number; instruction: string; timerSeconds?: number }[];
     missingNutritionCount: number;
     licence: PublicLicence; // REQUIRED. No 016 value exists yet, so `full` cannot be built until 016 ships
-    creditChain?: PublicCreditChain; // a cook's copy of a public version only (003B FR-062b)
-    credit?: PublicCredit; // adapted, family, public domain basis, a clone source while it is open, or a
-    // Commise-written version's disclosure and free-site domain (021-FR-014)
+    creditChain?: PublicCreditChain; // a cook's copy of a public version only (003B FR-062b); absent where the
+    // recipe read sends `creditChain: null`
+    credit?: PublicCredit; // exactly { checker, basedOnUrl, adaptedFromId }: the checker and free-site domain of a
+    // Commise-written version (021-FR-014) and the adapted-from recipe of a copy. 016 and 021 add their own
+    // credit keys (family, public domain basis) when they ship, each with its allowlist row
 }
 ```
 
@@ -99,11 +115,11 @@ interface PublicFull extends PublicFacts {
 provenance, `sourceLine` and `sourcePhrase` (the verbatim pasted or imported line is owner-only,
 `transcriptionDisclosure.ts`, ADR-0082 §2), `foodId`, `impact`, `viewerRating`, raters, comments, collections and version history. A Commise-written
 version never carries the wording of the cook's private copy or a source photo (`021-FR-014`). The
-allowlist tests fail when any other key appears. `creditChain` is the one credit-chain key, and its inner keys are exactly those in `PublicCreditChain`. A public version's checker name is carried in `credit` as `checkerDisplayName: string | null`, null when `isPseudonymizedAuthorHandle` is true.
+allowlist tests fail when any other key appears. `creditChain` is the one credit-chain key, and its inner keys are exactly those in `PublicCreditChain`. `credit` carries exactly the keys of `PublicCredit`, and the checker has one home, `credit.checker`: a public version's checker is a `formerMember` when `isPseudonymizedAuthorHandle` is true. `credit.adaptedFromId` is the nearest source's recipe id when `openToWeb(source)` is true and null otherwise, and the page builds the link with `publicRecipePath` (private, held, deleted, closed or suspended, erased); when identity cannot be read it is null and the read does not answer `503`. The allowlist test is `packages/services/recipe-service/src/publicRead/domain/__tests__/publicRecipeProjection.test.ts` (U4).
 
 **No author for an erased cook.** A recipe whose author standing is `erased` carries no author field and never the
 pseudonymous handle `user_{ULID}`, which embeds the user id (spec FR-012, owner ruling Q8). No creator field is
-projected for anyone until 012's creator profiles ship, with one exception: names in a copy's credit chain and the checker line (spec Q8, owner 2026-11-20). `creditChain` is the `PublicCreditChain` above, computed by the server. An erased or NULL owner gives `displayName: null` (the client reads "a former member"), never `user_{ULID}`. No account id is on the wire.
+projected for anyone until 012's creator profiles ship, with one exception: names in a copy's credit chain, including the copy's own owner (`adaptedBy`), and the checker line, as `bylineOf` shows them, an @username included (spec Q8, owner 2026-11-20). `creditChain` is the `PublicCreditChain` above, computed by the server. An erased or NULL owner gives `{ kind: 'formerMember' }` (the client reads "a former member"), an owner with no name gives `{ kind: 'unnamed' }` ("a Commise cook"), never `user_{ULID}`. No account id is on the wire. The only recipe id in the credit is `credit.adaptedFromId`: the id of the nearest source, and only while that source is open to the web (`openToWeb`, failing closed), whose own public address already carries it. An entry's stored recipe id never reaches the wire.
 
 **Comments (owner ruling 2026-11-09, spec Q6).** Comments are not built yet. In the release that ships them,
 `PublicFull` gains `comments`, picked from the comments schema: each comment's text, its date and its commenter's

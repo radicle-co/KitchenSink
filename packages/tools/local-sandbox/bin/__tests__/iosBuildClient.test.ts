@@ -28,7 +28,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { macPathsOf } from '../../src/maestroLanes/macSession.js';
 
@@ -44,6 +44,10 @@ const TIMEOUT_MS = 90_000;
 const TWO_BUILDS_TIMEOUT_MS = 30_000;
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
 const BASH = '/bin/bash';
+
+// Every case runs real processes; a loaded runner needs more than vitest's 5 s. The measured time of the slowest case is
+// under 1 s even with every core busy.
+vi.setConfig({ testTimeout: 30_000 });
 const GIT = '/usr/bin/git';
 
 /** The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes. */
@@ -106,6 +110,8 @@ function makeWorld(): World {
     writeExecutable(
         path.join(world.bin, 'ssh'),
         `#!/usr/bin/env bash\ncmd="\${@: -1}"\nprintf 'SSH %s\\n' "$cmd" >> "${world.sshLog}"\n` +
+            // A poll is the command that starts with `cd`; the fake counts them so a case can wait for the client's looks.
+            `[[ "$cmd" == cd\\ ksIos/build.noindex/jobs/* ]] && echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
             `cd "${world.macHome}"\nexport HOME="${world.macHome}"\nexec bash -c "$cmd"\n`,
     );
     // `-e <ssh command>` is dropped and `host:` becomes the Mac's HOME, as a login would resolve it: the real rsync then copies locally.
@@ -172,7 +178,7 @@ function build(world: World, repo: string, env: Record<string, string> = {}) {
             KS_MAC_PATH: `${world.bin}:/usr/bin:/bin`,
             KS_MAC_NODE_BIN: world.bin,
             KS_REPO_ROOT: repo,
-            KS_MAC_POLL_SECONDS: '1',
+            KS_MAC_POLL_SECONDS: '0',
             CLERK_PUBLISHABLE_KEY: PUBLISHABLE,
             ...env,
         },
@@ -272,11 +278,11 @@ describe('buildIosApp.sh build: one result file for one job', () => {
             writeExecutable(path.join(world.bin, 'date'), '#!/usr/bin/env bash\necho 20261121T000000Z\n');
 
             // The ssh log is emptied between the runs, so each run's commands are told apart.
-            const first = build(world, repo, { KS_MAC_POLL_SECONDS: '0' });
+            const first = build(world, repo, {});
             const firstIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
 
             writeFileSync(world.sshLog, '');
-            const second = build(world, repo, { KS_MAC_POLL_SECONDS: '0' });
+            const second = build(world, repo, {});
             const secondIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
 
             expect(first.stderr).toContain('exit 3');
@@ -298,7 +304,9 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
             world,
             fakeJob(
                 `printf '%s %s\\n' "$$" x > "$d/wrapper"\n` +
-                    `printf 'waiting for the build lock: job=other\\n' > "$d/state"\nsleep 3\n` +
+                    `printf 'waiting for the build lock: job=other\\n' > "$d/state"\n` +
+                    // Three looks at the same state, counted by the fake ssh: the client has had its chance to print twice.
+                    `until [ "$(wc -l < "${path.join(world.root, 'polls.log')}")" -ge 3 ]; do sleep 0.05; done\n` +
                     `printf 'job=other pid=1 pgid=2 since=then\\n' > "$HOME/ksIos/build.noindex/build.owner"\nexit 75`,
             ),
         );

@@ -4,7 +4,7 @@
  * later by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,
  * mounted empty, carries the one announcement (KTD-6, designer DN-1).
  *
- * The page renders it once, for the owner only.
+ * A presentational component: it decides nothing. The page renders it once, for the owner only.
  *
  * @pattern Presentational component — pure props to JSX; the notice and the announcement are decided in the controller
  */

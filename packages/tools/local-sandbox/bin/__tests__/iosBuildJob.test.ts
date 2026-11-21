@@ -566,6 +566,35 @@ describe('iosBuildJob.sh: a build group that outlived its wrapper (stale holder)
     });
 });
 
+describe('iosBuildJob.sh: a refusal leaves the earlier build on record', () => {
+    it('⛔ keeps the earlier group in build.owner after refusing, so the next job refuses too', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await until('A to build', () => started(world, 'keyA'));
+        const owner = path.join(buildRoot(world), 'build.owner');
+        const group = Number(/pgid=(\d+)/u.exec(readFileSync(owner, 'utf8'))?.[1]);
+
+        process.kill(a.pid, 'SIGKILL');
+        await a.exit;
+        upload(world, 'jobB', 'keyB');
+        expect(await startJob(world, 'jobB', 'keyB').exit).toBe(75);
+
+        // Mutation: take `locked` before the check, and the refusal writes "released" over the record, which erases the
+        // group the next job must still refuse for.
+        expect(readFileSync(owner, 'utf8')).toContain(`pgid=${String(group)}`);
+        expect(readFileSync(owner, 'utf8')).not.toMatch(/^released/u);
+        upload(world, 'jobC', 'keyC');
+        expect(await startJob(world, 'jobC', 'keyC').exit).toBe(75);
+        expect(started(world, 'keyC')).toBe(false);
+
+        killQuietly(-group);
+        await until('A`s group to end', () => !alive(group));
+    });
+});
+
 describe('iosBuildJob.sh: the limits', () => {
     it('⛔ stops a build that outlasts its limit: exit 124, the group gone, the lock free', async () => {
         const world = makeWorld();
@@ -790,5 +819,50 @@ describe('iosBuildJob.sh: pruning', () => {
             false,
         ]);
         expect([running, recent].map((folder) => existsSync(folder))).toEqual([true, true]);
+    });
+
+    it('⛔ keeps a fresh staging folder and removes one older than a day, because a waiting job must not delete the holder`s', async () => {
+        const world = makeWorld();
+        const apps = path.join(world.home, 'ksIos', 'apps', 'ios');
+        const make = (name: string, age: number): string => {
+            const folder = path.join(apps, name);
+
+            mkdirSync(folder, { recursive: true });
+            ageFolder(folder, age);
+
+            return folder;
+        };
+        const freshStaging = make('.staging.fresh', AGES.fresh);
+        const freshOld = make('keyX.old.123', AGES.fresh);
+        const oldStaging = make('.staging.stale', AGES.old);
+        const oldOld = make('keyY.old.456', AGES.old);
+
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: drop the age test from the staging prune, and a waiting job deletes the holder's fresh staging folder.
+        expect([freshStaging, freshOld].map((folder) => existsSync(folder))).toEqual([true, true]);
+        expect([oldStaging, oldOld].map((folder) => existsSync(folder))).toEqual([false, false]);
+    });
+
+    it('prunes a finished job folder even when its recorded wrapper pid is alive again', async () => {
+        const world = makeWorld();
+        const folder = jobFolder(world, 'oldDone');
+
+        mkdirSync(folder, { recursive: true });
+        writeFileSync(path.join(folder, 'build.rc'), '0\n');
+        writeFileSync(path.join(folder, 'wrapper'), `${String(liveGroupLeader().pid ?? 0)} ${bootOf()}\n`);
+        ageFolder(folder, AGES.old);
+        upload(world, 'jobB', 'keyB');
+        const b = startJob(world, 'jobB', 'keyB');
+
+        await until('B to build', () => started(world, 'keyB'));
+        release(world, 'keyB');
+        expect(await b.exit).toBe(0);
+        // Mutation: ask only whether the wrapper lives, and a finished folder is kept for as long as its pid is reused.
+        expect(existsSync(folder)).toBe(false);
     });
 });

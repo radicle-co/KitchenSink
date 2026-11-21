@@ -119,7 +119,10 @@ function makeWorld(): World {
             `    echo poll >> "${path.join(world.root, 'polls.log')}"\n` +
             `    [ -z "$FAIL_POLL" ] || exit 255\n` +
             `    if [ -n "$POLL_ANSWERS" ] && [ -s "$POLL_ANSWERS" ]; then\n` +
-            `        head -n 1 "$POLL_ANSWERS" | sed 's/;/\\n/g'\n        sed -i 1d "$POLL_ANSWERS"\n        exit 0\n    fi\nfi\n` +
+            // An answer line of LINK_DROP is a dropped link for that one look.
+            `        answer="$(head -n 1 "$POLL_ANSWERS")"\n        sed -i 1d "$POLL_ANSWERS"\n` +
+            `        [ "$answer" != LINK_DROP ] || exit 255\n` +
+            `        printf '%s\\n' "$answer" | sed 's/;/\\n/g'\n        exit 0\n    fi\nfi\n` +
             `cd "${world.macHome}"\nexport HOME="${world.macHome}"\nexec bash -c "$cmd"\n`,
     );
     // `-e <ssh command>` is dropped and `host:` becomes the Mac's HOME, as a login would resolve it: the real rsync then copies locally.
@@ -390,6 +393,39 @@ describe('buildIosApp.sh build: what the Mac says back', () => {
         expect(result.status).not.toBe(0);
         expect(result.stderr).toContain(job);
         expect(result.stderr).toMatch(/cannot reach the Mac/u);
+    });
+
+    it('⛔ counts the give-up time from the latest drop: two short drops far apart are not one long one', () => {
+        const world = makeWorld();
+        const answers = path.join(world.root, 'answers');
+        const repo = makeRepo(world, fakeJob('exit 3'));
+
+        // Give-up is 3 s and each look waits 1 s. The good looks between the drops last longer than the give-up time.
+        writeFileSync(
+            answers,
+            [
+                'LINK_DROP',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'STATE a',
+                'LINK_DROP',
+                'STATE a',
+                'RC 3',
+                '',
+            ].join('\n'),
+        );
+
+        const result = build(world, repo, {
+            POLL_ANSWERS: answers,
+            KS_MAC_POLL_SECONDS: '1',
+            KS_MAC_POLL_GIVE_UP_SECONDS: '3',
+        });
+
+        // Mutation: never clear the drop time after a good look, and the second short drop gives up at once.
+        expect(result.stderr).not.toMatch(/cannot reach the Mac/u);
+        expect(result.stderr).toContain('exit 3');
     });
 
     it('does not read two dead answers apart as a dead wrapper: a live answer between them resets the count', () => {

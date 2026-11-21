@@ -2120,7 +2120,7 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
 
         const res = await newService(dal).setVisibility(premiumPrincipal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
-        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined, false);
         expect(res.visibility).toBe('private');
     });
 

@@ -7920,7 +7920,8 @@
                 "STATEMENT_REQUIRED",
                 "PUBLIC_CONFIRMATION_REQUIRED",
                 "FROM_PERSON_PRIVATE_ONLY",
-                "API_WRITER_CONFIRMATION_FORBIDDEN"
+                "API_WRITER_CONFIRMATION_FORBIDDEN",
+                "SOURCE_CORRECTED"
             ],
             "type": "string"
         },
@@ -10950,7 +10951,8 @@
                                         "STATEMENT_REQUIRED",
                                         "PUBLIC_CONFIRMATION_REQUIRED",
                                         "FROM_PERSON_PRIVATE_ONLY",
-                                        "API_WRITER_CONFIRMATION_FORBIDDEN"
+                                        "API_WRITER_CONFIRMATION_FORBIDDEN",
+                                        "SOURCE_CORRECTED"
                                     ],
                                     "type": "string"
                                 }
@@ -11918,6 +11920,12 @@
                 "sourceAttribution": {
                     "minLength": 1,
                     "type": "string"
+                },
+                "sourceConfirmed": {
+                    "type": "boolean"
+                },
+                "sourceCorrected": {
+                    "type": "boolean"
                 },
                 "sourceKind": {
                     "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
@@ -14734,6 +14742,12 @@
                         "sourceAttribution": {
                             "minLength": 1,
                             "type": "string"
+                        },
+                        "sourceConfirmed": {
+                            "type": "boolean"
+                        },
+                        "sourceCorrected": {
+                            "type": "boolean"
                         },
                         "sourceKind": {
                             "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",

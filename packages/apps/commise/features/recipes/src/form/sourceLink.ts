@@ -15,7 +15,7 @@
  */
 import {
     parseSourceLink,
-    sourceIsCorrectable,
+    sourceLockOf,
     RecipeSourceType,
     RecipeVisibility,
     UNRECOGNISED_STATEMENT_KIND,
@@ -43,6 +43,7 @@ type StoredRecipe = Pick<
     | 'sourceAttribution'
     | 'clonedFromId'
     | 'publicNeedsCheck'
+    | 'sourceConfirmed'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -78,7 +79,7 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
 }
 
 /**
- * Whether the source can no longer change, by `recipe-core`'s ONE lock rule `sourceIsCorrectable`, the rule the server's
+ * Whether the source can no longer change, by `recipe-core`'s ONE lock rule `sourceLockOf` (anything but `open` means the link can no longer change), the rule the server's
  * `PATCH` policy reads: not stated by the cook (the curator's text, a paid site), inherited by a clone, or an unknown kind. The
  * first publish does not lock it (ADR-0093 section 8). So the field, the wire and the server's `SOURCE_LOCKED` agree. A recipe
  * never saved has nothing to lock.
@@ -87,12 +88,13 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
  */
 const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
     recipe !== undefined &&
-    !sourceIsCorrectable({
+    sourceLockOf({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
         statementKind: recipe.statementKind ?? null,
         clonedFromId: recipe.clonedFromId,
-    });
+        sourceConfirmed: recipe.sourceConfirmed === true,
+    }) !== 'open';
 
 const heldAsWebCopy = (recipe: Pick<StoredRecipe, 'sourceKind'> | undefined): boolean =>
     recipe?.sourceKind === 'public_web';

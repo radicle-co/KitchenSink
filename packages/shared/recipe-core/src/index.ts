@@ -233,8 +233,8 @@ export {
     WORDING_LOCALE_MIN_LENGTH,
 } from './statementWordings.js';
 export type { PublicConfirmWording, StatementWording } from './statementWordings.js';
-export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceIsCorrectable } from './sourceRules.js';
-export type { CorrectableSourceFacts } from './sourceRules.js';
+export { PRIVATE_ONLY_SOURCE_KEYS, privateOnlySourceKey, sourceLockOf } from './sourceRules.js';
+export type { CorrectableSourceFacts, SourceLock } from './sourceRules.js';
 export {
     OWN_SITE_DOMAIN,
     SOURCE_LINK_INPUT_MAX_LENGTH,

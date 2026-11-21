@@ -59,6 +59,7 @@ function writeOf(over: Partial<PublicWrite> = {}): PublicWrite {
     return {
         principal: REAL,
         before: undefined,
+        sourceCorrected: false,
         after: { status: 'published' as RecipeStatus, visibility: 'public' as RecipeVisibility },
         source: { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null },
         statementKind: null,

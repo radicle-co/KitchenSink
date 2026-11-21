@@ -65,7 +65,12 @@ import {
     type StoredBinding,
 } from './domain/bindingOriginCarryForward.js';
 import { evaluatePublication, type PublishPolicyInput } from './domain/publishPolicy.js';
-import { evaluateSourceCorrection, type SourceCorrection, type StoredSource } from './domain/sourceCorrectionPolicy.js';
+import {
+    confirmsSource,
+    evaluateSourceCorrection,
+    type SourceCorrection,
+    type StoredSource,
+} from './domain/sourceCorrectionPolicy.js';
 import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
 import {
     SLOT_NOT_NEEDED,
@@ -484,7 +489,7 @@ function visibilityAskOf(
     principal: Principal,
     recipe: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null },
     requested: RecipeVisibility,
-    verdict: Pick<PublicVerdict, 'sourceConflict' | 'fromPerson'>,
+    verdict: Pick<PublicVerdict, 'sourceConflict' | 'fromPerson' | 'sourceCorrected'>,
 ): Omit<VisibilityPolicyInput, 'hasAvailablePrivateSlot'> {
     return {
         principalKind: principal.principalKind,
@@ -495,6 +500,7 @@ function visibilityAskOf(
         requested,
         sourceConflict: verdict.sourceConflict,
         fromPerson: verdict.fromPerson,
+        sourceCorrected: verdict.sourceCorrected,
     };
 }
 
@@ -547,6 +553,8 @@ function storedSourceOf(row: LockedRecipeFacts, attestedFromPerson: boolean): St
         statementKind: row.statementKind,
         clonedFromId: row.clonedFromId,
         sourceAttribution: row.sourceAttribution,
+        sourceUrl: row.sourceUrl,
+        sourceConfirmed: row.sourceConfirmedAt !== null,
         attestedFromPerson,
     };
 }
@@ -883,6 +891,8 @@ export class RecipesService {
             principal,
             before: undefined,
             after: { status, visibility: requested },
+            // A new recipe holds no staff correction.
+            sourceCorrected: false,
             source: { sourceType: provenance.sourceType, sourceKind: provenance.sourceKind },
             statementKind: provenance.statementKind,
             contentPastedAt,
@@ -1409,6 +1419,8 @@ export class RecipesService {
             statementKind: existing.recipe.statementKind,
             clonedFromId: existing.recipe.clonedFromId,
             sourceAttribution: existing.recipe.sourceAttribution,
+            sourceUrl: existing.recipe.sourceUrl,
+            sourceConfirmed: existing.recipe.sourceConfirmedAt !== null,
             // `false` on purpose: this early judgement only refuses early. The attestation arm is read under the lock, where the
             // decision that is written is made (`decideUnderLockIn`); the version check does not protect a read made before it.
             attestedFromPerson: false,
@@ -1748,6 +1760,7 @@ export class RecipesService {
             stored: { tx, recipeId: id },
             before: { status: existingStatus, visibility: current.visibility },
             after: { status: afterStatus, visibility: visibilityAfter },
+            sourceCorrected: current.sourceCorrectionHold,
             source: sourceAfter,
             statementKind: applied ? correction.provenance.statementKind : current.statementKind,
             contentPastedAt:
@@ -1934,6 +1947,7 @@ export class RecipesService {
                         sourceKind: source.recipe.sourceKind,
                     }),
                     fromPerson: await this.gate.fromPersonHeld(tx, source.recipe.id, source.recipe.statementKind),
+                    sourceCorrected: source.recipe.sourceCorrectionHold,
                 },
             );
             const cloned = await this.dal.create(
@@ -2099,6 +2113,7 @@ export class RecipesService {
                 stored: { tx, recipeId: id },
                 before: { status: current.status, visibility: current.visibility },
                 after: { status: current.status, visibility },
+                sourceCorrected: current.sourceCorrectionHold,
                 source,
                 statementKind:
                     correction.kind === 'apply' ? correction.provenance.statementKind : current.statementKind,
@@ -2119,6 +2134,7 @@ export class RecipesService {
                 visibility,
                 tx,
                 correction.kind === 'apply' ? correction.provenance : undefined,
+                confirmsSource('setVisibility', { statement: extras.statement }),
             );
 
             if (written !== undefined) {

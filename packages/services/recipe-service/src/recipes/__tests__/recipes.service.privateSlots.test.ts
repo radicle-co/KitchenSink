@@ -297,6 +297,9 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             contentPastedAt: null,
             clonedFromId: null,
             sourceAttribution: null,
+            sourceUrl: null,
+            sourceConfirmedAt: null,
+            sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -313,7 +316,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
 
         const response = await serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined);
 
-        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
+        expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined, false);
         expect(response.visibility).toBe('private');
     });
 
@@ -378,7 +381,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             await expect(
                 serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
             ).resolves.toBeDefined();
-            expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined);
+            expect(setVisibility).toHaveBeenCalledWith('r-1', 'private', FAKE_TX, undefined, false);
         },
     );
 
@@ -424,6 +427,9 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             contentPastedAt: null,
             clonedFromId: null,
             sourceAttribution: null,
+            sourceUrl: null,
+            sourceConfirmedAt: null,
+            sourceCorrectionHold: false,
         });
 
         const error = await refusalOf(
@@ -559,6 +565,9 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             contentPastedAt: null,
             clonedFromId: null,
             sourceAttribution: null,
+            sourceUrl: null,
+            sourceConfirmedAt: null,
+            sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
@@ -641,6 +650,9 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
                 contentPastedAt: null,
                 clonedFromId: null,
                 sourceAttribution: null,
+                sourceUrl: null,
+                sourceConfirmedAt: null,
+                sourceCorrectionHold: false,
             })),
         });
 

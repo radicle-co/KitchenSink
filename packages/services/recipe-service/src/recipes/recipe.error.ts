@@ -308,6 +308,8 @@ export function policyRefusal(
             return sourceConflictRefused(reason, details);
         case 'fromPerson':
             return fromPersonPrivateOnly(reason, details);
+        case 'sourceCorrected':
+            return sourceCorrectedRefused(reason, details);
         case 'statementRequired':
             return statementRequiredRefused(reason, details);
         case 'policy':
@@ -403,6 +405,21 @@ const FROM_PERSON_PRIVATE_ONLY_REASON = invalidVisibilityReasonSchema.enum.FROM_
  */
 export function fromPersonPrivateOnly(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
     return invalidVisibility(reason, { ...details, reason: FROM_PERSON_PRIVATE_ONLY_REASON });
+}
+
+/** `details.reason` of the `INVALID_VISIBILITY` a staff-corrected recipe answers with when asked to be public. */
+const SOURCE_CORRECTED_REASON = invalidVisibilityReasonSchema.enum.SOURCE_CORRECTED;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CORRECTED'` (→ 400): a staff correction holds the recipe off Public
+ * (ADR-0099). The same shape as {@link fromPersonPrivateOnly}: no new published code.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function sourceCorrectedRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: SOURCE_CORRECTED_REASON });
 }
 
 /**

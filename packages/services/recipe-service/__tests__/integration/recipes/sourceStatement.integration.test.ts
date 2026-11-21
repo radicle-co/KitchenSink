@@ -184,6 +184,9 @@ beforeAll(async () => {
                             status: row.status,
                             sourceType: row.sourceType,
                             sourceKind: row.sourceKind,
+                            sourceUrl: row.sourceUrl,
+                            sourceConfirmedAt: row.sourceConfirmedAt,
+                            sourceCorrectionHold: row.sourceCorrectionHold,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
                             clonedFromId: row.clonedFromId,
@@ -441,7 +444,12 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled, also after t
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for CHANGING a
     // stated source after the first publish. The cook's statement stays editable, so it now proves the change is written and
     // the recipe is made Private in the same write.
-    it('CHANGES a held statement after the first publish: 200, the web source is written and the recipe goes Private', async () => {
+    /**
+     * Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE, decisions/everyAnswerSourceLock-qse.md batch 2): it asserted that a
+     * published recipe's "I wrote this" could change to a web source after the first publish. The first publish confirms the answer
+     * (migration 0092), so a confirmed own answer can now only be downgraded to a book or a paid site.
+     */
+    it('refuses to change a confirmed own answer to a web link after the first publish (KTD-1, AE1)', async () => {
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
@@ -456,15 +464,9 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled, also after t
             statement: STATEMENT,
         });
 
-        expect(response.status).toBe(200);
-        expect(update).toHaveBeenCalledWith(
-            RECIPE_ID,
-            expect.objectContaining({
-                visibility: 'private',
-                provenance: expect.objectContaining({ sourceKind: 'public_web', statementKind: 'source' }),
-            }),
-            expect.anything(),
-        );
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'public' });
     });
 
     // Rewritten by the 2026-11-15 owner ruling: it asserted 403 for clearing a statement after the first publish, and for a
@@ -760,7 +762,7 @@ describe('the evidence rule: a cleared source does not make a copied recipe the 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private' });
 
         expect(response.status).toBe(200);
-        expect(setVisibility).toHaveBeenCalledWith(RECIPE_ID, 'private', expect.anything(), undefined);
+        expect(setVisibility).toHaveBeenCalledWith(RECIPE_ID, 'private', expect.anything(), undefined, false);
     });
 
     it('lands the CLONE of such a recipe private, and the original is untouched', async () => {

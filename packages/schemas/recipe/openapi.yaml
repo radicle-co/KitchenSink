@@ -5143,6 +5143,7 @@ components:
                     - PUBLIC_CONFIRMATION_REQUIRED
                     - FROM_PERSON_PRIVATE_ONLY
                     - API_WRITER_CONFIRMATION_FORBIDDEN
+                    - SOURCE_CORRECTED
               additionalProperties: {}
           required:
             - code
@@ -6030,6 +6031,10 @@ components:
         publicNeedsCheck:
           type: boolean
         publicNeedsStatement:
+          type: boolean
+        sourceConfirmed:
+          type: boolean
+        sourceCorrected:
           type: boolean
         clonePrivateFoodLineCount:
           type: integer

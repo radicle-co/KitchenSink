@@ -58,6 +58,8 @@ export interface PublicWrite {
     readonly before: PublishedFacts | undefined;
     /** The status and visibility the write LEAVES. */
     readonly after: PublishedFacts;
+    /** Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`); `false` for a create. REQUIRED. */
+    readonly sourceCorrected: boolean;
     /** The label and kind the write LEAVES. */
     readonly source: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null };
     /** What the cook stated AFTER the write: the correction's, else the stored one. */
@@ -80,6 +82,8 @@ export interface PublicVerdict {
     readonly sourceConflict: boolean;
     /** Whether the cook said the recipe is another person's (`fromPersonOf`). */
     readonly fromPerson: boolean;
+    /** Whether a staff correction holds the recipe off Public. */
+    readonly sourceCorrected: boolean;
     /** Whether the cook still owes a statement (`statementRequiredOf`). */
     readonly statementRequired: boolean;
     /** Whether the write records the confirmation it was sent. */
@@ -148,6 +152,7 @@ export class PublicStatementGate {
             ...write.source,
             sourceConflict,
             fromPerson,
+            sourceCorrected: write.sourceCorrected,
             statementRequired,
             principalKind: write.principal.principalKind,
             containment: write.principal.containment,
@@ -174,6 +179,7 @@ export class PublicStatementGate {
         return {
             sourceConflict,
             fromPerson,
+            sourceCorrected: write.sourceCorrected,
             statementRequired,
             recordsConfirmation: !marker && duty.recordedWhenSupplied,
         };

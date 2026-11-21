@@ -42,6 +42,8 @@ const NONE: StoredSource = {
     statementKind: null,
     clonedFromId: null,
     sourceAttribution: null,
+    sourceUrl: null,
+    sourceConfirmed: false,
     attestedFromPerson: false,
 };
 
@@ -611,5 +613,167 @@ describe('evaluateSourceCorrection — a write that changes nothing is unchanged
         expect(
             evaluateSourceCorrection({ statement: unusable, stored: stored({ statementKind: 'fromPerson' }) }).kind,
         ).toBe('locked');
+    });
+});
+
+/**
+ * ADR-0099, KTD-1 and KTD-2: once the answer is confirmed the cook can no longer change it. Every cell once, the cell the oracle
+ * names: a confirmed own answer can only be downgraded to a book or a paid site, every other confirmed answer refuses every move
+ * except saying the same answer again (`unchanged`, the same kind and the same citation).
+ */
+describe('evaluateSourceCorrection — a confirmed answer', () => {
+    const CITATION = BOOK.citation;
+    const CONFIRMED_SOURCES: ReadonlyArray<readonly [string, StoredSource]> = [
+        ['confirmed, no answer', stored({ sourceConfirmed: true })],
+        ['confirmed own answer', stored({ sourceConfirmed: true, statementKind: 'authored' })],
+        [
+            'confirmed web copy, same link',
+            stored({ ...WEB_COPY, sourceConfirmed: true, sourceUrl: LINK, sourceAttribution: 'allrecipes.com' }),
+        ],
+        [
+            'confirmed book, same title',
+            stored({
+                sourceType: 'imported_physical',
+                sourceKind: 'book',
+                statementKind: 'source',
+                sourceAttribution: CITATION,
+                sourceConfirmed: true,
+            }),
+        ],
+        [
+            'confirmed paid site, same citation',
+            stored({
+                sourceType: 'imported_paid',
+                sourceKind: 'paid_site',
+                statementKind: 'source',
+                sourceAttribution: PAID_SITE.citation,
+                sourceConfirmed: true,
+            }),
+        ],
+        ['confirmed from another person', stored({ sourceConfirmed: true, statementKind: 'fromPerson' })],
+    ];
+    const MOVES = ['setWeb', 'clear', 'authored', 'setBook', 'setPaidSite', 'fromPerson'] as const;
+    const STATEMENT_OF = {
+        setWeb: STATEMENT,
+        clear: null,
+        authored: AUTHORED,
+        setBook: BOOK,
+        setPaidSite: PAID_SITE,
+        fromPerson: FROM_PERSON,
+    } as const;
+    const TABLE: ReadonlyArray<readonly [string, (typeof MOVES)[number], string]> = [
+        ['confirmed, no answer', 'setWeb', 'apply'],
+        ['confirmed, no answer', 'clear', 'unchanged'],
+        ['confirmed, no answer', 'authored', 'apply'],
+        ['confirmed, no answer', 'setBook', 'apply'],
+        ['confirmed, no answer', 'setPaidSite', 'apply'],
+        ['confirmed, no answer', 'fromPerson', 'apply'],
+        ['confirmed own answer', 'setWeb', 'locked'],
+        ['confirmed own answer', 'clear', 'locked'],
+        ['confirmed own answer', 'authored', 'unchanged'],
+        ['confirmed own answer', 'setBook', 'apply'],
+        ['confirmed own answer', 'setPaidSite', 'apply'],
+        ['confirmed own answer', 'fromPerson', 'locked'],
+        ['confirmed web copy, same link', 'setWeb', 'unchanged'],
+        ['confirmed web copy, same link', 'clear', 'locked'],
+        ['confirmed web copy, same link', 'authored', 'locked'],
+        ['confirmed web copy, same link', 'setBook', 'locked'],
+        ['confirmed web copy, same link', 'setPaidSite', 'locked'],
+        ['confirmed web copy, same link', 'fromPerson', 'locked'],
+        ['confirmed book, same title', 'setWeb', 'locked'],
+        ['confirmed book, same title', 'clear', 'locked'],
+        ['confirmed book, same title', 'authored', 'locked'],
+        ['confirmed book, same title', 'setBook', 'unchanged'],
+        ['confirmed book, same title', 'setPaidSite', 'locked'],
+        ['confirmed book, same title', 'fromPerson', 'locked'],
+        ['confirmed paid site, same citation', 'setWeb', 'locked'],
+        ['confirmed paid site, same citation', 'clear', 'locked'],
+        ['confirmed paid site, same citation', 'authored', 'locked'],
+        ['confirmed paid site, same citation', 'setBook', 'locked'],
+        ['confirmed paid site, same citation', 'setPaidSite', 'unchanged'],
+        ['confirmed paid site, same citation', 'fromPerson', 'locked'],
+        ['confirmed from another person', 'setWeb', 'locked'],
+        ['confirmed from another person', 'clear', 'locked'],
+        ['confirmed from another person', 'authored', 'locked'],
+        ['confirmed from another person', 'setBook', 'locked'],
+        ['confirmed from another person', 'setPaidSite', 'locked'],
+        ['confirmed from another person', 'fromPerson', 'unchanged'],
+    ];
+
+    it('covers every confirmed source × move exactly once', () => {
+        expect(TABLE.map(([name, move]) => `${name}/${move}`).sort()).toEqual(
+            CONFIRMED_SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(),
+        );
+    });
+
+    it.each(TABLE)('%s, %s: %s', (name, move, outcome) => {
+        const source = CONFIRMED_SOURCES.find(([label]) => label === name)?.[1];
+
+        if (source === undefined) {
+            throw new Error(`no source named ${name}`);
+        }
+
+        expect(evaluateSourceCorrection({ statement: STATEMENT_OF[move], stored: source }).kind).toBe(outcome);
+    });
+
+    it('a confirmed own answer downgraded to a book or a paid site is written Private in the same write (AE4)', () => {
+        const own = CONFIRMED_SOURCES[1]?.[1] as StoredSource;
+
+        expect(evaluateSourceCorrection({ statement: BOOK, stored: own })).toMatchObject({
+            kind: 'apply',
+            makePrivate: true,
+        });
+        expect(evaluateSourceCorrection({ statement: PAID_SITE, stored: own })).toMatchObject({
+            kind: 'apply',
+            makePrivate: true,
+        });
+    });
+
+    it('compares a book title exactly as stored: another case or an outer space is a different title (KTD-2)', () => {
+        const book = CONFIRMED_SOURCES[3]?.[1] as StoredSource;
+
+        expect(
+            evaluateSourceCorrection({ statement: { ...BOOK, citation: CITATION.toLowerCase() }, stored: book }).kind,
+        ).toBe('locked');
+        expect(evaluateSourceCorrection({ statement: { ...BOOK, citation: ` ${CITATION}` }, stored: book }).kind).toBe(
+            'locked',
+        );
+        expect(
+            evaluateSourceCorrection({
+                statement: { ...BOOK, citation: CITATION.toLowerCase() },
+                stored: { ...book, sourceConfirmed: false },
+            }).kind,
+        ).toBe('apply');
+    });
+
+    it('a different link or title over a confirmed answer is locked, and over an unconfirmed one it applies', () => {
+        const otherLink = { ...STATEMENT, citation: 'https://www.allrecipes.com/recipe/2/other/' };
+        const otherTitle = { ...BOOK, citation: 'Another Book, p. 1' };
+        const web = CONFIRMED_SOURCES[2]?.[1] as StoredSource;
+        const book = CONFIRMED_SOURCES[3]?.[1] as StoredSource;
+
+        expect(evaluateSourceCorrection({ statement: otherLink, stored: web }).kind).toBe('locked');
+        expect(evaluateSourceCorrection({ statement: otherTitle, stored: book }).kind).toBe('locked');
+        expect(
+            evaluateSourceCorrection({ statement: otherLink, stored: { ...web, sourceConfirmed: false } }).kind,
+        ).toBe('apply');
+    });
+
+    it('restating the same link writes no evidence and no source, confirmed or not (KTD-2)', () => {
+        const web = stored({ ...WEB_COPY, sourceUrl: LINK, sourceAttribution: 'allrecipes.com' });
+
+        expect(evaluateSourceCorrection({ statement: STATEMENT, stored: web })).toEqual({ kind: 'unchanged' });
+        expect(evaluateSourceCorrection({ statement: STATEMENT, stored: { ...web, sourceConfirmed: true } })).toEqual({
+            kind: 'unchanged',
+        });
+    });
+
+    it('a restated link with only a different #fragment is the same link', () => {
+        const web = stored({ ...WEB_COPY, sourceUrl: LINK, sourceAttribution: 'allrecipes.com' });
+
+        expect(
+            evaluateSourceCorrection({ statement: { ...STATEMENT, citation: `${LINK}#ingredients` }, stored: web })
+                .kind,
+        ).toBe('unchanged');
     });
 });

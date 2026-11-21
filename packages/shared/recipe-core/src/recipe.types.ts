@@ -876,6 +876,16 @@ export interface RecipeDetail extends Recipe {
      */
     publicNeedsStatement?: boolean;
     /**
+     * Whether the cook's answer to "where is this recipe from" is confirmed, so only Commise can change it (ADR-0099).
+     * ⛔ OWNER-ONLY and ABSENT for every other viewer; an absent value reads as `false`.
+     */
+    sourceConfirmed?: boolean;
+    /**
+     * Whether a staff correction holds this recipe off Public (ADR-0099). ⛔ OWNER-ONLY and ABSENT for every other viewer; an
+     * absent value reads as `false`.
+     */
+    sourceCorrected?: boolean;
+    /**
      * On a CLONE response only — how many lines KEPT their binding to a food the cloner may not see (plan 002:
      * a clone no longer unbinds them, so each reads `RESOLVED_UNAVAILABLE` with no name). The one-time clone
      * banner's number. Absent on every other read and on a clone with no such line.
@@ -1165,6 +1175,8 @@ export const recipeDetailSchema = recipeSchema.extend({
     statementKind: recipeStatementKindViewSchema.optional(),
     publicNeedsCheck: z.boolean().optional(),
     publicNeedsStatement: z.boolean().optional(),
+    sourceConfirmed: z.boolean().optional(),
+    sourceCorrected: z.boolean().optional(),
     // U13 — see the interface docstring. Non-strict schema: without this line a client would STRIP it.
     clonePrivateFoodLineCount: nonNegativeIntSchema.optional(),
     // ADR-0030 §8 — same stripping hazard as the two lines above; absent = UNKNOWN, zeros = never.

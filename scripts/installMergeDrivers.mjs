@@ -3,15 +3,14 @@
 // regenerate, because either side of derived output is as good as the other. Run by `prepare`.
 import { execFileSync } from 'node:child_process';
 
-// The installer runs under `npm install` on a developer's machine, where git lives in different places (Homebrew,
-// /usr/bin), so it is found on PATH.
 /**
- * Runs `git config` in the current repository.
+ * Runs `git config` in the current repository. Git is found on PATH, because its place differs per machine: Homebrew,
+ * /usr/bin.
  *
  * @param {...string} args - The arguments after `git config`.
  */
 function gitConfig(...args) {
-    // eslint-disable-next-line sonarjs/no-os-command-from-path -- git is found on PATH: its location differs per machine
+    // eslint-disable-next-line sonarjs/no-os-command-from-path -- git's place differs per machine
     execFileSync('git', ['config', ...args], { stdio: 'ignore' });
 }
 

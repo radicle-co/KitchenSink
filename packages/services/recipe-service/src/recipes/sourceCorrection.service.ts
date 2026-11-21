@@ -55,9 +55,6 @@ function citationOf(
     }
 }
 
-/** What the transaction decided, handed out so the log line is written after the commit. */
-type Outcome = SourceCorrectionVerdict;
-
 @Injectable()
 export class SourceCorrectionService {
     public constructor(
@@ -96,7 +93,7 @@ export class SourceCorrectionService {
             return this.refuse(principal, 'forbidden');
         }
 
-        const outcome = await this.dal.transaction(async (tx): Promise<Outcome> => {
+        const outcome = await this.dal.transaction(async (tx): Promise<SourceCorrectionVerdict> => {
             await this.dal.lockAndCountPrivateSlots(tx, ownerAccountId);
 
             const recipe = await this.corrections.lockRecipe(tx, recipeId);

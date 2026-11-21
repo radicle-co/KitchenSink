@@ -20,6 +20,7 @@ import { describe, expect, it } from 'vitest';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const VERCEL_JSON = path.join(repoRoot, 'packages/apps/commise/web/vercel.json');
+const PREVIEW_ENDPOINTS = path.join(repoRoot, 'packages/apps/commise/web/scripts/previewEndpoints.ts');
 
 const SKIP = 0;
 const BUILD = 1;
@@ -62,5 +63,16 @@ describe('vercel.json ignoreCommand', () => {
 
     it('builds when Vercel does not say what the environment is', () => {
         expect(verdict({})).toBe(BUILD);
+    });
+
+    it('names every pull request source that previewEndpoints.ts reads, or a build that needs one would be skipped', () => {
+        const declaration = /PR_NUMBER_SOURCES = \[([^\]]*)\]/u.exec(readFileSync(PREVIEW_ENDPOINTS, 'utf8'));
+        const names = [...(declaration?.[1] ?? '').matchAll(/'([A-Z_]+)'/gu)].map((match) => match[1] ?? '');
+
+        expect(names.length).toBeGreaterThan(0);
+
+        for (const name of names) {
+            expect(ignoreCommand(), `${name} is missing from ignoreCommand`).toContain(name);
+        }
     });
 });

@@ -1142,6 +1142,31 @@ describe('runLaneRun: the preflight of each adapter', () => {
         expect(events).toContain('unlock');
     });
 
+    it('does not preflight the platform that plans no lane, so the other platform still runs', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+            selectFlows: (platform) =>
+                Promise.resolve({ flows: platform === 'ios' ? [] : ['a', 'b'], notes: [], owed: [] }),
+        };
+
+        const code = await runLaneRun(deps, {
+            platforms: ['android', 'ios'],
+            selection: { android: 'all', ios: 'all' },
+        });
+
+        expect(code).toBe(0);
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual(['preflight android']);
+        expect(events.some((event) => event.startsWith('startDevice android'))).toBe(true);
+    });
+
     it('does not preflight a platform that has nothing to run', async () => {
         const { deps, events } = harness({ selectFlows: () => Promise.resolve({ flows: [], notes: [], owed: [] }) });
 

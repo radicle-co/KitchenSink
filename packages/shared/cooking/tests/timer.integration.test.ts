@@ -115,13 +115,13 @@ describe('the timer over real recipe steps', () => {
             limit: TIMER_LIMIT,
             nowMs: 0,
         });
-        send({ kind: 'pause', id: 't1', nowMs: 1_000_000 });
-        send({ kind: 'cancel', id: 't1', nowMs: 1_500_000 });
+        send({ kind: 'pause', id: 't1', run: 1, nowMs: 1_000_000 });
+        send({ kind: 'cancel', id: 't1', run: 1, nowMs: 1_500_000 });
         send({ kind: 'restore', limit: TIMER_LIMIT, nowMs: 1_600_000 });
 
         expect(state.timers[0]).toMatchObject({ kind: 'paused', stepIndex: 1, remainingMs: durationMs - 1_000_000 });
 
-        send({ kind: 'resume', id: 't1', nowMs: 2_000_000 });
+        send({ kind: 'resume', id: 't1', run: 1, nowMs: 2_000_000 });
         send({ kind: 'ring', nowMs: 2_000_000 + durationMs - 1_000_000 - 1 });
         expect(ended).toEqual([]);
 

@@ -70,7 +70,7 @@ describe('All steps over the real reducers', () => {
         const timers = run([
             start('a', 1, MINUTE, 0),
             start('b', 1, 10 * MINUTE, 0),
-            { kind: 'pause', id: 'b', nowMs: 10 * SECOND },
+            { kind: 'pause', id: 'b', run: 1, nowMs: 10 * SECOND },
             start('c', 2, 20 * MINUTE, 0),
             { kind: 'ring', nowMs: 2 * MINUTE },
         ]);

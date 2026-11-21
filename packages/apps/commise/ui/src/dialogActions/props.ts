@@ -16,7 +16,9 @@ import type { ReactNode } from 'react';
  * Tailwind reads a container-query class as a literal, so the web leaf cannot take a free number, and native takes the
  * same type so the two cannot drift. Each value is a measured need, never a default:
  *
- * - `400` — short verb labels ("Keep recipe", "Delete"): `ConfirmDialog`.
+ * - `400` — short verb labels ("Keep recipe", "Delete"): `ConfirmDialog`. With `shares="equal"` (the source statement sheet,
+ *   `statementActions.fit.test.ts`): both label pairs fit one line in a 194 px half (a 400 box less the 12 gap) at +35% and
+ *   +50% label growth, measured with the button label role, but for "Make public" at +50%, 195 px, 1 px over.
  * - `440` — "Cancel" + "Pull 1000 Recipes" (`PullUpdatesDialog`): about 407 px at +35% and about 436 px at +50%, on the same
  *   button geometry as the 600 row. The web dialog's content box is 464 px.
  * - `600` — the longest label pair in the product, "Keep current version" + "Restore this version", at +35% for a

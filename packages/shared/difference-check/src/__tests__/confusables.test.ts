@@ -70,14 +70,18 @@ describe('parseConfusables', () => {
                 continue;
             }
 
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off; an index-bound value can be undefined at runtime
+            const sourceHex = match[1] ?? '';
+            // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off; an index-bound value can be undefined at runtime
+            const targetHex = match[2] ?? '';
             const source = String.fromCodePoint(
-                ...match[1]
+                ...sourceHex
                     .trim()
                     .split(' ')
                     .map((hex) => Number.parseInt(hex, 16)),
             );
             const target = String.fromCodePoint(
-                ...match[2]
+                ...targetHex
                     .trim()
                     .split(' ')
                     .map((hex) => Number.parseInt(hex, 16)),
@@ -106,6 +110,7 @@ describe('the generated module', () => {
         ['1', 'l'],
         ['m', 'rn'],
     ])('maps %j to %j, the pair that makes a skeleton fold before the number fold wrong', (from, to) => {
-        expect(CONFUSABLES_V1[from].toLowerCase()).toBe(to);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off; an index-bound value can be undefined at runtime
+        expect(CONFUSABLES_V1[from]?.toLowerCase()).toBe(to);
     });
 });

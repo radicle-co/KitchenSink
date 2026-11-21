@@ -41,7 +41,8 @@ export function parseConfusables(text: string): ConfusablesMap {
             continue;
         }
 
-        entries[charactersOf(match[1])] = charactersOf(match[2]);
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off; an index-bound value can be undefined at runtime
+        entries[charactersOf(match[1] ?? '')] = charactersOf(match[2] ?? '');
     }
 
     return entries;

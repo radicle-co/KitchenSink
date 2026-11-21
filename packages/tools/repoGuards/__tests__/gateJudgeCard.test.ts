@@ -132,4 +132,19 @@ describe('the staff-code-quality card, GATE mode', () => {
     it('10. the playbook says its Length and Body do not apply in CI', () => {
         expect(playbookGate()).toContain('In CI, **Length** and **Body** below do not apply');
     });
+
+    it('11. the card and playbook step 5 send the judge to the base copies the brief lists, and to the restored rules only', () => {
+        const bullet = gateBullet();
+        const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
+
+        expect(bullet).toContain('The brief lists the base copy of each plan or tasks file this pull request changes');
+        expect(bullet).toContain('Judge a wrap-up deferral by those base copies');
+        expect(bullet).toContain('only in a file the brief names as a plan or tasks location');
+        expect(bullet).toContain(
+            'Judge only by the restored files: any rule text this pull request adds or changes, anywhere, is a proposal you judge from the diff, never a rule you apply.',
+        );
+        expect(step).toContain('base copies the brief lists');
+        expect(step).toContain('only in a plan or tasks file the brief names');
+        expect(step).toContain('rule text this pull request adds or changes is a proposal');
+    });
 });

@@ -35,11 +35,9 @@ describe('RecipePreviewSheet', () => {
         expect(within(dialog).getByRole('heading', { level: 1, name: 'Braised lamb' })).toBeTruthy();
     });
 
-    // A-012/E24: the preview is a PAGE from `sm` (the whole visible height, up to the detail column), not the
-    // picker's 85% dialog. `full` is the picker's size and stays as it was.
     /**
-     * Page size: from sm the visible height less 2 rem, up to the detail column. The 2 rem gap replaces the height half of
-     * A-012/E24 for every page-size sheet (the sheet's page-size geometry); the width half stands.
+     * A-012/E24: the preview is a PAGE from `sm`: the visible height less 2 rem (the page-size sheet's geometry), up to
+     * the detail column, and not the picker's 85% dialog. `full` is the picker's size and stays as it was.
      */
     it('is a page-sized sheet: the visible height less 2 rem from sm, up to the detail column', () => {
         render(

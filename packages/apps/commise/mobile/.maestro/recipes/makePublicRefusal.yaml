@@ -1,7 +1,7 @@
 appId: ${APP_ID}
 ---
 # Why a recipe cannot be public, on a device (board P6, plan makePublicRefusalNotice, AE1). A pasted recipe is published
-# privately with no answer, so the recipe page owes a statement. The cook opens the page's ⋯, chooses Make public, confirms,
+# privately with no answer, so the recipe page owes a statement. The cook opens the page's ⋯, chooses Make public (the source sheet opens at once),
 # answers "From a web page" with its link, and the recipe stays private. The page then says why in one standing line, and the
 # ⋯ no longer offers Make public. Mobile mirror of the web Playwright case `makePublicRefusalNotice.spec.ts`.
 #
@@ -48,8 +48,11 @@ appId: ${APP_ID}
 - extendedWaitUntil:
       visible: 'Where is this recipe from?'
       timeout: 20000
+# Publish privately is a choice, and Publish is the button: no answer is picked until the cook picks one.
+- tapOn: 'Publish privately'
 - tapOn:
-      text: 'Publish privately'
+      text: 'Publish'
+      below: 'Where is this recipe from?'
       # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
       waitToSettleTimeoutMs: 1000
 - extendedWaitUntil:
@@ -78,17 +81,15 @@ appId: ${APP_ID}
           TIMEOUT: 20000
 - tapOn: 'More actions for .*'
 - tapOn: 'Make public'
-- assertVisible: 'Make this recipe public?'
-- tapOn:
-      text: 'Make public'
-      below: 'Make this recipe public?'
+# The page owes a statement, so Make public opens the source sheet at once, with no confirm first.
 - extendedWaitUntil:
       visible: 'Where is this recipe from?'
       timeout: 20000
 - tapOn: 'From a web page'
 - tapOn: 'Link to the page'
 - inputText: 'https://www.allrecipes.com/recipe/1/soup/'
-- runFlow: common/closeEditorKeyboard.yaml
+# The keyboard is closed with a tap on the sheet's own heading: closeEditorKeyboard.yaml is for the editor page.
+- tapOn: 'Where is this recipe from?'
 - tapOn:
       text: 'Make public'
       below: 'Where is this recipe from?'

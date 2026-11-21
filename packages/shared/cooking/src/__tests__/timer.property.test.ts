@@ -70,9 +70,19 @@ const stepsArb = fc.array(
     { maxLength: 40 },
 );
 
-/** Commands as a caller sends them: every start gets a fresh id, and the rest name a timer started so far. */
-function commandFor(template: Template, startedSoFar: number, nowMs: number, limit: number): TimerCommand {
+/**
+ * Commands as a caller sends them: every start gets a fresh id, and the rest name a timer started so far and the run
+ * that timer is in now, as a row on screen would (a timer that is gone, or never started, is named at run 1).
+ */
+function commandFor(
+    template: Template,
+    startedSoFar: number,
+    nowMs: number,
+    limit: number,
+    state: TimerState,
+): TimerCommand {
     const pickedId = (pick: number) => `t${pick % (startedSoFar + 1)}`;
+    const runOf = (id: string) => state.timers.find((t) => t.id === id)?.run ?? state.undo?.run ?? 1;
 
     switch (template.kind) {
         case 'start':
@@ -82,7 +92,7 @@ function commandFor(template: Template, startedSoFar: number, nowMs: number, lim
                 recipeId: 'r',
                 stepIndex: template.step,
                 stepDigest: `s1:${String(template.step).padStart(8, '0')}`,
-                name: undefined,
+                label: undefined,
                 durationMs: template.durationMs,
                 limit,
                 nowMs,
@@ -102,9 +112,17 @@ function commandFor(template: Template, startedSoFar: number, nowMs: number, lim
                 nowMs,
             };
         case 'addTime':
-            return { kind: 'addTime', id: pickedId(template.pick), addMs: template.addMs, nowMs };
+            return {
+                kind: 'addTime',
+                id: pickedId(template.pick),
+                run: runOf(pickedId(template.pick)),
+                addMs: template.addMs,
+                nowMs,
+            };
+        case 'discardUndo':
+            return { kind: 'discardUndo', id: pickedId(template.pick), nowMs };
         default:
-            return { kind: template.kind, id: pickedId(template.pick), nowMs };
+            return { kind: template.kind, id: pickedId(template.pick), run: runOf(pickedId(template.pick)), nowMs };
     }
 }
 
@@ -125,7 +143,7 @@ function trace(steps: readonly Step[], limit: number): readonly Trace[] {
 
     for (const step of steps) {
         nowMs += step.advanceMs;
-        const command = commandFor(step.template, startedSoFar, nowMs, limit);
+        const command = commandFor(step.template, startedSoFar, nowMs, limit, state);
         let next = { state, events: [] as readonly TimerEvent[] };
 
         try {
@@ -159,16 +177,18 @@ describe('the timer model over any command sequence', () => {
             fc.property(stepsWithLimit, ([steps, limit]) => {
                 const seen = new Set<string>();
 
-                for (const { before, after, events } of trace(steps, limit)) {
+                for (const { before, events, nowMs } of trace(steps, limit)) {
                     for (const event of events) {
                         const key = `${event.id}:${event.run}`;
 
                         expect(seen.has(key)).toBe(false);
                         seen.add(key);
-                        expect(after.timers.find((t) => t.id === event.id)).toMatchObject({
-                            kind: 'ringing',
-                            run: event.run,
-                        });
+                        // TEST-CHANGE (S3a.U3 C1 item 3, AR2; qse 0075): a command settles first, so the timer
+                        // that rang may be stopped or restarted by that same command. The check reads the state
+                        // before the command: the timer was running in that run and its end had passed.
+                        const was = holdersOf(before).find((t) => t.id === event.id);
+
+                        expect(was?.kind === 'running' && was.run === event.run && was.endsAt <= nowMs).toBe(true);
                         expect(before.timers.find((t) => t.id === event.id)?.kind).not.toBe('ringing');
                     }
                 }

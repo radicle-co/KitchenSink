@@ -21,6 +21,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { MODAL_CLOSE_EVENT } from '../../testing/modalCloseEvent.native.js';
 import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { WINDOW_LAYERS } from '../../overlay/windowLayers.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.native.js';
 import { SHEET_EXIT_FALLBACK_MS } from '../sheetEngineLifecycle.js';
@@ -227,6 +228,15 @@ describe('the props the sheet hands Tamagui’s Sheet', () => {
         expect(engine().disableDrag).toBe(true);
         expect(engine().dismissOnSnapToBottom).toBeUndefined();
         expect(engine().moveOnKeyboardChange).toBe(false);
+    });
+
+    // Tamagui's frame defaults to a zIndex above every sibling, and a zIndex beats sibling order, so the
+    // snackbar's outlet, the window's last child, drew under it. The engine is given WINDOW_LAYERS.sheet
+    // (windowLayers.ts), so the snackbar's layer is above a number we set.
+    it('puts the frame in the house sheet layer, below the snackbar', () => {
+        renderWithTamagui(<Sheet {...propsFor()} />, 'light', 2);
+
+        expect(engine().zIndex).toBe(WINDOW_LAYERS.sheet);
     });
 
     it('draws the scrim in the scrim role at full strength, since the engine’s skin dims its overlay again', () => {

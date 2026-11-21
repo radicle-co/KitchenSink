@@ -12,18 +12,19 @@ import type { FC } from 'react';
 import type { RecipeVisibilityNoticeProps } from './RecipeVisibilityNotice.js';
 
 /** The owner's visibility notice (native). */
-export const RecipeVisibilityNotice: FC<RecipeVisibilityNoticeProps> = ({ notice, announcement }) => (
-    <>
-        <LiveRegion politeness="assertive" typeRole="meta" tone="dangerText">
-            {notice?.kind === 'moment' ? notice.text : ''}
-        </LiveRegion>
-        {notice?.kind === 'standing' ? (
-            <Text typeRole="meta" color="$inkMuted">
-                {notice.text}
-            </Text>
-        ) : null}
-        <LiveRegion politeness="polite" visuallyHidden>
-            {announcement ?? ''}
-        </LiveRegion>
-    </>
-);
+export const RecipeVisibilityNotice: FC<RecipeVisibilityNoticeProps> = ({ owner, notice, announcement }) =>
+    owner ? (
+        <>
+            <LiveRegion politeness="assertive" typeRole="meta" tone="dangerText">
+                {notice?.kind === 'moment' ? notice.text : ''}
+            </LiveRegion>
+            {notice?.kind === 'standing' ? (
+                <Text typeRole="meta" color="$inkMuted">
+                    {notice.text}
+                </Text>
+            ) : null}
+            <LiveRegion politeness="polite" visuallyHidden>
+                {announcement ?? ''}
+            </LiveRegion>
+        </>
+    ) : null;

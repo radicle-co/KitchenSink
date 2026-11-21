@@ -11,6 +11,7 @@ describe('RecipeVisibilityNotice (native)', () => {
     it('draws a standing line, plain text', () => {
         render(
             <RecipeVisibilityNotice
+                owner
                 notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
                 announcement={undefined}
             />,
@@ -20,7 +21,13 @@ describe('RecipeVisibilityNotice (native)', () => {
     });
 
     it('draws a moment exactly once, never also as the standing line', () => {
-        render(<RecipeVisibilityNotice notice={{ kind: 'moment', text: 'Could not save' }} announcement={undefined} />);
+        render(
+            <RecipeVisibilityNotice
+                owner
+                notice={{ kind: 'moment', text: 'Could not save' }}
+                announcement={undefined}
+            />,
+        );
 
         expect(screen.getAllByText('Could not save')).toHaveLength(1);
     });
@@ -28,6 +35,7 @@ describe('RecipeVisibilityNotice (native)', () => {
     it('draws nothing once the notice is gone', () => {
         const { rerender } = render(
             <RecipeVisibilityNotice
+                owner
                 notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
                 announcement={undefined}
             />,
@@ -35,8 +43,21 @@ describe('RecipeVisibilityNotice (native)', () => {
 
         expect(screen.getByText('Stays private')).toBeDefined();
 
-        rerender(<RecipeVisibilityNotice notice={undefined} announcement={undefined} />);
+        rerender(<RecipeVisibilityNotice owner notice={undefined} announcement={undefined} />);
 
         expect(screen.queryByText('Stays private')).toBeNull();
+    });
+
+    it('mounts nothing for a viewer who is not the owner, whatever the notice says', () => {
+        render(
+            <RecipeVisibilityNotice
+                owner={false}
+                notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
+                announcement="Now private"
+            />,
+        );
+
+        expect(screen.queryByText('Stays private')).toBeNull();
+        expect(screen.queryByText('Now private')).toBeNull();
     });
 });

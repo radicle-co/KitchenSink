@@ -216,9 +216,11 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                         </div>
                     )}
                     {/* The owner's visibility notice (§6.4, board P6). */}
-                    {owner && (
-                        <RecipeVisibilityNotice notice={visibilityNotice} announcement={visibilityAnnouncement} />
-                    )}
+                    <RecipeVisibilityNotice
+                        owner={owner}
+                        notice={visibilityNotice}
+                        announcement={visibilityAnnouncement}
+                    />
                     {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}
                     <RecipeSourceLine
                         {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}

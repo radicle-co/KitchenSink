@@ -6,11 +6,11 @@
     "coverage": {
         "components": 211,
         "implementations": 357,
-        "props": 2461,
+        "props": 2463,
         "documentedComponents": 211,
         "implementationsWithModuleDoc": 357,
         "implementationsWithComponentDoc": 246,
-        "documentedProps": 1891,
+        "documentedProps": 1893,
         "classifiedComponents": 189,
         "componentsWithPatternTag": 101,
         "crossPlatformComponents": 146
@@ -10065,7 +10065,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe\nstays private (board P6), as three siblings. A moment is the assertive region, mounted empty and filled one render\nlater by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,\nmounted empty, carries the one announcement (KTD-6, designer DN-1).\n\nA presentational component: it decides nothing. The page renders it once, for the owner only.",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe\nstays private (board P6), as three siblings. A moment is the assertive region, mounted empty and filled one render\nlater by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,\nmounted empty, carries the one announcement (KTD-6, designer DN-1).\n\nA presentational component: it decides nothing. The page renders it once; for a viewer who is not the owner it mounts nothing.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10097,6 +10097,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        },
+                        {
+                            "name": "owner",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Only the owner sees the slot: for anyone else nothing mounts, not even the live regions.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
                         }
                     ],
@@ -10144,6 +10153,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        },
+                        {
+                            "name": "owner",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Only the owner sees the slot: for anyone else nothing mounts, not even the live regions.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
                         }
                     ],

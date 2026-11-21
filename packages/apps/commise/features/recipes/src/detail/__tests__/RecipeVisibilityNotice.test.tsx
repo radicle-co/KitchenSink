@@ -10,7 +10,13 @@ import { RecipeVisibilityNotice } from '../RecipeVisibilityNotice.js';
 
 describe('RecipeVisibilityNotice (web)', () => {
     it('puts a moment in the assertive region and draws no standing line', () => {
-        render(<RecipeVisibilityNotice notice={{ kind: 'moment', text: 'Could not save' }} announcement={undefined} />);
+        render(
+            <RecipeVisibilityNotice
+                owner
+                notice={{ kind: 'moment', text: 'Could not save' }}
+                announcement={undefined}
+            />,
+        );
 
         expect(screen.getByRole('alert').textContent).toBe('Could not save');
         // Drawn once: never also as the muted standing line.
@@ -20,6 +26,7 @@ describe('RecipeVisibilityNotice (web)', () => {
     it('draws a standing line outside every live region, and leaves the assertive region empty', () => {
         render(
             <RecipeVisibilityNotice
+                owner
                 notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
                 announcement={undefined}
             />,
@@ -32,12 +39,24 @@ describe('RecipeVisibilityNotice (web)', () => {
     });
 
     it('says the announcement once in the polite region, and nothing without one', () => {
-        const { rerender } = render(<RecipeVisibilityNotice notice={undefined} announcement="Now private" />);
+        const { rerender } = render(<RecipeVisibilityNotice owner notice={undefined} announcement="Now private" />);
 
         expect(screen.getByRole('status').textContent).toBe('Now private');
 
-        rerender(<RecipeVisibilityNotice notice={undefined} announcement={undefined} />);
+        rerender(<RecipeVisibilityNotice owner notice={undefined} announcement={undefined} />);
 
         expect(screen.getByRole('status').textContent).toBe('');
+    });
+
+    it('mounts nothing for a viewer who is not the owner: no line, no live region', () => {
+        const { container } = render(
+            <RecipeVisibilityNotice
+                owner={false}
+                notice={{ kind: 'standing', reason: 'policy.book', text: 'Stays private' }}
+                announcement="Now private"
+            />,
+        );
+
+        expect(container.innerHTML).toBe('');
     });
 });

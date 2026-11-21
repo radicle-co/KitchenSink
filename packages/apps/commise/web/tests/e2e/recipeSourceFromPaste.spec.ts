@@ -90,7 +90,7 @@ test.describe('a pasted web link sets the recipe’s Source (ADR-0089)', () => {
             'true',
         );
         await expect(
-            photosAndPublish.getByText('This recipe was saved with a source, so it stays private.'),
+            photosAndPublish.getByText('This recipe stays private because it’s from a web page.'),
         ).toBeVisible();
         await expect(photosAndPublish.getByRole('radio', { name: /^Private/u })).toBeChecked();
         await expect(page.getByRole('textbox', { name: /^Step 1$/u })).toHaveValue('Simmer the stock.');
@@ -331,7 +331,7 @@ test.describe('a pasted recipe asks where it is from before it goes public (ADR-
  * never goes into the emptied link field, which would raise a keyboard over the note on a phone.
  */
 test.describe('removing a saved source (ADR-0095)', () => {
-    const HELD_NOTE = 'This recipe was saved with a source, so it stays private.';
+    const HELD_NOTE = 'This recipe stays private because it was saved with a source.';
     const WEB_ID = 'ec000000-0000-4000-8000-0000000000f4';
 
     test('says Source removed., keeps Public unavailable with the one note, and moves focus to Who can see it', async ({
@@ -354,15 +354,19 @@ test.describe('removing a saved source (ADR-0095)', () => {
         await openRecipeEditor(page, WEB_ID);
         const section = editorSection(page, 'Photos & publish');
 
-        // Before: the one note, on a Public card that is unavailable.
-        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        // Before: the one note (a saved web copy reads "from a web page"), on a Public card that is unavailable.
+        await expect(section.getByRole('radio', { name: /^Public/u })).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAccessibleDescription(
+            'This recipe stays private because it’s from a web page.',
+        );
         await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
 
         await section.getByRole('button', { name: 'Remove source' }).click();
 
         await expect(page.getByText('Source removed.')).toBeVisible();
-        // After: the same note, the same unavailable card.
-        await expect(section.getByText(HELD_NOTE)).toBeVisible();
+        // After: the source is held by what was saved, so the note says so; the same unavailable card.
+        await expect(section.getByRole('radio', { name: /^Public/u })).toBeVisible();
+        await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAccessibleDescription(HELD_NOTE);
         await expect(section.getByRole('radio', { name: /^Public/u })).toHaveAttribute('aria-disabled', 'true');
         await expect(section.getByRole('group', { name: 'Who can see it' })).toBeFocused();
         await expect(section.getByRole('textbox', { name: 'Source' })).not.toBeFocused();

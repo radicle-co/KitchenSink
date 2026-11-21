@@ -48,13 +48,6 @@ export interface KeptSessionStoreDeps {
     readonly now: () => string;
     readonly report: ErrorReporter;
     readonly warn: (message: string) => void;
-    /**
-     * Whether another tab of this cook is alive, asked once at hydrate. No lock that tracks open tabs exists yet and
-     * no app supplies this, so it reads false and a reload settles every timer that ended while away as ended-away,
-     * even one that still rings in another tab. Safe only while no build that can start a timer reaches a cook: the
-     * web lock that fills this in must merge before such a build ships.
-     */
-    readonly heldElsewhere?: (subject: string) => Promise<boolean>;
 }
 
 interface StoreState {
@@ -201,7 +194,8 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                     type: 'timer',
                     command: {
                         kind: 'settleAway',
-                        heldElsewhere: (await deps.heldElsewhere?.(subject)) ?? false,
+                        // No lock that tracks open tabs exists yet, so no tab is known to be alive: see ADR-0099.
+                        heldElsewhere: false,
                         nowMs: Date.parse(now),
                     },
                     undo: undefined,

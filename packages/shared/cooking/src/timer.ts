@@ -170,8 +170,7 @@ export type TimerCommand =
            */
           readonly kind: 'settleAway';
           /**
-           * Whether another tab of this cook is alive: a due timer rings there, here it only shows. The store passes
-           * false until a lock that tracks open tabs exists, so a reload settles every ended timer as ended-away.
+           * True when another tab of this cook is alive: a due timer rings there, here it only shows.
            */
           readonly heldElsewhere: boolean;
           readonly nowMs: number;
@@ -274,7 +273,7 @@ const byCodeUnits = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 
 const alarmOrder = (a: { readonly at: number; readonly id: string }, b: { readonly at: number; readonly id: string }) =>
     a.at - b.at || byCodeUnits(a.id, b.id);
 
-/** The ringing form of a timer at `endedAt`. Only `ring` and `restore` call it, and each raises one `ended` per timer. */
+/** The ringing form of a timer at `endedAt`. It raises nothing: the caller decides whether an `ended` is told. */
 function toRinging(timer: HeldTimer, endedAt: number): RingingTimer {
     return { ...baseOf(timer), kind: 'ringing', endedAt };
 }
@@ -593,14 +592,17 @@ function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 
 /**
  * Apply one command. Pure: the state given is never changed.
  *
- * Every command settles the list first: `ring` runs at the command's own instant, and the command then acts on the
- * settled state. So a running timer at or past its end is already ringing when a +5, a pause or a stop reaches it, the
- * edge into ringing is made in one place, and the events are the ring's followed by the command's. `restore` rings the
- * held timer itself, because the held timer is not in the list.
+ * Every command settles the list first, except `ring`, which is the settle itself, and `settleAway`, which settles
+ * what ended while the cook was away and raises no event, because nothing may sound for a timer the cook did not hear.
+ * Any other command runs at its own instant and then acts on the settled state. So a running timer at or past its end
+ * is already ringing when a +5, a pause or a stop reaches it, the edge into ringing is made in one place, and the
+ * events are the ring's followed by the command's. `restore` rings the held timer itself, because the held timer is
+ * not in the list.
  *
  * A command that names another timer or another run, or does not apply to the state, changes nothing beyond that
- * settle and never throws (a double tap, a late source). A `start` or a `restore` at the limit gives the settled state
- * with `refused: 'limit'`. Only a value no timer can have is refused with a typed error.
+ * settle and never throws (a double tap, a late source). Every command that admits a timer to the list (`start`,
+ * `restore`, `readmit`) gives the settled state with `refused: 'limit'` at the limit. Only a value no timer can have
+ * is refused with a typed error.
  *
  * @param state - The timer state now.
  * @param command - What happened, with the clock it happened at.

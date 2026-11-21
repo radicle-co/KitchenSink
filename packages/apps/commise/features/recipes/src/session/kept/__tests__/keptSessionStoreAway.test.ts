@@ -37,7 +37,6 @@ const stored = (doc: KeptDocument): Record<string, string> => ({ [KEY]: serializ
 function setup(
     initial: Record<string, string>,
     over: {
-        readonly heldElsewhere?: (subject: string) => Promise<boolean>;
         readonly locks?: ExclusiveRunner | null;
     } = {},
 ) {
@@ -49,7 +48,6 @@ function setup(
         now: () => iso(NOW),
         report: vi.fn(),
         warn: vi.fn(),
-        ...(over.heldElsewhere === undefined ? {} : { heldElsewhere: over.heldElsewhere }),
     });
 
     return { ...fake, store };
@@ -88,30 +86,6 @@ describe('hydrate settles what ended while away', () => {
         await store.scope('A');
 
         expect(calls.write).toBe(0);
-    });
-
-    it('another tab of this cook alive (as the port reports): due timer left ringing, ringing one stays', async () => {
-        const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), {
-            heldElsewhere: () => Promise.resolve(true),
-        });
-
-        await store.scope('A');
-
-        expect(writtenDocument(data.get(KEY)).timers.map((t) => t.state)).toEqual([
-            'ringing',
-            'ringing',
-            'running',
-            'paused',
-        ]);
-    });
-
-    it('asks whether another tab of this cook is alive for the cook being scoped', async () => {
-        const heldElsewhere = vi.fn(() => Promise.resolve(false));
-        const { store } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere });
-
-        await store.scope('A');
-
-        expect(heldElsewhere).toHaveBeenCalledWith('A');
     });
 
     it('with no locks, the view settles in memory and nothing is written', async () => {

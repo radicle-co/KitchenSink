@@ -43,3 +43,8 @@ it cannot tell an offered timer from an added one.
 - The golden literal of the record and the map of where each field comes from move to version 2, so a field added later
   fails a test until someone decides its source.
 - A timer started before this change cannot be read. This costs nothing today, because no screen starts a timer yet.
+- Open tabs are not tracked yet (recorded 2026-11-21). A reload settles every timer that ended while away as
+  ended-away, even one that still rings in another open tab of the same cook, because nothing says that tab is alive.
+  This costs nothing today, because no screen starts a timer yet. The settle rule in `@kitchensink/cooking` already
+  takes a `heldElsewhere` flag and keeps its tested behaviour. A web lock that tracks open tabs must merge, and the
+  store must pass its answer, before any web build that can start a timer reaches a cook.

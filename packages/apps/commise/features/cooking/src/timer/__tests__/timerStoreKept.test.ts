@@ -67,16 +67,17 @@ function makeDevice(initial: Record<string, string> = {}) {
         return run;
     };
 
-    const tab = async (
-        heldElsewhere?: () => Promise<boolean>,
-    ): Promise<{ readonly kept: KeptSessionStore; readonly timers: TimerStore; readonly ended: TimerEvent[] }> => {
+    const tab = async (): Promise<{
+        readonly kept: KeptSessionStore;
+        readonly timers: TimerStore;
+        readonly ended: TimerEvent[];
+    }> => {
         const kept = createKeptSessionStore({
             port,
             exclusiveOf: () => locks,
             now: () => new Date(Date.now()).toISOString(),
             report: vi.fn(),
             warn: vi.fn(),
-            ...(heldElsewhere === undefined ? {} : { heldElsewhere }),
         });
         const timers = createTimerStore(undefined, kept);
         const ended: TimerEvent[] = [];
@@ -265,8 +266,14 @@ describe('the name of an offered timer, across a reload', () => {
     });
 });
 
-describe('a reload beside a tab of this cook that is alive', () => {
-    it('shows the ringing timer and tells nothing: a tab that loads must not sound a ring it did not hear', async () => {
+/**
+ * REWRITTEN: this case used to pass a port that said another tab was alive, and expected the timer to stay ringing. The
+ * store has no such port (no lock tracks open tabs yet, see ADR-0099), so the case now pins what a reload does today:
+ * it settles a timer that rang as ended-away, and tells nothing, because a tab that loads must not sound a ring it did
+ * not hear.
+ */
+describe('a reload beside a tab of this cook that is open', () => {
+    it('settles the ringing timer as ended-away and tells nothing', async () => {
         const device = makeDevice();
         const first = await device.tab();
 
@@ -275,9 +282,9 @@ describe('a reload beside a tab of this cook that is alive', () => {
         await vi.advanceTimersByTimeAsync(5 * MINUTE);
         await settle();
 
-        const reloaded = await device.tab(() => Promise.resolve(true));
+        const reloaded = await device.tab();
 
-        expect(reloaded.timers.getSnapshot().timers[0]?.kind).toBe('ringing');
+        expect(reloaded.timers.getSnapshot().timers[0]?.kind).toBe('endedAway');
         expect(reloaded.ended).toEqual([]);
     });
 });
@@ -448,10 +455,15 @@ describe('clear', () => {
         expect(stored(device).timers).toHaveLength(1);
     });
 
-    it("reads the next cook's first record as a reload: a timer it shows ringing tells nothing", async () => {
+    /**
+     * REWRITTEN: this case used to say another tab was alive, so the record's ringing timer stayed ringing. The store
+     * has no such port (no lock tracks open tabs yet, see ADR-0099), so the record's ringing timer is now settled as
+     * ended-away. What the case pins is unchanged: the next cook's first record is read as a reload, which tells
+     * nothing.
+     */
+    it("reads the next cook's first record as a reload: a timer it settles tells nothing", async () => {
         const device = makeDevice();
-        // A tab of this cook is alive, so the record's ringing timer stays ringing here (it is not settled away).
-        const { kept, timers, ended } = await device.tab(() => Promise.resolve(true));
+        const { kept, timers, ended } = await device.tab();
 
         timers.start({ ...STEP, label: undefined, durationMs: 5 * MINUTE });
         await settle();
@@ -467,7 +479,7 @@ describe('clear', () => {
         await kept.scope('B');
         await settle();
 
-        expect(timers.getSnapshot().timers[0]?.kind).toBe('ringing');
+        expect(timers.getSnapshot().timers[0]?.kind).toBe('endedAway');
         expect(ended).toHaveLength(1);
     });
 });

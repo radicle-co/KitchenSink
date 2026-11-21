@@ -26,7 +26,6 @@ what 021 left to the plan, plus the gaps the 2026-11-09 staff runs found:
 - how the open-to-web rule runs while three of its inputs do not exist yet
 - the public address, app links and the app's public view
 - per-address rate limits, caching and purge on the two systems that serve the page
-- where an author's account standing comes from
 
 Where 003A and 021 disagree, 021 wins, except where this spec records a sequencing decision and says so.
 
@@ -42,7 +41,7 @@ Where 003A and 021 disagree, 021 wins, except where this spec records a sequenci
 | [ADR-0020](../../docs/architecture/decisions/0020-cloudfront-edge-and-internal-alb-hostnames.md)                    | **Governs, amended by this feature's ADR.** Prod-only CloudFront. A URL-only recipe behaviour is "a NEW decision". 003A adds a public path that passes through with caching disabled                          |
 | [ADR-0047](../../docs/architecture/decisions/0047-shared-cors-policy.md)                                            | **Governs, unchanged.** Every adopter stays bearer-only. No browser calls the public endpoint                                                                                                                 |
 | [ADR-0040](../../docs/architecture/decisions/0040-test-principals-containment-and-purge.md)                         | **Governs, amended.** A signed-out read must not hold catalog roots, or a stranger can make a test principal's root un-purgeable                                                                              |
-| [ADR-0081](../../docs/architecture/decisions/0081-account-suspension-is-enforced-from-a-signed-token-mark.md)       | **Governs.** Suspension travels in each user's own token, so recipe-service cannot see an author's standing on an anonymous read. 003A needs its own source for it (FR-012)                                   |
+| [ADR-0081](../../docs/architecture/decisions/0081-account-suspension-is-enforced-from-a-signed-token-mark.md)       | **Governs, unchanged.** Suspension travels in each user's own token. The public read reads no author's standing (FR-012).                                                                                     |
 | [ADR-0029](../../docs/architecture/decisions/0029-authored-foods-substances-only.md) §4 and owner ruling 2026-11-08 | **Relied on.** A public published recipe can hold no private food (`publicFoodsPolicy.ts` and a database trigger). That is what makes a food read with no user safe                                           |
 | ADR-0003, ADR-0004, ADR-0033, ADR-0060                                                                              | **Constrain, not contradicted.** No new ALB rule or ALB. No new VPC Lambda or NAT consumer. Works on `pr-{N}` previews. Deployed tests run only while the sandbox is up                                       |
 | [ADR-0056](../../docs/architecture/decisions/0056-native-navigation-react-navigation-7.md)                          | **Governs.** Native links go through React Navigation 7 once signed in. The signed-out public view is an auth gate state, not a route                                                                         |
@@ -60,7 +59,6 @@ ingredient as "not loaded".
 - one public, read-only recipe endpoint that answers the same bytes to everyone
 - a way for that endpoint to get food names and nutrition with no user credential, which can never return a private
   food
-- a way for that endpoint to learn whether the recipe's author is active, which fails closed
 - the signed-out web page at a public address, rendered on the server, with no cookie
 - the app's read-only public view, opened by a tapped link while signed out
 - the prompts to sign up. They appear only after a reader taps an account action
@@ -76,7 +74,7 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 
 - It turns 021's open-to-web rule into one Specification that takes each of its inputs as a required, typed reading.
   An input that has no producer yet reads `unknown`, and `unknown` is closed.
-- It serves one public form, the full recipe, and the one not-available answer (`021-FR-013`). _(Amended
+- It serves one public form, the full recipe, and the one not-available answer (`021-FR-013`), except a retired id (FR-014). _(Amended
   2026-11-15.)_ The facts card form is withdrawn. A Commise-written version (`021-FR-003`) is served as a full recipe.
 - It reads food names and nutrition for a public recipe without any user's credential.
 - It opens a shared link in the app on a phone with the app. Without the app, the link opens on the web
@@ -111,7 +109,6 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 | **Reading**            | One input to the open-to-web rule, as its producer reports it: `open`, `closed`, or `unknown`. A feature that is not built yet produces `unknown` |
 | **Ship dark**          | The state in which every reading that 016 and 020 own is `unknown`, so every public read answers not available                                    |
 | **Public view**        | The app's read-only screen for one public recipe, reached by a tapped link while signed out (`021-FR-016`)                                        |
-| **Author standing**    | Whether a recipe's owner is active, suspended, closed or erased, as known to the service that serves the public read                              |
 | **Public-reader call** | recipe-service asks food for names and nutrition for no user. The call sees catalog and promoted foods only                                       |
 
 ## User Scenarios & Testing _(mandatory)_
@@ -140,8 +137,8 @@ the whole recipe. The response sets no cookie. The same request with a credentia
    (`021-FR-003`).
 3. **Given** the same address, **When** it is requested with and without a credential, **Then** both responses are byte
    for byte the same, and neither sets a cookie (`021-FR-012`, `021-FR-075`, `021-FR-101`).
-4. **Given** the address has a share mark or any other query string, **When** it is opened, **Then** the page is the same
-   and the cache entry is the same (`021-FR-062`).
+4. **Given** the address has a share mark or a valid campaign parameter, **When** it is opened, **Then** the page is the same
+   bytes, held in its own cache entry for that query string. **Given** any other query parameter, **Then** it redirects (`308`) to the address without it (FR-015, `021-FR-062`, `023-FR-002`).
 5. **Given** the address has the wrong slug, **When** the recipe is open, **Then** it redirects permanently to the right
    slug. **When** the recipe is not open, **Then** it answers not available, and the title is never revealed (FR-014).
 6. **Given** an open full recipe whose food data is partly unavailable at that moment, **When** it is opened, **Then**
@@ -181,31 +178,31 @@ Close it. Sign-in shows. Repeat signed in: the recipe screen shows.
 
 ### User Story 3 - A signed-out reader never sees what is not public (Priority: P1)
 
-A stranger tries addresses: a private recipe, a draft, a deleted recipe, a recipe of a suspended cook, a recipe in
+A stranger tries addresses: a private recipe, a draft, a deleted recipe, a recipe in
 review, a random id. Every one gives the same answer, which never says why. No public page carries anything about the
 cook beyond their public profile.
 
 **Why this priority**: A leak here is a privacy breach on the open web, and the cache spreads it.
 
 **Independent Test**: For each closed case, request the public address and the public endpoint. Each answer is the
-same not-available page and the same `404` body. No response carries an owner id, a private food, a rater or a version
+same not-available page and the same `404` body, except a retired id (FR-014). No response carries an owner id, a private food, a rater or a version
 number.
 
 **Acceptance Scenarios**:
 
 1. **Given** any recipe that the open-to-web rule does not admit, or an id that never existed, or an id that is not a
-   recipe id, **When** it is requested signed out, **Then** the answer is the one not-available answer (`021-FR-013`).
+   recipe id, **When** it is requested signed out, **Then** the answer is the one not-available answer (`021-FR-013`), except a retired id (FR-014).
 2. **Given** any public form, **When** its response is inspected, **Then** it carries only `021-FR-070`'s fields. It
    carries no owner id, no clone source id, no version number, no rater, no impact count and no other recipe
    (FR-005). A comment, once comments exist, carries its commenter's display name and no user id (FR-025).
 3. **Given** a public recipe, **When** its food data is read, **Then** no private food's name, nutrition or existence can
    appear. This holds when the data is wrong too (FR-009).
-4. **Given** an author whose standing is suspended, closed or unknown, **When** their recipe is requested signed out,
-   **Then** it is not available (FR-012).
+4. **Given** an author whose account is suspended, terminated or closed, **When** their public recipe is requested signed out, **Then** it is shown as any open recipe (FR-012).
 5. **Given** a recipe that stayed public when its cook erased their account, **When** it is requested signed out,
-   **Then** it is shown with no author name and no pseudonym (FR-012).
+   **Then** it is shown with the label "a former member" and no name, link or pseudonym (FR-012).
 6. **Given** a public read, **When** it is served, **Then** no `recipe_viewed` event names a user, and no rating by any
    user is shown (FR-005).
+7. **Given** a cook whose erasure is waiting, **When** their public recipe is requested signed out, **Then** it shows their name as before (FR-012).
 
 ---
 
@@ -261,8 +258,7 @@ A second address is unaffected. On a preview, the limit is absent, and that is r
 
 ### User Story 6 - A cook takes a recipe out of public view (Priority: P2)
 
-A cook makes a public recipe private, sets it back to draft, or deletes it, or their account is suspended, closed or
-erased. Within 5 minutes, every public surface answers not available.
+A cook makes a public recipe private, sets it back to draft, or deletes it, or an account erasure deletes it. Within 5 minutes, every public surface answers not available.
 
 **Why this priority**: The open web copies what we serve. The purge bound is the promise that makes opening safe.
 
@@ -327,8 +323,6 @@ or local storage entry is written.
   next render after food recovers replaces the page.
 - **A line is bound to a food that food no longer knows.** It shows the cook's own words, like any line food cannot
   answer.
-- **The author-standing source is down.** The standing reads `unknown`, and the recipe is not available until it answers
-  (FR-012). This is the safe direction.
 - **A random UUID.** Not available, through the same code path as a private recipe, so timing does not separate the two
   more than a small, accepted amount (FR-014).
 - **An id that is not a UUID.** Not available, never a `400` that tells a prober the id was malformed.
@@ -342,12 +336,12 @@ or local storage entry is written.
 - **The native app receives a link while the public view is already open.** It replaces the view with the new recipe.
 - **A link arrives while signed out and the person then signs in from the public view.** The app opens the recipe's
   normal screen after sign-in, with the pending action offered once (US4).
-- **A second locale ships later.** The public address has no locale (FR-015), so shared links keep working. The page's
-  own words follow the reader's browser language, with English as the fallback, and the recipe's text stays as the cook
-  wrote it (FR-015a).
-- **A search crawler reads the page.** Crawlers usually send no `Accept-Language` or send English, so the indexed copy
-  shows the English page words. That is accepted while there is one locale. 021's search work owns the question once
-  pages are indexable in more than one language (`021-FR-020a`).
+- **A second locale ships later.** Every public address carries its locale (FR-015), so a new locale adds addresses and
+  breaks none. The page's own words follow the locale in the address, with English as the fallback, and the recipe's
+  text stays as the cook wrote it (FR-015a). (Owner 2026-11-20.)
+- **A search crawler reads the page.** A crawler that reaches a locale-less address is redirected to the locale its
+  `Accept-Language` negotiates, else `en-US`, so the indexed copy is the one at the locale address. 021's search work
+  owns the question once pages are indexable in more than one language (`021-FR-020a`). (Owner 2026-11-20.)
 - **Previews (`pr-{N}`).** They have no CloudFront and no WAF, so no rate limit runs there. Every non-production public
   page sends `noindex` regardless (FR-017).
 
@@ -361,9 +355,10 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   facts-only option (I1) and its conditional plan unit are dropped.
 - **Q2. Are catalog food names public data? → No.** Catalog food names and nutrition are not ruled public. The signed
   public-reader call stays (FR-009, research R2).
-- **Q3. The language of the page's own words → the reader's browser language.** The page's words (headings, buttons,
-  states) follow `Accept-Language`, with English as the fallback. The page cache varies by the language chosen, so the
-  cache key is now the path plus that language (FR-015, FR-015a). The address still has no locale.
+- **Q3. The address carries the locale (owner 2026-11-20, reverses the 2026-11-09 answer).** "Every page should have
+  locale in it." The public address is `/{locale}/recipe/{id}/{slug}`, and the page's own words follow that locale. The
+  page is not cached by the web app (no ISR): the CDN caches it under the cache key (FR-015), which needs no `Accept-Language` and no
+  `Vary: Accept-Language`.
 - **Q4. A rate-limit exemption from the web server to the API → allowed.** A secret header from the web server, rotated,
   lifts only the API's per-address limit for page renders. It grants no read (FR-016).
 - **Q5. What "Save" means → no restriction.** The owner, 2026-11-09: no such restriction exists in code or specs. A
@@ -377,10 +372,19 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   sitemap and its fast removal path. 021 MUST then remove it (`021-FR-020a`, FR-017).
 - **Q8. Recipes an erased cook left public → open, with no author name.** A recipe the cook chose to leave public at
   erasure stays readable signed out, shown without the deleted author's name. `021-FR-002` rule 7 is amended for that
-  case only. Suspended and closed authors still close their recipes (FR-012). _Reading:_ the erasure keeps two kinds of
+  case only. Suspended, terminated and closed authors no longer close their recipes (owner ruling 2026-11-21, FR-012). _Reading:_ the erasure keeps two kinds of
   recipe public, the ones the cook elected to donate and the ones that were already public, and both carry the same
-  consent. This spec reads the ruling as covering both. If the owner meant donated recipes only, the erasure job's
-  stored election (`account_erasure_jobs.publish_recipe_ids`) tells them apart.
+  consent. This spec reads the ruling as covering both. The two kinds cannot be told apart once the erasure completes: the job then keeps no list of donated recipes, and a donated recipe that was never published takes its creation time as its first publish time and, unless it was confirmed earlier, as its source confirmation time, as a recipe created published already has (closure plan U3b).
+
+### Session 2026-11-21 (owner rulings)
+
+- **One library, signed in and out.** "We should list all public recipes" and "Show them signed out too". `021-FR-002` rule 7 no longer closes a suspended, terminated or closed cook's recipes. Content removed after a copyright notice stays down (rule 8, unchanged). FR-012 is amended.
+- **Names stay.** A suspended or closed cook keeps their name on their recipes and comments. An erased cook reads "a former member", with no name or link. A suspended cook's creator page says "This page isn’t available", with no reason given (`012-FR-020`, `021-FR-013`).
+- **The address carries the locale, and the app moves to `en-US`** (owner 2026-11-20, moved into 003A on 2026-11-21). See FR-015 and FR-015b.
+- **A pending erasure keeps the name** (Q3). While an erasure is pending, the cook's public recipes keep their name. While it runs, they keep their name, unless the erasure notice hides them (`016-FR-012a`). When the recipe's own erasure transaction writes its erasure marker, they read "a former member" (FR-012, and data-model, Erased owner, gives the order).
+- **Locale redirects are `307`** (Q4). Commise never emits a locale-less address. The redirect only catches typed, truncated or old `/en/…` links (FR-015, FR-015b).
+- **Erasure, takedown and anonymity are `016`'s** (`016-FR-010`, `016-FR-012a`, `016-FR-016`, `016-FR-037`). A hide while a takedown request is handled reaches this read through rule 8.
+- **A renamed address answers `410`** (owner, round 2). When an erasure scrubs a name from a kept recipe's title, the recipe's row in `recipe_public_ids` is replaced by one with a new public id, and the old address answers `410` for every slug (FR-014, `016-FR-037`). A title with no name keeps its `308`.
 
 ## Requirements _(mandatory)_
 
@@ -390,7 +394,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 
 - **FR-001**: The open-to-web rule (`021-FR-001`, `021-FR-002`) MUST be one pure Specification. It
   MUST take each of its inputs as a **required** typed reading: the hold (`021-FR-002` rule 4), the rights label (rule
-  5), the licence acceptance (rule 6), the author standing (rule 7), and any 016 restriction (rule 8). _(Amended
+  5), the licence acceptance (rule 6), and any 016 restriction (rule 8). Rule 7 (author standing) is withdrawn (FR-012). _(Amended
   2026-11-15.)_ The per-source cap reading is withdrawn with the facts cards. A missing producer MUST be a compile error, never a default. _Sequencing
   decision:_ `021-FR-001` also asks for one SQL form. 003A reads one recipe by id, so no query needs the SQL form yet.
   The first slice that reads a set (the sitemap or a creator page list) MUST add it, and a test MUST hold the two
@@ -418,8 +422,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 - **FR-007**: Every closed case MUST give one fixed not-available answer, with one status and one body. A malformed id
   MUST give the same answer.
 - **FR-008**: When food data cannot be read in time, a full recipe MUST still show, with each line's own words, no
-  invented name or amount, and a count of lines missing nutrition. When the author standing cannot be read, the
-  answer MUST be the unavailable state (FR-012). The API answer is never cached (FR-013). The web page MUST render a
+  invented name or amount, and a count of lines missing nutrition. The API answer is never cached (FR-013). The web page MUST render a
   degraded or unavailable answer as a normal page, never as an error, so that the next render replaces it. An error
   render keeps the last good copy, which can outlive an exit event.
 - **FR-009**: The public read MUST get food names and nutrition with no user's credential, through a public-reader call
@@ -432,15 +435,9 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   (`021-FR-060`, owner ruling O12): it answers one recipe per id, lists nothing, is not documented for third parties, and
   is rate-limited like a page.
 
-#### C. Author standing
+#### C. Author standing (withdrawn)
 
-- **FR-012**: The public read MUST know whether the recipe's owner is active. It MUST NOT trust a user's own token for
-  another user (ADR-0081). A suspension, closure or erasure MUST take the recipe out within the purge bound. When the
-  standing cannot be read, it MUST be `unknown`, and the recipe is not available. The plan chooses the source.
-  A recipe the cook left public when they erased their account is the one exception (owner ruling 2026-11-09, Q8,
-  amending `021-FR-002` rule 7): an `erased` standing does not close a public, published recipe. It is shown with no
-  author name and no pseudonym, because the pseudonymous handle the erasure writes carries the user id. Suspended,
-  closed and unknown standings still close the recipe.
+- **FR-012** _(amended 2026-11-21, owner ruling)_: The public read MUST NOT read any account's standing, and no standing closes a recipe (`021-FR-002` rule 7 withdrawn). A suspended, terminated or closed cook's open recipe is open, signed in and signed out. A recipe left public when its cook erased their account is open and shows the label "a former member", with no name, link or pseudonym. This is decided locally from the erasure marker (data-model, Erased owner), which carries no user id (`016-FR-037`, `016-FR-076`). While an erasure waits for staff (up to 14 days, `020-FR-018a`), the recipe keeps the cook's name. While the erasure runs, the recipe keeps the name, unless the erasure notice hides it (`016-FR-012a`). The label replaces the name when the erasure writes the erasure marker on the recipe (data-model, Erased owner, gives the order) (owner ruling 2026-11-21, Q3). A recipe hidden while an `author_request` is handled is closed by rule 8 (`016-FR-016`). Content removed under 016 stays down (rule 8).
 
 #### D. Caching, purge and rate limits
 
@@ -450,19 +447,26 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   an alarm, and MUST amend this requirement.
 - **FR-014**: A redirect from a wrong slug to the right one MUST happen only for an open recipe. Otherwise the answer is
   not available, so no closed recipe's title leaks.
-- **FR-015**: The public address MUST be on `commise.app`, on its own route, with the recipe id and a readable slug, and
-  with no locale segment. The address is a one-way door. The cache key MUST be the path plus the page language chosen
-  under FR-015a, and nothing else: never a query string, a cookie, the `Authorization` header or the raw
-  `Accept-Language` header (owner ruling 2026-11-09, Q3, amending `021-FR-062`).
-- **FR-015a**: The page's own words MUST be in the reader's browser language: the first supported locale in
-  `Accept-Language`, else English. The language is chosen from the closed set of supported locales, so the number of
-  cache entries per recipe is at most the number of locales. The recipe's own text is never translated. The response
-  MUST say `Vary: Accept-Language`. The native public view uses the app's own language setting.
+  _(Owner ruling 2026-11-21.)_ An address whose id was retired by an erasure's name scrub (`016-FR-037`) answers `410 Gone` with the not-available page and `noindex`, for every slug. It never redirects to the recipe's new address.
+- **FR-015**: The public address MUST be on `commise.app`, on its own route, with the locale, the recipe id and a
+  readable slug: `/{locale}/recipe/{id}/{slug}`. The address is a one-way door. The locale MUST be one of the shipped
+  locales. A locale-less address MUST redirect (`307`) to the locale the browser's `Accept-Language` negotiates, and a browser
+  that matches no shipped locale MUST go to the default route locale, `en-US` (U12). A bare `en` MUST redirect to the
+  negotiated locale (FR-015b). Commise never emits a locale-less address. The redirect only catches a typed, truncated or old link (owner 2026-11-21). The page MUST send `Vercel-CDN-Cache-Control: s-maxage=60, stale-while-revalidate=240` from `next.config` with no `Vary: Accept-Language` header, and use no incremental static regeneration. A `Cache-Control` set there does not hold on a dynamic page, and Vercel removes `s-maxage` from the browser's response, so the browser sees none. Previews are cached per deployment. The page's
+  response MUST NOT depend on a cookie, the `Authorization` header, the `Accept-Language` header or any query parameter,
+  so every cached copy of one path holds the same bytes, except Next's own RSC payload for that path (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
+  the full URL, and its key is not configurable. So each distinct query string, a share mark included, is its own cache
+  entry holding the same bytes. So the middleware MUST redirect (`308`) any public address that carries a query parameter other than the allowed ones to the same address without it. The allowed ones are one well-formed share mark, 023's named campaign parameters (`utm_source`, `utm_medium`, `utm_campaign`, `utm_content`, `023-FR-002`, and the invite-code parameter whose name and format 023 owns, `023-FR-002` and `023-FR-017`, read from 023's one exported definition, never a second copy; until 023 names it, U6 keeps none), each with a bounded, validated format (a `utm_*` value of at most 100 characters from `[A-Za-z0-9_.~+-]`, which is U6's own validation), and `_rsc`, kept only on a request with the `RSC: 1` header. A malformed or over-long campaign value is dropped. A random or unknown parameter then never makes a new cache entry. Keeping the campaign parameters splits the cache by campaign. The split is bounded by those length and alphabet limits and is accepted (coordinator ruling, 2026-11-20; `023-FR-002`). The public address and the
+  in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
+- **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
+  has no copy. The recipe's own text is never translated. The native public view uses the app's own language
+  setting, and a signed-out native read sends that locale in the API path (`GET /api/v1/public/{locale}/recipes/{id}`).
+- **FR-015b** _(owner 2026-11-20)_: The app's route locale is `en-US`. Every web address whose first segment is `en`, or `en-` plus two letters that do not form a shipped locale, MUST redirect (`307`, owner 2026-11-21) to the same path under the negotiated locale, app-wide, and no redirect target is redirected again. The message catalogs stay keyed `en`. The native app resolves `en-US`.
 - **FR-016**: Signed-out traffic MUST be rate-limited per client address at the edge of each system that serves it: the
   web host and the API distribution (`021-FR-063`). It MUST NOT count against the per-user throttle, and it MUST NOT
   fall into a bucket that every signed-out reader shares. A rate-limit answer MUST NOT set a cookie or run a challenge
   that sets one. The web server's page renders MAY carry a secret, rotated header that lifts only the API's
-  per-address limit and grants no read (owner ruling 2026-11-09, Q4).
+  per-address limit and grants no read (owner ruling 2026-11-09, Q4). The page rule is held as code (plan unit U11).
 - **FR-017**: Every public page MUST say `noindex` until 021 section C ships, because a page must not be indexable before
   the removal machinery (`021-FR-074`) exists (owner ruling 2026-11-09, Q7). 021 MUST remove this `noindex` when its
   sitemap and fast removal path ship (`021-FR-020a`). Each requirement names the other, so the two cannot drift. Every non-production public page MUST say `noindex` always. The page still
@@ -472,7 +476,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
 
 - **FR-018**: The public web page MUST be rendered on the server, from the public read only. No browser MUST call the
   public endpoint. The page and its route MUST be outside the Clerk sign-in middleware, so no session handshake or cookie
-  can reach the response. Only the language choice of FR-015a runs in front of it. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
+  can reach the response. Only the locale redirect of FR-015 runs in front of it. Signed-in extras MUST load after the page, and only for a visitor who already has a session.
 - **FR-019**: The link association files MUST associate the public recipe route and nothing else (`021-FR-035`). The
   native app MUST open a public recipe link as the public view when signed out and as its own recipe screen when signed
   in. The public view MUST be a state of the auth gate that exists only with its link, so the gate still has no landing
@@ -508,7 +512,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   them fails to compile until it handles a new member. Every public response is validated by its zod schema at the
   service boundary.
 - **NFR-002 (Principle IV)**: Each unit is test-first, with unit and integration tiers for every non-UI unit, a component
-  test for every state, a Playwright test and a Maestro flow for every story, LOCAL e2e for the SQL form of the rule and
+  test for every state, a Playwright test and a Maestro flow for every story, written together in the end-of-feature wrap-up unit (plan U14) (owner testing rules 2026-11-21). During development a unit writes Playwright only for what no lower tier can prove (cookies, `x-vercel-cache`, the status a server keeps), and device runs happen once per PR at its final head. Each unit also has LOCAL e2e for the SQL form of the rule and
   the food read, and a manual k6 scenario for the public read.
 - **NFR-003 (Principle VII)**: Every public surface meets WCAG 2.2 AA, works at 320 CSS px with no horizontal scroll, and
   uses only the house type scale and tokens.
@@ -529,11 +533,10 @@ native public view shows the offline state with Try again. The web page is serve
 
 - **Public recipe view**: the public projection. One of four forms. It holds no user id.
 - **Reading**: one input to the open-to-web rule, `open`, `closed` or `unknown`, with its producer.
-- **Author standing**: active, suspended, closed, erased or unknown, per recipe owner, as recipe-service knows it.
 - **Public recipe address**: the recipe id and its slug. One parser serves the web route, the middleware exclusion, the
   native gate, the native link config and the association files.
-- **Public-reader credential**: a short-lived token recipe-service signs for food and for identity. It names no user
-  and no recipe. It grants only the public food read and the author-standing read.
+- **Public-reader credential**: a short-lived token recipe-service signs for food. It names no user
+  and no recipe. It grants only the public food read.
 
 ## Success Criteria _(mandatory)_
 
@@ -558,7 +561,7 @@ native public view shows the offline state with Try again. The web page is serve
 - Recipe ids are UUIDs, so they cannot be enumerated in practice. The rate limit, not the id, is the control.
 - The web app is served by Vercel and the recipe API by CloudFront in production only (ADR-0020). Previews have neither
   CloudFront nor WAF.
-- One locale (`en`) ships today.
+- One locale ships: `en-US`, with `en` catalogs (FR-015b).
 - "Start cooking" and "Add to plan" wait for 008 and 006, so they are not offered.
 - The plan prices the edge rules and rendering with `cfo-1` (`021-FR-066`). This spec states no cost figures.
 

@@ -34,16 +34,17 @@ Submit a notice about specific content. `FR-016`.
 ```jsonc
 {
     "reporter": { "name": "string", "email": "string" },
-    "target": { "contentType": "recipe|creator_profile|lesson", "contentId": "string" },
-    "grounds": "copyright|trademark|privacy|illegal_content|terms_violation|other",
+    "target": { "contentType": "recipe|creator_profile|lesson", "contentId": "string" }, // NULL only for an author_request that gave a receipt code and no target. If the code does not match, staff judge the request on its evidence (FR-016)
+    "grounds": "copyright|trademark|privacy|illegal_content|terms_violation|author_request|other",
     "statement": "string", // the reporter's own words
+    "receiptCode": "string", // optional; only with author_request; at least 128 random bits; body only, never in a URL; redacted from logs; rate limited per client address; checked against each recipe's owner token; never stored
 }
 ```
 
 **`202 Accepted`**
 
 ```jsonc
-{ "reference": "string", "submittedAt": "2026-08-22T09:00:00.000Z" }
+{ "reference": "string", "submittedAt": "2026-08-22T09:00:00.000Z", "hidden": true } // author_request only: true when the receipt code matched and the recipes are hidden; picks legal.notice.authorRequest.hidden, else .received
 ```
 
 Acknowledgement is issued on acceptance, not on adjudication — `SC-002` measures reference-in-hand within 3
@@ -240,6 +241,23 @@ demotion or visibility limit, a public version withdrawn for an opt-out, or a pu
 
 `202` with `{ "id" }`. Identity writes `restriction_statements` and delivers it on both channels (`FR-018a`). The
 call is idempotent on `idempotencyKey`, so a retry never sends two statements.
+
+### `POST /api/v1/internal/author-requests/receipt-match` _(added 2026-11-26)_
+
+Identity's notice intake → recipe-service, for an `author_request` with a receipt code (spec `FR-016`). Unlike the rest of this section, it does not use the fan-out token. It takes identity's intake secret, the one `003A` U13 gives that caller, compared in constant time.
+
+```jsonc
+// Request body
+{ "receiptCode": "string", "publicId": "string", "noticeReference": "string" } // publicId optional
+```
+
+Answer: `200`, `Cache-Control: no-store`, `{ "outcome": "matched", "recipeIds": ["string"] } | { "outcome": "noMatch" } | { "outcome": "unchecked" }`.
+
+- With a current `publicId`, recipe-service resolves the row and computes one token. A retired or unknown `publicId` is handled as no target: the code-only scan runs, as for a notice whose target was a retired id (data-model §4). Without one, it scans the owner-token rows through the partial index, in pages of 5,000, yielding between pages.
+- On `matched`, it writes an `authorRequest` hide row (data-model §16) for each recipe, in the same transaction. A replay writes nothing new and answers the same.
+- Cost: one HMAC-SHA-256 per owner-token row, about 10 µs (Node 24, developer machine, 2026-11-26), so about 1 s per 100,000 rows, and slower on Fargate. Cap: one code-only scan at a time per task. A scan that passes 2 s answers `unchecked` and hides nothing, and identity handles it as an unproven request, acknowledged with `.received` (spec `FR-016`). Each scan's row count and time are emitted with `Stage`, and a capped scan alarms through the relay (ADR-0062).
+- The zod is written in recipe-service and copied to `@kitchensink/schema-recipe` (ADR-0014).
+- Both services redact `receiptCode` from every log, and neither logs `recipeIds`. Identity keeps the ids only as the open request's working data (spec `FR-052a` item 2).
 
 ---
 

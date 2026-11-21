@@ -396,7 +396,8 @@
         {
             "package": "@kitchensink/repo-guards",
             "dependency": "scripts/worktreeAdd.mjs",
-            "rule": "imports-outside-package"
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests the pure decision functions (`lockfileHash`, `installsToPrune`, `worktreePaths`) exported by a repo-root `scripts/*.mjs` module. The repo root is not a workspace, so there is no package to declare. Moving the functions behind a package surface is not possible: `worktreeAdd.mjs` is the bootstrap that creates the shared install, so it runs before any workspace is installed and must import nothing from one. Giving `scripts/` a workspace of its own would retire this entry with its siblings."
         },
         {
             "package": "@kitchensink/service-test-harness",

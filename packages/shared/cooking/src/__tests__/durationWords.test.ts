@@ -4,55 +4,56 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { oneIn } from '../__fixtures__/oneIn.js';
 import { readDuration } from '../duration.js';
 import { readWordDuration } from '../durationWords.js';
 
 describe('readWordDuration', () => {
     it.each([
-        ['Bake twenty minutes', 1_200],
-        ['An hour and a half', 5_400],
-        ['Bake for an hour and a half.', 5_400],
-        ['Half an hour or until set', 1_800],
-        ['Chill a quarter of an hour', 900],
-        ['Chill three quarters of an hour', 2_700],
-        ['Twenty-five minutes', 1_500],
-        ['Cook forty five minutes', 2_700],
-        ['An hour and twenty minutes', 4_800],
-        ['Bake one hour, thirty minutes', 5_400],
-        ['Bake one hour thirty minutes', 5_400],
-        ['Stir for thirty seconds', 30],
-        ['Stir for one second', 1],
-        ['Boil a minute then add the sugar', 60],
-        ['Boil for a minute.', 60],
-        ['Rest an hour, then slice', 3_600],
-        ['An hour or until tender', 3_600],
-        ['Ten minutes or until golden', 600],
-        ['Set it on to boil for about ten minutes--but stir', 600],
-        ['A ten minute rest', 600],
-        ['TEN MINUTES', 600],
-    ])('%s gives one duration of %i s', (line, seconds) => {
-        expect(readWordDuration(line)).toEqual({ kind: 'one', seconds });
+        ['Bake twenty minutes', 'twenty minutes', 1_200],
+        ['An hour and a half', 'An hour and a half', 5_400],
+        ['Bake for an hour and a half.', 'an hour and a half', 5_400],
+        ['Half an hour or until set', 'Half an hour', 1_800],
+        ['Chill a quarter of an hour', 'a quarter of an hour', 900],
+        ['Chill three quarters of an hour', 'three quarters of an hour', 2_700],
+        ['Twenty-five minutes', 'Twenty-five minutes', 1_500],
+        ['Cook forty five minutes', 'forty five minutes', 2_700],
+        ['An hour and twenty minutes', 'An hour and twenty minutes', 4_800],
+        ['Bake one hour, thirty minutes', 'one hour, thirty minutes', 5_400],
+        ['Bake one hour thirty minutes', 'one hour thirty minutes', 5_400],
+        ['Stir for thirty seconds', 'thirty seconds', 30],
+        ['Stir for one second', 'one second', 1],
+        ['Boil a minute then add the sugar', 'a minute', 60],
+        ['Boil for a minute.', 'a minute', 60],
+        ['Rest an hour, then slice', 'an hour', 3_600],
+        ['An hour or until tender', 'An hour', 3_600],
+        ['Ten minutes or until golden', 'Ten minutes', 600],
+        ['Set it on to boil for about ten minutes--but stir', 'ten minutes', 600],
+        ['A ten minute rest', 'ten minute', 600],
+        ['TEN MINUTES', 'TEN MINUTES', 600],
+    ])('%s gives one duration of %i s', (line, text, seconds) => {
+        expect(readWordDuration(line)).toEqual(oneIn(line, text, seconds));
     });
 
     it.each([
-        ['Ten to fifteen minutes', 600, 900],
-        ['Five or six minutes', 300, 360],
-        ['Simmer for twenty to twenty-five minutes.', 1_200, 1_500],
-        ['One or two hours', 3_600, 7_200],
-    ])('%s gives the low end %i s and the high end %i s', (line, seconds, highSeconds) => {
-        expect(readWordDuration(line)).toEqual({ kind: 'one', seconds, highSeconds });
+        ['Ten to fifteen minutes', 'Ten to fifteen minutes', 600, 900],
+        ['Five or six minutes', 'Five or six minutes', 300, 360],
+        ['Simmer for twenty to twenty-five minutes.', 'twenty to twenty-five minutes', 1_200, 1_500],
+        ['One or two hours', 'One or two hours', 3_600, 7_200],
+    ])('%s gives the low end %i s and the high end %i s', (line, text, seconds, highSeconds) => {
+        expect(readWordDuration(line)).toEqual(oneIn(line, text, seconds, highSeconds));
     });
 
     it.each([
-        ['Rest an hour', 3_600],
-        ['Chill for a minute', 60],
-        ['Rest a minute more', 60],
-        ['Rest an hour longer', 3_600],
-        ['Cook a minute until golden', 60],
-        ['Rest an hour to cool', 3_600],
-        ['Rest a minute and stir', 60],
-    ])('reads an article amount that ends the line or is followed by an allowed word: %s', (line, seconds) => {
-        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds });
+        ['Rest an hour', 'an hour', 3_600],
+        ['Chill for a minute', 'a minute', 60],
+        ['Rest a minute more', 'a minute', 60],
+        ['Rest an hour longer', 'an hour', 3_600],
+        ['Cook a minute until golden', 'a minute', 60],
+        ['Rest an hour to cool', 'an hour', 3_600],
+        ['Rest a minute and stir', 'a minute', 60],
+    ])('reads an article amount that ends the line or is followed by an allowed word: %s', (line, text, seconds) => {
+        expect(readWordDuration(line)).toStrictEqual(oneIn(line, text, seconds));
     });
 
     it.each(['fifteen to ten minutes', 'ten to ten minutes'])(
@@ -63,7 +64,9 @@ describe('readWordDuration', () => {
     );
 
     it('reads the low end of a reversed range as written', () => {
-        expect(readWordDuration('fifteen to ten minutes')).toStrictEqual({ kind: 'one', seconds: 900 });
+        expect(readWordDuration('fifteen to ten minutes')).toStrictEqual(
+            oneIn('fifteen to ten minutes', 'fifteen to ten minutes', 900),
+        );
     });
 
     it.each(['ten to fifteen eggs', 'ten to fifteen drops'])('reads no time from a range with no unit: %s', (line) => {
@@ -75,24 +78,25 @@ describe('readWordDuration', () => {
     });
 
     it('carries no high end on a range joined to another amount', () => {
-        expect(readWordDuration('ten to fifteen minutes and thirty seconds')).toStrictEqual({
-            kind: 'one',
-            seconds: 630,
-        });
+        expect(readWordDuration('ten to fifteen minutes and thirty seconds')).toStrictEqual(
+            oneIn('ten to fifteen minutes and thirty seconds', 'ten to fifteen minutes and thirty seconds', 630),
+        );
     });
 
     it.each([
-        ['Simmer ten minutes, or until thick.', 600],
-        ['Simmer ten minutes (or until thick).', 600],
-        ['Rest ten minutes, then slice', 600],
-        ['Rest an hour to cool', 3_600],
-        ['Simmer ten minutes, a half cup of stock added', 600],
-    ])('%s keeps its time: a bracket, a comma or "to" is not a hedge or a rate', (line, seconds) => {
-        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds });
+        ['Simmer ten minutes, or until thick.', 'ten minutes', 600],
+        ['Simmer ten minutes (or until thick).', 'ten minutes', 600],
+        ['Rest ten minutes, then slice', 'ten minutes', 600],
+        ['Rest an hour to cool', 'an hour', 3_600],
+        ['Simmer ten minutes, a half cup of stock added', 'ten minutes', 600],
+    ])('%s keeps its time: a bracket, a comma or "to" is not a hedge or a rate', (line, text, seconds) => {
+        expect(readWordDuration(line)).toStrictEqual(oneIn(line, text, seconds));
     });
 
     it('carries no high end on a span of two amounts', () => {
-        expect(readWordDuration('An hour and twenty minutes')).toEqual({ kind: 'one', seconds: 4_800 });
+        expect(readWordDuration('An hour and twenty minutes')).toEqual(
+            oneIn('An hour and twenty minutes', 'An hour and twenty minutes', 4_800),
+        );
     });
 
     it.each([
@@ -143,16 +147,16 @@ describe('readWordDuration', () => {
     });
 
     it.each([
-        ['two minutes', 120],
-        ['two hours', 7_200],
-        ['five mins', 300],
-        ['three secs', 3],
-        ['two hrs', 7_200],
-        ['two hr', 7_200],
-        ['five min', 300],
-        ['three sec', 3],
-    ])('reads the unit spelling in %s', (line, seconds) => {
-        expect(readWordDuration(line)).toEqual({ kind: 'one', seconds });
+        ['two minutes', 'two minutes', 120],
+        ['two hours', 'two hours', 7_200],
+        ['five mins', 'five mins', 300],
+        ['three secs', 'three secs', 3],
+        ['two hrs', 'two hrs', 7_200],
+        ['two hr', 'two hr', 7_200],
+        ['five min', 'five min', 300],
+        ['three sec', 'three sec', 3],
+    ])('reads the unit spelling in %s', (line, text, seconds) => {
+        expect(readWordDuration(line)).toEqual(oneIn(line, text, seconds));
     });
 
     it('counts a number word next to a word that is not a unit as no time', () => {
@@ -161,7 +165,7 @@ describe('readWordDuration', () => {
     });
 
     it('does not let "a" count as a number in a range', () => {
-        expect(readWordDuration('a to ten minutes')).toEqual({ kind: 'one', seconds: 600 });
+        expect(readWordDuration('a to ten minutes')).toEqual(oneIn('a to ten minutes', 'ten minutes', 600));
         expect(readWordDuration('ten to a minutes')).toEqual({ kind: 'none' });
     });
 });
@@ -183,7 +187,12 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
         ['Bake twelve minutes each-batch', 720],
         ['Fry a minute per-side', 60],
     ])('%s gives one duration of %i s, marked as a time that repeats', (line, seconds) => {
-        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
+        expect(readWordDuration(line)).toStrictEqual({
+            kind: 'one',
+            seconds,
+            span: expect.anything(),
+            perRepeat: true,
+        });
     });
 
     it('keeps the high end of a range and marks it too', () => {
@@ -191,6 +200,7 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
             kind: 'one',
             seconds: 180,
             highSeconds: 240,
+            span: expect.anything(),
             perRepeat: true,
         });
     });
@@ -199,8 +209,13 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
         expect(readWordDuration('Bake twenty minutes, then fry per side')).toStrictEqual({
             kind: 'one',
             seconds: 1_200,
+            span: expect.anything(),
         });
-        expect(readWordDuration('Fry per side three minutes')).toStrictEqual({ kind: 'one', seconds: 180 });
+        expect(readWordDuration('Fry per side three minutes')).toStrictEqual({
+            kind: 'one',
+            seconds: 180,
+            span: expect.anything(),
+        });
     });
 
     it.each([
@@ -230,11 +245,13 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
 
 describe('readDuration layers the word grammar under the digit grammar', () => {
     it('reads a word time when the digit layer found no span', () => {
-        expect(readDuration('An hour and a half')).toEqual({ kind: 'one', seconds: 5_400 });
+        expect(readDuration('An hour and a half')).toEqual(oneIn('An hour and a half', 'An hour and a half', 5_400));
     });
 
     it('gives the digit reading when a line has both: the word reader does not run on every line', () => {
-        expect(readDuration('Bake 20 minutes, then ten minutes more.')).toEqual({ kind: 'one', seconds: 1_200 });
+        const line = 'Bake 20 minutes, then ten minutes more.';
+
+        expect(readDuration(line)).toEqual(oneIn(line, '20 minutes', 1_200));
     });
 
     it.each([
@@ -248,7 +265,7 @@ describe('readDuration layers the word grammar under the digit grammar', () => {
     });
 
     it('still offers a digit time after "every"', () => {
-        expect(readDuration('Stir every 5 minutes')).toEqual({ kind: 'one', seconds: 300 });
+        expect(readDuration('Stir every 5 minutes')).toEqual(oneIn('Stir every 5 minutes', '5 minutes', 300));
         expect(readDuration('Stir every five minutes')).toEqual({ kind: 'none' });
     });
 

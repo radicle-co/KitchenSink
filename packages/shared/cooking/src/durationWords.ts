@@ -75,7 +75,7 @@ const startsWithPhrase = (phrases: readonly (readonly string[])[], tokens: reado
     phrases.some((phrase) => phrase.every((word, offset) => tokens[index + offset] === word));
 
 /** Words are lower-case letter runs. Punctuation and digit runs are their own tokens. Anything else is a separator. */
-const TOKEN = /[a-z]+|\d+|[.,;:!?()]/gu;
+const TOKEN = /[a-z]+|\d+|[.,;:!?()]/giu;
 
 interface Amount {
     readonly seconds: number;
@@ -255,7 +255,9 @@ function isUnreadable(tokens: readonly string[], span: Span): boolean {
  *   when two or more spans are written, else `none`. A hedged, repeated or partial time is `none`. Pure.
  */
 export function readWordDuration(line: string): DurationReading {
-    const tokens = line.toLowerCase().match(TOKEN) ?? [];
+    // Matched in the line as given, so each token knows where it sits there. The words are compared in lower case.
+    const found = [...line.matchAll(TOKEN)];
+    const tokens = found.map((match) => match[0].toLowerCase());
     const spans: Span[] = [];
 
     for (let index = 0; index < tokens.length;) {
@@ -288,5 +290,18 @@ export function readWordDuration(line: string): DurationReading {
         return { kind: 'none' };
     }
 
-    return oneReading(only.seconds, only.highSeconds, startsWithPhrase(REPEAT_RATE_PHRASES, tokens, only.end));
+    // `at` is typed `T | undefined`, so the guard below is a real one whatever `noUncheckedIndexedAccess` says.
+    const first = found.at(only.start);
+    const last = found.at(only.end - 1);
+
+    if (first === undefined || last === undefined) {
+        return { kind: 'none' };
+    }
+
+    return oneReading(
+        only.seconds,
+        only.highSeconds,
+        { start: first.index, end: last.index + last[0].length },
+        startsWithPhrase(REPEAT_RATE_PHRASES, tokens, only.end),
+    );
 }

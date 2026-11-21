@@ -122,3 +122,59 @@ describe('⛔ the DEPLOYED selection still runs all of them, on both platforms',
         }
     });
 });
+
+describe('⛔ a local run reports as owed only the flows the selector chose', () => {
+    const local = (...selector: readonly string[]) =>
+        run({ MAESTRO_LOCAL: '1', MAESTRO_PLATFORM: 'android' }, 'shard-selection', '1', '1', ...selector);
+
+    it('prints no needs-sandbox row for a flow that was not named: the spine is a prerequisite, not owed', () => {
+        const out = local('flow:cooking/cookingModeFlow=true');
+
+        expect(out.status, out.stderr).toBe(0);
+        expect(lines(out.stdout, 'flow')).toEqual(['cooking/cookingModeFlow']);
+        expect(lines(out.stdout, 'needs-sandbox')).toEqual([]);
+        expect(lines(out.stdout, 'prerequisite-not-run').map((row) => row.split('|')[0])).toEqual(['auth/loginFlow']);
+    });
+
+    it('still owes the spine when the selector names it', () => {
+        const out = local('flow:auth/loginFlow=true', 'flow:cooking/cookingModeFlow=true');
+
+        expect(lines(out.stdout, 'needs-sandbox').map((row) => row.split('|')[0])).toEqual(['auth/loginFlow']);
+        expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
+    });
+
+    it('still owes the spine when it is the LAST flow the selector names', () => {
+        const out = local('flow:cooking/cookingModeFlow=true', 'flow:auth/loginFlow=true');
+
+        // Mutation: drop the closing space from the named list, and the last named flow never matches.
+        expect(lines(out.stdout, 'needs-sandbox').map((row) => row.split('|')[0])).toEqual(['auth/loginFlow']);
+        expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
+    });
+
+    it('still owes every sandbox-only flow on a full run', () => {
+        const out = local('full=true');
+
+        expect(lines(out.stdout, 'needs-sandbox').map((row) => row.split('|')[0])).toEqual([...SANDBOX_ONLY]);
+        expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
+    });
+
+    it('owes a named sandbox-only flow other than the spine, and the spine stays a prerequisite', () => {
+        const out = local('flow:recipes/pasteListSettle=true', 'flow:cooking/cookingModeFlow=true');
+
+        expect(lines(out.stdout, 'needs-sandbox').map((row) => row.split('|')[0])).toEqual(['recipes/pasteListSettle']);
+        expect(lines(out.stdout, 'prerequisite-not-run').map((row) => row.split('|')[0])).toEqual(['auth/loginFlow']);
+    });
+
+    it('a deployed run reports neither', () => {
+        const out = run(
+            { MAESTRO_PLATFORM: 'android' },
+            'shard-selection',
+            '1',
+            '1',
+            'flow:cooking/cookingModeFlow=true',
+        );
+
+        expect(lines(out.stdout, 'needs-sandbox')).toEqual([]);
+        expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
+    });
+});

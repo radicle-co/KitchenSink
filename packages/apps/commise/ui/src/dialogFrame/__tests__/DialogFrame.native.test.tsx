@@ -20,6 +20,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { expectWindowIsTheModal } from '../../testing/windowModal.native.js';
 import { role } from '../../tokens/colors.js';
 import { nativeTokens } from '../../tokens/native.js';
 import { bodyFontFace, radius } from '../../tokens/scale.js';
@@ -165,7 +166,8 @@ describe('DialogFrame (native)', () => {
     it('is a modal card, the title the first thing in it', () => {
         renderFrame();
 
-        expect(card().getAttribute('aria-modal')).toBe('true');
+        // REWRITTEN for S90 (qse record 0073): the window is the modal view, the card keeps its role and name.
+        expectWindowIsTheModal(card());
         expect(card().textContent?.startsWith('Erase your account?')).toBe(true);
     });
 
@@ -222,7 +224,7 @@ describe('DialogFrame (native)', () => {
 
         expect(card('alert')).toBeTruthy();
         expect(card('alert').getAttribute('role')).toBe('alert');
-        expect(card('alert').getAttribute('aria-modal')).toBe('true');
+        expectWindowIsTheModal(card('alert'));
     });
 
     it('opens a fading, transparent window drawn under the status and navigation bars, closed by Android back', () => {

@@ -76,6 +76,17 @@ describe('withdraw is targeted', () => {
         expect(first.withdraw(other)).toBeUndefined();
         expect(first.getState().current?.input.message).toBe('B');
     });
+
+    it('names a showing, not its input: the first handle of an input shown twice leaves the second showing', () => {
+        const { store } = setup();
+        const input = { message: 'A' };
+        const first = store.show(input);
+        const second = store.show(input);
+
+        expect(store.withdraw(first)).toBeUndefined();
+        expect(store.getState().current?.handle).toBe(second);
+        expect(store.withdraw(second)).toBe(6000);
+    });
 });
 
 describe('the remaining time excludes paused time', () => {

@@ -1,7 +1,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { resizeObserver } from '../../testing/resizeObserver.js';
+import { reportResize, resizeObserver } from '../../testing/resizeObserver.js';
 import { HorizontalScroller } from '../HorizontalScroller.js';
 import type { HorizontalScrollerProps } from '../props.js';
 import type { ScrollExtent } from '../scrollHint.js';
@@ -89,7 +89,9 @@ function scrollTo(scroller: HTMLElement, left: number): void {
 
 /** Tell the observer the box or the content changed size. */
 function resized(): void {
-    act(() => resizeObserver.callback?.([], {} as ResizeObserver));
+    act(() => {
+        reportResize([]);
+    });
 }
 
 describe('HorizontalScroller (web) — the chevron', () => {

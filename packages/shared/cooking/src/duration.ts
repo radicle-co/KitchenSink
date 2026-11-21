@@ -170,11 +170,12 @@ export function readDuration(line: string): DurationReading {
     }
 
     // Only a span that is exactly one range carries its high end.
-    const [only] = amounts;
+    const only = amounts.at(0);
 
     return oneReading(
         total,
         amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined,
+        { start: at, end: at + span.length },
         REPEAT_RATE_AFTER.test(after),
     );
 }
@@ -276,7 +277,7 @@ export function stepWaitsOf(input: StepWaitsInput): StepWaits {
 }
 
 /** A length split into hours, minutes and seconds. */
-export interface DurationParts {
+export interface HmsParts {
     readonly hours: number;
     readonly minutes: number;
     readonly seconds: number;
@@ -288,7 +289,7 @@ export interface DurationParts {
  * @param totalSeconds - A whole number of seconds.
  * @returns The three parts, each below its carry except hours. Pure.
  */
-export function durationParts(totalSeconds: number): DurationParts {
+export function durationParts(totalSeconds: number): HmsParts {
     return {
         hours: Math.floor(totalSeconds / 3_600),
         minutes: Math.floor((totalSeconds % 3_600) / 60),

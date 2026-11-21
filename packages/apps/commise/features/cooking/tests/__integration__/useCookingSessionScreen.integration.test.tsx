@@ -7,6 +7,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeCookingRecipe } from '../../src/__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../../src/cookingViewProps.js';
 import { DONE_SETTLE_MS } from '../../src/doneSettle.js';
+import { TimerProvider } from '../../src/timer/TimerProvider.js';
+import { useCookingTimers } from '../../src/timer/useCookingTimers.js';
 import { useCookingSessionScreen } from '../../src/useCookingSessionScreen.js';
 
 afterEach(() => {
@@ -120,5 +122,81 @@ describe('useCookingSessionScreen over the real session, copy and wake lock', ()
         act(() => result.current.goForward());
 
         expect(result.current.done?.title).toBe('All done');
+    });
+});
+
+/**
+ * S3a.U3 case 9 (qse item 5, R12a): a timer belongs to the cook's device session, not to the cooking screen. Finish and
+ * "Cook it again" leave a running, a paused and a ringing timer as they were, during the Done settle and after it.
+ */
+describe('a timer across Finish and Cook it again', () => {
+    const timerWrapper = ({ children }: { readonly children: ReactNode }) => (
+        <LocaleProvider locale="en">
+            <TimerProvider subject="user_1">{children}</TimerProvider>
+        </LocaleProvider>
+    );
+    const STEP = { recipeId: 'rec_1', stepIndex: 0, stepDigest: 's1:0000000d', label: undefined } as const;
+
+    afterEach(() => {
+        Reflect.deleteProperty(navigator, 'wakeLock');
+    });
+
+    it.each([
+        [
+            'running',
+            (timers: ReturnType<typeof useCookingTimers>) => timers.start({ ...STEP, durationMs: 90 * 60_000 }),
+        ],
+        [
+            'paused',
+            (timers: ReturnType<typeof useCookingTimers>) => {
+                const id = timers.start({ ...STEP, durationMs: 90 * 60_000 }) ?? '';
+
+                timers.command({ kind: 'pause', id, run: 1 });
+            },
+        ],
+        ['ringing', (timers: ReturnType<typeof useCookingTimers>) => timers.start({ ...STEP, durationMs: 5_000 })],
+    ])('leaves a %s timer as it was, in the settle window and after it', async (kind, begin) => {
+        vi.useFakeTimers();
+        const { result } = renderHook(
+            () => ({
+                screen: useCookingSessionScreen({ recipe: RECIPE, onLeave: vi.fn() }),
+                timers: useCookingTimers(),
+            }),
+            { wrapper: timerWrapper },
+        );
+
+        act(() => {
+            begin(result.current.timers);
+        });
+
+        if (kind === 'ringing') {
+            await act(async () => vi.advanceTimersByTimeAsync(5_000));
+        }
+
+        const before = result.current.timers.order;
+
+        expect(before).toHaveLength(1);
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.goForward();
+        });
+        act(() => {
+            result.current.screen.done?.cookAgain.onPress();
+        });
+
+        expect(result.current.timers.order, 'inside the settle').toEqual(before);
+
+        await act(async () => vi.advanceTimersByTimeAsync(DONE_SETTLE_MS));
+        act(() => {
+            result.current.screen.done?.cookAgain.onPress();
+        });
+
+        expect(result.current.screen.done).toBeNull();
+        expect(result.current.timers.order, 'after the settle').toEqual(before);
     });
 });

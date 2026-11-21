@@ -29,10 +29,7 @@ const entrySchema = z.object({
 });
 
 /** One cook's record: finishes counted on this device, and the instant of the last request, if one was made. */
-export interface StoreReviewEntry {
-    readonly finishes: number;
-    readonly lastRequestAt?: string;
-}
+export type StoreReviewEntry = Readonly<z.infer<typeof entrySchema>>;
 
 /** What the record needs from the app. */
 export interface StoreReviewRecordDeps {

@@ -617,8 +617,16 @@ await tool('jscpd', () => {
         return skipped('toolchain not installed');
     }
     let targets = 0;
-    for (const [root] of groupByPackage(codeFiles)) {
-        const report = join(out, 'jscpd', root.replaceAll('/', '__') || 'root');
+    // ⛔ A file outside every package has root '' and `join(repo, '')` is the WHOLE monorepo: a 179 MB report that ran
+    // CI out of heap. That group scans each changed file's own directory instead (a file directly in the repo root
+    // scans only itself). Every package keeps its package root.
+    const scanDirs = [];
+    for (const [root, group] of groupByPackage(codeFiles)) {
+        const dirs = root === '' ? group.map((f) => (dirname(f) === '.' ? f : dirname(f))) : [root];
+        scanDirs.push(...new Set(dirs));
+    }
+    for (const root of scanDirs) {
+        const report = join(out, 'jscpd', root.replaceAll('/', '__'));
         // jscpd 5.x respects .gitignore by default (the flag is `--no-gitignore`); an unknown flag makes it exit
         // non-zero with no report, which must surface as FAILED — never as "saw no sources".
         const r = sh(
@@ -646,7 +654,7 @@ await tool('jscpd', () => {
         targets += res.statistics.total.sources;
         for (const d of res.duplicates) {
             // jscpd reports paths relative to the directory it scanned (the package root), not the repo.
-            const pkgDir = join(repo, root);
+            const pkgDir = codeFiles.includes(root) ? repo : join(repo, root); // a lone root file reports against the repo
             const a = relative(repo, resolve(pkgDir, d.firstFile.name));
             const b = relative(repo, resolve(pkgDir, d.secondFile.name));
             // Only a clone with one side on a changed line: the rest is the repository's own backlog.

@@ -76,3 +76,26 @@ describe('a rate per weight is no wait, over a step the real splitter made', () 
         expect(lines.flatMap((line) => offerSecondsOf({ line }) ?? [])).toEqual([600]);
     });
 });
+
+describe('a repeat rate offers its time, over a step the real splitter made (P56)', () => {
+    const [step] = cookingStepsOf([
+        recipeStepSchema.parse({
+            id: '01JCOOKINGWORDSINTEG00098',
+            recipeId: RECIPE_ID,
+            stepNumber: 1,
+            instruction: [
+                'Fry 3 minutes per side.',
+                'Rest ten minutes per pound.',
+                'Bake twelve minutes per batch.',
+                'Microwave 1 minute per potato.',
+            ].join(' '),
+        }),
+    ]);
+
+    it('offers the two repeat lines and not the weight or food rates', () => {
+        const lines = step?.lines ?? [];
+
+        expect(lines.map((line) => readDuration(line).kind)).toEqual(['one', 'none', 'one', 'none']);
+        expect(lines.flatMap((line) => offerSecondsOf({ line }) ?? [])).toEqual([180, 720]);
+    });
+});

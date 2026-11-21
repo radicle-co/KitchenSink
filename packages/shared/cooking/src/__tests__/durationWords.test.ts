@@ -115,7 +115,6 @@ describe('readWordDuration', () => {
         'a few minutes',
         'a little while',
         'stir for a moment',
-        'ten minutes each side',
         'two minutes before the end',
         'every five minutes',
         'once an hour',
@@ -127,7 +126,6 @@ describe('readWordDuration', () => {
         'an hour or so',
         'a minute or less',
         'eight to ten minutes or according to the fruit',
-        'Bake ten minutes each side, then five minutes more',
         'one-half hour longer',
         'Boil one hour and a half.',
         'Boil two hours and a half',
@@ -165,6 +163,68 @@ describe('readWordDuration', () => {
     it('does not let "a" count as a number in a range', () => {
         expect(readWordDuration('a to ten minutes')).toEqual({ kind: 'one', seconds: 600 });
         expect(readWordDuration('ten to a minutes')).toEqual({ kind: 'none' });
+    });
+});
+
+describe('readWordDuration: a repeat rate offers the time (P56)', () => {
+    it.each([
+        ['Fry three minutes per side', 180],
+        ['Fry three minutes per side.', 180],
+        ['Fry three minutes each side', 180],
+        ['Bake twelve minutes per batch', 720],
+        ['Bake twelve minutes each batch.', 720],
+        ['Fry THREE MINUTES PER SIDE', 180],
+        ['Fry a minute each side', 60],
+        ['Fry an hour per batch', 3_600],
+        ['Fry a minute per side', 60],
+        ['Fry three minutes per-side', 180],
+        ['Fry three minutes each-side.', 180],
+        ['Bake twelve minutes per-batch', 720],
+        ['Bake twelve minutes each-batch', 720],
+        ['Fry a minute per-side', 60],
+    ])('%s gives one duration of %i s, marked as a time that repeats', (line, seconds) => {
+        expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
+    });
+
+    it('keeps the high end of a range and marks it too', () => {
+        expect(readWordDuration('Fry three to four minutes per side')).toStrictEqual({
+            kind: 'one',
+            seconds: 180,
+            highSeconds: 240,
+            perRepeat: true,
+        });
+    });
+
+    it('marks no other reading: a plain time and a time before the repeat words carry no mark', () => {
+        expect(readWordDuration('Bake twenty minutes, then fry per side')).toStrictEqual({
+            kind: 'one',
+            seconds: 1_200,
+        });
+        expect(readWordDuration('Fry per side three minutes')).toStrictEqual({ kind: 'one', seconds: 180 });
+    });
+
+    it.each([
+        'Microwave one minute per potato',
+        'Rest ten minutes per pound',
+        'Roast twenty minutes to the pound',
+        'Bake twenty minutes to the boil',
+        'Fry three minutes per sidecar',
+        'Bake twelve minutes per batches',
+        'Fry a minute per potato',
+        'Fry a minute each sides',
+        'Fry three minutes per other side',
+        'Rest the steak ten minutes to the side',
+        'Fry three minutes per-sidecar',
+        'Microwave one minute per-potato',
+        'Roast twenty minutes to-the-pound',
+        'Roast twenty minutes per pound per side',
+        'Fry three minutes per',
+    ])('%s gives none: only the listed repeat words offer the time', (line) => {
+        expect(readWordDuration(line)).toEqual({ kind: 'none' });
+    });
+
+    it('reads many when a repeat rate sits beside another time', () => {
+        expect(readWordDuration('Bake ten minutes each side, then five minutes more')).toEqual({ kind: 'many' });
     });
 });
 

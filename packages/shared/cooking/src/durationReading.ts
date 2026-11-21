@@ -10,11 +10,13 @@
 
 /**
  * What a line says: no duration, exactly one (in seconds), or several. A range ("20 to 25 minutes") gives its low end
- * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`.
+ * as `seconds` and its high end as `highSeconds`. Only a span that is one range carries `highSeconds`. `perRepeat` is
+ * set when the time is for each repeat ("3 minutes per side"): the step takes it more than once, so a total must not
+ * read it as exact.
  */
 export type DurationReading =
     | { readonly kind: 'none' }
-    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
+    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number; readonly perRepeat?: true }
     | { readonly kind: 'many' };
 
 /**
@@ -24,13 +26,15 @@ export type DurationReading =
  *
  * @param seconds - The low end, or the whole duration.
  * @param high - The high end of a range, if the span is one.
+ * @param perRepeat - Whether the time is for each repeat ("per side"). The mark is absent, never `false`.
  * @returns The `one` reading.
  */
-export function oneReading(seconds: number, high?: number): DurationReading {
+export function oneReading(seconds: number, high?: number, perRepeat = false): DurationReading {
     const low = Math.round(seconds);
     const top = high === undefined ? undefined : Math.round(high);
+    const mark = perRepeat ? ({ perRepeat: true } as const) : {};
 
     return top !== undefined && top > low
-        ? { kind: 'one', seconds: low, highSeconds: top }
-        : { kind: 'one', seconds: low };
+        ? { kind: 'one', seconds: low, highSeconds: top, ...mark }
+        : { kind: 'one', seconds: low, ...mark };
 }

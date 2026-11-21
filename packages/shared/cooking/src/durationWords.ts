@@ -55,8 +55,24 @@ const REPEAT_WORDS: ReadonlySet<string> = new Set(['every', 'once', 'twice']);
  */
 export const RATE_PHRASES: readonly (readonly string[])[] = [['per'], ['to', 'the']];
 
+/**
+ * The repeat words right after a span ("fry three minutes per side", "bake twelve minutes each batch"): the time is the
+ * real wait for each repeat, so it is offered. Only these words allow it. The food words after `per` have no end, so a
+ * list of words to refuse could never be complete ("one minute per potato" must read none).
+ */
+export const REPEAT_RATE_PHRASES: readonly (readonly string[])[] = [
+    ['per', 'side'],
+    ['each', 'side'],
+    ['per', 'batch'],
+    ['each', 'batch'],
+];
+
 /** The words after a span that make its time a part of the step, not the step's wait. */
-const PART_PHRASES: readonly (readonly string[])[] = [['before', 'the', 'end'], ['each', 'side'], ...RATE_PHRASES];
+const PART_PHRASES: readonly (readonly string[])[] = [['before', 'the', 'end'], ...RATE_PHRASES];
+
+/** Whether the tokens from `index` start with a phrase of the list. */
+const startsWithPhrase = (phrases: readonly (readonly string[])[], tokens: readonly string[], index: number): boolean =>
+    phrases.some((phrase) => phrase.every((word, offset) => tokens[index + offset] === word));
 
 /** Words are lower-case letter runs. Punctuation and digit runs are their own tokens. Anything else is a separator. */
 const TOKEN = /[a-z]+|\d+|[.,;:!?()]/gu;
@@ -124,7 +140,12 @@ function articleAt(tokens: readonly string[], index: number): Amount | undefined
         return undefined;
     }
 
-    if (follower !== undefined && isWord(follower) && !ARTICLE_FOLLOWERS.has(follower)) {
+    if (
+        follower !== undefined &&
+        isWord(follower) &&
+        !ARTICLE_FOLLOWERS.has(follower) &&
+        !startsWithPhrase(REPEAT_RATE_PHRASES, tokens, index + 2)
+    ) {
         return undefined;
     }
 
@@ -210,7 +231,7 @@ function isUnreadable(tokens: readonly string[], span: Span): boolean {
         return true;
     }
 
-    if (PART_PHRASES.some((phrase) => phrase.every((word, offset) => after[offset] === word))) {
+    if (!startsWithPhrase(REPEAT_RATE_PHRASES, after, 0) && startsWithPhrase(PART_PHRASES, after, 0)) {
         return true;
     }
 
@@ -267,5 +288,5 @@ export function readWordDuration(line: string): DurationReading {
         return { kind: 'none' };
     }
 
-    return oneReading(only.seconds, only.highSeconds);
+    return oneReading(only.seconds, only.highSeconds, startsWithPhrase(REPEAT_RATE_PHRASES, tokens, only.end));
 }

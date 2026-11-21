@@ -112,8 +112,9 @@ const groupUntimed = (rows: readonly JobRow[]): readonly JobRow[] =>
  *
  * @param input - The prep time and the steps.
  * @returns The prep, the total and the rows. The total is the prep plus the low end of every counted wait, rounded up
- *   to 5 minutes, and it never reads the recipe's own total-time field. A step with a time the reader cannot read
- *   counts nothing, and a time over `MAX_TIMER_MS` is a wait that counts and offers no timer. Pure.
+ *   to 5 minutes, and it never reads the recipe's own total-time field. The total is `partial` when a counted wait
+ *   repeats ("10 minutes each side"), because the step takes it more than once. A step with a time the reader cannot
+ *   read counts nothing, and a time over `MAX_TIMER_MS` is a wait that counts and offers no timer. Pure.
  */
 export function jobShapeOf(input: JobShapeInput): JobShape {
     const classed = input.steps.map((step) => ({ stepNumber: step.stepNumber, cls: classOf(step) }));
@@ -127,7 +128,9 @@ export function jobShapeOf(input: JobShapeInput): JobShape {
     }
 
     const seconds = roundedUp(counted.reduce((sum, wait) => sum + wait.seconds, prepSeconds));
+    // A wait that repeats ("10 minutes each side") is counted once, at its low end, so the sum is short: never `about`.
+    const exact = !counted.some((wait) => wait.perRepeat === true);
     const every = classes.length > 0 && classes.every((cls) => cls.kind === 'wait');
 
-    return { prepSeconds, total: { kind: every ? 'about' : 'partial', seconds }, rows };
+    return { prepSeconds, total: { kind: every && exact ? 'about' : 'partial', seconds }, rows };
 }

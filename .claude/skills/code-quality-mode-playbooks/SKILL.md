@@ -20,9 +20,10 @@ depth, and what the reader needs to do next.
 **Reader:** the PR author, through the `GATE` commit status and one review comment. It needs a verdict and a short list
 it can act on.
 
-⛔ **GATE runs only in CI** (`gate.yml`, ADR-0098). GATE runs only when you have the structured output tool, which the
-CI workflow gives you. Without it, say so in one line and stop: do not run it, and do not stand in for it, on a machine
-or inside another agent's session. Use REVIEW.
+⛔ **GATE runs only in CI** (`gate.yml`, ADR-0098). It runs only when you have the structured output tool, which only the
+CI workflow gives you. Without it, say in one line that GATE runs only in CI, and stop: do not run it, and do not stand
+in for it, on a machine or inside another agent's session. With it, never stop in prose: return `BLOCK` through the
+call.
 
 **Scope:** the PR's whole diff against its base, `git diff <base>...<head>`.
 
@@ -50,6 +51,8 @@ existing-solution search — do not promise less. What GATE gives up for the spe
 findings that are not already blocking (its REVIEW run found an ADR-level data-integrity defect GATE did not):
 when a GATE finding smells structural, say "REVIEW recommended" rather than climbing. Do not read beyond the
 blast radius of the diff except to search for an existing solution the change reinvents (always do that search).
+
+In CI, **Length** and **Body** below do not apply: the structured output call is the report (agent card §7).
 
 **Length:** the whole GATE report fits in ~60 lines. One-line findings where the gate output already explains
 them (a red typecheck needs its error, not an essay); full per-finding shape only for blockers the gates do not

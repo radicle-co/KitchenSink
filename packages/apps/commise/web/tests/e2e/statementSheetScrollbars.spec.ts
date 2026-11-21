@@ -6,7 +6,7 @@ import { mockFoodApi } from './utils/foodApi';
 import { makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { SHEET_EDITOR_VIEWPORT, openIngredientEditor, openRecipeEditor } from './utils/recipeEditor';
 
-import { footerActions, openStatementSheet, sheetOf } from './utils/statementSheet';
+import { boxOf, footerActions, openStatementSheet, sheetOf } from './utils/statementSheet';
 
 // Chromium headless hides classic scrollbars by default; this file shows them, which is the whole point of it. It is its
 // own spec because `launchOptions` is a file-top-level option and would otherwise change every test beside it.
@@ -24,11 +24,14 @@ test.describe('the statement sheet actions with classic scrollbars shown', () =>
 
         const confirm = sheetOf(page).getByRole('button', { name: 'Publish', exact: true });
         const dismiss = sheetOf(page).getByRole('button', { name: 'Keep as draft', exact: true });
-        const before = { confirm: await confirm.boundingBox(), dismiss: await dismiss.boundingBox() };
+        const before = {
+            confirm: await boxOf(confirm, 'Publish action'),
+            dismiss: await boxOf(dismiss, 'Keep as draft action'),
+        };
 
         // Stacked: Publish above Keep as draft, at one x.
-        expect(before.confirm!.y).toBeLessThan(before.dismiss!.y);
-        expect(before.confirm!.x).toBe(before.dismiss!.x);
+        expect(before.confirm.y).toBeLessThan(before.dismiss.y);
+        expect(before.confirm.x).toBe(before.dismiss.x);
 
         const overflowsNow = () =>
             sheetOf(page).evaluate((dialog) =>
@@ -46,13 +49,16 @@ test.describe('the statement sheet actions with classic scrollbars shown', () =>
 
         expect(await overflowsNow()).toBe(true);
 
-        const after = { confirm: await confirm.boundingBox(), dismiss: await dismiss.boundingBox() };
+        const after = {
+            confirm: await boxOf(confirm, 'Publish action'),
+            dismiss: await boxOf(dismiss, 'Keep as draft action'),
+        };
 
-        expect(after.confirm!.y).toBeLessThan(after.dismiss!.y);
-        expect(after.confirm!.x).toBe(before.confirm!.x);
-        expect(after.confirm!.width).toBe(before.confirm!.width);
-        expect(after.dismiss!.x).toBe(before.dismiss!.x);
-        expect(after.dismiss!.width).toBe(before.dismiss!.width);
+        expect(after.confirm.y).toBeLessThan(after.dismiss.y);
+        expect(after.confirm.x).toBe(before.confirm.x);
+        expect(after.confirm.width).toBe(before.confirm.width);
+        expect(after.dismiss.x).toBe(before.dismiss.x);
+        expect(after.dismiss.width).toBe(before.dismiss.width);
     });
 
     // This build's Chromium draws classic scrollbars whatever the launch flags, so the 448 px dialog's row box is 385 px at
@@ -123,10 +129,10 @@ test.describe('the statement sheet actions with classic scrollbars shown', () =>
         await page.setViewportSize(SHEET_EDITOR_VIEWPORT);
         await openRecipeEditor(page, recipeId);
         const sheet = await openIngredientEditor(page, 'Garlic');
-        const cancel = await sheet.getByRole('button', { name: 'Cancel', exact: true }).boundingBox();
-        const done = await sheet.getByRole('button', { name: 'Done', exact: true }).boundingBox();
+        const cancel = await boxOf(sheet.getByRole('button', { name: 'Cancel', exact: true }), 'Cancel action');
+        const done = await boxOf(sheet.getByRole('button', { name: 'Done', exact: true }), 'Done action');
 
-        expect(cancel!.x).toBeLessThan(done!.x);
-        expect(Math.abs(cancel!.y - done!.y)).toBeLessThanOrEqual(1);
+        expect(cancel.x).toBeLessThan(done.x);
+        expect(Math.abs(cancel.y - done.y)).toBeLessThanOrEqual(1);
     });
 });

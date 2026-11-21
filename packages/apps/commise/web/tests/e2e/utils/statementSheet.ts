@@ -1,4 +1,4 @@
-import { expect, type Page } from '@playwright/test';
+import { expect, type Locator, type Page } from '@playwright/test';
 
 import { signInWithTicket } from './auth';
 import { mockFoodApi } from './foodApi';
@@ -49,13 +49,27 @@ export async function openStatementSheet(
 }
 
 /**
+ * The box of a control that must be on screen. A hidden or detached control fails with its name, not with a bare
+ * `Cannot read properties of null`.
+ */
+export async function boxOf(locator: Locator, name: string) {
+    const box = await locator.boundingBox();
+
+    if (box === null) {
+        throw new Error(`The ${name} has no box.`);
+    }
+
+    return box;
+}
+
+/**
  * The two footer actions' boxes, the width of the actions' row, and whether each label is one line (the label's own text
  * box under 1.5 times its line height, qse C-4). Measured from the button found by role: no text locator.
  */
 export async function footerActions(page: Page) {
     const read = async (name: string) => {
         const button = sheetOf(page).getByRole('button', { name, exact: true });
-        const box = await button.boundingBox();
+        const box = await boxOf(button, `${name} action`);
         const label = await button.evaluate((element) => {
             const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
             const range = document.createRange();
@@ -74,10 +88,6 @@ export async function footerActions(page: Page) {
 
             throw new Error('The action has no text.');
         });
-
-        if (box === null) {
-            throw new Error(`The ${name} action has no box.`);
-        }
 
         return { box, oneLine: label.height < 1.5 * label.lineHeight, rowWidth: label.rowWidth };
     };

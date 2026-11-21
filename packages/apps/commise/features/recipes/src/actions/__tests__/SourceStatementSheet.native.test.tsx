@@ -7,7 +7,7 @@
  * the recipe page four; the field and its error are the answer's own; busy disables the list and ignores the platform back
  * route; the effect line is always drawn in the footer.
  */
-import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
+import { reportResize, resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -362,7 +362,7 @@ describe('SourceStatementSheet (native) — the footer actions', () => {
         Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
         Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
         act(() => {
-            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+            reportResize([row]);
         });
         act(() => {
             vi.runOnlyPendingTimers();
@@ -377,7 +377,7 @@ describe('SourceStatementSheet (native) — the footer actions', () => {
 
         const buttons = screen
             .getAllByRole('button')
-            .filter((button) => ['Keep as draft', 'Publish'].includes(button.textContent ?? ''));
+            .filter((button) => ['Keep as draft', 'Publish'].includes(button.textContent));
 
         expect(buttons.map((button) => button.textContent)).toStrictEqual(['Keep as draft', 'Publish']);
     });

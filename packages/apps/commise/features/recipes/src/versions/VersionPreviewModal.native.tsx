@@ -112,12 +112,14 @@ const OpenVersionPreview: FC<VersionPreviewModalProps> = ({
                     <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
                         {preview.keepCurrent}
                     </Button>
-                    {showContent && version !== undefined && (
+                    {showContent && (
                         <Button
                             icon="rotateCcw"
                             busy={isRestoring}
                             width="fill"
-                            onPress={() => onRestore(version.versionNumber)}
+                            onPress={() => {
+                                onRestore(version.versionNumber);
+                            }}
                         >
                             {isRestoring ? preview.restoringThis : preview.restoreThis}
                         </Button>

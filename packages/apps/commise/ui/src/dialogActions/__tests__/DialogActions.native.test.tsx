@@ -25,7 +25,7 @@ afterEach(() => {
  * one, so a wrong `levels` (the wrong node measured, the list left stacked) cannot pass a "stacked" case for that reason.
  */
 function layOut(width: number, levels = 1): void {
-    let row = screen.getByRole('button', { name: 'Keep' }) as HTMLElement;
+    let row = screen.getByRole('button', { name: 'Keep' });
 
     for (let level = 0; level < levels; level += 1) {
         row = row.parentElement as HTMLElement;

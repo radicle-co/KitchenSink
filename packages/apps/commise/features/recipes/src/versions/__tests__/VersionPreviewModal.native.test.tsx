@@ -4,7 +4,7 @@
  * fields, ingredient lines with/without a calorie chip, the "changed from current" summary), error (not a
  * dead end), Restore, and dismissal (Cancel) — so the two platform renders can't drift on behaviour.
  */
-import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
+import { reportResize, resizeObserver as observer } from '@commise/ui/testing/resize-observer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
@@ -483,7 +483,7 @@ describe('VersionPreviewModal (native) — a narrow phone', () => {
         Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
         Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
         act(() => {
-            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+            reportResize([row]);
         });
         act(() => {
             vi.runOnlyPendingTimers();
@@ -766,10 +766,7 @@ describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
         }
 
         act(() => {
-            observer.callback?.(
-                [frame, top, footer].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-                {} as ResizeObserver,
-            );
+            reportResize([frame, top, footer]);
         });
         act(() => {
             vi.runOnlyPendingTimers();
@@ -845,10 +842,7 @@ describe('VersionPreviewModal (native) — the actions across the move', () => {
 
         Object.defineProperty(row, 'offsetWidth', { value: 720, configurable: true });
         act(() => {
-            observer.callback?.(
-                [frame, top, footer, row].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-                {} as ResizeObserver,
-            );
+            reportResize([frame, top, footer, row]);
         });
         act(() => {
             vi.runOnlyPendingTimers();
@@ -880,8 +874,12 @@ describe('VersionPreviewModal (native) — the actions across the move', () => {
         round();
         expect(appliedStyle(actionsRow(), 'flex-direction')).toBe('row');
 
-        act(() => rerender(<VersionPreviewModal {...props} open={false} />));
-        act(() => rerender(<VersionPreviewModal {...props} open />));
+        act(() => {
+            rerender(<VersionPreviewModal {...props} open={false} />);
+        });
+        act(() => {
+            rerender(<VersionPreviewModal {...props} open />);
+        });
 
         expect(appliedStyle(actionsRow(), 'flex-direction')).toBe('column-reverse');
     });

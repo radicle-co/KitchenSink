@@ -323,7 +323,7 @@ describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
         return { startedAsRow, unpinned: inScroll() };
     }
 
-    const renderActionsSheet = (): void =>
+    const renderActionsSheet = (): void => {
         renderSheet({
             footer: (
                 <DialogActions sideBySideFrom={400}>
@@ -332,6 +332,7 @@ describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
                 </DialogActions>
             ),
         });
+    };
 
     it('settles: the footer moves once, then stays pinned and is a row on its first render after every move', () => {
         renderActionsSheet();

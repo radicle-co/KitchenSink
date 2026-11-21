@@ -1,4 +1,4 @@
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize, resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import { createElement, type ComponentProps, type ComponentType } from 'react';
@@ -366,7 +366,7 @@ describe('ConfirmDialog (native) — the action row at large text', () => {
         Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
         Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
         act(() => {
-            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+            reportResize([row]);
         });
         act(() => {
             vi.runOnlyPendingTimers();
@@ -378,7 +378,7 @@ describe('ConfirmDialog (native) — the action row at large text', () => {
     const orderOf = (): string[] =>
         screen
             .getAllByRole('button')
-            .map((button) => button.textContent ?? '')
+            .map((button) => button.textContent)
             .filter((text) => text === 'Keep editing' || text === 'Discard changes');
 
     it('is a row at 416 dp and scale 1', () => {

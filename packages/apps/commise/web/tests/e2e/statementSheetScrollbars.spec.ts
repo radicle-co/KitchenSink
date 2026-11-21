@@ -20,7 +20,7 @@ test.use({ launchOptions: { ignoreDefaultArgs: ['--hide-scrollbars'] } });
  */
 test.describe('the statement sheet actions with classic scrollbars shown', () => {
     test('stacked before and after the body overflows, with the same x and width', async ({ page }) => {
-        await openStatementSheet(page, { width: 1280, height: 900, scale: 1 });
+        await openStatementSheet(page, { width: 1280, height: 1600, scale: 1 });
 
         const confirm = sheetOf(page).getByRole('button', { name: 'Publish', exact: true });
         const dismiss = sheetOf(page).getByRole('button', { name: 'Keep as draft', exact: true });

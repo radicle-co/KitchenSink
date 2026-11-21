@@ -154,19 +154,30 @@ describe('RadioList (native) at a system text scale', () => {
         expect(Number.parseFloat(styleOf('I wrote it myself').fontSize)).toBeCloseTo(14 * 1.786, 2);
     });
 
+    /** The 18 dp radio circle of the one row, narrowed so a missing circle fails here and not as a NaN. */
+    function circleMarginTop(): number {
+        const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
+
+        if (!(circle instanceof HTMLElement)) {
+            throw new Error('radio circle not found');
+        }
+
+        return Number.parseFloat(getComputedStyle(circle).marginTop);
+    }
+
     it.each([
         [1, 1],
         [2, 11],
+        [3.571, 11],
     ] as const)(
         'at scale %s the 18 dp circle is offset by (leading - 18) / 2 = %s, so it centres on the label’s first line',
         (textScale, offset) => {
             withPlatformOs('android', () => {
                 renderAt(textScale);
 
-                const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
-
-                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(20 * textScale);
-                expect(Number.parseFloat(getComputedStyle(circle as Element).marginTop)).toBe(offset);
+                // The leading is capped at 2x, so past the cap the offset stays where it was at 2x.
+                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(20 * Math.min(textScale, 2));
+                expect(circleMarginTop()).toBe(offset);
             });
         },
     );
@@ -175,13 +186,9 @@ describe('RadioList (native) at a system text scale', () => {
         withPlatformOs('ios', () => {
             renderAt(2);
 
-            const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
             const drawnLeading = Number.parseFloat(styleOf('Written by me').lineHeight);
 
-            expect(Number.parseFloat(getComputedStyle(circle as Element).marginTop)).toBeCloseTo(
-                (drawnLeading - 18) / 2,
-                5,
-            );
+            expect(circleMarginTop()).toBeCloseTo((drawnLeading - 18) / 2, 5);
         });
     });
 });

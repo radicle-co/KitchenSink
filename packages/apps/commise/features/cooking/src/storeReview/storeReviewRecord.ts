@@ -56,10 +56,10 @@ export interface StoreReviewRecord {
     clear(userId: string | undefined): Promise<void>;
 }
 
-/** The key's parsed map, or why there is none: `absent` (no key) or `unreadable` (stored, not a JSON object). */
 /** One cook's entry as read: the entry, or `bad` when it failed its schema or the key could not be read as a map. */
 type EntryRead = { readonly kind: 'entry'; readonly entry: StoreReviewEntry } | { readonly kind: 'bad' };
 
+/** The key's parsed map, or why there is none: `absent` (no key) or `unreadable` (stored, not a JSON object). */
 type RawMap =
     | { readonly kind: 'map'; readonly map: Record<string, unknown> }
     | { readonly kind: 'absent' }

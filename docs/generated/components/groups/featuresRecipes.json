@@ -10065,7 +10065,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe\nstays private (board P6), as three siblings. A moment is the assertive region, mounted empty and filled one render\nlater by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,\nmounted empty, carries the one announcement (KTD-6, designer DN-1).\n\nA presentational component: it decides nothing. The page renders it once; for a viewer who is not the owner it mounts nothing.",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe\nstays private (board P6), as three siblings. A moment is the assertive region, mounted empty and filled one render\nlater by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,\nmounted empty, carries the one announcement (KTD-6, designer DN-1).\n\nA presentational component: it draws the owner's slot from its props, and nothing at all for a viewer who is not\nthe owner. The page renders it once.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -10121,7 +10121,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/detail",
-                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with\n`RecipeVisibilityNotice.tsx` and presentational like it: an assertive moment region, a muted standing line outside\nany live region, and a polite hidden region that carries the one announcement.",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with\n`RecipeVisibilityNotice.tsx` and presentational like it: for the owner, an assertive moment region, a muted standing\nline outside any live region, and a polite hidden region that carries the one announcement. For anyone else, nothing.",
                     "moduleTags": [
                         {
                             "name": "module",

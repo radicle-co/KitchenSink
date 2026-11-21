@@ -4,6 +4,7 @@ import { act, cleanup, renderHook } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { makeKeptStore } from '../../src/__fixtures__/makeKeptStore.js';
 import { makeCookingRecipe } from '../../src/__fixtures__/makeCookingRecipe.js';
 import type { CookingRecipe } from '../../src/cookingViewProps.js';
 import { DONE_SETTLE_MS } from '../../src/doneSettle.js';
@@ -126,16 +127,25 @@ describe('useCookingSessionScreen over the real session, copy and wake lock', ()
 });
 
 /**
- * S3a.U3 case 9 (qse item 5, R12a): a timer belongs to the cook's device session, not to the cooking screen. Finish and
+ * S3a.U3 case 9 (R12a): a timer belongs to the cook's device session, not to the cooking screen. Finish and
  * "Cook it again" leave a running, a paused and a ringing timer as they were, during the Done settle and after it.
  */
 describe('a timer across Finish and Cook it again', () => {
+    const { kept } = makeKeptStore();
     const timerWrapper = ({ children }: { readonly children: ReactNode }) => (
         <LocaleProvider locale="en">
-            <TimerProvider subject="user_1">{children}</TimerProvider>
+            <TimerProvider subject="user_1" kept={kept}>
+                {children}
+            </TimerProvider>
         </LocaleProvider>
     );
-    const STEP = { recipeId: 'rec_1', stepIndex: 0, stepDigest: 's1:0000000d', label: undefined } as const;
+    const STEP = {
+        recipeId: 'rec_1',
+        stepIndex: 0,
+        stepDigest: 's1:0000000d',
+        label: undefined,
+        origin: { kind: 'added' },
+    } as const;
 
     afterEach(() => {
         Reflect.deleteProperty(navigator, 'wakeLock');

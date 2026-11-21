@@ -16,15 +16,16 @@ import {
     type ActiveTimer,
     type TimerCommand,
     type TimerEvent,
+    type TimerOrigin,
     type TimerState,
 } from '../timer.js';
 
 type Template =
-    | { readonly kind: 'start'; readonly durationMs: number; readonly step: number }
+    | { readonly kind: 'start'; readonly durationMs: number; readonly step: number; readonly origin: TimerOrigin }
     | { readonly kind: 'pause' | 'resume' | 'cancel' | 'stop' | 'discardUndo'; readonly pick: number }
     | { readonly kind: 'addTime'; readonly pick: number; readonly addMs: number }
     | { readonly kind: 'rematch'; readonly picks: readonly number[]; readonly steps: readonly number[] }
-    | { readonly kind: 'ring' | 'restore' };
+    | { readonly kind: 'ring' | 'restore' | 'settleAway' };
 
 /** The most timers the generated callers allow: the limit in force today (1) and the one S6.U1 brings (10). */
 const LIMITS = [1, 10] as const;
@@ -39,6 +40,11 @@ const templateArb: fc.Arbitrary<Template> = fc.oneof(
         kind: fc.constant('start' as const),
         durationMs: fc.integer({ min: MIN_TIMER_MS, max: 3_600_000 }),
         step: fc.integer({ min: 0, max: 2 }),
+        origin: fc.constantFrom(
+            { kind: 'offer', lineIndex: 1 } as const,
+            { kind: 'offer', lineIndex: null } as const,
+            { kind: 'added' } as const,
+        ),
     }),
     fc.record({
         kind: fc.constantFrom(
@@ -60,7 +66,7 @@ const templateArb: fc.Arbitrary<Template> = fc.oneof(
         pick: fc.nat(),
         addMs: fc.integer({ min: MIN_TIMER_MS, max: 600_000 }),
     }),
-    fc.record({ kind: fc.constantFrom('ring' as const, 'restore' as const) }),
+    fc.record({ kind: fc.constantFrom('ring' as const, 'restore' as const, 'settleAway' as const) }),
 );
 
 const limitArb = fc.constantFrom(...LIMITS);
@@ -93,6 +99,7 @@ function commandFor(
                 stepIndex: template.step,
                 stepDigest: `s1:${String(template.step).padStart(8, '0')}`,
                 label: undefined,
+                origin: template.origin,
                 durationMs: template.durationMs,
                 limit,
                 nowMs,
@@ -101,6 +108,8 @@ function commandFor(
             return { kind: 'ring', nowMs };
         case 'restore':
             return { kind: 'restore', limit, nowMs };
+        case 'settleAway':
+            return { kind: 'settleAway', heldElsewhere: nowMs % 2 === 0, nowMs };
         case 'rematch':
             return {
                 kind: 'rematch',
@@ -301,6 +310,38 @@ describe('the timer model over any command sequence', () => {
                     }
                 },
             ),
+        );
+    });
+
+    /**
+     * A timer keeps the origin it started with through every command, so the row keeps its name after "+ time", a
+     * ring, an Undo or a reload's settle. The one change allowed is a rematch that moved the timer off its step text:
+     * an offer then forgets its line (`lineIndex: null`) and nothing else. Mutant: one command resets the origin.
+     */
+    it('keeps the origin a timer started with, in every command sequence', () => {
+        fc.assert(
+            fc.property(stepsWithLimit, ([steps, limit]) => {
+                const startedAs = new Map<string, TimerOrigin>();
+
+                for (const { command, after } of trace(steps, limit)) {
+                    if (command.kind === 'start' && !startedAs.has(command.id)) {
+                        startedAs.set(command.id, command.origin);
+                    }
+
+                    for (const timer of holdersOf(after)) {
+                        const expected = startedAs.get(timer.id);
+
+                        if (expected !== undefined && timer.origin.kind === 'offer' && expected.kind === 'offer') {
+                            if (command.kind === 'rematch' && timer.origin.lineIndex === null) {
+                                startedAs.set(timer.id, timer.origin);
+                            }
+                        }
+
+                        expect(timer.origin).toEqual(startedAs.get(timer.id));
+                    }
+                }
+            }),
+            { numRuns: 500 },
         );
     });
 });

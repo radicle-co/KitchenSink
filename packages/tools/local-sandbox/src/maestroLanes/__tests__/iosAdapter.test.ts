@@ -389,7 +389,7 @@ describe('IosAdapter', () => {
             expect(recorder.tunnels).toEqual([]);
         });
 
-        it('leaves prepareHost to open the tunnel without asking the Mac for the key or the check a second time', async () => {
+        it('leaves prepareHost to open the tunnel, with no second key or check', async () => {
             const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
             const adapter = new IosAdapter(options(recorder.shell));
 

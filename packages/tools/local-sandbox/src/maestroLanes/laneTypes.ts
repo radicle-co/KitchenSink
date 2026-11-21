@@ -79,8 +79,8 @@ export interface DeviceAdapter {
     readonly maxLanes: number;
     hostFacts(): Promise<HostFacts>;
     /**
-     * Optional. Refuse the run for a cause no lane can fix (the app for this tree is not built), before the orchestrator
-     * starts a service, makes a user or boots a device. It must hold nothing that {@link teardownHost} would have to
+     * Optional. Refuse the run for a cause no lane can fix (the app for this tree is not built), before the
+     * orchestrator starts a service, makes a user or boots a device. It must hold nothing that {@link teardownHost} would have to
      * release, and a later {@link prepareHost} must not repeat what it did.
      */
     preflight?(run: RunContext): Promise<void>;

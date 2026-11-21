@@ -65,9 +65,12 @@ const BARE_MINUTES = String.raw`(?:\s+(?<bare>\d{1,2})(?=\s*(?:$|[.,;:!?)])))`;
 const UNREAD_TIME_AFTER = new RegExp(String.raw`^${JOINER}\d+(?:[.,]\d+)?\s*[ms](?![a-z])`, 'iu');
 const UNREAD_TIME_BEFORE = new RegExp(String.raw`(?<![\d.,])\d+(?:[.,]\d+)?\s*[ms]${JOINER}$`, 'iu');
 
-/** The words as a pattern: each phrase's words joined by whitespace, the phrases as alternatives. */
+/**
+ * The words as a pattern: each phrase's words joined by whitespace or a hyphen, the phrases as alternatives. The word
+ * reader splits on a hyphen, so "per-side" is "per side" in both layers.
+ */
 const phrasePattern = (phrases: readonly (readonly string[])[]): string =>
-    phrases.map((phrase) => phrase.join(String.raw`\s+`)).join('|');
+    phrases.map((phrase) => phrase.join(String.raw`[\s-]+`)).join('|');
 
 /**
  * Any rate word right after the span ("10 minutes per pound", "20 minutes to the pound"): the line reads none. The

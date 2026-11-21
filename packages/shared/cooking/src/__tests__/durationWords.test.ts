@@ -177,6 +177,11 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
         ['Fry a minute each side', 60],
         ['Fry an hour per batch', 3_600],
         ['Fry a minute per side', 60],
+        ['Fry three minutes per-side', 180],
+        ['Fry three minutes each-side.', 180],
+        ['Bake twelve minutes per-batch', 720],
+        ['Bake twelve minutes each-batch', 720],
+        ['Fry a minute per-side', 60],
     ])('%s gives one duration of %i s, marked as a time that repeats', (line, seconds) => {
         expect(readWordDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
     });
@@ -209,6 +214,9 @@ describe('readWordDuration: a repeat rate offers the time (P56)', () => {
         'Fry a minute each sides',
         'Fry three minutes per other side',
         'Rest the steak ten minutes to the side',
+        'Fry three minutes per-sidecar',
+        'Microwave one minute per-potato',
+        'Roast twenty minutes to-the-pound',
         'Roast twenty minutes per pound per side',
         'Fry three minutes per',
     ])('%s gives none: only the listed repeat words offer the time', (line) => {

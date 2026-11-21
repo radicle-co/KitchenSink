@@ -96,6 +96,10 @@ describe('readDuration: a repeat rate offers the time, because the time is the r
         ['Fry 2 MINUTES PER SIDE', 120],
         ['Fry 3 minutes per   side', 180],
         ['Fry 3 minutes per side of the steak', 180],
+        ['Fry 3 minutes per-side', 180],
+        ['Fry 3 minutes each-side.', 180],
+        ['Bake 12 minutes per-batch', 720],
+        ['Bake 12 minutes each-batch', 720],
     ])('%s gives %i s, marked as a time that repeats', (line, seconds) => {
         expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds, perRepeat: true });
         expect(offerSecondsOf({ line })).toBe(seconds);
@@ -126,6 +130,9 @@ describe('readDuration: a repeat rate offers the time, because the time is the r
         'Fry 3 minutes per',
         'Fry 3 minutes per other side',
         'Rest the steak 10 minutes to the side',
+        'Fry 3 minutes per-sidecar',
+        'Microwave 1 minute per-potato',
+        'Roast 20 minutes to-the-pound',
         'Roast 20 minutes per pound per side',
     ])('%s still gives none: only the listed repeat words offer the time', (line) => {
         expect(readDuration(line)).toEqual({ kind: 'none' });

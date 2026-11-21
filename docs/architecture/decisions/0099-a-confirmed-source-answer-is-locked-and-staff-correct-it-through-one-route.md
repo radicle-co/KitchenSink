@@ -27,7 +27,7 @@ change the answer in the editor.
 3. **`recipe_source_corrections`** is an append-only record of each correction: actor, old and new answer, ground,
    reason. A correction also appends source evidence with capture `staffCorrection`. An erased staff account is
    relabelled to one `erased_` token, and only while its erasure job runs. A deleted recipe takes its records with it.
-4. **One route**, `POST /api/v1/recipes/:id/source-correction`, behind the grant `recipes:source:correct`. A pure
+4. **One route**, `POST /api/v1/recipes/:id/source-correction` (and its read-only `GET` preview, for the runbook), behind the grant `recipes:source:correct`. A pure
    policy returns one of `forbidden`, `notFound`, `invalidTarget`, `unchanged` or `apply`. The command takes the
    per-user lock, then `FOR UPDATE`, and does not bump the version.
 5. **The lock is one function**, `sourceLockOf(facts)` in recipe-core: `open`, `downgradeOnly` or `locked`. It

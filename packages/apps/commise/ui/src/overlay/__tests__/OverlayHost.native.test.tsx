@@ -5,7 +5,7 @@
  * `onRequestClose` from a test (spike S3): the recorded prop is what the device calls on Android Back. The
  * on-device order is `.maestro/shell/overlayBackOrder.yaml` and `overlaySwipeDismiss.yaml`.
  */
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, useEffect, type ComponentProps, type FC } from 'react';
 import { Pressable, Text, type Modal as ModalType, type View as ViewType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -14,6 +14,7 @@ import { BackInterceptProvider } from '../../backIntercept/BackInterceptProvider
 import { useBackIntercept } from '../../backIntercept/useBackIntercept.native.js';
 import { installHardwareBackHandler } from '../../testing/hardwareBack.native.js';
 import { MODAL_CLOSE_EVENT } from '../../testing/modalCloseEvent.native.js';
+import { render } from '../../testing/tamaguiTesting.native.js';
 import { DISMISS_ROUTES, type DismissRoute } from '../dismissRoute.js';
 import { OverlayHost } from '../OverlayHost.native.js';
 import { OverlayView } from '../OverlayView.native.js';

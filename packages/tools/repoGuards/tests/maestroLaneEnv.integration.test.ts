@@ -154,9 +154,15 @@ describe('run mode under a local lane', () => {
         }
     });
 
-    it('drops the sandbox-only spine before packing, and says so', () => {
+    /**
+     * REWRITTEN 2026-11-21 (CL-OWED, TEST-CHANGE by qse): this lane is a narrowed run that does not name the spine, so
+     * the spine is a prerequisite the lane could not run. The summary says `prerequisite not run locally`, not
+     * `needs sandbox`, which is for a flow the cook named. The spine is still not run.
+     */
+    it('drops the sandbox-only spine before packing, and says it is a prerequisite not run', () => {
         expect(flowsRun(lane).map(([flow]) => flow)).not.toContain('auth/loginFlow');
-        expect(lane.output).toMatch(/not run locally: needs sandbox - auth\/loginFlow/u);
+        expect(lane.output).toMatch(/prerequisite not run locally: auth\/loginFlow \(/u);
+        expect(lane.output).not.toMatch(/needs sandbox/u);
     });
 
     /**

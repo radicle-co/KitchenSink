@@ -21,6 +21,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         publishAttempted: false,
         publishBlocked: undefined,
         statementAsk: false,
+        paidSiteStated: undefined,
         confirmLineShown: false,
         publicHeld: false,
         answerStatement: noop,

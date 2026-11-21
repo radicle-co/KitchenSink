@@ -4588,6 +4588,39 @@ describe('the source question on Publish (ADR-0095)', () => {
         });
     });
 
+    // The service refused the session's statement (`403 SOURCE_LOCKED`: another device stored "From another person"). Try again
+    // used to send the same statement and meet the same refusal, so the cook's other edits never synced.
+    it('⛔ Try again after a 403 on a write that carried a statement does not send that statement again', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerStatement(authored);
+        });
+        await settle();
+
+        expect(port.submitted[0]).toMatchObject({ payload: { input: { statement: { kind: 'authored' } } } });
+
+        act(() => {
+            port.park(port.lastSeq(), 403);
+        });
+        await settle();
+        act(() => {
+            result.current.retry();
+        });
+        await settle();
+        await settle();
+
+        // The refused answer is forgotten and is NOT sent again: the sheet asks against the recipe as it is now.
+        expect(port.submitted).toHaveLength(1);
+        expect(result.current.statementAsk).toBe(true);
+    });
+
     it('"I wrote this" publishes public with the statement and NO separate confirmation, and the draft is marked pasted', async () => {
         const { result, port } = mount();
 
@@ -4604,7 +4637,7 @@ describe('the source question on Publish (ADR-0095)', () => {
 
         expect(result.current.statementAsk).toBe(false);
         expect(result.current.confirmLineShown).toBe(false);
-        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: Record<string, unknown> };
         expect(input).toMatchObject({
             status: 'published',
             visibility: RecipeVisibility.PUBLIC,
@@ -4633,6 +4666,43 @@ describe('the source question on Publish (ADR-0095)', () => {
         expect(port.submitted[0]).toMatchObject({
             payload: {
                 input: { status: 'published', visibility: RecipeVisibility.PRIVATE, statement: { kind: 'book' } },
+            },
+        });
+    });
+
+    it('⛔ a paid-site answer is held as stated from the confirm, goes out Private with its statement, and is not stated before', async () => {
+        const { result, port } = mount();
+        const paid = {
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
+            },
+            visibility: RecipeVisibility.PRIVATE,
+        } as const;
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+
+        expect(result.current.paidSiteStated).toBeUndefined();
+
+        act(() => {
+            result.current.answerStatement(paid);
+        });
+        await settle();
+
+        expect(result.current.paidSiteStated).toBe('Sam’s Subscription Kitchen');
+        expect(port.submitted[0]).toMatchObject({
+            payload: {
+                input: {
+                    status: 'published',
+                    visibility: RecipeVisibility.PRIVATE,
+                    statement: { kind: 'paid_site', citation: 'Sam’s Subscription Kitchen' },
+                },
             },
         });
     });
@@ -4685,7 +4755,7 @@ describe('the source question on Publish (ADR-0095)', () => {
         });
         await settle();
 
-        const { input } = port.submitted[0]?.payload as { input: Record<string, unknown> };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: Record<string, unknown> };
         expect(input).not.toHaveProperty('statement');
         expect(input).toMatchObject({ visibility: RecipeVisibility.PRIVATE });
     });
@@ -4704,7 +4774,7 @@ describe('the Source row’s link sends no wording (ADR-0095)', () => {
         });
         await settle();
 
-        const { input } = port.submitted[0]?.payload as { input: { statement?: Record<string, unknown> } };
+        const { input } = (port.submitted[0]?.payload ?? {}) as { input: { statement?: Record<string, unknown> } };
 
         expect(input.statement).toEqual({ kind: 'public_web', citation: 'https://www.allrecipes.com/recipe/1/soup/' });
     });

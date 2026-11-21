@@ -64,8 +64,12 @@ describe('evidenceRowOf — the row a statement leaves behind', () => {
         });
     });
 
-    it('refuses a paid site stated in the editor: the editor cannot state one, and no capture would fit', () => {
-        expect(() => evidenceRowOf(defined(PAID), 'editor')).toThrow(/paid/u);
+    it('records a paid site the cook stated in the editor with the editorCitation capture, never editorLink', () => {
+        expect(evidenceRowOf(defined(PAID), 'editor')).toEqual({
+            capture: 'editorCitation',
+            sourceKind: 'paid_site',
+            citation: 'Cook’s Illustrated',
+        });
     });
 
     it('records a book by citation, with no address and no domain', () => {

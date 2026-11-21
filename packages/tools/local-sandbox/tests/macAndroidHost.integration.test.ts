@@ -38,8 +38,8 @@ describe('MacAndroidHost lane environment and the session', () => {
         expect(env['KS_MAC_LANE_HOME']).toBe('/Users/x/ksIos/lanes/lane1');
     });
 
-    it('has the loss ready once the tunnel exits, before the run first looks', async () => {
-        // A loss that already happened must be readable when the run first looks, or lanes start on a dead tunnel.
+    it('has the loss settled as soon as the tunnel exits', async () => {
+        // A loss that already happened is settled when it is asked for (see DeviceAdapter.lost).
         const { host, exitTunnel } = makeMacAndroidRig();
         await host.prepare(run, APK_PATH, 'abc123');
         exitTunnel(255);

@@ -218,6 +218,18 @@ function sourceOfStatement(
 }
 
 /**
+ * What a recipe's `statement` stores as `statementKind`, as the service persists it: "From another person" is stored, and the
+ * editor reads it back to lock the Source row (ADR-0097). The other answers set no stored kind here. Pure.
+ */
+function statementKindOf(statement: unknown): Pick<RecipeDetail, 'statementKind'> | undefined {
+    return typeof statement === 'object' &&
+        statement !== null &&
+        (statement as { kind?: unknown }).kind === 'fromPerson'
+        ? { statementKind: 'fromPerson' }
+        : undefined;
+}
+
+/**
  * Apply an `UpdateRecipeInput` body onto a stored recipe, exactly as the service's update path does: overlay
  * each PROVIDED field (title/description/cuisine/times/servings/visibility/flags/tags and the ingredient +
  * step sets, mapped to their read-projection shapes), leave absent fields untouched, and bump
@@ -271,7 +283,7 @@ function applyUpdate(
         next.sourceType = 'user_created' as RecipeDetail['sourceType'];
     }
 
-    Object.assign(next, sourceOfStatement(input['statement']));
+    Object.assign(next, sourceOfStatement(input['statement']), statementKindOf(input['statement']));
 
     // The cuisine is three-state too (2026-10-13): the editor sends `null` when the cook empties the field, and the read
     // projection then omits it, as the service's does. A plain-scalar copy would put `null` on the read, which the
@@ -2103,6 +2115,7 @@ export async function mockRecipeApi(
                     ...(typeof input['status'] === 'string' ? { status: input['status'] as RecipeStatus } : {}),
                     // ADR-0089: a pasted web link, as the service persists it.
                     ...sourceOfStatement(input['statement']),
+                    ...statementKindOf(input['statement']),
                 });
                 store.set(created.id, created);
 

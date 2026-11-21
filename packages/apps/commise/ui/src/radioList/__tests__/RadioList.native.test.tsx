@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -8,6 +8,7 @@ import type { RadioListOption, RadioListProps } from '../props.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
+import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * RadioList (native) — a `radiogroup` of whole-row `radio`s with `aria-checked`, rendered through react-native-web:
@@ -118,6 +119,112 @@ describe('RadioList (native)', () => {
             for (const radio of within(group).getAllByRole('radio')) {
                 expect(getComputedStyle(radio).minHeight).toBe(`${String(touchFloor())}px`);
             }
+        });
+    });
+});
+
+/**
+ * U2 (plan largeTextSheet, #398): the answer rows draw on the design-system `Text`, so the label (cardTitle 16 / 20) and
+ * the hint (meta 14 / 20) honour the 2x cap, and the radio circle sits on the label's first line at every scale. These
+ * cases fail at 6b88df26a, where the rows draw on React Native's `Text` at the raw token size.
+ */
+describe('RadioList (native) at a system text scale', () => {
+    const OPTION: readonly RadioListOption[] = [{ id: 'a', label: 'Written by me', hint: 'I wrote it myself' }];
+
+    const renderAt = (textScale: number) =>
+        renderWithTamagui(
+            <RadioList label="Where is this recipe from?" options={OPTION} value={undefined} onChange={vi.fn()} />,
+            'light',
+            textScale,
+        );
+
+    const styleOf = (text: string) => getComputedStyle(screen.getByText(text));
+
+    it('past the cap (3.571) the label draws at 32 and the hint at 28, not at the platform’s uncapped size', () => {
+        renderAt(3.571);
+
+        expect(styleOf('Written by me').fontSize).toBe('32px');
+        expect(styleOf('I wrote it myself').fontSize).toBe('28px');
+    });
+
+    it('inside the cap (1.786) the label and hint draw at their role size times the scale, with no clamp', () => {
+        renderAt(1.786);
+
+        expect(Number.parseFloat(styleOf('Written by me').fontSize)).toBeCloseTo(16 * 1.786, 2);
+        expect(Number.parseFloat(styleOf('I wrote it myself').fontSize)).toBeCloseTo(14 * 1.786, 2);
+    });
+
+    /** The 18 dp radio circle of the one row, and the slot one line of the label tall that holds it. */
+    function markOfTheRow(): { readonly circle: HTMLElement; readonly slot: HTMLElement } {
+        const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
+
+        if (!(circle instanceof HTMLElement) || circle.parentElement === null) {
+            throw new Error('radio circle not found');
+        }
+
+        return { circle, slot: circle.parentElement };
+    }
+
+    it.each([
+        [1, 20],
+        [2, 40],
+        [3.571, 40],
+    ] as const)(
+        'at scale %s the circle sits centred in a slot one label line (%s dp) tall, so it centres on the first line',
+        (textScale, line) => {
+            withPlatformOs('android', () => {
+                renderAt(textScale);
+
+                const { circle, slot } = markOfTheRow();
+
+                // The leading is capped at 2x, so past the cap the slot stays as tall as at 2x.
+                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(line);
+                expect(getComputedStyle(slot).height).toBe(`${String(line)}px`);
+                expect(getComputedStyle(slot).alignItems).toBe('center');
+                expect(getComputedStyle(circle).width).toBe('18px');
+                expect(getComputedStyle(circle).height).toBe('18px');
+            });
+        },
+    );
+
+    it('a row with no hint keeps the circle on the label: both sit in one top-aligned group the row centres', () => {
+        // The Pressable centres its content. A lone label line is then centred in the 44 dp row, so a mark that
+        // is only offset from the row top would sit off it. Mark and words share one flex-start group instead.
+        withPlatformOs('android', () => {
+            renderWithTamagui(
+                <RadioList
+                    label="Where is this recipe from?"
+                    options={[{ id: 'a', label: 'Publish privately' }]}
+                    value={undefined}
+                    onChange={vi.fn()}
+                />,
+                'light',
+                1,
+            );
+
+            const radio = screen.getByRole('radio');
+            const { slot } = markOfTheRow();
+            const group = slot.parentElement;
+
+            if (group === null) {
+                throw new Error('radio row group not found');
+            }
+
+            expect(radio.children).toHaveLength(1);
+            expect(radio.firstElementChild).toBe(group);
+            expect(group.contains(screen.getByText('Publish privately'))).toBe(true);
+            expect(getComputedStyle(group).alignItems).toBe('flex-start');
+            expect(getComputedStyle(radio).alignItems).toBe('center');
+        });
+    });
+
+    it('on iOS the slot is as tall as the snapped leading the label draws with', () => {
+        withPlatformOs('ios', () => {
+            renderAt(2);
+
+            const drawnLeading = Number.parseFloat(styleOf('Written by me').lineHeight);
+
+            expect(Number.parseFloat(getComputedStyle(markOfTheRow().slot).height)).toBeCloseTo(drawnLeading, 5);
         });
     });
 });

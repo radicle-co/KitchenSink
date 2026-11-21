@@ -103,6 +103,20 @@ describe('the zero list, over the real tree', () => {
         ]);
     });
 
+    it('only the repo guards, vitest tests and the policy name the recipe state model value file', () => {
+        // The file is zero-listed because no screen reads it. A shipped module that imported it (label keys, say) would
+        // let a changed value change a screen without selecting a test, so each new reader must fail here.
+        const namers = execFileSync('git', ['grep', '-l', 'recipeStateModel\\.json', '--', ':!*.md'], {
+            cwd: repo,
+            encoding: 'utf8',
+        })
+            .split('\n')
+            .filter((file) => file !== '' && !file.startsWith('packages/tools/repoGuards/') && !isTestFile(file))
+            .sort();
+
+        expect(namers).toEqual(['packages/tools/e2ePlan/src/impactPolicy.ts']);
+    });
+
     it('no Maestro flow or script names a markdown file or the repo guards', () => {
         const dir = 'packages/apps/commise/mobile/.maestro';
         const offenders = globSync(`${dir}/**/*.{yaml,js}`, { cwd: repo })

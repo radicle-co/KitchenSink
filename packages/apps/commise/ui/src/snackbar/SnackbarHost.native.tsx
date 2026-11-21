@@ -11,10 +11,14 @@
  * It also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button
  * rises above the bar instead of sitting under it.
  *
+ * An open sheet or dialog is a window of its own, above the app root, so while one is open the host hands the snackbar
+ * to that window's outlet (`SnackbarOutlet`, mounted by `OverlayHost`) and draws nothing itself. The queue, the timer
+ * and the pause stay here, so closing the window moves the snackbar back without ending it.
+ *
  * @pattern Mediator — the host stands between the screens that ask and the one snackbar that shows; the queue's rules
  *     are the pure reducer's (State + Command)
  */
-import { useContext, useEffect, useState, type FC } from 'react';
+import { useCallback, useContext, useEffect, useState, type FC } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
@@ -22,6 +26,14 @@ import { nativeTokens } from '../tokens/native.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
 import { SnackbarClearanceContext } from './snackbarClearanceContext.js';
 import { SnackbarContext } from './snackbarContext.js';
+import { SnackbarOutletContext } from './snackbarOutletContext.js';
+import {
+    NO_OUTLETS,
+    registerOutlet,
+    topOutlet,
+    unregisterOutlet,
+    type SnackbarOutletEntry,
+} from './snackbarOutlets.js';
 import { UndoSnackbar } from './UndoSnackbar.native.js';
 import { useSnackbarQueue } from './useSnackbarQueue.js';
 
@@ -32,6 +44,14 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
     const [bottom, setBottom] = useState(SNACKBAR_GAP);
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
+    const [outlets, setOutlets] = useState(NO_OUTLETS);
+    const register = useCallback((entry: SnackbarOutletEntry) => {
+        setOutlets((stack) => registerOutlet(stack, entry));
+
+        return () => {
+            setOutlets((stack) => unregisterOutlet(stack, entry.token));
+        };
+    }, []);
     const { current } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
@@ -68,6 +88,33 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
         }
     }, [screenReader, currentId, pause, resume]);
 
+    const top = topOutlet(outlets);
+    const actionProps =
+        action === undefined || current === null
+            ? {}
+            : {
+                  action: {
+                      label: action.label,
+                      onAction: () => {
+                          queue.act(current.id, action);
+                      },
+                  },
+              };
+    const snackbar =
+        current === null ? null : (
+            <UndoSnackbar
+                key={current.id}
+                message={current.input.message}
+                {...actionProps}
+                onPause={() => {
+                    queue.pause(current.id);
+                }}
+                onResume={() => {
+                    queue.resume(current.id);
+                }}
+            />
+        );
+
     return (
         <SnackbarContext
             value={{
@@ -80,7 +127,10 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             }}
         >
             {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}
-            <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>{children}</SnackbarClearanceContext>
+            <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>
+                {/* An open window draws the snackbar instead, in its own outlet: the app root is under its window. */}
+                <SnackbarOutletContext value={{ register, top, snackbar }}>{children}</SnackbarOutletContext>
+            </SnackbarClearanceContext>
             <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
                 <View
                     collapsable={false}
@@ -90,17 +140,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
                     onLayout={(event) => setRegionHeight(event.nativeEvent.layout.height)}
                     style={[styles.region, { bottom }]}
                 >
-                    {current === null ? null : (
-                        <UndoSnackbar
-                            key={current.id}
-                            message={current.input.message}
-                            {...(action === undefined
-                                ? {}
-                                : { action: { label: action.label, onAction: () => queue.act(current.id, action) } })}
-                            onPause={() => queue.pause(current.id)}
-                            onResume={() => queue.resume(current.id)}
-                        />
-                    )}
+                    {top === undefined ? snackbar : null}
                 </View>
             </View>
         </SnackbarContext>

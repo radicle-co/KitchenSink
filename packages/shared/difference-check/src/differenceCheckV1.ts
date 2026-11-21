@@ -7,10 +7,12 @@
  * `repoGuards` fails when any package that reaches a client declares or imports it. Not in `recipe-core`, which both apps
  * bundle.
  *
- * Four measures decide: A (kept shingles), R (longest shared run), F (new words) and L (the in-order alignment of content
- * words, which catches a text spun by replacing every nth word). v1 is frozen: its normalisation, its measures, its units and its minimum size never change. A different answer is a new
- * sibling `differenceCheckV2`, never an edit here. It records the Unicode version it was frozen at and throws on another,
- * because `\p{L}`, NFKC and lower case follow the runtime's ICU.
+ * Four measures decide: A (kept shingles), R (longest shared run), F (new words) and L (the in-order alignment of
+ * content words, which catches a text spun by replacing every nth word).
+ *
+ * v1 is frozen: its normalisation, its measures, its units and its minimum size never change. A different answer is a
+ * new sibling `differenceCheckV2`, never an edit here. It records the Unicode version it was frozen at and throws on
+ * another, because `\p{L}`, NFKC and lower case follow the runtime's ICU.
  *
  * v1 limit, stated: scripts written without spaces between words (Chinese, Japanese, Thai) tokenise into long runs, miss
  * the minimum and never earn the fact. Accent-insensitive matching is deliberate.

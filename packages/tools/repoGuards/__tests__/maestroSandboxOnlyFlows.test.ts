@@ -143,6 +143,14 @@ describe('⛔ a local run reports as owed only the flows the selector chose', ()
         expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
     });
 
+    it('still owes the spine when it is the LAST flow the selector names', () => {
+        const out = local('flow:cooking/cookingModeFlow=true', 'flow:auth/loginFlow=true');
+
+        // Mutation: drop the closing space from the named list, and the last named flow never matches.
+        expect(lines(out.stdout, 'needs-sandbox').map((row) => row.split('|')[0])).toEqual(['auth/loginFlow']);
+        expect(lines(out.stdout, 'prerequisite-not-run')).toEqual([]);
+    });
+
     it('still owes every sandbox-only flow on a full run', () => {
         const out = local('full=true');
 

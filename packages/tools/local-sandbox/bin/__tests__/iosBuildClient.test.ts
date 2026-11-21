@@ -52,7 +52,9 @@ const BASH = '/bin/bash';
 vi.setConfig({ testTimeout: 30_000 });
 const GIT = '/usr/bin/git';
 
-/** The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes, with the content key baked in. */
+/**
+ * The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes, with the content key baked in.
+ */
 const BUILD_STUB_BODY = `#!/usr/bin/env bash
 case "$1" in
     verify-manifest) exit 0 ;;

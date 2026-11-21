@@ -112,9 +112,9 @@ case "$command_name" in
             EXPECT_XCODE_VERSION="$(mac "DEVELOPER_DIR=$MAC_DEVELOPER_DIR xcodebuild -version" | tr '\n' ' ' | sed 's/ *$//')" \
             bash "$BUILD_SCRIPT" verify-manifest "$manifest" ios ||
             die "the app on the Mac for key $key does not match this tree. Rebuild: buildIosApp.sh build $key $app"
-        # The manifest is a plain file anyone can rewrite. The key the build baked into the app's own Info.plist is sealed
-        # by the app's code signature, so a rewritten manifest over another build's app is refused here. The limit: anyone
-        # can re-sign an app ad hoc, so this stops a careless copy or edit, not a deliberate forgery.
+        # The manifest is a plain file anyone can rewrite. The key the build baked into the app's own Info.plist is
+        # sealed by the app's code signature, so a rewritten manifest over another build's app is refused here. The
+        # limit: anyone can re-sign an app ad hoc, so this stops a careless copy or edit, not a deliberate forgery.
         rebuild="Rebuild: buildIosApp.sh build $key $app"
         result="$(mac "$(baked_key_probe "$app")")" || die "could not read the app on the Mac for key $key"
         case "$result" in
@@ -123,8 +123,8 @@ case "$command_name" in
             FAIL:folder) die "no app folder $app on the Mac. $rebuild" ;;
             FAIL:noapp) die "the app folder $app holds no .app. $rebuild" ;;
             FAIL:manyapps) die "the app folder $app holds more than one .app. $rebuild" ;;
-            FAIL:seal) die "the app's code signature does not verify (the bundle was edited after the build). $rebuild" ;;
-            FAIL:nokey) die "the app has no $BAKED_KEY_NAME in its Info.plist (built before the key was baked). $rebuild" ;;
+            FAIL:seal) die "the app's code signature does not verify (edited after the build). $rebuild" ;;
+            FAIL:nokey) die "the app has no $BAKED_KEY_NAME in its Info.plist (built before the bake). $rebuild" ;;
             *) die "unexpected answer from the Mac: $result" ;;
         esac
         echo "$app is current"

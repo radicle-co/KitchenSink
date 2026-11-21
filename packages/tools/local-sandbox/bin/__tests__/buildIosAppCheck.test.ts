@@ -3,10 +3,10 @@
  * its own `Info.plist`, sealed by the app's code signature. `buildIosApp.sh check` compares THAT key, so a manifest
  * rewritten to say "key A" over an app built for key B is refused.
  *
- * The REAL scripts run under real `bash` in a temp HOME. Only the Mac is stood in for: a fake `ssh` drops `-F <cfg> <host>`
- * and runs the remote command in a local `bash` inside a fake Mac HOME, and fake `plutil`, `codesign` and `xcodebuild` sit
- * on the fake Mac's PATH. Each fake reads its answer from a fixture file in the fake `.app`, so a case changes the world,
- * never the stub. Nothing here touches a Mac or a network.
+ * The REAL scripts run under real `bash` in a temp HOME. Only the Mac is stood in for: a fake `ssh` drops `-F <cfg>
+ * <host>` and runs the remote command in a local `bash` inside a fake Mac HOME, and fake `plutil`, `codesign` and
+ * `xcodebuild` sit on the fake Mac's PATH. Each fake reads its answer from a fixture file in the fake `.app`, so a
+ * case changes the world, never the stub. Nothing here touches a Mac or a network.
  *
  * The limit, stated once: anyone can re-sign an app ad hoc, so this stops a careless copy or edit, not a deliberate
  * forgery. Real `plutil` and `codesign` get one proof on the Mac, recorded in the PR body.
@@ -236,7 +236,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
         return { status: result.status, stderr: result.stderr, plutilCalls: calls };
     }
 
-    it('replaces the content key into the one app Info.plist, once', () => {
+    it('writes the content key into the one app Info.plist, once', () => {
         const result = bake(['Commise/Info.plist']);
 
         // Kills: baking the wrong key, the wrong plist name, or twice.
@@ -276,9 +276,9 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
 
     /**
      * REWRITTEN (staff review of 5552ca5ef): this case used to refuse a plist that already held the key. The Mac keeps
-     * `mobile/ios/` between builds (the job's rsync excludes it) and `expo prebuild` without `--clean` merges into the old
-     * plist, so every build after the first would have died on that refusal. The build now always writes ITS key, and the
-     * call must be `-replace`, which also inserts when the key is absent.
+     * `mobile/ios/` between builds (the job's rsync excludes it) and `expo prebuild` without `--clean` merges into the
+     * old plist, so every build after the first would have died on that refusal. The build now always writes ITS key,
+     * and the call must be `-replace`, which also inserts when the key is absent.
      */
     it('replaces a key a previous build left, so a rebuild on the kept ios folder works', () => {
         const result = bake(['Commise/Info.plist']);

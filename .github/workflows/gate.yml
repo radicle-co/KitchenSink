@@ -353,7 +353,9 @@ jobs:
                       probe result_mentions_block '((.result // "") | test("BLOCK"))'
                       kind_of '.structured_output' structured_output
                       kind_of '.result' result
-                      jq 'map(select(.type == "result")) | last | {subtype, is_error, num_turns,
+                      jq 'map(select(.type == "result")) | last | {
+                          subtype: (.subtype | if IN("success", "error_max_turns", "error_during_execution", "error_max_structured_output_retries") then . else "other" end),
+                          is_error, num_turns,
                           structured_output_type: (.structured_output | type), result_type: (.result | type),
                           result_length: (.result | if type == "string" then length else null end),
                           result_mentions_block: (.result | if type == "string" then test("BLOCK") else null end)}' "$FILE" \
@@ -372,6 +374,7 @@ jobs:
                   name: gateRetryEvidence-${{ env.SHA }}
                   path: ${{ runner.temp }}/gateRetryEvidence.json
                   if-no-files-found: ignore
+                  overwrite: true # a re-run keeps the run, and a second artifact of one name is refused
                   retention-days: 3
 
             - name: Judge the diff once more (GATE mode)

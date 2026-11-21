@@ -665,7 +665,15 @@ describe('the retry evidence', () => {
         const run = runRetryStep(result({ subtype: 'success', is_error: false }), '{"verdict":"PASS"}');
 
         expect(run.output).toBe('retry=false\n');
+        expect(run.stdout).toBe('');
         expect(run.projection).toBeUndefined();
+    });
+
+    it('maps an unknown subtype to other, so the projection is prose-free by construction', () => {
+        const run = runRetryStep(result({ subtype: '::add-mask::SECRET-SUBTYPE', is_error: false }));
+
+        expect(run.projection).toContain('"subtype": "other"');
+        expect(run.projection).not.toContain('SECRET');
     });
 
     it('uploads only the projection, for three days, and never fails the job for a missing file', () => {
@@ -680,5 +688,7 @@ describe('the retry evidence', () => {
         expect(upload?.if).toContain('!cancelled()');
         // An artifact-service error or a re-run name clash must never fail the GATE job.
         expect(upload?.['continue-on-error']).toBe(true);
+        // A re-run keeps the run, and upload-artifact refuses a second artifact of one name unless it overwrites.
+        expect(upload?.with).toMatchObject({ overwrite: true });
     });
 });

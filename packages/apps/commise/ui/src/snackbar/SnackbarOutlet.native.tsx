@@ -31,6 +31,8 @@ import { SnackbarOutletContext } from './snackbarOutletContext.js';
 /** Presentational: the region across the window's foot that the snackbar centres in. It takes no touches itself. */
 const OutletRegion = styled(View, {
     name: 'SnackbarOutletRegion',
+    // The status region must keep its own native node, or a screen reader cannot find it to announce into.
+    collapsable: false,
     position: 'absolute',
     left: '$4',
     right: '$4',

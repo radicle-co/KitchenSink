@@ -152,6 +152,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         <ToneScope tone="paperOverlay">
             <Animated.View
                 role="dialog"
+                collapsable={false}
                 aria-busy={busy || undefined}
                 style={[
                     styles.sheet,

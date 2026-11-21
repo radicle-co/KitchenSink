@@ -15,6 +15,7 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createElement, useState, type ComponentProps, type JSX, type ReactNode } from 'react';
 import { AccessibilityInfo, Pressable, Text, type Modal as ModalType } from 'react-native';
+import { expectWindowIsTheModal } from '../../testing/windowModal.native.js';
 import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { scaledTypeSize } from '../../text/scaledType.js';
 import { nativeTokens } from '../../tokens/native.js';
@@ -262,10 +263,11 @@ describe('Sheet (native)', () => {
         expect(onShown).toHaveBeenCalledTimes(2);
     });
 
-    it('is a modal dialog', () => {
+    // REWRITTEN for S90 (qse record 0073): the window, not the panel, is the modal view, so the snackbar's outlet shares it.
+    it('is a dialog in the one modal window, not modal itself', () => {
         renderSheet();
 
-        expect(dialog().getAttribute('aria-modal')).toBe('true');
+        expectWindowIsTheModal(dialog());
     });
 
     it('closes through Close, named by closeLabel and at least 48 dp square', () => {

@@ -12,6 +12,9 @@
  *   `BackHandler` is not live while this window is up.
  * - `visible` passes through unchanged: a sheet keeps the Modal mounted, a dialog unmounts it. No mode prop.
  * - It mounts the window's snackbar outlet, so a snackbar shown while the window is open draws above it.
+ * - The window is the ONE modal view: the content and the outlet sit inside one full-window view that carries
+ *   `aria-modal`. On iOS a modal view hides its siblings from VoiceOver, so an outlet beside a modal panel could be
+ *   tapped by a test tool and not reached by VoiceOver. The sheet and the dialog keep their dialog role and name.
  *
  * An orchestration component: it renders no surface of its own and decides who answers a dismissal.
  *
@@ -20,6 +23,7 @@
  * @pattern Controlled Component — React's controlled `open` satisfies the intent; the host's callback is the policy.
  */
 import { useContext, useState, type FC, type ReactNode } from 'react';
+import { styled, View } from 'tamagui';
 
 import { BackInterceptContext } from '../backIntercept/backInterceptContext.native.js';
 import { createBackInterceptRegistry } from '../backIntercept/backInterceptRegistry.js';
@@ -28,6 +32,17 @@ import { SnackbarOutlet } from '../snackbar/SnackbarOutlet.native.js';
 import { answerWindowBack, type DismissRequest } from './dismissRoute.js';
 import { OverlayDepthContext } from './overlayDepthContext.js';
 import { OverlayDismissContext } from './overlayDismissContext.native.js';
+
+/** Presentational: the one full-window modal view. It takes no touches itself. */
+const WindowView = styled(View, {
+    name: 'OverlayWindow',
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    pointerEvents: 'box-none',
+});
 
 /** Props for {@link OverlayHost}: the design-system `Modal`'s, with Back replaced by the dismiss request. */
 export interface OverlayHostProps extends Omit<ModalProps, 'onRequestClose' | 'children'> {
@@ -62,18 +77,20 @@ export const OverlayHost: FC<OverlayHostProps> = ({
 
     return (
         <Modal {...modalProps} onRequestClose={() => answerWindowBack(scope, onDismissRequest)}>
-            <BackInterceptContext.Provider value={scope}>
-                <OverlayDismissContext.Provider value={onDismissRequest}>
-                    <OverlayDepthContext value={depth}>{children}</OverlayDepthContext>
-                </OverlayDismissContext.Provider>
-            </BackInterceptContext.Provider>
-            {/* Last, so the snackbar draws above the window's own content. React Native's `visible` is true unless
-                set. */}
-            <SnackbarOutlet
-                presenting={presenting ?? modalProps.visible ?? true}
-                depth={depth}
-                {...(footHeight === undefined ? {} : { footHeight })}
-            />
+            <WindowView collapsable={false} aria-modal>
+                <BackInterceptContext.Provider value={scope}>
+                    <OverlayDismissContext.Provider value={onDismissRequest}>
+                        <OverlayDepthContext value={depth}>{children}</OverlayDepthContext>
+                    </OverlayDismissContext.Provider>
+                </BackInterceptContext.Provider>
+                {/* Last, so the snackbar draws above the window's own content. React Native's `visible` is true unless
+                    set. */}
+                <SnackbarOutlet
+                    presenting={presenting ?? modalProps.visible ?? true}
+                    depth={depth}
+                    {...(footHeight === undefined ? {} : { footHeight })}
+                />
+            </WindowView>
         </Modal>
     );
 };

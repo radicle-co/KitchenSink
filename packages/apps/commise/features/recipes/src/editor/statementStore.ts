@@ -25,6 +25,8 @@ export interface StatementStore {
     readonly ask: (asking: boolean) => void;
     /** Record the answer; the sheet closes. */
     readonly answer: (write: StatementWrite) => void;
+    /** Forget the answer, so the next write carries none. */
+    readonly clearAnswer: () => void;
 }
 
 /**
@@ -60,6 +62,9 @@ export function createStatementStore(): StatementStore {
         },
         answer: (write) => {
             set({ asking: false, answer: write });
+        },
+        clearAnswer: () => {
+            set({ ...state, answer: undefined });
         },
     };
 }

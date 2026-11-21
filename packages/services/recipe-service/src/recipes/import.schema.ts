@@ -65,8 +65,8 @@ import { parseProposalMatchSchema } from './parseJobs.schema.js';
 import {
     authoredStatementSchema,
     bookStatementSchema,
-    citationTextSchema,
     createRecipeRequestSchema,
+    paidSiteStatementSchema,
     publicWebStatementSchema,
     recipeStatementSchema,
     recipeStepInputSchema,
@@ -144,7 +144,7 @@ const jsonBytes = (value: unknown): number => new TextEncoder().encode(JSON.stri
 // The public-web member is `recipes.schema.ts`'s, the one a recipe's own `statement` uses (ADR-0089): one spelling of it.
 const publicWebStatement = publicWebStatementSchema;
 const bookStatement = bookStatementSchema;
-const paidSiteStatement = z.object({ kind: z.literal('paid_site'), citation: citationTextSchema });
+const paidSiteStatement = paidSiteStatementSchema;
 
 /**
  * What the cook says about ONE recipe, as the REQUEST carries it. The server stores it as `statement_kind` (`authored` or

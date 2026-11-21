@@ -17,8 +17,13 @@ describe('classifyPath', () => {
         'packages/tools/repoGuards/tests/deployGate.integration.test.ts',
         'packages/apps/commise/web/tests/e2e/testDurations.json',
         'packages/apps/commise/mobile/tests/e2e/maestroFlowSeconds.tsv',
+        'docs/architecture/recipeStateModel.json',
     ])('says %s cannot change a test result', (path) => {
         expect(classifyPath(path)).toEqual({ kind: 'irrelevant' });
+    });
+
+    it('names the recipe state model value file by its path, not by a docs JSON rule', () => {
+        expect(classifyPath('docs/architecture/other.json')).toBeUndefined();
     });
 
     it.each([

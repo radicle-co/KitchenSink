@@ -975,6 +975,20 @@
       "w": 390,
       "h": 1282,
       "title": "Recipe editor, paste a list: offline (web, 390)"
+    },
+    "RecipeEditorStatementPaidSiteWeb1280.dc.html": {
+      "x": 0,
+      "y": 20437,
+      "w": 1280,
+      "h": 2228,
+      "title": "Recipe editor, where it’s from: a paid website (web, 1280)"
+    },
+    "RecipeEditorStatementPaidSiteWeb390.dc.html": {
+      "x": 1360,
+      "y": 20437,
+      "w": 390,
+      "h": 3671,
+      "title": "Recipe editor, where it’s from: a paid website (web, 390)"
     }
   },
   "order": [
@@ -1115,7 +1129,9 @@
     "RecipeEditorPasteChooseWeb390.dc.html",
     "RecipeEditorPasteChooseStatesWeb390.dc.html",
     "RecipeEditorPasteStalledWeb390.dc.html",
-    "RecipeEditorPasteOfflineWeb390.dc.html"
+    "RecipeEditorPasteOfflineWeb390.dc.html",
+    "RecipeEditorStatementPaidSiteWeb1280.dc.html",
+    "RecipeEditorStatementPaidSiteWeb390.dc.html"
   ],
   "notes": {
     "row0": {

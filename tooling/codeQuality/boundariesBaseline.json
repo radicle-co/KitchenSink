@@ -1,0 +1,408 @@
+{
+    "pairs": [
+        {
+            "package": "@commise/features-account",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/features-recipes",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/mobile",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/ui",
+            "dependency": "@testing-library/dom",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@clerk/backend",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "@next/env",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "cloudfront",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "postcss",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@commise/web",
+            "dependency": "typescript-eslint",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/content/designSystem/cards/IngredientRow/#commise/features/recipes/src/form/ingredientRowView",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/content/designSystem/cards/IngredientRow/#commise/features/recipes/src/form/lineKey",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/detail/NutritionFigure",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/detail/NutritionFigure.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/detail/RecipeHero",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/detail/RecipeHero.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorActionBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorActionBar.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorHeader",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorHeader.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorSection",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/EditorSection.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/PublishLine",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/editor/PublishLine.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/form/IngredientRow",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/features/recipes/src/form/IngredientRow.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/mobile/src/components/home/chrome/HomeTabBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/ui/src/createFab/FabFace",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/ui/src/createFab/FabFace.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/__tests__/#commise/web/src/components/home/chrome/HomeTabBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/detail/NutritionFigure",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/detail/RecipeHero",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/EditorActionBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/EditorActionBar.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/EditorHeader",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/EditorHeader.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/EditorSection",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/editor/PublishLine",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/form/IngredientRow",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/form/IngredientRow.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/features/recipes/src/form/lineKey",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/mobile/src/components/home/chrome/HomeTabBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/ui/src/createFab/FabFace",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/ui/src/sheet/BottomSheetPanel.native",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/ui/src/sheet/SheetPanel",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/ui/src/spinner/Spinner",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/web/src/components/home/chrome/HomeSidebar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/design-artifact",
+            "dependency": "packages/tools/designArtifact/src/cards/#commise/web/src/components/home/chrome/HomeTabBar",
+            "rule": "imports-outside-package",
+            "why": "Type-only reach through the `#commise/*` tsconfig alias (turbo reads the alias as a relative path). `src/__tests__/commiseTypeOnlyImports.test.ts` keeps every such import type-only, and `compileCard` refuses values from COMMISE_ROOT. The types point at the same product files that `src/surface/productSurface.ts` bundles by path, so a card is checked against the file it renders. No package exports these app and feature internals, and exporting them for one tooling consumer would publish a contract with no other client (staff-architect ruling 2026-10-16). Turbo cannot see this edge, so the package's typecheck and lint run with cache:false."
+        },
+        {
+            "package": "@kitchensink/food-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/food-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name — verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/identity-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/identity-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name — verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/identity-webhooks",
+            "dependency": "zod",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/loadtest",
+            "dependency": "k6",
+            "rule": "type-only-import"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "esbuild",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency"
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "packages/tools/loadtest/k6/collectionFixture.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 scenario cannot import packages/tools/loadtest/k6/collectionFixture.js by package name. It lives in the loadtest package beside session.js because that package is the one home for pure k6 helper modules and owns their unit tests; a copy under this service would have no test runner, since this package's vitest tiers exclude tests/load."
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "packages/tools/loadtest/k6/ingestLanding.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 scenario cannot import packages/tools/loadtest/k6/ingestLanding.js by package name. It lives in the loadtest package beside session.js because that package is the one home for pure k6 helper modules and owns their unit tests; a copy under this service would have no test runner, since this package's vitest tiers exclude tests/load."
+        },
+        {
+            "package": "@kitchensink/recipe-service",
+            "dependency": "packages/tools/loadtest/k6/session.js",
+            "rule": "imports-outside-package",
+            "why": "k6 resolves ES modules on the FILESYSTEM and rejects bare specifiers outright, so this service's k6 load library cannot import the shared Clerk re-mint (packages/tools/loadtest/k6/session.js) by package name — verified against the k6 binary. The alternative is three copies of the refresh logic, whose absence cost run 34041143051 every authenticated request after 60 seconds."
+        },
+        {
+            "package": "@kitchensink/remote-search-service",
+            "dependency": "k6",
+            "rule": "undeclared-dependency",
+            "why": "the k6 runtime provides the module; k6 load scripts are not Node"
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "packages/services/food-service/src/foods/seed/verify/ verifiedColumns.js",
+            "rule": "imports-outside-package",
+            "why": "Pre-existing deep import into a deployable service's source, carried from packages/infra/global when ADR-0066 moved the guard. turbo could not see it there. The durable fix is to move the guard into the service whose source it reads; that is a separate change."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "packages/services/recipe-service/src/database/seed.js",
+            "rule": "imports-outside-package",
+            "why": "Pre-existing deep import into a deployable service's source, carried from packages/infra/global when ADR-0066 moved the guard. turbo could not see it there. The durable fix is to move the guard into the service whose source it reads; that is a separate change."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/contractDriftGate.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/contractGenerate.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/contractOwners.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/deploymentDrift.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/infraSharedVersion.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/infrastructureManifest.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/prepareProdManifest.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests a pure decision function exported by a repo-root `scripts/*.mjs` module, which is the only way to assert on the function rather than on a subprocess's stdout. The repo root is not a workspace, so there is no package to declare. The same import lived in packages/infra/global, where turbo could not see it, before ADR-0066 moved the guard here. Giving `scripts/` a workspace of its own would retire this entry."
+        },
+        {
+            "package": "@kitchensink/repo-guards",
+            "dependency": "scripts/worktreeAdd.mjs",
+            "rule": "imports-outside-package",
+            "why": "A guard unit-tests the pure decision functions (`lockfileHash`, `installsToPrune`, `worktreePaths`) exported by a repo-root `scripts/*.mjs` module. The repo root is not a workspace, so there is no package to declare. Moving the functions behind a package surface is not possible: `worktreeAdd.mjs` is the bootstrap that creates the shared install, so it runs before any workspace is installed and must import nothing from one. Giving `scripts/` a workspace of its own would retire this entry with its siblings."
+        },
+        {
+            "package": "@kitchensink/service-test-harness",
+            "dependency": "reflect-metadata",
+            "rule": "undeclared-dependency"
+        }
+    ]
+}

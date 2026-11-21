@@ -18,6 +18,11 @@ const BOOK = {
     citation: 'Joy of Cooking',
     wording: { version: 'statementBook.v1', locale: 'fr-CA' },
 } as const satisfies RecipeStatementInput;
+const PAID_SITE = {
+    kind: 'paid_site',
+    citation: 'Sam’s Subscription Kitchen',
+    wording: { version: 'statementPaidSite.v1', locale: 'en' },
+} as const satisfies RecipeStatementInput;
 const PERSON = {
     kind: 'fromPerson',
     wording: { version: 'statementFromPerson.v1', locale: 'en' },
@@ -119,6 +124,19 @@ describe('attestationRowsOf — exactly which rows a write leaves', () => {
             }
         },
     );
+
+    it('records a paid_site statement as one explicit paidSite row naming its wording and locale', () => {
+        for (const action of ['create', 'update', 'setVisibility'] as const) {
+            expect(
+                attestationRowsOf({
+                    action,
+                    statement: PAID_SITE,
+                    publicConfirmation: undefined,
+                    recordsConfirmation: false,
+                }),
+            ).toEqual([STATEMENT_ROW('paidSite', 'statementPaidSite.v1', 'en', action)]);
+        }
+    });
 
     it('records NO statement row for a web statement that carries no wording (the Source row), and still the confirmation', () => {
         const { wording: _none, ...wordless } = WEB;

@@ -78,12 +78,19 @@ describe('askForStatement', () => {
 });
 
 describe('answersFor', () => {
-    it('gives the editor five answers, in order, ending with publishing privately', () => {
-        expect(answersFor('editor')).toEqual(['authored', 'publicWeb', 'book', 'fromPerson', 'publishPrivately']);
+    it('gives the editor six answers, in order, ending with publishing privately', () => {
+        expect(answersFor('editor')).toEqual([
+            'authored',
+            'publicWeb',
+            'paidSite',
+            'book',
+            'fromPerson',
+            'publishPrivately',
+        ]);
     });
 
-    it('gives the recipe page the first four only', () => {
-        expect(answersFor('recipePage')).toEqual(['authored', 'publicWeb', 'book', 'fromPerson']);
+    it('gives the recipe page the first five only', () => {
+        expect(answersFor('recipePage')).toEqual(['authored', 'publicWeb', 'paidSite', 'book', 'fromPerson']);
     });
 });
 
@@ -98,7 +105,11 @@ describe('publicWordingOf', () => {
 });
 
 describe('statementWriteOf', () => {
-    const FIELDS = { link: 'https://www.allrecipes.com/recipe/1/soup/', bookTitle: ' Joy of Cooking, p. 12 ' };
+    const FIELDS = {
+        link: 'https://www.allrecipes.com/recipe/1/soup/',
+        bookTitle: ' Joy of Cooking, p. 12 ',
+        paidSite: ' Sam’s Subscription Kitchen ',
+    };
 
     it('"I wrote this" states authored, stays public and sends no confirmation', () => {
         expect(statementWriteOf('authored', FIELDS, 'en')).toEqual({
@@ -118,6 +129,17 @@ describe('statementWriteOf', () => {
                 kind: 'public_web',
                 citation: 'https://www.allrecipes.com/recipe/1/soup/',
                 wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale: 'en' },
+            },
+            visibility: RecipeVisibility.PRIVATE,
+        });
+    });
+
+    it('a paid website states its trimmed citation, with its own wording, and forces Private', () => {
+        expect(statementWriteOf('paidSite', FIELDS, 'en')).toEqual({
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
             },
             visibility: RecipeVisibility.PRIVATE,
         });
@@ -155,33 +177,74 @@ describe('statementWriteOf', () => {
 describe('statementFieldErrorOf', () => {
     it('is none for the answers with no field', () => {
         for (const answer of ['authored', 'fromPerson', 'publishPrivately'] as const) {
-            expect(statementFieldErrorOf(answer, { link: '', bookTitle: '' })).toBeUndefined();
+            expect(statementFieldErrorOf(answer, { link: '', bookTitle: '', paidSite: '' })).toBeUndefined();
         }
     });
 
     it('names an empty or blank book title', () => {
-        expect(statementFieldErrorOf('book', { link: '', bookTitle: '   ' })).toEqual({
+        expect(statementFieldErrorOf('book', { link: '', bookTitle: '   ', paidSite: '' })).toEqual({
             field: 'bookTitle',
             reason: 'required',
         });
-        expect(statementFieldErrorOf('book', { link: '', bookTitle: 'Joy' })).toBeUndefined();
+        expect(statementFieldErrorOf('book', { link: '', bookTitle: 'Joy', paidSite: '' })).toBeUndefined();
+    });
+
+    it('names an empty or blank paid-site citation', () => {
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: 'Joy', paidSite: '  ' })).toEqual({
+            field: 'paidSite',
+            reason: 'required',
+        });
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: 'Sam' })).toBeUndefined();
+    });
+
+    it('refuses a citation past the length the server takes, for a book and a paid site, and takes the longest one', () => {
+        const longest = 'a'.repeat(2_000);
+        const tooLong = `${longest}a`;
+
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: longest })).toBeUndefined();
+        expect(statementFieldErrorOf('paidSite', { link: '', bookTitle: '', paidSite: tooLong })).toEqual({
+            field: 'paidSite',
+            reason: 'invalid',
+        });
+        expect(statementFieldErrorOf('book', { link: '', bookTitle: tooLong, paidSite: '' })).toEqual({
+            field: 'bookTitle',
+            reason: 'invalid',
+        });
+    });
+
+    it('keeps what was typed for one answer when the cook looks at another', () => {
+        const state = (['choose:paidSite', 'text:Sam', 'choose:book'] as const).reduce(
+            (current, step): StatementSheetState =>
+                step === 'text:Sam'
+                    ? sheetReducer(current, { type: 'paidSite', text: 'Sam' })
+                    : sheetReducer(current, { type: 'choose', answer: step === 'choose:book' ? 'book' : 'paidSite' }),
+            initialSheet(),
+        );
+
+        expect(state).toMatchObject({ answer: 'book', paidSite: 'Sam', bookTitle: '' });
     });
 
     it('names an empty, unusable or own-site link, by the one reading the source field uses', () => {
-        expect(statementFieldErrorOf('publicWeb', { link: '', bookTitle: '' })).toEqual({
+        expect(statementFieldErrorOf('publicWeb', { link: '', bookTitle: '', paidSite: '' })).toEqual({
             field: 'link',
             reason: 'required',
         });
-        expect(statementFieldErrorOf('publicWeb', { link: 'not a link', bookTitle: '' })).toEqual({
+        expect(statementFieldErrorOf('publicWeb', { link: 'not a link', bookTitle: '', paidSite: '' })).toEqual({
             field: 'link',
             reason: 'invalid',
         });
-        expect(statementFieldErrorOf('publicWeb', { link: 'https://commise.app/recipes/1', bookTitle: '' })).toEqual({
+        expect(
+            statementFieldErrorOf('publicWeb', { link: 'https://commise.app/recipes/1', bookTitle: '', paidSite: '' }),
+        ).toEqual({
             field: 'link',
             reason: 'ownSite',
         });
         expect(
-            statementFieldErrorOf('publicWeb', { link: 'https://www.allrecipes.com/recipe/1/soup/', bookTitle: '' }),
+            statementFieldErrorOf('publicWeb', {
+                link: 'https://www.allrecipes.com/recipe/1/soup/',
+                bookTitle: '',
+                paidSite: '',
+            }),
         ).toBeUndefined();
     });
 });

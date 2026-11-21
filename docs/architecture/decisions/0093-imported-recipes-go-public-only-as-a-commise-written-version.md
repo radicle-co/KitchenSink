@@ -9,6 +9,7 @@
   and the Private, Public or Both choice. [ADR-0073](0073-free-tier-private-slots.md): "can never go public" now means
   the cook's private copy. [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md) §5: a web
   copy stays private until the Commise-written version ships.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §5, for the cook's own rewrite, and §8, the sentence that the statement stays editable.
 - **Relates to:** spec [004](../../../specs/004-recipe-importing/spec.md), the one import pipeline. Spec
   [016](../../../specs/016-legal-compliance-framework/spec.md): age, source evidence and attestation, notice and
   takedown, publisher opt-outs and licences. Spec [020](../../../specs/020-content-source-check/spec.md): the reviewer

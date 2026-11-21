@@ -348,6 +348,11 @@ export interface UseRecipeEditorResult {
      */
     readonly statementAsk: boolean;
     /**
+     * The citation of a paid website the cook confirmed in the sheet this session: the Source row shows it locked from the
+     * confirm, before any write has carried it. `undefined` until then.
+     */
+    readonly paidSiteStated: string | undefined;
+    /**
      * Whether the passive line is drawn under the Public card. ⛔ The ONE fact that decides whether a publishing write sends
      * `publicConfirm.v1`: the line and the wording go together or not at all.
      */
@@ -749,6 +754,11 @@ function statementPlanNow(ctx: EditorContext): StatementPlan {
         recipe: storedRecipeOf(server),
         answered: ctx.statement.get().answer !== undefined,
     });
+}
+
+/** The citation of a confirmed paid-site answer, else `undefined`. Pure. */
+function paidSiteCitationOf(answer: StatementWrite | undefined): string | undefined {
+    return answer?.statement?.kind === 'paid_site' ? answer.statement.citation : undefined;
 }
 
 /**
@@ -1525,6 +1535,13 @@ function retry(ctx: EditorContext): void {
 
     const trigger = parked.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
 
+    // ⛔ A 403 is the service refusing the statement this session sent (the recipe's source is locked, `SOURCE_LOCKED`: another
+    // device stored "From another person" since this editor read the recipe). Sent again it meets the same refusal, and the
+    // cook's other edits park behind it for good. The answer is forgotten, so the retry carries the content alone.
+    if (ctx.opts.port.failures.some((failure) => failure.seq === parked.seq && failure.status === 403)) {
+        ctx.statement.clearAnswer();
+    }
+
     void ctx.opts.port.withdraw(parked.seq).then(
         () => {
             ctx.lane.dispatch({ type: 'withdrawn', seq: parked.seq });
@@ -2143,6 +2160,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishAttempted: gate.attempted,
         publishBlocked,
         statementAsk: statementState.asking,
+        paidSiteStated: paidSiteCitationOf(statementState.answer),
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
         publicHeld: publicHeldOf(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,

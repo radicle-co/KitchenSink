@@ -23,6 +23,7 @@
   database. For a recipe headed public, the check can now compare it with the page it was imported from and search
   the web for its method sentences. Everything else in ADR-0074 stands: only the rules block, a model never clears a
   recipe, and every reviewer is an employee. This ADR also writes down that staff review is a rights check only.
+- **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §1 (the label table and its authority bullet) and §2 (no relabel, new recipe, the family recipe, the Label column).
 - **Relates to:** spec [016](../../../specs/016-legal-compliance-framework/spec.md) section B2, which holds the rights
   label table and its cook-facing rules. Spec [021](../../../specs/021-public-discovery-and-sharing/spec.md)
   `021-FR-014a` to `FR-014h`, the linked card that ADR-0093 retires. Spec [020](../../../specs/020-content-source-check/spec.md)

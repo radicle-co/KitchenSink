@@ -6447,6 +6447,36 @@ components:
                 kind:
                   type: string
                   enum:
+                    - paid_site
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPaidSite.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
                     - fromPerson
                 wording:
                   type: object
@@ -6759,6 +6789,36 @@ components:
                       type: string
                       enum:
                         - statementBook.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - paid_site
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPaidSite.v1
                     locale:
                       type: string
                       minLength: 2
@@ -7287,6 +7347,36 @@ components:
                       type: string
                       enum:
                         - statementBook.v1
+                    locale:
+                      type: string
+                      minLength: 2
+                      maxLength: 35
+                  required:
+                    - version
+                    - locale
+                  additionalProperties: false
+              required:
+                - kind
+                - citation
+                - wording
+              additionalProperties: false
+            - type: object
+              properties:
+                kind:
+                  type: string
+                  enum:
+                    - paid_site
+                citation:
+                  type: string
+                  minLength: 1
+                  maxLength: 2000
+                wording:
+                  type: object
+                  properties:
+                    version:
+                      type: string
+                      enum:
+                        - statementPaidSite.v1
                     locale:
                       type: string
                       minLength: 2

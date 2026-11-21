@@ -125,7 +125,8 @@ describe('IosAdapter ssh commands', () => {
         // laneHost.sh ensure 1 | erase UDID | boot UDID | install UDID dir | mkdir | xcrun simctl shutdown UDID
         expect(received).toContainEqual(['erase', HOSTILE]);
         expect(received).toContainEqual(['boot', HOSTILE]);
-        expect(received).toContainEqual(['install', HOSTILE, 'ksIos/apps/abc']);
+        // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
+        expect(received).toContainEqual(['install', HOSTILE, 'ksIos/apps/ios/abc']);
         expect(received).toContainEqual(['simctl', 'shutdown', HOSTILE]);
     });
 
@@ -135,7 +136,8 @@ describe('IosAdapter ssh commands', () => {
         await ios.prepareHost({ runId: 'r', stateDir: '/s', repoRoot: '/repo' });
         await ios.startDevice(lane);
         const received = remoteCommands(calls).map(argvReceived);
-        expect(received).toContainEqual(['ksIos/apps/abc/testApp.manifest']);
+        // Rewritten on purpose (CL-MACLOCK): the iOS app folder is ksIos/apps/ios/<key> now.
+        expect(received).toContainEqual(['ksIos/apps/ios/abc/testApp.manifest']);
         expect(received).toContainEqual(['-p', 'ksIos/lanes/lane1']);
     });
 

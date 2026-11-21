@@ -103,14 +103,13 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                             invalid={field.error !== undefined}
                             {...(field.error === undefined ? {} : { describedBy: fieldErrorId(fieldId) })}
                             inputMode={field.inputMode}
+                            {...(field.maxLength === undefined ? {} : { maxLength: field.maxLength })}
                             autoCapitalize={field.autoCapitalize}
                             {...(field.kind === 'link' ? { autoCorrect: false } : {})}
                             disabled={view.busy}
                             focusRequested={field.focusRequested}
                             onFocusRequestHandled={() => dispatch({ type: 'focusHandled' })}
-                            onChangeText={(text) =>
-                                dispatch(field.kind === 'link' ? { type: 'link', text } : { type: 'bookTitle', text })
-                            }
+                            onChangeText={(text) => dispatch({ type: field.kind, text })}
                             onSubmit={onConfirm}
                         />
                         {field.error === undefined ? null : (

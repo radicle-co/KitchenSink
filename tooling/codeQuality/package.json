@@ -1,0 +1,26 @@
+{
+    "name": "@kitchensink/code-quality-toolchain",
+    "private": true,
+    "type": "module",
+    "description": "Pinned scanner toolchain run by the CI `codeQuality` job and read by the GATE. Lives OUTSIDE the npm workspaces so its exact pins never touch the root install. EXACT pins: a scanner whose verdict moves on someone else's release schedule is not a gate. eslint-plugin-jsx-a11y and eslint-plugin-react do not yet declare ESLint 10 peer support, hence --legacy-peer-deps; both were verified working on ESLint 10.9.1 on 2026-09-13.",
+    "dependencies": {
+        "@next/eslint-plugin-next": "16.3.5",
+        "dependency-cruiser": "18.2.0",
+        "eslint": "10.9.1",
+        "eslint-plugin-jsx-a11y": "6.10.2",
+        "eslint-plugin-n": "18.3.0",
+        "eslint-plugin-promise": "7.3.0",
+        "eslint-plugin-react": "7.37.5",
+        "eslint-plugin-react-hooks": "7.1.1",
+        "eslint-plugin-security": "4.0.1",
+        "eslint-plugin-sonarjs": "4.2.0",
+        "jscpd": "5.2.0",
+        "knip": "6.35.1",
+        "sherif": "1.13.0",
+        "typescript": "6.0.3",
+        "typescript-eslint": "8.68.0"
+    },
+    "scripts": {
+        "test": "node --test __tests__/*.test.mjs"
+    }
+}

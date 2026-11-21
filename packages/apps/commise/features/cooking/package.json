@@ -5,6 +5,7 @@
     "type": "module",
     "exports": {
         "./mobile": "./src/mobileEntry.ts",
+        "./storeReview": "./src/storeReview/storeReviewRecord.ts",
         "./web": "./src/webEntry.ts"
     },
     "scripts": {
@@ -17,11 +18,13 @@
         "format:check": "prettier --check ."
     },
     "dependencies": {
+        "@commise/features-core": "*",
         "@commise/features-recipes": "*",
         "@commise/i18n": "*",
         "@commise/ui": "*",
         "@kitchensink/cooking-core": "*",
-        "@kitchensink/recipe-core": "*"
+        "@kitchensink/recipe-core": "*",
+        "zod": "^4.6.7"
     },
     "peerDependencies": {
         "react": "^19.2.0",

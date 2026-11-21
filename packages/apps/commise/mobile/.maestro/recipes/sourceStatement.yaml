@@ -50,6 +50,7 @@ appId: ${APP_ID}
       timeout: 20000
 - assertVisible: 'I wrote this'
 - assertVisible: 'From a web page'
+- assertVisible: 'From a paid website'
 - assertVisible: 'From a cookbook or magazine'
 - assertVisible: 'From another person'
 - assertVisible: 'Publish privately'

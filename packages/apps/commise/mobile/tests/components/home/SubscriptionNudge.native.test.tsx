@@ -33,8 +33,8 @@ describe('SubscriptionNudge (mobile) — open', () => {
     // `docs/design/compactHeightLayout.md` §10 (A9): the nudge is the design system's `Sheet`, so it gains the width
     // cap, the insets, the scroll and every close route a phone held sideways needs. It was a hand-rolled bottom panel
     // that spanned the whole width under the side navigation bar.
-    // #221 moved `aria-modal` from the sheet's own view to the one full-window view around it (S90): the dialog is named by
-    // its title and sits in the modal window.
+    // #221 moved `aria-modal` from the sheet's own view to the one full-window view around it (S90): the dialog is
+    // named by its title and sits in the modal window.
     it('is the design-system sheet: a dialog named by its title, in the one modal window', () => {
         render(<SubscriptionNudge open onDismiss={() => undefined} />);
 

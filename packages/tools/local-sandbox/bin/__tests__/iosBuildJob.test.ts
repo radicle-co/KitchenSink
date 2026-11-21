@@ -665,8 +665,7 @@ describe('iosBuildJob.sh: the lock file is replaced under a waiter', () => {
         const c = startJob(world, 'jobC', 'keyC');
 
         await until('C to wait for B', () => /waiting for the build lock: job=jobB/u.test(stateOf(world, 'jobC')));
-        // Mutation: lock a file other than the one at the path, and C builds beside B. The inode check itself closes only the
-        // window between `exec 9>>` and the `flock`, which a test cannot hit: the loop reopens the file on every try.
+        // Mutation: lock a file other than the one at the path, and C builds beside B.
         expect(existsSync(path.join(buildRoot(world), 'build.lock'))).toBe(true);
         expect(started(world, 'keyC')).toBe(false);
         release(world, 'keyB');
@@ -674,6 +673,29 @@ describe('iosBuildJob.sh: the lock file is replaced under a waiter', () => {
         await until('C to build', () => started(world, 'keyC'));
         release(world, 'keyC');
         expect(await c.exit).toBe(0);
+    });
+});
+
+describe('iosBuildJob.sh: the lock file removed between the open and the flock', () => {
+    it('⛔ does not build on a lock file that was removed, and locks the one at the path', async () => {
+        const world = makeWorld();
+        const bin = path.join(world.root, 'fakeperl');
+
+        mkdirSync(bin, { recursive: true });
+        // The first lock attempt finds the file gone, as if another squad cleared the folder after the job opened it.
+        writeFileSync(
+            path.join(bin, 'perl'),
+            '#!/bin/bash\ncase "$*" in *LOCK_NB*) [ -e "$STUB_DIR/removed" ] || { touch "$STUB_DIR/removed"; rm -f build.lock; } ;; esac\nexec /usr/bin/perl "$@"\n',
+        );
+        chmodSync(path.join(bin, 'perl'), 0o755);
+        upload(world, 'jobA', 'keyA');
+        const a = startJob(world, 'jobA', 'keyA', [], `${bin}:${world.bin}`);
+
+        await until('A to build', () => started(world, 'keyA'));
+        // Mutation: no inode check, and A holds a lock on a file nobody can reach, so a second job takes the real one.
+        expect(existsSync(path.join(buildRoot(world), 'build.lock'))).toBe(true);
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
     });
 });
 

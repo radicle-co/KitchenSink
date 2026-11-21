@@ -78,7 +78,9 @@ export interface CookingTopBarProps {
     readonly place?: { readonly text: string; readonly tone: 'ink' | 'muted' };
     /**
      * Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where
-     * there is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.
+     * there is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in
+     * view.
+     * Web draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).
      */
     readonly ingredients?: CookingAction;
 }
@@ -196,4 +198,10 @@ export interface CookingFrameProps {
     readonly foot?: { readonly preview?: ReactNode; readonly actions: ReactNode };
     /** `aria-busy` on the surface while the recipe loads. */
     readonly busy: boolean;
+    /**
+     * The ingredients column, present only at L2 and L3. The frame then sets it beside the whole step stack (the
+     * notice,
+     * top bar, body and foot), which keeps its own width cap. Absent: one centred column.
+     */
+    readonly column?: ReactNode;
 }

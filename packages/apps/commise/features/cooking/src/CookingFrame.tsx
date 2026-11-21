@@ -10,6 +10,10 @@
  * bottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the
  * short-screen height rule, and is busy while the recipe loads.
  *
+ * Given a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in
+ * `CookingTwoColumnLayout`,
+ * and the stack keeps its own 680 cap there. Without one it is the one centred column above.
+ *
  * The route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and
  * starting where it starts.
  *
@@ -20,13 +24,29 @@ import type { FC } from 'react';
 import type { CookingFrameProps } from './cookingViewProps.js';
 import { COOKING_COLUMN } from './cookingLayout.js';
 import { useCookingNotice } from './CookingNoticeSlot.js';
+import { CookingTwoColumnLayout } from './CookingTwoColumnLayout.js';
 
 /** The id of the cooking surface's `main`. */
 const COOKING_SURFACE_ID = 'cooking-surface';
 
 /** The web cooking surface. */
-export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy }) => {
+export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy, column }) => {
     const notice = useCookingNotice();
+    const stack = (
+        <div className={`mx-auto flex min-h-0 w-full flex-1 flex-col ${COOKING_COLUMN.webClassName}`}>
+            {notice}
+            {topBar}
+            <div data-cooking-scroll className="min-h-0 flex-1 overflow-y-auto">
+                {body}
+            </div>
+            {foot === undefined ? null : (
+                <div data-cooking-foot className="flex flex-col gap-2 pt-3">
+                    {foot.preview}
+                    {foot.actions}
+                </div>
+            )}
+        </div>
+    );
 
     return (
         <main
@@ -34,19 +54,7 @@ export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy }
             aria-busy={busy ? true : undefined}
             className="flex h-dvh flex-col bg-canvas text-ink [container-type:size]"
         >
-            <div className={`mx-auto flex min-h-0 w-full flex-1 flex-col ${COOKING_COLUMN.webClassName}`}>
-                {notice}
-                {topBar}
-                <div data-cooking-scroll className="min-h-0 flex-1 overflow-y-auto">
-                    {body}
-                </div>
-                {foot === undefined ? null : (
-                    <div data-cooking-foot className="flex flex-col gap-2 pt-3">
-                        {foot.preview}
-                        {foot.actions}
-                    </div>
-                )}
-            </div>
+            {column === undefined ? stack : <CookingTwoColumnLayout column={column}>{stack}</CookingTwoColumnLayout>}
         </main>
     );
 };

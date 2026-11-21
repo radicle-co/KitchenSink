@@ -8,7 +8,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import { CookingTwoColumnLayout } from '../CookingTwoColumnLayout.js';
-import { COOKING_COLUMN, INGREDIENTS_COLUMN } from '../cookingLayout.js';
+import { COOKING_COLUMN, INGREDIENTS_COLUMN, TWO_COLUMN } from '../cookingLayout.js';
 
 afterEach(cleanup);
 
@@ -71,6 +71,16 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(slot.className.split(' ')).toContain('p-4');
     });
 
+    it('hides the slot under the two-column band, so one column is left, and shows it from the band', () => {
+        layout();
+
+        const slot = ancestorWith(screen.getByText('Ingredients here'), INGREDIENTS_COLUMN.webClassName);
+
+        for (const token of TWO_COLUMN.columnWebClassName.split(' ')) {
+            expect(slot.className.split(' ')).toContain(token);
+        }
+    });
+
     it('centres the step in the rest, at most 680 wide', () => {
         layout();
 
@@ -79,7 +89,7 @@ describe('CookingTwoColumnLayout (web)', () => {
         expect(step.contains(screen.getByText('Ingredients here'))).toBe(false);
         expect(step.className.split(' ')).toContain('w-full');
 
-        // The step slot is a flex column that may shrink, as on native, so a step body fills the height and keeps its
+        // The step slot is a flex column that may shrink, so a step body fills the height and keeps its
         // footer pinned inside it.
         for (const token of ['flex', 'min-h-0', 'flex-col']) {
             expect(step.className.split(' ')).toContain(token);

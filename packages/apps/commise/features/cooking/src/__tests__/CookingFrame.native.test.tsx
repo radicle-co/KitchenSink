@@ -104,4 +104,37 @@ describe('CookingFrame (native)', () => {
         expect(getComputedStyle(column).maxWidth).toBe(`${String(COOKING_COLUMN.maxPx)}px`);
         expect(column.contains(screen.getByTestId('cooking-scroll'))).toBe(true);
     });
+
+    describe('the ingredients column', () => {
+        const withColumn = () =>
+            render(
+                <CookingFrame
+                    busy={false}
+                    topBar={<Text>Top bar</Text>}
+                    body={<Text>Body</Text>}
+                    foot={{ actions: <Text>Actions</Text> }}
+                    column={<Text>Ingredients column</Text>}
+                />,
+            );
+
+        it('puts the column beside the step stack, the top bar, body and foot all in the step slot', () => {
+            withColumn();
+
+            const slot = screen.getByTestId('cooking-step-slot');
+
+            expect(
+                screen.getByTestId('cooking-ingredients-slot').contains(screen.getByText('Ingredients column')),
+            ).toBe(true);
+            expect(slot.contains(screen.getByText('Top bar'))).toBe(true);
+            expect(slot.contains(screen.getByText('Body'))).toBe(true);
+            expect(slot.contains(screen.getByText('Actions'))).toBe(true);
+        });
+
+        it('draws no columns without a column', () => {
+            render(frame());
+
+            expect(screen.queryByTestId('cooking-columns')).toBeNull();
+            expect(screen.getByTestId('cooking-column')).toBeTruthy();
+        });
+    });
 });

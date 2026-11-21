@@ -44,6 +44,7 @@ android	recipes/detailCooking	56	5
 android	recipes/detailLineTicks	56	0
 android	cooking/cookingModeFlow	108	0
 android	cooking/cookingSystemBack	108	0
+android	cooking/cookingIngredients	108	0
 android	recipes/discoverBrowse	102	6
 android	recipes/discoverDetailSaveCopy	117	4
 android	recipes/discoverIngredientCap	116	6
@@ -124,6 +125,7 @@ ios	recipes/detailBack	72	3
 ios	recipes/detailCooking	96	4
 ios	recipes/detailLineTicks	96	0
 ios	cooking/cookingModeFlow	161	0
+ios	cooking/cookingIngredients	161	0
 ios	recipes/discoverDetailSaveCopy	117	4
 ios	recipes/discoverIngredientCap	132	3
 ios	recipes/discoverRecentSearches	275	2

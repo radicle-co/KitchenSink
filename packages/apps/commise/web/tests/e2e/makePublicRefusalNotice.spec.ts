@@ -41,11 +41,8 @@ test.describe('why a recipe cannot be public (P6)', () => {
 
         await page.getByRole('button', { name: /^More actions for /u }).click();
         await page.getByRole('menuitem', { name: 'Make public' }).click();
-        await page
-            .getByRole('alertdialog', { name: 'Make this recipe public?' })
-            .getByRole('button', { name: 'Make public' })
-            .click();
 
+        // The recipe owes a statement (`publicNeedsStatement`), so the source sheet opens with no confirm first.
         const sheet = page.getByRole('dialog', { name: 'Where is this recipe from?' });
 
         await sheet.getByRole('radio', { name: 'From a web page' }).click();

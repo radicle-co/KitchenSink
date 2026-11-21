@@ -8,7 +8,7 @@
  * @pattern Policy — one pure decision of which words the blocked-publish dialog says
  */
 import { fillTemplate } from '@commise/i18n';
-import type { PublicRefusal } from '../actions/publicRefusal.js';
+import type { BlockingRefusal, PublicRefusal } from '../actions/publicRefusal.js';
 import type { EditorMessages } from './messages.js';
 import type { PublishBlockedSheetProps } from './publishBlockedSheetProps.js';
 
@@ -20,21 +20,18 @@ export interface PublishBlockedCopy {
     readonly upsell: string | undefined;
 }
 
-/** Which pair of bodies the dialog says: a web copy first, then another refusal, then the plain no-slot words. */
+/** Which pair of bodies the dialog says: the web words for a web copy, the refused words for any other reason, else the plain no-slot words. */
 function bodiesOf(
     noSlot: EditorMessages['publishBlocked']['noSlot'],
-    webSource: boolean,
-    refused: boolean,
+    refusal: BlockingRefusal | undefined,
 ): readonly [counted: string, uncounted: string] {
-    if (webSource) {
-        return [noSlot.bodyWebSource, noSlot.bodyWebSourceNoCount];
+    if (refusal === undefined) {
+        return [noSlot.body, noSlot.bodyNoCount];
     }
 
-    if (refused) {
-        return [noSlot.bodyRefused, noSlot.bodyRefusedNoCount];
-    }
-
-    return [noSlot.body, noSlot.bodyNoCount];
+    return refusal === 'policy.webPage'
+        ? [noSlot.bodyWebSource, noSlot.bodyWebSourceNoCount]
+        : [noSlot.bodyRefused, noSlot.bodyRefusedNoCount];
 }
 
 /**
@@ -44,21 +41,18 @@ function bodiesOf(
  * @param messages - The editor's words.
  * @param sellsPro - The subscription-entry-point switch; off, no variant sells Pro.
  * @param premiumFeatures - What Premium adds, for the upsell line (only read while the switch is on).
- * @param webSource - The recipe is a copy of a web page (ADR-0089): it can only be private, so the words offer no way to
- *   publish it as public and none that removes the source.
- * @param refused - Public is refused for another reason (a book, a paid site, another person, a kind this app cannot name): the
- *   words offer no public path either. `webSource` wins when both are set.
+ * @param refusal - Why the recipe cannot be public, when it cannot. A web copy (`policy.webPage`, ADR-0089) gets the web
+ *   words, any other reason the refused words, and neither offers a public path. Absent: the plain words.
  */
 export function publishBlockedCopyOf(
     slotTotal: number | undefined,
     messages: EditorMessages['publishBlocked'],
     sellsPro: boolean,
     premiumFeatures = '',
-    webSource = false,
-    refused = false,
+    refusal?: BlockingRefusal,
 ): PublishBlockedCopy {
     const { noSlot } = messages;
-    const [counted, uncounted] = bodiesOf(noSlot, webSource, refused);
+    const [counted, uncounted] = bodiesOf(noSlot, refusal);
 
     return {
         title: noSlot.title,
@@ -68,17 +62,12 @@ export function publishBlockedCopyOf(
 }
 
 /**
- * What the blocked-publish sheet offers for Public: the control when nothing refuses it, otherwise the flag that picks
- * the words for the reason there is none (a web copy keeps its own). Pure.
+ * What the blocked-publish sheet offers for Public: the control when nothing refuses it, otherwise the reason there is
+ * none, which picks the words. Pure.
  */
 export function publicOfferOf(
     refusal: PublicRefusal,
-    webSource: boolean,
     publish: () => void,
-): Pick<PublishBlockedSheetProps, 'onPublishPublic' | 'webSource' | 'refused'> {
-    if (refusal === 'none') {
-        return { onPublishPublic: publish };
-    }
-
-    return webSource ? { webSource: true } : { refused: true };
+): Pick<PublishBlockedSheetProps, 'onPublishPublic' | 'refusal'> {
+    return refusal === 'none' ? { onPublishPublic: publish } : { refusal };
 }

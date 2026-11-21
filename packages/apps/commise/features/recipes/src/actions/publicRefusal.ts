@@ -38,6 +38,9 @@ export const PUBLIC_REFUSALS = [
 /** Why a recipe cannot be public, or `none`. */
 export type PublicRefusal = (typeof PUBLIC_REFUSALS)[number];
 
+/** A reason that stops a recipe being public: every `PublicRefusal` but `none`. */
+export type BlockingRefusal = Exclude<PublicRefusal, 'none'>;
+
 /** The facts that decide it. */
 export interface PublicRefusalFacts {
     readonly sourceType: RecipeSourceType;
@@ -92,6 +95,28 @@ export function publicRefusalOf(facts: PublicRefusalFacts): PublicRefusal {
     }
 
     return facts.held ? 'sourceConflict' : 'none';
+}
+
+/**
+ * {@link publicRefusalOf} for a STORED recipe, whose kind and statement are absent when the cook never gave one.
+ *
+ * @param recipe - The stored recipe's source facts.
+ * @param held - Whether a recorded source holds the recipe out of Public.
+ * @returns The reason, or `none`. Pure.
+ */
+export function publicRefusalOfStored(
+    recipe: Pick<PublicRefusalFacts, 'sourceType'> & {
+        readonly sourceKind?: RecipeSourceKindView | null | undefined;
+        readonly statementKind?: RecipeStatementKindView | null | undefined;
+    },
+    held: boolean,
+): PublicRefusal {
+    return publicRefusalOf({
+        sourceType: recipe.sourceType,
+        sourceKind: recipe.sourceKind ?? null,
+        statementKind: recipe.statementKind ?? null,
+        held,
+    });
 }
 
 /**

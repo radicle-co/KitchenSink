@@ -468,7 +468,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                     onKeepDraft={editor.keepAsDraft}
                     // ⛔ A recipe whose Public is refused can only be private (ADR-0089, board P6): the ask has no such control. One
                     // function (`publicRefusalOf`) decides every Public offer; a web page keeps its own words.
-                    {...publicOfferOf(editor.publicRefusal, source.webSource, editor.publishAsPublic)}
+                    {...publicOfferOf(editor.publicRefusal, editor.publishAsPublic)}
                 />
             )}
         </>

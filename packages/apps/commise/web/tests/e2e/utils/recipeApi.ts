@@ -1054,7 +1054,9 @@ export interface MockRecipeApiOptions {
     /**
      * Recipe ids whose Make public the stubbed service refuses with `400 INVALID_VISIBILITY` and `details.reason:
      * 'STATEMENT_REQUIRED'` until the write carries a `statement` (ADR-0095). A write that carries one stores its source and
-     * kind as the service does (`sourceOfStatement`, `statementKindOf`), and a third-party answer leaves the recipe Private.
+     * kind as the service does (`sourceOfStatement`, `statementKindOf`) and stores the visibility the client sent. The
+     * service's own rule that a third-party answer keeps the recipe Private is not modelled here. A listed
+     * recipe is served with `publicNeedsStatement: true`, as the service serves it, and the write clears it.
      */
     readonly statementOwedFor?: readonly string[];
     /** The app-user id the viewer owns recipes as (matches the recipe `ownerId` so owner controls show). */
@@ -1322,7 +1324,8 @@ export async function mockRecipeApi(
     ];
 
     for (const recipe of seed) {
-        store.set(recipe.id, recipe);
+        // The service tells the owner a private recipe owes a statement (`publicNeedsStatement`); the page then skips the confirm.
+        store.set(recipe.id, statementOwedFor.has(recipe.id) ? { ...recipe, publicNeedsStatement: true } : recipe);
         photoStore.set(recipe.id, [...recipe.photos]);
 
         // A seeded recipe's lines name bindings the service handed out when that recipe was written, so a save that
@@ -1908,6 +1911,8 @@ export async function mockRecipeApi(
                 ...current,
                 ...sourceOfStatement(statement),
                 ...statementKindOf(statement),
+                // Answered: the service stops owing one.
+                publicNeedsStatement: false,
                 visibility: (body()['visibility'] as RecipeVisibility) ?? current.visibility,
             };
             store.set(id, updated);

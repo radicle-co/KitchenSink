@@ -4,16 +4,16 @@
     "packageName": "@commise/features-recipes",
     "layer": "feature",
     "coverage": {
-        "components": 210,
-        "implementations": 355,
-        "props": 2459,
-        "documentedComponents": 210,
-        "implementationsWithModuleDoc": 355,
-        "implementationsWithComponentDoc": 244,
+        "components": 211,
+        "implementations": 357,
+        "props": 2461,
+        "documentedComponents": 211,
+        "implementationsWithModuleDoc": 357,
+        "implementationsWithComponentDoc": 246,
         "documentedProps": 1891,
         "classifiedComponents": 188,
-        "componentsWithPatternTag": 100,
-        "crossPlatformComponents": 145
+        "componentsWithPatternTag": 101,
+        "crossPlatformComponents": 146
     },
     "components": [
         {
@@ -10042,6 +10042,121 @@
             ]
         },
         {
+            "id": "featuresRecipes/detail/RecipeVisibilityNotice",
+            "name": "RecipeVisibilityNotice",
+            "group": "featuresRecipes",
+            "packageName": "@commise/features-recipes",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/recipes/src/detail",
+            "kind": "unclassified",
+            "patterns": [
+                "Presentational component — pure props to JSX; the notice and the announcement are decided in the controller"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "RecipeVisibilityNotice",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe\nstays private (board P6), as three siblings. A moment is the assertive region, mounted empty and filled one render\nlater by the host. A standing line is plain muted text, never a live region. A separate polite hidden region,\nmounted empty, carries the one announcement (KTD-6, designer DN-1).\n\nThe page renders it once, for the owner only.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/detail — the owner's visibility slot on the web recipe page: why a private recipe"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Presentational component — pure props to JSX; the notice and the announcement are decided in the controller"
+                        }
+                    ],
+                    "description": "The owner's visibility notice (web).",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "announcement",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The reason, said once when it first appears; `undefined` says nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        },
+                        {
+                            "name": "notice",
+                            "type": "VisibilityNotice | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "RecipeVisibilityNotice",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.native.tsx",
+                    "dir": "packages/apps/commise/features/recipes/src/detail",
+                    "moduleDoc": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with\n`RecipeVisibilityNotice.tsx`: an assertive moment region, a muted standing line outside any live region, and a polite\nhidden region that carries the one announcement.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/features-recipes/detail — the owner's visibility slot on the native recipe page, in lock-step with"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Presentational component — pure props to JSX; the notice and the announcement are decided in the controller"
+                        }
+                    ],
+                    "description": "The owner's visibility notice (native).",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "announcement",
+                            "type": "string | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The reason, said once when it first appears; `undefined` says nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        },
+                        {
+                            "name": "notice",
+                            "type": "VisibilityNotice | undefined",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresRecipes/detail/ReviewLineButton",
             "name": "ReviewLineButton",
             "group": "featuresRecipes",
@@ -16279,12 +16394,19 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
-                            "name": "refused",
-                            "type": "boolean",
-                            "typeDetail": null,
+                            "name": "refusal",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"unrecognised\"",
+                                "\"fromPerson\"",
+                                "\"policy.webPage\"",
+                                "\"policy.book\"",
+                                "\"policy.paidSite\"",
+                                "\"sourceConflict\""
+                            ],
                             "required": false,
-                            "defaultValue": "false",
-                            "description": "Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`.",
+                            "defaultValue": null,
+                            "description": "Why Public is refused (`publicRefusalOf`): the words say so, a web copy in its own words. Passed with the absent\n`onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
@@ -16294,15 +16416,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's private-slot limit, for the `noSlot` words; `undefined` when not known (the words then say no number).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
-                        },
-                        {
-                            "name": "webSource",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         }
                     ],
@@ -16362,12 +16475,19 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
-                            "name": "refused",
-                            "type": "boolean",
-                            "typeDetail": null,
+                            "name": "refusal",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"unrecognised\"",
+                                "\"fromPerson\"",
+                                "\"policy.webPage\"",
+                                "\"policy.book\"",
+                                "\"policy.paidSite\"",
+                                "\"sourceConflict\""
+                            ],
                             "required": false,
-                            "defaultValue": "false",
-                            "description": "Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`.",
+                            "defaultValue": null,
+                            "description": "Why Public is refused (`publicRefusalOf`): the words say so, a web copy in its own words. Passed with the absent\n`onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
@@ -16377,15 +16497,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The cook's private-slot limit, for the `noSlot` words; `undefined` when not known (the words then say no number).",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
-                        },
-                        {
-                            "name": "webSource",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "false",
-                            "description": "The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         }
                     ],

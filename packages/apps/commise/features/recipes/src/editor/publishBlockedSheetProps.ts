@@ -1,6 +1,8 @@
 /**
  * @module @commise/features-recipes/editor — the contract `PublishBlockedSheet`'s web and native leaves share.
  */
+import type { BlockingRefusal } from '../actions/publicRefusal.js';
+
 /** Props for `PublishBlockedSheet`. */
 export interface PublishBlockedSheetProps {
     /** Whether the sheet is shown; closed, it renders nothing. */
@@ -17,8 +19,9 @@ export interface PublishBlockedSheetProps {
      * only be private (ADR-0089): the sheet then draws no such control at all.
      */
     readonly onPublishPublic?: () => void;
-    /** The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`. */
-    readonly webSource?: boolean;
-    /** Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`. */
-    readonly refused?: boolean;
+    /**
+     * Why Public is refused (`publicRefusalOf`): the words say so, a web copy in its own words. Passed with the absent
+     * `onPublishPublic`.
+     */
+    readonly refusal?: BlockingRefusal;
 }

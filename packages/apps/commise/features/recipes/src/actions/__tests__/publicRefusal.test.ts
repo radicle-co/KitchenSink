@@ -2,13 +2,17 @@
  * The ONE answer to "why can this recipe not be public" (board P6, plan makePublicRefusalNotice U1, KTD-1). Written
  * before `publicRefusal.ts`, from the decision table in the plan: the oracle is the table, not the implementation.
  *
- * The table is exhaustive over the source types and kinds and the statement kinds, with `held` crossed in, so a new
- * value on either enum makes the totality check fail until a row says what it means.
+ * Two layers. The table is the oracle for what each reason means. The cross-product holds the properties over every source
+ * type, source kind, statement kind and `held`: never Public for a private-only rule (judged by recipe-core's
+ * `privateRuleOf`, not by this function's own branches), never Public for a held recipe, "from another person" always
+ * wins, and every reason in the list is reachable. A new value on an enum is judged by those properties, not by a row
+ * someone forgot to write.
  */
 import {
     RECIPE_SOURCE_KINDS,
     RECIPE_STATEMENT_KINDS,
     RecipeSourceType,
+    privateRuleOf,
     UNRECOGNISED_SOURCE_KIND,
     UNRECOGNISED_STATEMENT_KIND,
     type RecipeSourceKindView,
@@ -17,7 +21,13 @@ import {
 
 import { describe, expect, it } from 'vitest';
 
-import { PUBLIC_REFUSALS, publicRefusalOf, type PublicRefusal, type PublicRefusalFacts } from '../publicRefusal.js';
+import {
+    PUBLIC_REFUSALS,
+    publicRefusalOf,
+    publicRefusalOfStored,
+    type PublicRefusal,
+    type PublicRefusalFacts,
+} from '../publicRefusal.js';
 
 const { USER_CREATED, IMPORTED_PUBLIC, IMPORTED_PHYSICAL, IMPORTED_PAID } = RecipeSourceType;
 
@@ -89,7 +99,7 @@ describe('publicRefusalOf: the decision table', () => {
         expect(publicRefusalOf(facts(over))).toBe(expected);
     });
 
-    it('gives a reason from the closed list for every combination of the enums, held or not', () => {
+    describe('over every combination of the enums, held or not', () => {
         const kinds: ReadonlyArray<RecipeSourceKindView | null> = [
             null,
             ...RECIPE_SOURCE_KINDS,
@@ -100,24 +110,58 @@ describe('publicRefusalOf: the decision table', () => {
             ...RECIPE_STATEMENT_KINDS,
             UNRECOGNISED_STATEMENT_KIND,
         ];
+        const combinations: PublicRefusalFacts[] = Object.values(RecipeSourceType).flatMap((sourceType) =>
+            kinds.flatMap((sourceKind) =>
+                statements.flatMap((statementKind) =>
+                    [false, true].map((held) => ({ sourceType, sourceKind, statementKind, held })),
+                ),
+            ),
+        );
 
+        it('never offers Public for a recipe the shared rule says is private only (no drift from privateRuleOf)', () => {
+            const offered = combinations.filter(
+                (c) => privateRuleOf(c.sourceType, c.sourceKind) === 'privateOnly' && publicRefusalOf(c) === 'none',
+            );
+
+            expect(offered).toEqual([]);
+        });
+
+        it('never offers Public for a held recipe', () => {
+            expect(combinations.filter((c) => c.held && publicRefusalOf(c) === 'none')).toEqual([]);
+        });
+
+        it('says "from another person" whenever the cook stated it, whatever else is true', () => {
+            const others = combinations.filter(
+                (c) => c.statementKind === 'fromPerson' && publicRefusalOf(c) !== 'fromPerson',
+            );
+
+            expect(others).toEqual([]);
+        });
+
+        it('reaches every reason in the list, so a reason no input can produce is a failure', () => {
+            expect(new Set(combinations.map(publicRefusalOf))).toEqual(new Set(PUBLIC_REFUSALS));
+        });
+    });
+});
+
+describe('publicRefusalOfStored: a stored recipe whose kind and statement may be absent', () => {
+    it('reads an absent kind and statement as none, as the explicit nulls do', () => {
         for (const sourceType of Object.values(RecipeSourceType)) {
-            for (const sourceKind of kinds) {
-                for (const statementKind of statements) {
-                    for (const held of [false, true]) {
-                        expect(PUBLIC_REFUSALS).toContain(
-                            publicRefusalOf({ sourceType, sourceKind, statementKind, held }),
-                        );
-                    }
-                }
+            for (const held of [false, true]) {
+                expect(publicRefusalOfStored({ sourceType }, held)).toBe(
+                    publicRefusalOf({ sourceType, sourceKind: null, statementKind: null, held }),
+                );
             }
         }
     });
 
-    it('never offers Public (none) for a recipe the shared rule says is private only', () => {
-        // The function composes recipe-core's `privateRuleOf`; it must not drift from it.
-        expect(publicRefusalOf(facts({ sourceType: IMPORTED_PUBLIC, sourceKind: 'public_web' }))).not.toBe('none');
-        expect(publicRefusalOf(facts({ sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' }))).not.toBe('none');
-        expect(publicRefusalOf(facts({ sourceType: IMPORTED_PAID, sourceKind: 'paid_site' }))).not.toBe('none');
+    it('passes a stated kind and statement through', () => {
+        expect(
+            publicRefusalOfStored(
+                { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null, statementKind: 'fromPerson' },
+                false,
+            ),
+        ).toBe('fromPerson');
+        expect(publicRefusalOfStored({ sourceType: RecipeSourceType.IMPORTED_PHYSICAL }, false)).toBe('policy.book');
     });
 });

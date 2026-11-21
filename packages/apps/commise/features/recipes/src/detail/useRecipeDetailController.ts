@@ -37,7 +37,7 @@ import { useEffect, useState } from 'react';
 import { recipeActionMessages } from '../actions/messages.js';
 import { invalidVisibilityReasonOf } from '../actions/privateGate.js';
 import { recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
-import { publicRefusalLineOf, publicRefusalOf } from '../actions/publicRefusal.js';
+import { publicRefusalOfStored } from '../actions/publicRefusal.js';
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
@@ -52,6 +52,7 @@ import { detailMenuOf, type DetailMenuItem } from './detailMenu.js';
 import type { RecipeDetailDialogsProps } from './RecipeDetailDialogs.js';
 import type { RecipeDetailRatingProps } from './RecipeDetailRating.js';
 import { useCookMarks } from './useCookMarks.js';
+import { useStandingAnnouncement } from './useStandingAnnouncement.js';
 import {
     claimedViewerIdOf,
     primaryOf,
@@ -317,12 +318,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const viewerIsOwner = isOwner(recipe, viewer);
     const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
     // ONE function says why this recipe cannot be public (board P6): the menu below, the slot, and the editor's Public card all read it.
-    const standing = publicRefusalOf({
-        sourceType: recipe.sourceType,
-        sourceKind: recipe.sourceKind ?? null,
-        statementKind: recipe.statementKind ?? null,
-        held,
-    });
+    const standing = publicRefusalOfStored(recipe, held);
     // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, the generic failure, and why a
     // private recipe stays private. The make-public confirm says its own failure inside itself, so it is not said twice.
     const visibilityNotice = visibilityNoticeOf(
@@ -341,22 +337,8 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         { ...visibilityCopy, publicRefusal: refusalLines },
     );
 
-    // KTD-6: the reason the owner's private recipe shows, from the render before this one (React's "store information from
-    // previous renders" pattern, no ref). It is spoken only in the render where it goes from NOTHING to a reason, after the
-    // page knew who was looking: a page that opens with it, or whose viewer is read later, says nothing. A moment line that
-    // clears and lets it return does not change it, so it is not said again.
-    const shownReason = viewerIsOwner && !isPublic ? standing : 'none';
-    const [seenReason, setSeenReason] = useState<typeof shownReason | undefined>(undefined);
-    const [announcement, setAnnouncement] = useState<string | undefined>(undefined);
-
-    if (ready && seenReason !== shownReason) {
-        setSeenReason(shownReason);
-        setAnnouncement(
-            seenReason === 'none' && shownReason !== 'none'
-                ? publicRefusalLineOf(shownReason, refusalLines)
-                : undefined,
-        );
-    }
+    // KTD-6: the reason the owner's private recipe shows, said once (`useStandingAnnouncement`).
+    const announcement = useStandingAnnouncement(ready, viewerIsOwner && !isPublic, standing, refusalLines);
 
     // §6.1/§6.4: the ⋯ menu's entries are decided once for both platforms (`detailMenuOf`).
     //

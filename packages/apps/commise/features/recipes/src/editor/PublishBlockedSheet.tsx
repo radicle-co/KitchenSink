@@ -32,10 +32,10 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     slotTotal,
     onKeepDraft,
     onPublishPublic,
-    webSource = false,
+    refusal,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON, undefined, webSource);
+    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON, undefined, refusal);
 
     return (
         <Sheet

@@ -32,7 +32,6 @@ import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LARGE_TITLE_CLASS } from '@commise/ui/large-title-header';
-import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
@@ -74,6 +73,7 @@ import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.js';
 import { RecipeHero } from './RecipeHero.js';
 import { RecipeSourceLine } from './RecipeSourceLine.js';
+import { RecipeVisibilityNotice } from './RecipeVisibilityNotice.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
 import { StartCookingRow } from './StartCookingRow.js';
 import { StepRow } from './StepRow.js';
@@ -120,6 +120,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     versionsHref,
     viewerIsOwner,
     visibilityNotice,
+    visibilityAnnouncement,
     marks,
     screenOn,
     descriptionExpanded,
@@ -214,12 +215,12 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             )}
                         </div>
                     )}
-                    {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
-                    {owner && (
-                        <LiveRegion politeness="assertive" className="text-meta text-danger-text">
-                            {visibilityNotice ?? ''}
-                        </LiveRegion>
-                    )}
+                    {/* The owner's visibility notice (§6.4, board P6). */}
+                    <RecipeVisibilityNotice
+                        owner={owner}
+                        notice={visibilityNotice}
+                        announcement={visibilityAnnouncement}
+                    />
                     {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}
                     <RecipeSourceLine
                         {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}

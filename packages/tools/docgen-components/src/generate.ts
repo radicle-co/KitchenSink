@@ -14,7 +14,14 @@ import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { dirname, join, resolve } from 'node:path';
 
 import { buildEntries } from './catalog.js';
-import { COMPONENTS_OUT_DIR, COMPONENT_GROUPS, DESIGN_OUT_DIR, REPO_ROOT, SCHEMA_VERSION } from './config.js';
+import {
+    COMPONENTS_OUT_DIR,
+    COMPONENT_GROUPS,
+    DESIGN_OUT_DIR,
+    GENERATED_OUTPUT_DIRS,
+    REPO_ROOT,
+    SCHEMA_VERSION,
+} from './config.js';
 import type { ComponentGroup } from './config.js';
 import { discoverComponentFiles } from './discovery.js';
 import { extractImplementations, loadCompilerOptions } from './extract.js';
@@ -229,7 +236,7 @@ export function buildArtifacts(repoRoot: string = REPO_ROOT): ReadonlyMap<string
  * @sideEffect Deletes and rewrites `docs/generated/components` and `docs/generated/design`.
  */
 export async function writeArtifacts(artifacts: ReadonlyMap<string, string>, repoRoot: string): Promise<void> {
-    for (const directory of [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR]) {
+    for (const directory of GENERATED_OUTPUT_DIRS) {
         await rm(join(repoRoot, directory), { recursive: true, force: true });
     }
 

@@ -786,6 +786,20 @@
       "w": 390,
       "h": 3237,
       "title": "Recipe detail, make public: a paid website (web, 390)"
+    },
+    "RecipeRefusalNoticeWeb1280.dc.html": {
+      "x": 0,
+      "y": 36933,
+      "w": 1280,
+      "h": 1594,
+      "title": "Recipe detail, why it stays private (web, 1280)"
+    },
+    "RecipeRefusalNoticeWeb390.dc.html": {
+      "x": 1360,
+      "y": 36933,
+      "w": 390,
+      "h": 3722,
+      "title": "Recipe detail, why it stays private (web, 390)"
     }
   },
   "order": [
@@ -899,7 +913,9 @@
     "RecipePrivateImportPhotoLoadingWeb390.dc.html",
     "RecipePrivateImportPhotoLinkOnlyWeb390.dc.html",
     "RecipeMakePublicStatementPaidSiteWeb1280.dc.html",
-    "RecipeMakePublicStatementPaidSiteWeb390.dc.html"
+    "RecipeMakePublicStatementPaidSiteWeb390.dc.html",
+    "RecipeRefusalNoticeWeb1280.dc.html",
+    "RecipeRefusalNoticeWeb390.dc.html"
   ],
   "notes": {
     "row0": {

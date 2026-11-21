@@ -11,6 +11,7 @@
     },
     "scripts": {
         "docs:generate": "tsx bin/docgen.ts",
+        "docs:after-merge": "tsx bin/afterMerge.ts",
         "test": "vitest run && vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",

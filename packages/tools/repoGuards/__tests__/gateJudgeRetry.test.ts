@@ -106,13 +106,15 @@ function retryStepOutput(executionFile: string | undefined): string {
  */
 function verdictCheck(structuredOutput: string): 'failed' | 'accepted' {
     const verdict = step('verdict');
-    const check = /^\s*if ! .*\bjq\b.*; then\n[\s\S]*?^\s*fi\n/mu.exec(verdict.run ?? '');
+    const runLines = (verdict.run ?? '').split('\n');
+    const start = runLines.findIndex((line) => line.trimStart().startsWith('if !') && line.includes('jq'));
+    const end = runLines.findIndex((line, index) => index > start && line.trim() === 'fi');
 
-    if (check === null) {
+    if (start === -1 || end === -1) {
         throw new Error('the verdict step has no jq shape check');
     }
 
-    const script = `post() { echo "posted $*"; }\n${check[0]}\necho accepted\n`;
+    const script = `post() { echo "posted $*"; }\n${runLines.slice(start, end + 1).join('\n')}\necho accepted\n`;
     const run = spawnSync('/bin/bash', ['-c', script], {
         encoding: 'utf8',
         env: { ...verdict.env, PATH: '/usr/bin:/bin', STRUCTURED_OUTPUT: structuredOutput },
@@ -149,12 +151,14 @@ describe('gate.yml judge retry', () => {
     });
 
     it('gives both judge steps the same action, tools, model, schema and trust settings', () => {
+        expect(judgeSteps).toHaveLength(2);
+
         const [first, second] = judgeSteps;
 
-        expect(second?.uses).toBe(first?.uses);
-        expect(second?.with?.['claude_args']).toBe(first?.with?.['claude_args']);
-        expect(second?.with?.['allowed_non_write_users']).toBe(first?.with?.['allowed_non_write_users']);
-        expect(second?.with?.['claude_code_oauth_token']).toBe(first?.with?.['claude_code_oauth_token']);
+        expect(second.uses).toBe(first.uses);
+        expect(second.with?.['claude_args']).toBe(first.with?.['claude_args']);
+        expect(second.with?.['allowed_non_write_users']).toBe(first.with?.['allowed_non_write_users']);
+        expect(second.with?.['claude_code_oauth_token']).toBe(first.with?.['claude_code_oauth_token']);
     });
 
     it('limits the retry as the first judge is limited, so a hung retry cannot run to the six hour default', () => {

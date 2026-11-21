@@ -124,4 +124,15 @@ describe('ImportWizardLeave (web)', () => {
 
         expect(screen.getByText('The other 0 are saved now.')).toBeTruthy();
     });
+
+    // CL-394 (designer D77): leaving the wizard stops the action just taken until the cook chooses, so it stays a
+    // centred dialog from `sm`; every other sheet is a bottom sheet at every width.
+    it('is a centred dialog at most 448 px wide from sm', () => {
+        renderLeave();
+
+        const classes = screen.getByRole('dialog').className.split(/\s+/u);
+
+        expect(classes).toContain('sm:max-w-md');
+        expect(classes).not.toContain('sm:max-w-[35rem]');
+    });
 });

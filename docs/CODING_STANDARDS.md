@@ -781,10 +781,11 @@ the code-quality playbook point here and do not restate it.
 - **Every other end-to-end flow still has to exist**: Playwright for web, Maestro for mobile, and local and deployed e2e
   where §7.1 requires them. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up
   PR at the end of the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** GATE sees only the diff, so the
-  deferral counts only when that task already exists on the base branch, in the feature's plan or tasks file, and covers
-  this story's flows. A wrap-up task that this diff adds or changes does not count. The feature is NOT DONE until the
-  wrap-up PR merges and its flows pass.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** GATE does not read the PR body.
+  The deferral counts only when that task already exists on the base branch, in a plan or tasks file at one of
+  `specs/<feature>/plan.md`, `specs/<feature>/tasks.md` or `docs/plans/<name>.md`, and covers this story's flows. A task
+  in any other file never counts. A wrap-up task that this diff adds or changes does not count. The feature is NOT DONE
+  until the wrap-up PR merges and its flows pass.
 - **An end-to-end test that is the only proof (a schema or migration change's local e2e, a real-dependency constraint) is
   never deferred.**
 - **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.

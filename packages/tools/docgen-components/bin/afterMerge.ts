@@ -17,8 +17,11 @@ import { execFileSync } from 'node:child_process';
 
 import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR } from '../src/config.js';
 
-/** Absolute, so the script never resolves git through a PATH it does not control. */
-const GIT = '/usr/bin/git';
+/**
+ * Git is looked up on PATH, because its place differs per machine (Homebrew, Nix, /usr/bin). `env` is at a fixed path
+ * on every machine this runs on, so the command itself is absolute and nothing here resolves a command by PATH alone.
+ */
+const ENV = '/usr/bin/env';
 
 /** npm sets this to its own CLI script for every `npm run`, so the script finds npm without a PATH lookup. */
 const NPM_CLI = process.env['npm_execpath'];
@@ -31,7 +34,7 @@ const NPM_CLI = process.env['npm_execpath'];
  */
 function git(args: readonly string[]): string | null {
     try {
-        return execFileSync(GIT, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
+        return execFileSync(ENV, ['git', ...args], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'inherit'] });
     } catch {
         return null;
     }

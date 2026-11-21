@@ -747,6 +747,9 @@ const ALLOWED_SILENT_SUCCESS: readonly string[] = [
     // reads `failure`, the `retry` step retries only a run that finished with no structured result, and the verdict step
     // posts `failure` for a judge or retry that did not succeed (ADR-0098 decision 6). `gateJudgeRetry.test.ts` pins it.
     'continue-on-error gate.yml::gate::Judge the diff (GATE mode) ×1',
+    // The retry evidence upload: evidence never decides the GATE, so an artifact-service error is not a verdict. The
+    // verdict step still posts the GATE status from the judge answers alone (`gateJudgeRetry.test.ts` pins it).
+    'continue-on-error gate.yml::gate::Keep the retry evidence ×1',
     // (The five other `Load … Clerk secrets` entries — k6, the web build, both Playwright tiers and the linkage suite —
     // were REMOVED with ADR-0063: `awsAuth` now tells a fork or Dependabot run, which reports `authenticated=false` and
     // skips the load through its `if:`, from a run that forgot `id-token: write`, which is red. A tolerated load

@@ -2,11 +2,12 @@
 /**
  * Two PRs that each change a component change the same aggregate lines of `docs/generated/components` (`totals`,
  * `coverage`, `counts`), so every pair of parallel PRs conflicted on derived output that `generatedOutput.integration`
- * already refuses to let go stale. The cure is two parts, and each is proved here against real git:
+ * already refuses to let go stale. The cure is three parts, and each is proved here against real git:
  *
  *   1. `.gitattributes` gives every generator output folder the `docgenRegenerate` merge driver. The folders are read
  *      from `config.ts`, which is the generator's own list, so a third output folder cannot be forgotten.
- *   2. The driver keeps the current side (`installMergeDrivers.mjs` sets it to `true`), so the merge ends with no
+ *   2. The root `prepare` script runs the installer, since nothing else puts the driver on a machine.
+ *   3. The driver keeps the current side (`installMergeDrivers.mjs` sets it to `true`), so the merge ends with no
  *      conflict, and `.husky/post-merge` then regenerates when a merge touched either folder.
  *
  * The merge is run in a temp repository that holds the real `.gitattributes`, so dropping the attribute makes the
@@ -96,6 +97,14 @@ describe('the output folders carry the merge driver', () => {
         const out = git(REPO_ROOT, 'check-attr', 'merge', '--', ...files);
 
         expect(out.trim().split('\n')).toEqual(files.map((file) => `${file}: merge: docgenRegenerate`));
+    });
+});
+
+describe('a checkout installs the driver', () => {
+    it('runs the installer from the root prepare script, so every npm install sets it up', () => {
+        const manifest = readFileSync(join(REPO_ROOT, 'package.json'), 'utf8');
+
+        expect(manifest).toMatch(/"prepare":\s*"[^"]*node scripts\/installMergeDrivers\.mjs/u);
     });
 });
 

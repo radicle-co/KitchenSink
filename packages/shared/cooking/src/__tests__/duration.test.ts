@@ -88,45 +88,36 @@ describe('readDuration: a time that is a rate per weight or per piece is no wait
 
 describe('readDuration: a repeat rate offers the time, because the time is the real wait for each repeat (P56)', () => {
     it.each([
-        ['Fry 3 minutes per side', 180],
-        ['Fry 3 minutes per side.', 180],
-        ['Fry 3 minutes each side', 180],
-        ['Bake 12 minutes per batch', 720],
-        ['Bake 12 minutes each batch.', 720],
-        ['Fry 3 MINUTES PER SIDE', 180],
-        ['Fry 2 MINUTES PER SIDE', 120],
-        ['Fry 3 minutes per   side', 180],
-        ['Fry 3 minutes per side of the steak', 180],
-        ['Fry 3 minutes per-side', 180],
-        ['Fry 3 minutes each-side.', 180],
-        ['Bake 12 minutes per-batch', 720],
-        ['Bake 12 minutes each-batch', 720],
-    ])('%s gives %i s, marked as a time that repeats', (line, seconds) => {
-        expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds, span: expect.anything(), perRepeat: true });
+        ['Fry 3 minutes per side', '3 minutes', 180],
+        ['Fry 3 minutes per side.', '3 minutes', 180],
+        ['Fry 3 minutes each side', '3 minutes', 180],
+        ['Bake 12 minutes per batch', '12 minutes', 720],
+        ['Bake 12 minutes each batch.', '12 minutes', 720],
+        ['Fry 3 MINUTES PER SIDE', '3 MINUTES', 180],
+        ['Fry 2 MINUTES PER SIDE', '2 MINUTES', 120],
+        ['Fry 3 minutes per   side', '3 minutes', 180],
+        ['Fry 3 minutes per side of the steak', '3 minutes', 180],
+        ['Fry 3 minutes per-side', '3 minutes', 180],
+        ['Fry 3 minutes each-side.', '3 minutes', 180],
+        ['Bake 12 minutes per-batch', '12 minutes', 720],
+        ['Bake 12 minutes each-batch', '12 minutes', 720],
+    ])('%s gives %i s, marked as a time that repeats', (line, text, seconds) => {
+        expect(readDuration(line)).toStrictEqual({ ...oneIn(line, text, seconds), perRepeat: true });
         expect(offerSecondsOf({ line })).toBe(seconds);
     });
 
     it('keeps the high end of a range and marks it too', () => {
         expect(readDuration('Fry 3 to 4 minutes per side')).toStrictEqual({
-            kind: 'one',
-            seconds: 180,
-            highSeconds: 240,
-            span: expect.anything(),
+            ...oneIn('Fry 3 to 4 minutes per side', '3 to 4 minutes', 180, 240),
             perRepeat: true,
         });
     });
 
     it('marks no other reading: a plain time and a time before the repeat words carry no mark', () => {
-        expect(readDuration('Bake 20 minutes, then fry per side')).toStrictEqual({
-            kind: 'one',
-            seconds: 1_200,
-            span: expect.anything(),
-        });
-        expect(readDuration('Fry per side 3 minutes')).toStrictEqual({
-            kind: 'one',
-            seconds: 180,
-            span: expect.anything(),
-        });
+        expect(readDuration('Bake 20 minutes, then fry per side')).toStrictEqual(
+            oneIn('Bake 20 minutes, then fry per side', '20 minutes', 1_200),
+        );
+        expect(readDuration('Fry per side 3 minutes')).toStrictEqual(oneIn('Fry per side 3 minutes', '3 minutes', 180));
     });
 
     it.each([

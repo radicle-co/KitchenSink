@@ -4,9 +4,10 @@
  *
  * `claude --agent <card>` applies the card's `tools:` allowlist. The CLI adds its `StructuredOutput` tool for
  * `--json-schema` like any other tool, so a card that does not list it drops the tool and the judge cannot return a
- * verdict ("--json-schema was provided but Claude did not return structured_output"). The proof is the red team's
- * root-cause section in reviews/gateJudgeRetry-redteam.md. The text guards in gateJudgeCard.test.ts prove the card
- * tells the judge to call the tool. This guard proves the tool is allowed.
+ * verdict (the action fails with "--json-schema was provided but Claude did not return structured_output"). Sources: the
+ * Claude Code sub-agents documentation, section "Run the whole session as a subagent", where `tools` is an allowlist,
+ * and the Agent SDK structured outputs documentation. The text guards in gateJudgeCard.test.ts prove the card tells the
+ * judge to call the tool. This guard proves the tool is allowed.
  *
  * It parses the real `.github/workflows/gate.yml` and the real cards, so a new judge step or a card edit that drops
  * the tool fails here. It proves the allowlist, not that the model calls the tool: the proof is the first judged run
@@ -23,13 +24,13 @@ const readRepoFile = (relative: string): string => readFileSync(path.join(repoRo
 
 const STRUCTURED_OUTPUT_TOOL = 'StructuredOutput';
 
-/** The `claude_args: |` block bodies of a workflow: the indented lines under each key. */
+/** The `claude_args: |` and `>` block bodies of a workflow: the indented lines under each key. */
 const claudeArgsBlocks = (workflow: string): string[] => {
     const lines = workflow.split('\n');
     const blocks: string[] = [];
 
     lines.forEach((line, index) => {
-        const key = /^(\s*)claude_args:\s*\|/u.exec(line);
+        const key = /^(\s*)claude_args:\s*[|>][+-]?\s*$/u.exec(line);
 
         if (key === null) {
             return;
@@ -58,7 +59,23 @@ const claudeArgsBlocks = (workflow: string): string[] => {
 const structuredJudgeAgents = (workflow: string): string[] =>
     claudeArgsBlocks(workflow)
         .filter((block) => block.includes('--json-schema'))
-        .flatMap((block) => [...block.matchAll(/--agent\s+([A-Za-z0-9_-]+)/gu)].map((match) => match[1] ?? ''));
+        .flatMap((block) => [...block.matchAll(/--agent[\s=]+([A-Za-z0-9_-]+)/gu)].map((match) => match[1] ?? ''));
+
+/** Every `claude_args:` line that is not a block scalar, which this guard cannot read and so must not skip. */
+const unreadableClaudeArgs = (workflow: string): string[] =>
+    workflow
+        .split('\n')
+        .filter((line) => /^\s*claude_args:/u.test(line) && !/^\s*claude_args:\s*[|>][+-]?\s*$/u.test(line));
+
+/** The judge steps (with `--json-schema`) whose `--disallowedTools` list removes the structured output tool. */
+const stepsDisallowingTheTool = (workflow: string): number =>
+    claudeArgsBlocks(workflow)
+        .filter((block) => block.includes('--json-schema'))
+        .filter((block) =>
+            [...block.matchAll(/--disallowedTools[\s=]+("[^"]*"|'[^']*'|\S+)/gu)].some((match) =>
+                (match[1] ?? '').split(/[\s,"']+/u).includes(STRUCTURED_OUTPUT_TOOL),
+            ),
+        ).length;
 
 /** The names on the card's `tools:` frontmatter line, or `null` when the card has no such line. */
 const cardTools = (card: string): string[] | null => {
@@ -90,6 +107,8 @@ describe('GATE judge card allows the structured output tool', () => {
 
         expect(agents.length, 'gate.yml has no structured judge step to check').toBeGreaterThanOrEqual(2);
         expect(agentsMissingTheTool(workflow, (agent) => readRepoFile(`.claude/agents/${agent}.md`))).toEqual([]);
+        expect(stepsDisallowingTheTool(workflow)).toBe(0);
+        expect(unreadableClaudeArgs(workflow)).toEqual([]);
     });
 
     it('2. a card that lists tools without StructuredOutput fails the guard', () => {
@@ -127,5 +146,28 @@ describe('GATE judge card allows the structured output tool', () => {
         const cards: Record<string, string> = { good: cardWith('StructuredOutput'), bad: cardWith('Read') };
 
         expect(agentsMissingTheTool(workflow, (agent) => cards[agent] ?? '')).toEqual(['bad']);
+    });
+
+    it('8. a judge step whose --disallowedTools names StructuredOutput fails the guard', () => {
+        const removed = judgeStep('judge').replace('--max-turns 40', '--disallowedTools "Bash,StructuredOutput,Edit"');
+        const kept = judgeStep('judge').replace('--max-turns 40', '--disallowedTools "Bash,MyStructuredOutputHelper"');
+
+        expect(stepsDisallowingTheTool(removed)).toBe(1);
+        expect(stepsDisallowingTheTool(kept)).toBe(0);
+    });
+
+    it('9. folded block scalars are parsed, and any claude_args form the parser cannot read is reported', () => {
+        const folded = judgeStep('judge').replace('claude_args: |', 'claude_args: >-');
+        const inline = judgeStep('judge').replace('claude_args: |', 'claude_args: "--agent judge --json-schema {}"');
+
+        expect(agentsMissingTheTool(folded, () => cardWith('Read'))).toEqual(['judge']);
+        expect(unreadableClaudeArgs(folded)).toEqual([]);
+        expect(unreadableClaudeArgs(inline)).toHaveLength(1);
+    });
+
+    it('10. --agent=name is read as well as --agent name', () => {
+        const workflow = judgeStep('judge').replace('--agent judge', '--agent=judge');
+
+        expect(agentsMissingTheTool(workflow, () => cardWith('Read'))).toEqual(['judge']);
     });
 });

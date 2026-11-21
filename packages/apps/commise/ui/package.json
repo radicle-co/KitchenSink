@@ -159,7 +159,7 @@
         "react-native": ">=0.79.0",
         "react-native-safe-area-context": ">=5.0.0",
         "react-native-svg": ">=15.0.0",
-        "@tamagui/animations-react-native": "^3.1.9",
+        "@tamagui/animations-react-native": "^3.3.1",
         "@tamagui/dialog": "^3.1.9",
         "tamagui": "^3.1.9"
     },
@@ -203,7 +203,7 @@
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
         "@tamagui/animations-css": "^3.1.9",
-        "@tamagui/animations-react-native": "^3.1.9",
+        "@tamagui/animations-react-native": "^3.3.1",
         "@tamagui/dialog": "^3.1.9",
         "@testing-library/react": "^16.3.0",
         "@testing-library/user-event": "^14.6.1",

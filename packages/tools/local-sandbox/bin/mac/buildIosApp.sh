@@ -49,6 +49,8 @@ plain() {
 plain KS_MAC_SSH_CONFIG "$KS_MAC_SSH_CONFIG" '^[A-Za-z0-9._/@%+=:,-]+$'
 plain KS_MAC_DEVELOPER_DIR "$MAC_DEVELOPER_DIR" '^[A-Za-z0-9._/@%+=:,-]+$'
 plain KS_MAC_PATH "$MAC_PATH" '^[A-Za-z0-9._/@%+=:,-]+$'
+# Empty means "resolve it from ~/.nvm on the Mac".
+plain KS_MAC_NODE_BIN "$MAC_NODE_BIN" '^[A-Za-z0-9._/@%+=:,-]*$'
 
 case "${CLERK_PUBLISHABLE_KEY:-}" in
     pk_test_*) ;;

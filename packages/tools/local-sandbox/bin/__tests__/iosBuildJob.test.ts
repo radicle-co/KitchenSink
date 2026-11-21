@@ -48,7 +48,7 @@ const WAIT_MS = 15_000;
 const BUILD_STUB = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 
 /** What the stub build does for one key, written to `mode.<key>`. */
-type StubMode = 'block' | 'fail3' | 'leaveGroup' | 'leaveSession' | 'leaveDeaf';
+type StubMode = 'block' | 'fail3' | 'fail75' | 'leaveGroup' | 'leaveSession' | 'leaveDeaf';
 
 interface World {
     readonly root: string;
@@ -60,6 +60,8 @@ interface World {
 
 interface Job {
     readonly child: ChildProcess;
+    /** The job's pid and its group id: it was spawned detached. Never 0, so a signal can never reach the runner's group. */
+    readonly pid: number;
     readonly exit: Promise<number | null>;
 }
 
@@ -76,6 +78,7 @@ touch "$STUB_DIR/start.$k"
 mode="$(cat "$STUB_DIR/mode.$k" 2>/dev/null || echo block)"
 case "$mode" in
     fail3) echo "end $k" >> "$STUB_DIR/events.log"; exit 3 ;;
+    fail75) echo "end $k" >> "$STUB_DIR/events.log"; exit 75 ;;
     leaveSession) setsid sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     leaveDeaf) bash -c 'trap "" TERM; exec sleep 300' > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
     leaveGroup) sleep 300 > /dev/null 2>&1 & echo $! > "$STUB_DIR/pid.sleep.$k"; sleep 0.2 ;;
@@ -166,8 +169,13 @@ function startJob(world: World, job: string, key: string, limits: readonly strin
     closeSync(err);
     jobs.push(child);
 
+    if (child.pid === undefined) {
+        throw new Error(`the job ${job} did not start`);
+    }
+
     return {
         child,
+        pid: child.pid,
         exit: new Promise((resolve) => {
             child.once('exit', (code) => {
                 resolve(code);
@@ -339,7 +347,7 @@ describe('iosBuildJob.sh: one build at a time', () => {
             await until('A to build', () => started(world, 'keyA'));
             const build = pidOf(world, 'pid.keyA');
 
-            process.kill(a.child.pid ?? 0, signal);
+            process.kill(a.pid, signal);
 
             expect(await a.exit).toBe(143);
             // Mutation: no TERM trap, and the build keeps running in the shared tree while the next job starts.
@@ -363,7 +371,7 @@ describe('iosBuildJob.sh: one build at a time', () => {
         const b = startJob(world, 'jobB', 'keyB');
 
         await until('B to wait for A', () => /waiting for the build lock: job=jobA/u.test(stateOf(world, 'jobB')));
-        process.kill(b.child.pid ?? 0, 'SIGTERM');
+        process.kill(b.pid, 'SIGTERM');
         expect(await b.exit).toBe(143);
 
         // Mutation: write `released` on every exit, and the live holder A reads as released.
@@ -519,7 +527,7 @@ describe('iosBuildJob.sh: a build group that outlived its wrapper (stale holder)
         const group = Number(/pgid=(\d+)/u.exec(readFileSync(path.join(buildRoot(world), 'build.owner'), 'utf8'))?.[1]);
 
         // The wrapper dies without cleaning up: the kernel frees the lock, and the build group runs on.
-        process.kill(a.child.pid ?? 0, 'SIGKILL');
+        process.kill(a.pid, 'SIGKILL');
         await a.exit;
         upload(world, 'jobB', 'keyB');
         const b = startJob(world, 'jobB', 'keyB');
@@ -577,6 +585,47 @@ describe('iosBuildJob.sh: the limits', () => {
         await until('B to take the lock', () => started(world, 'keyB'));
         release(world, 'keyB');
         expect(await b.exit).toBe(0);
+    });
+
+    it('⛔ names itself as the holder while it syncs, so a waiter never reads the previous holder`s line', async () => {
+        const world = makeWorld();
+        const slowBin = path.join(world.root, 'slowBin');
+
+        mkdirSync(slowBin);
+        // A rsync that says it has started and waits, so the job is held inside its sync step.
+        writeFileSync(
+            path.join(slowBin, 'rsync'),
+            `#!/usr/bin/env bash\ntouch "$STUB_DIR/syncing"\nwhile [ ! -f "$STUB_DIR/syncGo" ]; do sleep 0.05; done\nexec /usr/bin/rsync "$@"\n`,
+        );
+        chmodSync(path.join(slowBin, 'rsync'), 0o755);
+        // The previous holder's record: what a waiter would read if the new holder wrote nothing.
+        mkdirSync(buildRoot(world), { recursive: true });
+        writeFileSync(path.join(buildRoot(world), 'build.owner'), 'released job=jobOld since=then\n');
+        upload(world, 'jobA', 'keyA');
+        upload(world, 'jobB', 'keyB');
+        const a = startJob(world, 'jobA', 'keyA', [], `${slowBin}:${world.bin}`);
+
+        await until('A to be inside its sync', () => existsSync(marker(world, 'syncing')));
+        const b = startJob(world, 'jobB', 'keyB', ['1']);
+
+        // Mutation: write the holder record after the sync, and B reads `released job=jobOld` here.
+        await until('B to name A', () => /waiting for the build lock: job=jobA /u.test(stateOf(world, 'jobB')));
+        expect(await b.exit).toBe(75);
+        writeFileSync(marker(world, 'syncGo'), '');
+        await until('A to build', () => started(world, 'keyA'));
+        release(world, 'keyA');
+        expect(await a.exit).toBe(0);
+    });
+
+    it('⛔ never exits 75 for a build that itself exits 75, because 75 means the lock was not taken', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA', {}, 'fail75');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        // Mutation: pass the build's code through, and the client reads a failed build as "the lock was not taken".
+        expect(await a.exit).toBe(1);
+        expect(errOf(world, 'jobA')).toContain('exited 75');
     });
 
     it('⛔ gives up waiting for the lock after its limit: exit 75, naming the holder', async () => {

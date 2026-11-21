@@ -41,7 +41,8 @@ const BUILD_STUB_PATH = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 const KEY = 'abc123';
 const APP = macPathsOf().iosApp(KEY);
 const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
-const TIMEOUT_MS = 90_000;
+// Under the 30 s test limit, so a hung client ends here and not as an orphan after the case timed out.
+const TIMEOUT_MS = 25_000;
 /** The limit of the case that runs two client builds, in milliseconds. */
 const TWO_BUILDS_TIMEOUT_MS = 30_000;
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
@@ -242,6 +243,21 @@ describe('buildIosApp.sh build: the upload', () => {
         expect(existsSync(path.join(tree, 'gone.txt'))).toBe(false);
         expect(existsSync(path.join(tree, '.git'))).toBe(false);
     });
+
+    it.each(['/opt/a b', "/opt/a'b", '/opt/a;b'])(
+        '⛔ refuses a KS_MAC_NODE_BIN with a quote, space or metacharacter (%s) before it reaches the Mac',
+        (nodeBin) => {
+            const world = makeWorld();
+            const repo = makeRepo(world, readFileSync(REAL_JOB_SCRIPT, 'utf8'));
+
+            const result = build(world, repo, { KS_MAC_NODE_BIN: nodeBin });
+
+            // Mutation: no `plain` check on it, and the value goes into the remote command as typed.
+            expect(result.status).not.toBe(0);
+            expect(result.stderr).toContain('KS_MAC_NODE_BIN holds a character that is not allowed');
+            expect(existsSync(world.sshLog)).toBe(false);
+        },
+    );
 
     it('publishes the app under ksIos/apps/ios/<key> and removes the job folder when the build passed', () => {
         const world = makeWorld();

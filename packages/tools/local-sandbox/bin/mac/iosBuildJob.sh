@@ -19,7 +19,7 @@
 # Environment, as words before `bash` (the client passes them): EXPO_PUBLIC_*, DEVELOPER_DIR, PATH, GITHUB_SHA,
 # KS_NODE_BIN. Runs on the Mac's bash 3.2: no `wait -n`, no `${x,,}`.
 #
-# Exit codes: the build's own; 143 on TERM or INT; 124 when the build ran past its limit; 75 when the lock was not
+# Exit codes: the build's own (a build's 75 becomes 1); 143 on TERM or INT; 124 when the build ran past its limit; 75 when the lock was not
 # taken in time or an earlier build's process group still runs (the message names it).
 #
 # Still open: a `kill -9` of this process while a build runs leaves the build's group alive. The next job refuses to build
@@ -228,6 +228,12 @@ while kill -0 "$child" 2> /dev/null; do
 done
 [ "$rc" = 124 ] || wait "$child" || rc=$?
 end_group
+# 75 belongs to the lock (not taken in time, or an earlier build still runs). A build that exits 75 itself is a failed
+# build, and the client must not read it as a lock that was never taken.
+if [ "$rc" = 75 ]; then
+    echo "iosBuildJob: the build exited 75, which this script reserves for the lock; reporting it as 1" >&2
+    rc=1
+fi
 [ "$rc" = 0 ] || exit "$rc"
 
 # Publish by staged rename: a reader sees a whole app or none.

@@ -40,6 +40,9 @@ const KEY = 'abc123';
 const APP = macPathsOf().iosApp(KEY);
 const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
 const TIMEOUT_MS = 90_000;
+/** Absolute, so the test never resolves a command through a PATH it does not control. */
+const BASH = '/bin/bash';
+const GIT = '/usr/bin/git';
 
 /** The build stub: `verify-manifest` accepts, `ios` makes the folder the job publishes. */
 const BUILD_STUB_BODY = `#!/usr/bin/env bash
@@ -66,7 +69,7 @@ interface World {
 const roots: string[] = [];
 
 const git = (cwd: string, ...args: string[]): void => {
-    const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
+    const result = spawnSync(GIT, args, { cwd, encoding: 'utf8' });
 
     if (result.status !== 0) {
         throw new Error(`git ${args.join(' ')}: ${result.stderr}`);
@@ -156,7 +159,7 @@ function makeRepo(world: World, jobScript: string, files: Record<string, string>
 
 /** Runs the real client's `build`, and returns once it has exited. */
 function build(world: World, repo: string, env: Record<string, string> = {}) {
-    return spawnSync('bash', [CLIENT, 'build', KEY, APP], {
+    return spawnSync(BASH, [CLIENT, 'build', KEY, APP], {
         encoding: 'utf8',
         timeout: TIMEOUT_MS,
         env: {
@@ -180,7 +183,7 @@ const sshCommands = (world: World): string[] =>
         .split(/^SSH /mu)
         .filter((entry) => entry !== '');
 const jobIdsIn = (text: string): string[] => [
-    ...new Set([...text.matchAll(/jobs\/([A-Za-z0-9._-]+)/gu)].map((m) => m[1] ?? '')),
+    ...new Set(Array.from(text.matchAll(/jobs\/([A-Za-z0-9._-]+)/gu), ([, id]) => id)),
 ];
 
 /** What the real job script is told to do when the test wants to stand it in with its own behaviour. */

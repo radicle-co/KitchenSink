@@ -37,6 +37,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const JOB_SCRIPT = fileURLToPath(new URL('../mac/iosBuildJob.sh', import.meta.url));
 const SYSTEM_PATH = '/usr/bin:/bin';
+/** Absolute, so the test never resolves a command through a PATH it does not control. */
+const BASH = '/bin/bash';
 const WAIT_MS = 15_000;
 const BUILD_STUB = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 
@@ -148,7 +150,7 @@ function upload(
  */
 function startJob(world: World, job: string, key: string): Job {
     const err = openSync(path.join(world.root, `${job}.err`), 'a');
-    const child = spawn('bash', [JOB_SCRIPT, job, key, `ksIos/apps/ios/${key}`], {
+    const child = spawn(BASH, [JOB_SCRIPT, job, key, `ksIos/apps/ios/${key}`], {
         detached: true,
         // The job's stderr goes to a file in the world, so a failing case can say why the job died.
         stdio: ['ignore', 'ignore', err],
@@ -158,7 +160,14 @@ function startJob(world: World, job: string, key: string): Job {
     closeSync(err);
     jobs.push(child);
 
-    return { child, exit: new Promise((resolve) => child.once('exit', (code) => resolve(code))) };
+    return {
+        child,
+        exit: new Promise((resolve) => {
+            child.once('exit', (code) => {
+                resolve(code);
+            });
+        }),
+    };
 }
 
 /** Polls until `ready` holds. Every case synchronizes through this, on files, never on a fixed wait. */
@@ -176,7 +185,11 @@ async function until(what: string, ready: () => boolean): Promise<void> {
 
 const marker = (world: World, name: string): string => path.join(world.stub, name);
 const started = (world: World, key: string): boolean => existsSync(marker(world, `start.${key}`));
-const release = (world: World, key: string): void => writeFileSync(marker(world, `release.${key}`), '');
+
+const release = (world: World, key: string): void => {
+    writeFileSync(marker(world, `release.${key}`), '');
+};
+
 const events = (world: World): string[] =>
     existsSync(marker(world, 'events.log')) ? readFileSync(marker(world, 'events.log'), 'utf8').trim().split('\n') : [];
 
@@ -198,25 +211,24 @@ function alive(pid: number): boolean {
     }
 }
 
+/** Sends SIGKILL to a pid or a group and says nothing when it is already gone. */
+function killQuietly(pid: number): void {
+    try {
+        process.kill(pid, 'SIGKILL');
+    } catch {
+        // Already gone.
+    }
+}
+
 afterEach(() => {
     for (const child of jobs.splice(0)) {
-        if (child.pid !== undefined) {
-            try {
-                process.kill(-child.pid, 'SIGKILL');
-            } catch {
-                // The group is already gone.
-            }
-        }
+        killQuietly(-(child.pid ?? 0));
     }
 
     for (const world of worlds.splice(0)) {
         for (const name of existsSync(world.stub) ? readdirSync(world.stub) : []) {
             if (name.startsWith('pid.')) {
-                try {
-                    process.kill(pidOf(world, name), 'SIGKILL');
-                } catch {
-                    // Already gone.
-                }
+                killQuietly(pidOf(world, name));
             }
         }
 

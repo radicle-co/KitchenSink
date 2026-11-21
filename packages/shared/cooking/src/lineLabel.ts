@@ -13,6 +13,7 @@ const CONNECTOR_WORDS: ReadonlySet<string> = new Set([
     'around',
     'roughly',
     'approximately',
+    'approx',
     'another',
     'further',
     'more',
@@ -28,15 +29,31 @@ const CONNECTOR_WORDS: ReadonlySet<string> = new Set([
     'then',
 ]);
 
-/** A sentence end the label stops at: the label is the part of the sentence the time is in. */
-const SENTENCE_END = /[.!?;]/gu;
+/**
+ * Where the label starts again: a sentence end (a stop, `!`, `?` or `;` followed by white space, so "180.5" stays whole)
+ * or the word "then", which ends a clause like a full stop (designer D80).
+ */
+const CLAUSE_END = /[.!?;](?=\s)|\bthen\b/giu;
 
-/** The text after the last sentence end, or all of it when there is none. */
-function lastSentence(text: string): string {
-    const ends = [...text.matchAll(SENTENCE_END)];
-    const last = ends.at(-1);
+/** "approx." is an abbreviation, not a sentence end: it reads as the connector "approx". */
+const ABBREVIATION = /\bapprox\./giu;
 
-    return last === undefined ? text : text.slice(last.index + 1);
+/** The most words a label has. A longer one gives no label, and a label is never cut to fit (designer D80). */
+const LABEL_WORDS_MAX = 4;
+
+/** The text after the last clause end, or all of it when there is none. */
+function lastClause(line: string): string {
+    const text = line.replace(ABBREVIATION, 'approx');
+    const last = [...text.matchAll(CLAUSE_END)].at(-1);
+
+    return last === undefined ? text : text.slice(last.index + last[0].length);
+}
+
+/** The one word in front of the first comma, when the text has a comma after a single word; else the text. */
+function leadWordOrAll(text: string): string {
+    const lead = text.split(',')[0]?.trim() ?? '';
+
+    return text.includes(',') && /^\p{L}+$/u.test(lead) ? lead : text;
 }
 
 /** Drops trailing spaces and punctuation, then a trailing connector word, until neither is left. */
@@ -70,8 +87,12 @@ export function lineLabelOf(line: string): string | undefined {
         return undefined;
     }
 
-    const words = withoutTrailingConnectors(lastSentence(line.slice(0, reading.span.start))).trimStart();
+    const words = leadWordOrAll(withoutTrailingConnectors(lastClause(line.slice(0, reading.span.start))).trimStart());
     const first = words.charAt(0);
+
+    if (words.split(/\s+/u).length > LABEL_WORDS_MAX) {
+        return undefined;
+    }
 
     return first === '' ? undefined : `${first.toUpperCase()}${words.slice(1)}`;
 }

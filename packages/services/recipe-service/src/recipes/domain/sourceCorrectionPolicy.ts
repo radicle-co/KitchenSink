@@ -83,7 +83,7 @@ export type SourceCorrection =
  * is compared by its source key (the address without its `#fragment`), a book title and a paid-site citation exactly as stored,
  * because the write stores them as sent. Pure.
  */
-function restatesStored(statement: RecipeStatementInput, stored: StoredSource): boolean {
+export function restatesStored(statement: RecipeStatementInput, stored: StoredSource): boolean {
     switch (statement.kind) {
         case 'paid_site':
             return stored.sourceKind === 'paid_site' && stored.sourceAttribution === statement.citation;

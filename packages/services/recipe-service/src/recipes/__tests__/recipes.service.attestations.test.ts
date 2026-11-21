@@ -53,7 +53,7 @@ function setup(stored: RecipeAggregate | undefined = undefined) {
     const service = makeRecipesService({
         dal,
         lookups: LOOKUPS,
-        attestations: { insertMany, hasFromPerson: async () => false },
+        attestations: { insertMany, hasFromPerson: async () => false, hasWordedAttestation: async () => false },
     });
 
     return { insertMany, service };

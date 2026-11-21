@@ -68,9 +68,11 @@ import { evaluatePublication, type PublishPolicyInput } from './domain/publishPo
 import {
     confirmsSource,
     evaluateSourceCorrection,
+    restatesStored,
     type SourceCorrection,
     type StoredSource,
 } from './domain/sourceCorrectionPolicy.js';
+import { recordSourceLockRefused } from './sourceEvents.js';
 import { evaluatePublicFoods, type PublicFoodsLine } from './domain/publicFoodsPolicy.js';
 import {
     SLOT_NOT_NEEDED,
@@ -514,6 +516,8 @@ interface UnderLockDecision {
     readonly pendingEvidence: readonly EvidenceToWrite[];
     /** Whether the write records the confirmation it was sent. */
     readonly recordsConfirmation: boolean;
+    /** The statement the write records an attestation for: the one that took effect, or a worded restatement with none held yet (KTD-2). */
+    readonly statementToRecord: RecipeStatementInput | null | undefined;
 }
 
 /**
@@ -522,10 +526,12 @@ interface UnderLockDecision {
  *
  * @param correction - The policy's verdict on the statement.
  * @returns The correction, now known to be `unchanged` or `apply`. Pure apart from the throw.
- * @throws {HttpException} `SOURCE_LOCKED` or the source-not-usable refusal.
+ * @throws {HttpException} `SOURCE_LOCKED` or the source-not-usable refusal. @sideEffect A refusal by the lock writes one `source.lockRefused` line (route `update`: both callers are the PATCH).
  */
 function refuseUnusable(correction: SourceCorrection): Exclude<SourceCorrection, { kind: 'locked' | 'unusable' }> {
     if (correction.kind === 'locked') {
+        recordSourceLockRefused({ route: 'update' });
+
         throw sourceLocked();
     }
 
@@ -1566,7 +1572,13 @@ export class RecipesService {
                           isPremium,
                           counted,
                       })
-                    : { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false };
+                    : {
+                          correction,
+                          forcesPrivate,
+                          pendingEvidence,
+                          recordsConfirmation: false,
+                          statementToRecord: correction.kind === 'apply' ? dto.statement : undefined,
+                      };
 
             if (decided === undefined) {
                 return undefined;
@@ -1633,7 +1645,7 @@ export class RecipesService {
                 action: 'update',
                 evidence: decided.pendingEvidence,
                 // The statement that TOOK EFFECT: one the recipe already held, or a clear of nothing, leaves no row.
-                statement: decided.correction.kind === 'apply' ? dto.statement : undefined,
+                statement: decided.statementToRecord,
                 publicConfirmation: dto.publicConfirmation,
                 recordsConfirmation: decided.recordsConfirmation,
             });
@@ -1726,15 +1738,15 @@ export class RecipesService {
             return undefined;
         }
 
+        const stored = storedSourceOf(
+            current,
+            dto.statement !== undefined && (await this.attestedFromPersonIn(tx, id, current)),
+        );
         const correction =
             dto.statement === undefined
                 ? input.preLock
-                : refuseUnusable(
-                      evaluateSourceCorrection({
-                          statement: dto.statement,
-                          stored: storedSourceOf(current, await this.attestedFromPersonIn(tx, id, current)),
-                      }),
-                  );
+                : refuseUnusable(evaluateSourceCorrection({ statement: dto.statement, stored }));
+        const statementToRecord = await this.statementToRecordIn(tx, id, dto.statement, correction, stored);
 
         const applied = correction.kind === 'apply';
         const pendingEvidence = applied ? evidenceListOf(correction.provenance, 'editor') : [];
@@ -1747,7 +1759,7 @@ export class RecipesService {
             : { sourceType: current.sourceType, sourceKind: current.sourceKind };
 
         if (afterStatus !== RecipeStatus.PUBLISHED) {
-            return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false };
+            return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false, statementToRecord };
         }
 
         // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe is never
@@ -1774,7 +1786,44 @@ export class RecipesService {
             this.assertPrivatePublishAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
         }
 
-        return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: verdict.recordsConfirmation };
+        return {
+            correction,
+            forcesPrivate,
+            pendingEvidence,
+            recordsConfirmation: verdict.recordsConfirmation,
+            statementToRecord,
+        };
+    }
+
+    /**
+     * The statement a write records an attestation for. One that took effect (`apply`) is recorded. A statement that only
+     * RESTATES the stored source (`unchanged`: the same kind and citation, KTD-2) writes no columns and no evidence, but it still
+     * leaves the cook's attestation when it is worded and the recipe holds none of that answer. Anything else leaves no row.
+     *
+     * @param tx - The write's open transaction.
+     * @param id - The recipe.
+     * @param statement - The request's statement.
+     * @param correction - The policy's verdict on it.
+     * @param stored - The stored source facts the verdict was made from.
+     * @returns The statement to record, or `undefined`.
+     * @sideEffect One `recipe_statement_attestations` read, and only for a worded restatement.
+     */
+    private async statementToRecordIn(
+        tx: RecipeTx,
+        id: string,
+        statement: RecipeStatementInput | null | undefined,
+        correction: SourceCorrection,
+        stored: StoredSource,
+    ): Promise<RecipeStatementInput | null | undefined> {
+        if (correction.kind === 'apply') {
+            return statement;
+        }
+
+        if (statement === undefined || statement === null || !restatesStored(statement, stored)) {
+            return undefined;
+        }
+
+        return this.gate.restatementToRecord(tx, id, statement);
     }
 
     /**
@@ -2068,15 +2117,15 @@ export class RecipesService {
 
             // A statement made in the SAME request (the recipe page's "I wrote this" with Make public): judged by the same policy
             // a PATCH uses, over the facts under THIS lock, so the lock on the source is one rule.
-            const correction = evaluateSourceCorrection({
-                statement: extras.statement,
-                stored: storedSourceOf(
-                    current,
-                    extras.statement !== undefined && (await this.attestedFromPersonIn(tx, id, current)),
-                ),
-            });
+            const stored = storedSourceOf(
+                current,
+                extras.statement !== undefined && (await this.attestedFromPersonIn(tx, id, current)),
+            );
+            const correction = evaluateSourceCorrection({ statement: extras.statement, stored });
 
             if (correction.kind === 'locked') {
+                recordSourceLockRefused({ route: 'setVisibility' });
+
                 throw sourceLocked();
             }
 
@@ -2085,6 +2134,7 @@ export class RecipesService {
             }
 
             const pendingEvidence = correction.kind === 'apply' ? evidenceListOf(correction.provenance, 'editor') : [];
+            const statementToRecord = await this.statementToRecordIn(tx, id, extras.statement, correction, stored);
             // The source AS THIS WRITE LEAVES IT: what the cook just stated, else what is stored.
             const source =
                 correction.kind === 'apply'
@@ -2145,7 +2195,7 @@ export class RecipesService {
                     action: 'setVisibility',
                     evidence: pendingEvidence,
                     // The statement that TOOK EFFECT: one the recipe already held leaves no row.
-                    statement: correction.kind === 'apply' ? extras.statement : undefined,
+                    statement: statementToRecord,
                     publicConfirmation: extras.publicConfirmation,
                     recordsConfirmation: verdict.recordsConfirmation,
                 });

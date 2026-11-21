@@ -132,6 +132,7 @@ const setVisibility = vi.fn(
     },
 );
 const insertMany = vi.fn(async (_tx: unknown, _rows: readonly unknown[]) => undefined);
+const hasWordedAttestation = vi.fn(async (_tx: unknown, _recipeId: string, _choice: string) => false);
 const hasFromPerson = vi.fn(async (_tx: unknown, _recipeId: string) => false);
 
 let evidence: RecipeSourceEvidenceRow[] = [];
@@ -261,7 +262,7 @@ beforeAll(async () => {
                     readConflict: async () => ({ current: aggregateOf(stored) }),
                 },
             },
-            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson } },
+            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson, hasWordedAttestation } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
@@ -297,6 +298,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+    hasWordedAttestation.mockImplementation(async () => false);
     evidence = [];
     writeFindsNoRow = false;
     underLock = undefined;
@@ -949,7 +951,12 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         expect(insertMany).not.toHaveBeenCalled();
     });
 
-    it('the identical paid website again, on PATCH and on set-visibility, is applied as nothing and records nothing', async () => {
+    /**
+     * Re-scoped by P8 (KTD-2; qse TEST-CHANGE batch 2): the same paid website again writes no source and no evidence, and records
+     * nothing WHEN the recipe already holds its worded attestation. The twin below records it once when none is held.
+     */
+    it('the identical paid website again, with its attestation already held, is applied as nothing and records nothing', async () => {
+        hasWordedAttestation.mockImplementation(async () => true);
         stored = rowOf({
             status: 'draft',
             sourceType: 'imported_paid',
@@ -971,6 +978,25 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         expect(visibility.status).toBe(200);
         expect(insertEvidence).not.toHaveBeenCalled();
         expect(recorded()).toEqual([]);
+    });
+
+    it('the identical paid website again, with NO worded attestation held, writes no source and no evidence but records it once (KTD-2)', async () => {
+        stored = rowOf({
+            status: 'draft',
+            sourceType: 'imported_paid',
+            sourceKind: 'paid_site',
+            statementKind: 'source',
+            sourceAttribution: PAID_SITE.citation,
+        });
+
+        const patched = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: PAID_SITE,
+        });
+
+        expect(patched.status).toBe(200);
+        expect(insertEvidence).not.toHaveBeenCalled();
+        expect(recorded()).toEqual([STATEMENT_ROW('paidSite', 'statementPaidSite.v1', 'update')]);
     });
 
     it('"from another person" with Public is a contradiction: 400 FROM_PERSON_PRIVATE_ONLY, nothing written; with Private it is recorded', async () => {

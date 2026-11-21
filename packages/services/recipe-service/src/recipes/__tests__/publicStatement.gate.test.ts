@@ -43,11 +43,12 @@ function gateOf(stored: readonly EvidenceToWrite[] = [], attestedFromPerson = fa
     const list = vi.fn(async () => stored.map((row, index) => ({ ...row, id: `e${String(index)}` })));
     const insertMany = vi.fn(async () => undefined);
     const hasFromPerson = vi.fn(async () => attestedFromPerson);
+    const hasWordedAttestation = vi.fn(async () => false);
     const gate = new PublicStatementGate(
         { insert, list } as unknown as Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>,
-        { insertMany, hasFromPerson } as unknown as Pick<
+        { insertMany, hasFromPerson, hasWordedAttestation } as unknown as Pick<
             RecipeStatementAttestationsDal,
-            'insertMany' | 'hasFromPerson'
+            'insertMany' | 'hasFromPerson' | 'hasWordedAttestation'
         >,
     );
 

@@ -10,7 +10,7 @@
  * @pattern Repository — append-only
  * @sideEffect Every method writes Postgres through the transaction it is given.
  */
-import { and, eq } from 'drizzle-orm';
+import { and, eq, isNotNull } from 'drizzle-orm';
 
 import { recipeStatementAttestations } from '../../database/schema/index.js';
 import type { NewRecipeStatementAttestationRow } from '../../database/schema/recipeStatementAttestations.js';
@@ -32,6 +32,37 @@ export class RecipeStatementAttestationsDal {
      */
     public async insertMany(tx: RecipeTx, rows: readonly AttestationToInsert[]): Promise<void> {
         await tx.insert(recipeStatementAttestations).values(rows.map((row) => ({ ...row, recipeRef: row.recipeId })));
+    }
+
+    /**
+     * Whether the recipe already holds an explicit attestation of this choice that carries the wording the cook was shown. A
+     * restatement of a held source answer (KTD-2) records its attestation only when this is `false`.
+     *
+     * @param tx - The caller's transaction.
+     * @param recipeId - The stored recipe.
+     * @param choice - The attestation choice of the statement.
+     * @returns `true` when such a row exists.
+     * @sideEffect Reads `recipe_statement_attestations`.
+     */
+    public async hasWordedAttestation(
+        tx: RecipeTx,
+        recipeId: string,
+        choice: NewRecipeStatementAttestationRow['choice'],
+    ): Promise<boolean> {
+        const rows = await tx
+            .select({ id: recipeStatementAttestations.id })
+            .from(recipeStatementAttestations)
+            .where(
+                and(
+                    eq(recipeStatementAttestations.recipeId, recipeId),
+                    eq(recipeStatementAttestations.choice, choice),
+                    eq(recipeStatementAttestations.mode, 'explicit'),
+                    isNotNull(recipeStatementAttestations.wordingVersion),
+                ),
+            )
+            .limit(1);
+
+        return rows.length > 0;
     }
 
     /**

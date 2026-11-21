@@ -26,6 +26,7 @@ import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
 import { laneRunnerEnv, type LaneChild } from './laneProcess.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from './laneTypes.js';
 import type { SharedServices } from './sharedServices.js';
+import { KILL_WAIT_MS, STOP_GRACE_MS, stopTargets, type StopSignal } from './stopGroups.js';
 
 /** `all`, or the flows to run. An empty list selects nothing: it is never read as `all`. */
 export type Selection = 'all' | readonly string[];
@@ -109,19 +110,13 @@ export interface LaneRunDeps {
     readonly staggerMs: number;
     /** How long a stopped lane has to exit before it is killed. Defaults to {@link STOP_GRACE_MS}. */
     readonly stopGraceMs?: number;
+    /** How long a killed lane has to be gone before the run stops waiting for it. Defaults to {@link KILL_WAIT_MS}. */
+    readonly stopKillWaitMs?: number;
     log(line: string): void;
 }
 
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
-
-/** How long a lane's group has to be gone after SIGTERM before SIGKILL: a stuck child ignores the first. */
-const STOP_GRACE_MS = 10_000;
-
-/** How often the run asks whether a stopped lane's group is gone. */
-const GROUP_POLL_MS = 25;
-
-const sleep = (ms: number): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
 
 interface PlatformPlan {
     readonly adapter: DeviceAdapter;
@@ -383,34 +378,31 @@ async function runPlanned(
             codes = await unlessLost(Promise.all(exits));
         } catch (error) {
             // The lanes would run against a dead forward. Stop them, kill any that ignore it, and let them exit before
-            // the devices go.
-            for (const child of children) {
-                child.stop();
+            // the devices go. A lane is done when its runner has exited and its group is gone: bash may exit on SIGTERM
+            // while a child of its group stays.
+            const exited = new Set<number>();
+            const targets = children.map((child, index) => ({
+                stop: (signal: StopSignal) => {
+                    child.stop(signal);
+                },
+                running: () => child.running() || !exited.has(index),
+            }));
+
+            for (const [index, exit] of exits.entries()) {
+                void exit.then(
+                    () => exited.add(index),
+                    () => exited.add(index),
+                );
             }
 
-            // The runner (bash) may exit on SIGTERM while a child of its group stays, so the wait is for the group.
-            const exited = Promise.allSettled(exits).then(async () => {
-                while (children.some((child) => child.running())) {
-                    await sleep(GROUP_POLL_MS);
-                }
+            const outcome = await stopTargets(targets, {
+                graceMs: deps.stopGraceMs ?? STOP_GRACE_MS,
+                killWaitMs: deps.stopKillWaitMs ?? KILL_WAIT_MS,
             });
 
-            let graceOver: NodeJS.Timeout | undefined;
-            const grace = new Promise<boolean>((resolve) => {
-                graceOver = setTimeout(() => {
-                    resolve(false);
-                }, deps.stopGraceMs ?? STOP_GRACE_MS);
-            });
-            const exitedInTime = await Promise.race([exited.then(() => true), grace]);
-            clearTimeout(graceOver);
-
-            if (!exitedInTime) {
-                for (const child of children) {
-                    child.stop('SIGKILL');
-                }
+            if (outcome === 'stuck') {
+                deps.log('a lane was still running after SIGKILL; the devices are stopped anyway');
             }
-
-            await exited;
 
             throw error;
         }

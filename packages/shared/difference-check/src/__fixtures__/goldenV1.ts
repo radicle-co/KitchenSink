@@ -200,8 +200,9 @@ export const GOLDEN_V1: readonly GoldenCase[] = [...PASSING, ...FAILING, ...SCRI
  * The measures v1 reported for each case when it was frozen (2026-11-21). A change in any number fails the golden test,
  * though the pass flag might hold: the numbers are v1's answer too, and the metric a later stage reads.
  *
- * Known and accepted in v1: a Cyrillic look-alike inside a unit word (`minutes` spelled with one) is not folded to the
- * unit, because the skeleton must run after the unit fold; the cases with Cyrillic look-alikes show it as one or two new words.
+ * A look-alike quantity folds in v1 (S-1): a unit spelled with look-alike letters folds by its skeleton, and a number
+ * spelled with letters for digits (`l8O`) folds back to the digit, so the cases with Cyrillic look-alikes read as the
+ * baseline. A number spelled with letters only (`lO` for 10) stays a word: the named residual in ADR-0100.
  */
 export const GOLDEN_V1_MEASURES: Readonly<
     Record<

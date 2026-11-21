@@ -33,6 +33,7 @@
         "./action-menu": "./src/actionMenu/index.ts",
         "./back-intercept": "./src/backIntercept/index.ts",
         "./testing/hardware-back": "./src/testing/hardwareBack.native.ts",
+        "./testing/window-modal": "./src/testing/windowModal.native.ts",
         "./testing/safe-area-context": "./src/testing/safeAreaContext.native.tsx",
         "./testing/lucide-native": "./src/testing/lucideNativeStub.ts",
         "./testing/expo-keep-awake": "./src/testing/expoKeepAwakeStub.ts",

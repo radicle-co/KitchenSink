@@ -1149,4 +1149,24 @@ describe('runLaneRun: the preflight of each adapter', () => {
 
         expect(events.filter((event) => event.startsWith('preflight '))).toEqual([]);
     });
+    it('stops the run before any lane, and tears the host down, when the port probe refuses', async () => {
+        const made = harness();
+        const { events } = made;
+        const spawned = vi.fn(made.deps.spawnLane);
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            spawnLane: spawned,
+            adapterFor: (platform) => ({
+                ...fakeAdapter(events, platform),
+                prepareHost: () => Promise.reject(new Error('the Mac port 13000 answered 000 on /health')),
+            }),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('the Mac port 13000 answered 000 on /health');
+
+        expect(spawned).not.toHaveBeenCalled();
+        expect(events).toContain('teardownHost android');
+    });
 });

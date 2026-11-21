@@ -17,7 +17,13 @@ afterEach(() => {
     observer.observed.clear();
 });
 
-/** Report `width` as the row's measured width, the way react-native-web's observer does. `levels` is how far the row is above the button. */
+/**
+ * Report `width` as the row's measured width, the way react-native-web's observer does.
+ *
+ * `levels` is how many parents up the row is from the Keep button: 1 for a plain row, 2 with `shares="equal"`, where each
+ * button sits in a share inside the row. A case that passes `levels > 1` also asserts a row at a width that should give
+ * one, so a wrong `levels` (the wrong node measured, the list left stacked) cannot pass a "stacked" case for that reason.
+ */
 function layOut(width: number, levels = 1): void {
     let row = screen.getByRole('button', { name: 'Keep' }) as HTMLElement;
 

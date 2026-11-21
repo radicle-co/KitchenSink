@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 35,
         "implementationsWithComponentDoc": 35,
         "documentedProps": 117,
-        "classifiedComponents": 18,
+        "classifiedComponents": 19,
         "componentsWithPatternTag": 9,
         "crossPlatformComponents": 17
     },
@@ -2437,7 +2437,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src/timer",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Composition root (Facade) over the timer store, which a hook reads through context",
                 "Observer — the store is read with `useSyncExternalStore` in `useCookingTimers`"
@@ -2469,7 +2469,7 @@
                             "text": "Observer — the store is read with `useSyncExternalStore` in `useCookingTimers`"
                         }
                     ],
-                    "description": "Provide the timer store to the subtree.",
+                    "description": "Provide the timer store to the subtree. Orchestration: it constructs the store and decides when it ends, and draws\nonly its children.",
                     "tags": [
                         {
                             "name": "param",
@@ -2501,7 +2501,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

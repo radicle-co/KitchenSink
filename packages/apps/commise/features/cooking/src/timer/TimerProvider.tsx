@@ -27,7 +27,8 @@ export interface TimerProviderProps {
 }
 
 /**
- * Provide the timer store to the subtree.
+ * Provide the timer store to the subtree. Orchestration: it constructs the store and decides when it ends, and draws
+ * only its children.
  *
  * @param props - The cook and the subtree.
  * @returns The subtree under the store.

@@ -4,26 +4,9 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { plainLcs } from '../__fixtures__/plainLcs.js';
 import { seededDraw } from '../__fixtures__/synthetic.js';
 import { longestCommonSubsequence } from '../measures/alignment.js';
-
-/** The textbook table: the oracle. Quadratic, so only for short sequences. */
-function plainLcs(first: readonly string[], second: readonly string[]): number {
-    let previous = new Array<number>(second.length + 1).fill(0);
-
-    for (const left of first) {
-        const row = [0];
-
-        second.forEach((right, column) => {
-            row.push(
-                left === right ? (previous[column] ?? 0) + 1 : Math.max(previous[column + 1] ?? 0, row[column] ?? 0),
-            );
-        });
-        previous = row;
-    }
-
-    return previous[second.length] ?? 0;
-}
 
 /** `length` tokens drawn from an alphabet of `alphabet` symbols. */
 function sequence(draw: () => number, length: number, alphabet: number): string[] {

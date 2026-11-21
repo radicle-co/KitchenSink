@@ -48,25 +48,30 @@ describe('foldCompatibility', () => {
 });
 
 describe('foldCompatibility over every code point (qse P4-Q4)', () => {
-    it('leaves no mark, format character or default-ignorable code point in its output, whatever goes in', () => {
-        const forbidden = /[\p{M}\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
-        const offenders: string[] = [];
+    // A coverage sweep of 1.1 million code points, not a timing claim: the bound only keeps a loaded CI runner from failing it.
+    it(
+        'leaves no mark, format character or default-ignorable code point in its output, whatever goes in',
+        { timeout: 30_000 },
+        () => {
+            const forbidden = /[\p{M}\p{Cf}\p{Default_Ignorable_Code_Point}]/u;
+            const offenders: string[] = [];
 
-        for (let codePoint = 0; codePoint <= 0x10ffff; codePoint += 1) {
-            if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
-                continue;
+            for (let codePoint = 0; codePoint <= 0x10ffff; codePoint += 1) {
+                if (codePoint >= 0xd800 && codePoint <= 0xdfff) {
+                    continue;
+                }
+
+                const character = String.fromCodePoint(codePoint);
+
+                // Surrounded by letters, so a lone mark has something to attach to and the fold sees real text.
+                if (forbidden.test(foldCompatibility(`a${character}b`))) {
+                    offenders.push(`U+${codePoint.toString(16).toUpperCase().padStart(4, '0')}`);
+                }
             }
 
-            const character = String.fromCodePoint(codePoint);
-
-            // Surrounded by letters, so a lone mark has something to attach to and the fold sees real text.
-            if (forbidden.test(foldCompatibility(`a${character}b`))) {
-                offenders.push(`U+${codePoint.toString(16).toUpperCase().padStart(4, '0')}`);
-            }
-        }
-
-        expect(offenders).toEqual([]);
-    });
+            expect(offenders).toEqual([]);
+        },
+    );
 
     it('folds a dotted capital I to plain i: lower case cannot put a dot back', () => {
         expect(foldCompatibility('k\u0130tchen st\u0130r')).toBe('kitchen stir');

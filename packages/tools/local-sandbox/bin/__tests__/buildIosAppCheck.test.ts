@@ -75,7 +75,10 @@ function makeMac(manifestKey: string): MacWorld {
     // ssh [-F cfg] host command: the command is the last argument, run in the fake Mac's HOME.
     writeExecutable(
         path.join(localBin, 'ssh'),
-        `cd "${macHome}"\nHOME="${macHome}" PATH="${macBin}:${SYSTEM_PATH}" exec ${BASH} -c "\${@: -1}"`,
+        // A `garble` file in the fake Mac's HOME makes the key probe (the command that names codesign) answer nonsense.
+        `cd "${macHome}"\ncmd="\${@: -1}"\n` +
+            `case "$cmd" in *codesign*) [ ! -e garble ] || { echo hello; exit 0; } ;; esac\n` +
+            `HOME="${macHome}" PATH="${macBin}:${SYSTEM_PATH}" exec ${BASH} -c "$cmd"`,
     );
     writeExecutable(path.join(macBin, 'xcodebuild'), `printf 'Xcode 26.5\\nBuild version 17F42\\n'`);
     // plutil -extract <key> raw -o - <plist>: print the value, or fail when the plist or the key is absent.
@@ -201,6 +204,19 @@ describe('buildIosApp.sh check: the baked content key', () => {
         // Kills: reading the plist without checking the seal, so an edited plist passes.
         expect(result.status).not.toBe(0);
         expect(result.stderr).toContain('signature');
+    });
+
+    it('refuses an answer from the Mac that the check does not know', () => {
+        const world = makeMac(KEY_A);
+        addApp(world, 'Commise', KEY_A);
+        writeFileSync(path.join(world.macHome, 'garble'), '');
+
+        const result = check(world, KEY_A);
+
+        // Kills: dropping the catch-all arm, so a garbled answer (a login banner, a shell error) passes the check.
+        expect(result.status).not.toBe(0);
+        expect(result.stderr).toContain('unexpected answer');
+        expect(result.stderr).not.toContain('is current');
     });
 });
 

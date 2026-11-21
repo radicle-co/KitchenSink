@@ -299,6 +299,7 @@ async function selectFlows(base: Env, platform: LanePlatform, selector: string) 
         owed: values('needs-sandbox').map((row) => row.split('|')[0] ?? ''),
         notes: [
             ...values('needs-sandbox').map((row) => `not run locally: needs sandbox - ${row.replace('|', ' (')})`),
+            ...values('prerequisite-not-run').map((row) => `prerequisite not run locally: ${row.replace('|', ' (')})`),
             ...values('excluded').map((flow) => `excluded on ${platform}: ${flow}`),
         ],
     };

@@ -769,8 +769,7 @@ fixture user).
 
 ### 7.1b Cheapest tier first, and the end-to-end wrap-up
 
-This section is the one full statement of the end-to-end timing and deferral rule. `CLAUDE.md`, the GATE judge card and
-the code-quality playbook point here and do not restate it.
+This section is the one full statement of the end-to-end timing and deferral rule.
 
 - **Unit tests are always written**, for every change. They are the automatic floor of coverage.
 - **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to

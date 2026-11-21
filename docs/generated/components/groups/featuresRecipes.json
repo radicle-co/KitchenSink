@@ -6,11 +6,11 @@
     "coverage": {
         "components": 210,
         "implementations": 355,
-        "props": 2455,
+        "props": 2457,
         "documentedComponents": 210,
         "implementationsWithModuleDoc": 355,
         "implementationsWithComponentDoc": 244,
-        "documentedProps": 1887,
+        "documentedProps": 1889,
         "classifiedComponents": 188,
         "componentsWithPatternTag": 100,
         "crossPlatformComponents": 145
@@ -8597,12 +8597,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
-                            "name": "visibilityNotice",
+                            "name": "visibilityAnnouncement",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "description": "The standing line again, for a screen reader only: filled into a polite hidden live region that is mounted empty, in the\nrender where the reason first appears after the cook's answer (`useRecipeDetailController`). Absent on a page that opens\nwith the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "VisibilityNotice",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a MOMENT\n(a refused Private, or the generic failure to change who can see the recipe) or the STANDING reason a private recipe\nstays private (board P6). The body mounts an assertive `LiveRegion` for the OWNER and fills it with a moment, so a host\npasses `undefined` for \"nothing to say\" and the region stays mounted and empty. ⛔ A moment's words must arrive AFTER the\nregion mounts: a region that mounts with its text is not reliably spoken on Android, so a host sets this one render after\nthe page draws (`visibilityNoticeOf` decides it). A standing line is plain muted text, never in a live region. A viewer\nwho is not the owner never gets either.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -8914,12 +8923,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
-                            "name": "visibilityNotice",
+                            "name": "visibilityAnnouncement",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "description": "The standing line again, for a screen reader only: filled into a polite hidden live region that is mounted empty, in the\nrender where the reason first appears after the cook's answer (`useRecipeDetailController`). Absent on a page that opens\nwith the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "VisibilityNotice",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a MOMENT\n(a refused Private, or the generic failure to change who can see the recipe) or the STANDING reason a private recipe\nstays private (board P6). The body mounts an assertive `LiveRegion` for the OWNER and fills it with a moment, so a host\npasses `undefined` for \"nothing to say\" and the region stays mounted and empty. ⛔ A moment's words must arrive AFTER the\nregion mounts: a region that mounts with its text is not reliably spoken on Android, so a host sets this one render after\nthe page draws (`visibilityNoticeOf` decides it). A standing line is plain muted text, never in a live region. A viewer\nwho is not the owner never gets either.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -9466,12 +9484,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
-                            "name": "visibilityNotice",
+                            "name": "visibilityAnnouncement",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "description": "The standing line again, for a screen reader only: filled into a polite hidden live region that is mounted empty, in the\nrender where the reason first appears after the cook's answer (`useRecipeDetailController`). Absent on a page that opens\nwith the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "VisibilityNotice",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a MOMENT\n(a refused Private, or the generic failure to change who can see the recipe) or the STANDING reason a private recipe\nstays private (board P6). The body mounts an assertive `LiveRegion` for the OWNER and fills it with a moment, so a host\npasses `undefined` for \"nothing to say\" and the region stays mounted and empty. ⛔ A moment's words must arrive AFTER the\nregion mounts: a region that mounts with its text is not reliably spoken on Android, so a host sets this one render after\nthe page draws (`visibilityNoticeOf` decides it). A standing line is plain muted text, never in a live region. A viewer\nwho is not the owner never gets either.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -9657,12 +9684,21 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         },
                         {
-                            "name": "visibilityNotice",
+                            "name": "visibilityAnnouncement",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a\nrefused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`\nfor the OWNER and fills it with this, so a host passes `undefined` for \"nothing to say\" and the region stays\nmounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not\nreliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).\nA viewer who is not the owner never gets the region.",
+                            "description": "The standing line again, for a screen reader only: filled into a polite hidden live region that is mounted empty, in the\nrender where the reason first appears after the cook's answer (`useRecipeDetailController`). Absent on a page that opens\nwith the line.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
+                        },
+                        {
+                            "name": "visibilityNotice",
+                            "type": "VisibilityNotice",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a MOMENT\n(a refused Private, or the generic failure to change who can see the recipe) or the STANDING reason a private recipe\nstays private (board P6). The body mounts an assertive `LiveRegion` for the OWNER and fills it with a moment, so a host\npasses `undefined` for \"nothing to say\" and the region stays mounted and empty. ⛔ A moment's words must arrive AFTER the\nregion mounts: a region that mounts with its text is not reliably spoken on Android, so a host sets this one render after\nthe page draws (`visibilityNoticeOf` decides it). A standing line is plain muted text, never in a live region. A viewer\nwho is not the owner never gets either.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/detail/model.ts"
                         }
                     ],
@@ -23565,12 +23601,20 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
-                            "name": "publicHeld",
-                            "type": "boolean",
-                            "typeDetail": null,
+                            "name": "publicRefusal",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"unrecognised\"",
+                                "\"fromPerson\"",
+                                "\"policy.webPage\"",
+                                "\"policy.book\"",
+                                "\"policy.paidSite\"",
+                                "\"sourceConflict\""
+                            ],
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
+                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. Absent reads as `none`. The Public card says it in the reason's own line and is refused.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23580,15 +23624,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The full editable form state — sections read only the slice they render.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
-                        {
-                            "name": "webSource",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Whether the recipe can only be private because its source is a copied web page (ADR-0089): the Public card then says\nso, instead of the book and paid-site reason.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],
@@ -23710,12 +23745,20 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
-                            "name": "publicHeld",
-                            "type": "boolean",
-                            "typeDetail": null,
+                            "name": "publicRefusal",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"unrecognised\"",
+                                "\"fromPerson\"",
+                                "\"policy.webPage\"",
+                                "\"policy.book\"",
+                                "\"policy.paidSite\"",
+                                "\"sourceConflict\""
+                            ],
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whether a recorded source holds the recipe out of Public (ADR-0095): Public is refused with the held note.",
+                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. Absent reads as `none`. The Public card says it in the reason's own line and is refused.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23725,15 +23768,6 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The full editable form state — sections read only the slice they render.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
-                        },
-                        {
-                            "name": "webSource",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "Whether the recipe can only be private because its source is a copied web page (ADR-0089): the Public card then says\nso, instead of the book and paid-site reason.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         }
                     ],

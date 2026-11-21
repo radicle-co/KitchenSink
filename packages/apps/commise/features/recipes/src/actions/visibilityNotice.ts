@@ -3,7 +3,12 @@
  * and visibility line (`docs/design/uiOverhaul/buildSpec.md` §6.4; plan 2026-10-14-009 T3). One answer for both
  * platforms, so web and native cannot disagree about when the sentence shows.
  *
- * It serves three ways a Private is refused: the editor withheld it because the server would refuse it (the finish
+ * It serves two kinds of words (board P6, KTD-3). A MOMENT is something that just happened and needs action now: a Private
+ * refused, the page's own write failed, the editor's finish claim. A STANDING line says why a private recipe stays private
+ * (`publicRefusalOf`); it is always there for the owner while the recipe is private, so it is muted, and a moment line
+ * comes before it.
+ *
+ * A moment serves three ways a Private is refused: the editor withheld it because the server would refuse it (the finish
  * CLAIM), the editor's follow-up was refused after the editor left (`useServerRefusedPrivate`), and the page's own Make
  * private was refused. The generic "we couldn't change who can see this recipe" lives in the same slot.
  *
@@ -20,8 +25,9 @@
  * @pattern Specification — a pure predicate-and-pick over facts the page already holds
  */
 import { fillTemplate } from '@commise/i18n';
-import type { RecipeVisibilityToggleMessages } from './messages.js';
+import type { PublicRefusalMessages, RecipeVisibilityToggleMessages } from './messages.js';
 import type { PrivateRefusal } from './privateGate.js';
+import { publicRefusalLineOf, type PublicRefusal } from './publicRefusal.js';
 
 /** What decides the notice. */
 export interface VisibilityNoticeInput {
@@ -47,59 +53,75 @@ export interface VisibilityNoticeInput {
      */
     readonly slotLimit: number | undefined;
     /**
-     * A recorded source holds the recipe out of Public (ADR-0095): the server's `publicNeedsCheck`, or the server's refusal
-     * `SOURCE_CONFLICT` a moment ago. Said whatever else holds, because it is why Make public is not offered.
+     * Why the recipe cannot be public (`publicRefusalOf`, which reads the held flag: the server's `publicNeedsCheck`, or its
+     * refusal `SOURCE_CONFLICT` a moment ago). Said as a standing line while the recipe is not public; `none` says nothing.
      */
-    readonly held: boolean;
+    readonly standing: PublicRefusal;
 }
+
+/**
+ * What the slot says. A `moment` needs action now, so it is the page's assertive danger line. A `standing` line is why a
+ * private recipe stays private: muted, with no icon, and announced once, when it first appears (KTD-6).
+ */
+export type VisibilityNotice =
+    | { readonly kind: 'moment'; readonly text: string }
+    | { readonly kind: 'standing'; readonly reason: Exclude<PublicRefusal, 'none'>; readonly text: string };
 
 /**
  * The words the page's visibility slot shows, if any.
  *
  * Precedence: a refusal the server gave, then the failure of the page's own write (it is the more recent word than a
- * finish that happened before it), then the finish claim, confirmed. A refusal says nothing once the recipe is no
- * longer public.
+ * finish that happened before it), then the finish claim, confirmed; these are moments. A refusal says nothing once the
+ * recipe is no longer public. Last, while the recipe is not public, the standing reason.
  *
  * @param input - What the page knows.
- * @param messages - The visibility copy.
- * @returns The sentence, or `undefined` when there is nothing to say.
+ * @param messages - The visibility copy and the reason lines.
+ * @returns The notice, or `undefined` when there is nothing to say.
  */
 export function visibilityNoticeOf(
     input: VisibilityNoticeInput,
     messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused'> & {
-        /** The ONE "saved with a source" note, which the editor's Public card says too (`visibility.publicHeldBySource`). */
-        readonly publicHeld: string;
+        /** One line per reason a recipe stays private (`publicRefusalLineOf`). */
+        readonly publicRefusal: PublicRefusalMessages;
     },
-): string | undefined {
+): VisibilityNotice | undefined {
     if (!input.viewerIsOwner) {
         return undefined;
     }
 
-    if (input.held) {
-        return messages.publicHeld;
-    }
+    const moment = (text: string): VisibilityNotice => ({ kind: 'moment', text });
 
-    const say = (reason: PrivateRefusal): string => {
+    const say = (reason: PrivateRefusal): VisibilityNotice => {
         // Every refusal a recipe can meet is `slots` (ADR-0077 section 6); any other reason, from a link made before it,
         // is said as the generic `final`.
         if (reason !== 'slots') {
-            return messages.privateRefused.final;
+            return moment(messages.privateRefused.final);
         }
 
-        return input.slotLimit === undefined
-            ? messages.error
-            : fillTemplate(messages.privateRefused.slots, { total: input.slotLimit });
+        return moment(
+            input.slotLimit === undefined
+                ? messages.error
+                : fillTemplate(messages.privateRefused.slots, { total: input.slotLimit }),
+        );
     };
 
-    if (input.serverRefusal !== undefined) {
-        return input.isPublic ? say(input.serverRefusal) : undefined;
+    if (input.serverRefusal !== undefined && input.isPublic) {
+        return say(input.serverRefusal);
     }
 
     if (input.writeFailed) {
-        return messages.error;
+        return moment(messages.error);
     }
 
     const claimed = input.finishRefused ? input.knownRefusal : undefined;
 
-    return claimed !== undefined && input.isPublic ? say(claimed) : undefined;
+    if (claimed !== undefined && input.isPublic) {
+        return say(claimed);
+    }
+
+    const text = input.isPublic ? undefined : publicRefusalLineOf(input.standing, messages.publicRefusal);
+
+    return text === undefined || input.standing === 'none'
+        ? undefined
+        : { kind: 'standing', reason: input.standing, text };
 }

@@ -4392,6 +4392,103 @@ describe('a draft with a web link as its Source (ADR-0089)', () => {
 });
 
 /**
+ * ADDED for board P6 (plan makePublicRefusalNotice U3, KTD-5, designer DF-3): the editor reads the SAME `publicRefusalOf` the
+ * recipe page reads, over the DRAFT's facts, so it never sends a Public the server refuses. A stored "From another person"
+ * recipe has the slots rule and used to be sent Public when the draft said so.
+ */
+describe('the editor says why Public is refused, and never sends it (P6)', () => {
+    const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
+    const FROM_PERSON = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.PUBLISHED,
+        visibility: RecipeVisibility.PRIVATE,
+        statementKind: 'fromPerson',
+    });
+
+    it('is `none` for a typed recipe, and the web-page reason once a link is pasted', () => {
+        const { result } = mount();
+
+        expect(result.current.publicRefusal).toBe('none');
+
+        act(() => {
+            result.current.setValues({ ...complete(), sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
+    });
+
+    it('is the fromPerson reason for a stored "From another person" recipe, whatever the draft holds', () => {
+        const { result } = mount({ recipe: FROM_PERSON });
+
+        expect(result.current.publicRefusal).toBe('fromPerson');
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, visibility: RecipeVisibility.PUBLIC });
+        });
+
+        expect(result.current.publicRefusal).toBe('fromPerson');
+        // The cook's own choice is left alone; only what is SENT is derived.
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    it('⛔ a stored "From another person" recipe is SENT Private though the draft says Public', async () => {
+        const { result, port } = mount({ recipe: FROM_PERSON });
+
+        act(() => {
+            result.current.setValues({
+                ...result.current.values,
+                title: 'Gran’s stew',
+                visibility: RecipeVisibility.PUBLIC,
+            });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        // An update leaves `visibility` out when it is unchanged from what the server holds (Private), so the proof is the write,
+        // its content, and that no write anywhere carried Public.
+        const sent = port.submitted.map(
+            (entry) => (entry.payload as { input: { visibility?: string; title?: string } }).input,
+        );
+
+        expect(sent.length).toBeGreaterThan(0);
+        expect(sent[0]).toMatchObject({ title: 'Gran’s stew' });
+        expect(sent.map((input) => input.visibility ?? RecipeVisibility.PRIVATE)).toEqual(
+            sent.map(() => RecipeVisibility.PRIVATE),
+        );
+    });
+
+    it('⛔ both cards refused (a web link, and no private slot): Publish asks noSlot and sends nothing, Keep as draft keeps the draft', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues({ ...complete(), sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
+
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        act(() => {
+            result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
+        expect(result.current.values.sourceLink).toBe(ALLRECIPES);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+});
+
+/**
  * A row editor's Cancel puts back what the row held when it opened, and the cook's own words ("You wrote") are the
  * server's copy of the line. A line a paste read in has a review verdict and a source line on the server from the create
  * on, so the recipe is a never-published draft that holds a NEEDS_REVIEW line. An idle or app-hide checkpoint that sends

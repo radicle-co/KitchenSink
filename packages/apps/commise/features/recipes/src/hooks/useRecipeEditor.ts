@@ -101,6 +101,7 @@ import {
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
+import { publicRefusalOf, type PublicRefusal } from '../actions/publicRefusal.js';
 import { publicWordingOf, type StatementWrite } from '../actions/sourceStatement.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
 import { createStatementStore, type StatementStore } from '../editor/statementStore.js';
@@ -139,7 +140,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { derivedVisibility, draftSourceOf, publicHeldOf } from '../form/sourceLink.js';
+import { derivedVisibility, draftPublicFactsOf, draftSourceOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
@@ -357,8 +358,11 @@ export interface UseRecipeEditorResult {
      * `publicConfirm.v1`: the line and the wording go together or not at all.
      */
     readonly confirmLineShown: boolean;
-    /** Whether a recorded source holds the recipe out of Public (`publicHeldOf`): the field refuses Public with the held note. */
-    readonly publicHeld: boolean;
+    /**
+     * Why Public is refused for the DRAFT (`publicRefusalOf` over `draftPublicFactsOf`, the function the recipe page reads), or
+     * `none`: the field refuses Public with that reason's line, and the send is Private (`derivedVisibility`).
+     */
+    readonly publicRefusal: PublicRefusal;
     /**
      * The server's refusal of a public recipe that holds a private food (designAnswers 2026-11-09): the lines it named, and a
      * count that is new for every refusal so a sheet the cook dismissed opens again for the next one. The refused write is
@@ -2162,7 +2166,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         statementAsk: statementState.asking,
         paidSiteStated: paidSiteCitationOf(statementState.answer),
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
-        publicHeld: publicHeldOf(core.draft, storedRecipeOf(core.server)),
+        publicRefusal: publicRefusalOf(draftPublicFactsOf(core.draft, storedRecipeOf(core.server))),
         privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,

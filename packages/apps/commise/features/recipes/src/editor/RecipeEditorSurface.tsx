@@ -325,8 +325,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         <RecipeVisibilityField
                             values={editor.values}
                             onChange={editor.setValues}
-                            webSource={source.webSource}
-                            publicHeld={editor.publicHeld}
+                            publicRefusal={editor.publicRefusal}
                             focusSignal={source.visibilityFocus}
                             {...(editor.confirmLineShown ? { confirmLine: publicConfirm.line } : {})}
                             {...privateChoice.field}

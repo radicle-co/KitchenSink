@@ -21,6 +21,7 @@ import type {
     RecipeNutrition,
 } from '@kitchensink/recipe-core';
 
+import type { VisibilityNotice } from '../actions/visibilityNotice.js';
 import type { LineAddress } from '../editor/editorArrival.js';
 import type { RecipeFormMessages } from '../form/messages.js';
 import {
@@ -982,14 +983,21 @@ export interface RecipeDetailViewProps {
      */
     readonly viewerIsOwner?: boolean;
     /**
-     * What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a
-     * refused Private, or the generic failure to change who can see the recipe. The body mounts an assertive `LiveRegion`
-     * for the OWNER and fills it with this, so a host passes `undefined` for "nothing to say" and the region stays
-     * mounted and empty. ⛔ The words must arrive AFTER the region mounts: a region that mounts with its text is not
-     * reliably spoken on Android, so a host sets this one render after the page draws (`visibilityNoticeOf` decides it).
-     * A viewer who is not the owner never gets the region.
+     * What the page says about its visibility, inline under the rating and visibility line (`buildSpec.md` §6.4): a MOMENT
+     * (a refused Private, or the generic failure to change who can see the recipe) or the STANDING reason a private recipe
+     * stays private (board P6). The body mounts an assertive `LiveRegion` for the OWNER and fills it with a moment, so a host
+     * passes `undefined` for "nothing to say" and the region stays mounted and empty. ⛔ A moment's words must arrive AFTER the
+     * region mounts: a region that mounts with its text is not reliably spoken on Android, so a host sets this one render after
+     * the page draws (`visibilityNoticeOf` decides it). A standing line is plain muted text, never in a live region. A viewer
+     * who is not the owner never gets either.
      */
-    readonly visibilityNotice?: string;
+    readonly visibilityNotice?: VisibilityNotice;
+    /**
+     * The standing line again, for a screen reader only: filled into a polite hidden live region that is mounted empty, in the
+     * render where the reason first appears after the cook's answer (`useRecipeDetailController`). Absent on a page that opens
+     * with the line.
+     */
+    readonly visibilityAnnouncement?: string;
 }
 
 /** The sections the recipe page links to and the owner's Edit links open. */

@@ -27,6 +27,7 @@ import {
 } from '@kitchensink/recipe-core';
 import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
 
+import { publicRefusalOf, type PublicRefusalFacts } from '../actions/publicRefusal.js';
 import { privateRuleForDraft } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from './values.js';
 
@@ -107,23 +108,52 @@ export function draftPrivateRule(
     values: Pick<RecipeFormValues, 'sourceLink'>,
     recipe: StoredRecipe | undefined,
 ): PrivateRule {
+    const { sourceType, sourceKind } = draftPublicFactsOf(values, recipe);
+
+    return privateRuleForDraft(sourceType, sourceKind);
+}
+
+/**
+ * The facts `publicRefusalOf` judges, for the DRAFT: the recipe page reads the same function over the stored recipe, so the
+ * editor's Public card, its choice and its send cannot disagree with the page (board P6, KTD-5). The branches are the ones
+ * the Private rule takes: a locked source is the server's, a pasted link makes a web copy, a stored web copy with its link
+ * taken off is the cook's own, and anything else keeps the stored facts. The statement is always the stored one: the cook's
+ * answer in the sheet is a write, not part of the draft, and a stored "From another person" wins over a pasted link.
+ *
+ * @param values - The draft.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns The source, the statement and whether a recorded source holds Public. Pure.
+ */
+export function draftPublicFactsOf(
+    values: Pick<RecipeFormValues, 'sourceLink'>,
+    recipe: StoredRecipe | undefined,
+): PublicRefusalFacts {
+    const statementKind = recipe?.statementKind ?? null;
+    const held = publicHeldOf(values, recipe);
+    const stored = {
+        sourceType: recipe?.sourceType ?? RecipeSourceType.USER_CREATED,
+        sourceKind: recipe?.sourceKind ?? null,
+        statementKind,
+        held,
+    };
+
     // A locked source is the server's, whatever the field holds: judge the stored facts.
     if (recipe !== undefined && sourceIsLocked(recipe)) {
-        return privateRuleForDraft(recipe.sourceType, recipe.sourceKind ?? null);
+        return stored;
     }
 
     const source = draftSourceOf(values);
 
     if (source.kind === 'link') {
-        return privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, 'public_web');
+        return { ...stored, sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: 'public_web' };
     }
 
     // The label and the kind move together: a web copy with its link taken off is a recipe the cook wrote.
     if (source.kind === 'none' && heldAsWebCopy(recipe)) {
-        return privateRuleForDraft(RecipeSourceType.USER_CREATED, null);
+        return { ...stored, sourceType: RecipeSourceType.USER_CREATED, sourceKind: null };
     }
 
-    return privateRuleForDraft(recipe?.sourceType, recipe?.sourceKind ?? null);
+    return stored;
 }
 
 /**
@@ -147,21 +177,22 @@ export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recip
 }
 
 /**
- * The visibility the draft is SENT with. A web copy is private only, so a draft with a link goes out Private whatever the
- * cook chose, and so does a recipe a recorded source holds out of Public ({@link publicHeldOf}); `values.visibility` is left
- * alone: taking the link off a draft-only link brings their choice back.
+ * The visibility the draft is SENT with. It is Private whenever Public is refused (`publicRefusalOf` over the draft's facts,
+ * {@link draftPublicFactsOf}): a web copy, a book or paid-site recipe, "From another person", a statement this client cannot
+ * name, a recipe a recorded source holds out of Public ({@link publicHeldOf}). `values.visibility` is left alone: taking the
+ * link off a draft-only link brings their choice back.
  *
  * @param values - The draft.
  * @param recipe - The server's recipe, or `undefined` before the first save.
- * @returns Private for a draft with a usable web link or a held recipe, else the draft's own visibility. Pure.
+ * @returns Private when Public is refused, else the draft's own visibility. Pure.
  */
 export function derivedVisibility(
     values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
     recipe: StoredRecipe | undefined,
 ): RecipeVisibility {
-    return draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)
-        ? RecipeVisibility.PRIVATE
-        : values.visibility;
+    return publicRefusalOf(draftPublicFactsOf(values, recipe)) === 'none'
+        ? values.visibility
+        : RecipeVisibility.PRIVATE;
 }
 
 /**

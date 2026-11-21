@@ -104,6 +104,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onViewVersions,
     viewerIsOwner,
     visibilityNotice,
+    visibilityAnnouncement,
     marks,
     screenOn,
     descriptionExpanded,
@@ -206,10 +207,22 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 status={detailStatusLine(recipe, owner, { detail, card })}
                 onViewVersions={onViewVersions}
             />
-            {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
+            {/* The owner's visibility notice (§6.4): a MOMENT is assertive, mounted empty and filled one render later by the host. */}
             {owner && (
                 <LiveRegion politeness="assertive" typeRole="meta" tone="dangerText">
-                    {visibilityNotice ?? ''}
+                    {visibilityNotice?.kind === 'moment' ? visibilityNotice.text : ''}
+                </LiveRegion>
+            )}
+            {/* Board P6: why a private recipe stays private is plain muted text, never a live region. A separate polite hidden
+                region, mounted empty, is filled once when the reason first appears (KTD-6, designer DN-1). */}
+            {owner && visibilityNotice?.kind === 'standing' && (
+                <Text typeRole="meta" color="$inkMuted">
+                    {visibilityNotice.text}
+                </Text>
+            )}
+            {owner && (
+                <LiveRegion politeness="polite" visuallyHidden>
+                    {visibilityAnnouncement ?? ''}
                 </LiveRegion>
             )}
             <RecipeSourceLine

@@ -25,6 +25,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PaidFeatureState } from '@commise/features-account';
 
+import { recipeActionMessages } from '../../actions/messages.js';
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
 import {
     makeFilledRecipeFormValues,
@@ -798,7 +799,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         const publicCard = within(section()).getByRole('radio', { name: /^public/i });
 
         expect(publicCard.getAttribute('aria-disabled')).toBe('true');
-        expect(within(section()).getByText('This recipe was saved with a source, so it stays private.')).toBeTruthy();
+        // REWRITTEN for P6: the note is the web-page reason's line, from the shared refusal, not the old source note.
+        expect(within(section()).getByText(recipeActionMessages.en.publicRefusal.policyWebPage)).toBeTruthy();
         expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^private/i }).checked).toBe(true);
     });
 

@@ -20,6 +20,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { privateRuleForDraft, type RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import { editorMessages } from '../../editor/messages.js';
 
 import { captureLineFields } from '../lineFieldsMemento.js';
@@ -1350,7 +1351,14 @@ describe('visibilityFieldOf', () => {
     const v = editorMessages.en.visibility;
     const OPEN = { kind: 'open', used: 38, limit: 50, left: 12 } as const;
     const FULL = { kind: 'full', used: 50, limit: 50 } as const;
-    const base = { saved: RecipeVisibility.PUBLIC, draft: RecipeVisibility.PUBLIC, refusal: undefined, messages: v };
+    const refusalLines = recipeActionMessages.en.publicRefusal;
+    const base = {
+        saved: RecipeVisibility.PUBLIC,
+        draft: RecipeVisibility.PUBLIC,
+        refusal: undefined,
+        messages: v,
+        refusalLines,
+    };
     const slots = (
         standing: RecipePrivateFacts['standing'],
         state: PaidFeatureState = 'upsell',
@@ -1364,29 +1372,28 @@ describe('visibilityFieldOf', () => {
 
     describe('a recorded source holds Public out (ADR-0095)', () => {
         it('refuses Public with the held note, shows Private, and says the note only in this case', () => {
-            const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: true });
+            const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal: 'sourceConflict' });
 
-            expect(publicCard(model)).toMatchObject({ refused: true, note: v.publicHeldBySource });
+            expect(publicCard(model)).toMatchObject({ refused: true, note: refusalLines.sourceConflict });
             expect(model.shown).toBe(RecipeVisibility.PRIVATE);
         });
 
-        it('says the one source note for a draft that still holds a link, and the plain note for a book or a paid site', () => {
+        it.each([
+            ['a draft that still holds a link', 'policy.webPage', refusalLines.policyWebPage],
+            ['a book recipe', 'policy.book', refusalLines.policyBook],
+            ['a paid-site recipe', 'policy.paidSite', refusalLines.policyPaidSite],
+        ] as const)('says the reason’s own line for %s', (_name, publicRefusal, line) => {
             const privateOnly: RecipePrivateFacts = {
                 rule: privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, 'public_web'),
                 standing: OPEN,
                 state: 'upsell',
             };
 
-            expect(
-                publicCard(visibilityFieldOf({ ...base, facts: privateOnly, webSource: true, publicHeld: true })).note,
-            ).toBe(v.publicHeldBySource);
-            expect(publicCard(visibilityFieldOf({ ...base, facts: privateOnly, publicHeld: true })).note).toBe(
-                v.publicRefused,
-            );
+            expect(publicCard(visibilityFieldOf({ ...base, facts: privateOnly, publicRefusal })).note).toBe(line);
         });
 
         it('does not refuse Public for a recipe that is not held', () => {
-            expect(publicCard(visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: false })).refused).toBe(
+            expect(publicCard(visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal: 'none' })).refused).toBe(
                 false,
             );
         });
@@ -1406,7 +1413,8 @@ describe('visibilityFieldOf', () => {
 
         it('is absent when Public is refused: nothing is confirmed there', () => {
             expect(
-                visibilityFieldOf({ ...base, facts: slots(OPEN), publicHeld: true, confirmLine: LINE }).confirmLine,
+                visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal: 'sourceConflict', confirmLine: LINE })
+                    .confirmLine,
             ).toBeUndefined();
         });
     });
@@ -1554,21 +1562,26 @@ describe('visibilityFieldOf', () => {
 
     // REWRITTEN: this pinned "the card says nothing and Public applies". A book or paid-site recipe can never be public
     // (004 FR-014a; the server refuses it), so the card now says WHY it is refused and choosing it applies nothing.
-    it('⛔ a book or paid-site recipe: the Public card is refused with the reason, and choosing it applies nothing', () => {
-        const facts: RecipePrivateFacts = { rule: 'privateOnly', standing: OPEN, state: 'upsell' };
-        const model = visibilityFieldOf({
-            ...base,
-            saved: RecipeVisibility.PRIVATE,
-            draft: RecipeVisibility.PRIVATE,
-            facts,
-        });
+    it.each([
+        ['a book recipe', 'policy.book', refusalLines.policyBook],
+        ['a paid-site recipe', 'policy.paidSite', refusalLines.policyPaidSite],
+    ] as const)(
+        '⛔ %s: the Public card is refused with the reason, and choosing it applies nothing',
+        (_name, publicRefusal, line) => {
+            const facts: RecipePrivateFacts = { rule: 'privateOnly', standing: OPEN, state: 'upsell' };
+            const model = visibilityFieldOf({
+                ...base,
+                saved: RecipeVisibility.PRIVATE,
+                draft: RecipeVisibility.PRIVATE,
+                facts,
+                publicRefusal,
+            });
 
-        expect(publicCard(model).refused).toBe(true);
-        expect(publicCard(model).note).toBe(
-            'Not for this recipe. Its source is a book or a paid site, not a public web page.',
-        );
-        expect(visibilityChoice('private', 'public', 'private', facts)).toBeUndefined();
-    });
+            expect(publicCard(model).refused).toBe(true);
+            expect(publicCard(model).note).toBe(line);
+            expect(visibilityChoice('private', 'public', 'private', facts, publicRefusal)).toBeUndefined();
+        },
+    );
 
     it('the Public card is never refused under the slots rule, an imported public-web recipe included', () => {
         const facts: RecipePrivateFacts = {
@@ -1679,5 +1692,86 @@ describe('cuisineSuggestions (cuisineField.md §2: word-start matching, aliases,
     it('suggests nothing for a custom cuisine: the field keeps the text, and the host offers "Use"', () => {
         expect(cuisineSuggestions('Nyonya')).toEqual([]);
         expect(cuisineSuggestions('Grandma’s Secret Blend')).toEqual([]);
+    });
+});
+
+/**
+ * Board P6 (plan makePublicRefusalNotice U3, KTD-5, designer DF-3): the editor's Public card, its choice and its send read
+ * the SAME reason the recipe page reads (`publicRefusalOf`), so a recipe the server refuses is never offered Public here.
+ */
+describe('the editor reads one reason for the Public card and the choice (P6)', () => {
+    const v = editorMessages.en.visibility;
+    const lines = recipeActionMessages.en.publicRefusal;
+    const OPEN = { kind: 'open', used: 38, limit: 50, left: 12 } as const;
+    const FULL = { kind: 'full', used: 50, limit: 50 } as const;
+    const base = {
+        saved: RecipeVisibility.PUBLIC,
+        draft: RecipeVisibility.PUBLIC,
+        refusal: undefined,
+        messages: v,
+        refusalLines: lines,
+    };
+    const slots = (standing: RecipePrivateFacts['standing']): RecipePrivateFacts => ({
+        rule: 'slots',
+        standing,
+        state: 'upsell',
+    });
+    const REASONS = [
+        ['fromPerson', lines.fromPerson],
+        ['unrecognised', lines.unrecognised],
+        ['policy.webPage', lines.policyWebPage],
+        ['policy.book', lines.policyBook],
+        ['policy.paidSite', lines.policyPaidSite],
+        ['sourceConflict', lines.sourceConflict],
+    ] as const;
+
+    it.each(REASONS)(
+        '%s: Public is refused with that line, Private is shown, and no confirm line is drawn',
+        (publicRefusal, line) => {
+            const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal, confirmLine: 'LINE' });
+
+            expect(model.options[0]).toMatchObject({ refused: true, note: line });
+            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+            expect(model.confirmLine).toBeUndefined();
+        },
+    );
+
+    it('none: Public is offered, not refused', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal: 'none' });
+
+        expect(model.options[0].refused).toBe(false);
+    });
+
+    it('a stored "From another person" recipe whose rule is slots still refuses Public', () => {
+        const model = visibilityFieldOf({ ...base, facts: slots(OPEN), publicRefusal: 'fromPerson' });
+
+        expect(model.options[0]).toMatchObject({ refused: true, note: lines.fromPerson });
+    });
+
+    // (a) the web-page case is the stored shape it really has: rule `privateOnly` (slots do not apply) with the standing full.
+    it.each([
+        ['fromPerson', 'slots', lines.fromPerson],
+        ['policy.webPage', 'privateOnly', lines.policyWebPage],
+    ] as const)(
+        'both cards refused (%s, no private slot left): the reason on Public, Private shown with its slots note and the ways forward, no confirm line',
+        (publicRefusal, rule, line) => {
+            const facts: RecipePrivateFacts = { rule, standing: FULL, state: 'upsell' };
+            const model = visibilityFieldOf({ ...base, facts, publicRefusal, confirmLine: 'LINE' });
+
+            expect(model.shown).toBe(RecipeVisibility.PRIVATE);
+            expect(model.options[0]).toMatchObject({ refused: true, note: line });
+            expect(model.options[1].note).toBe('Not available. All 50 of your private slots are in use.');
+            // (b) exact: a dropped or reordered way is a failure.
+            expect(model.slotsFull?.ways.map((way) => way.id)).toEqual(['makePublic', 'delete', 'premium']);
+            expect(model.confirmLine).toBeUndefined();
+        },
+    );
+
+    it.each(REASONS)('%s: choosing Public changes nothing', (publicRefusal) => {
+        expect(visibilityChoice('private', 'public', 'private', slots(OPEN), publicRefusal)).toBeUndefined();
+    });
+
+    it('none: choosing Public from a held Private still asks to confirm', () => {
+        expect(visibilityChoice('private', 'public', 'private', slots(OPEN), 'none')).toBe('confirmPublic');
     });
 });

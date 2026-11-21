@@ -34,17 +34,17 @@ import {
 import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useState } from 'react';
 
-import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from '../actions/messages.js';
 import { invalidVisibilityReasonOf } from '../actions/privateGate.js';
-import { mayBePublic, recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
+import { recipeMakePublicConsequence } from '../actions/recipePrivateGate.js';
+import { publicRefusalLineOf, publicRefusalOf } from '../actions/publicRefusal.js';
 import { useGatedPrivate } from '../actions/useGatedPrivate.js';
 import { useMakePublicConfirm } from '../actions/useMakePublicConfirm.js';
 import { useRecipePrivate } from '../actions/useRecipePrivate.js';
 import { publicWordingOf, type StatementSheetState } from '../actions/sourceStatement.js';
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
-import { visibilityNoticeOf } from '../actions/visibilityNotice.js';
+import { visibilityNoticeOf, type VisibilityNotice } from '../actions/visibilityNotice.js';
 import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { ratingModeFor } from '../rating/model.js';
@@ -118,8 +118,17 @@ export interface RecipeDetailController {
     /** Whether the page knows who is looking. While `false` the shell draws its skeleton, not the body. */
     readonly ready: boolean;
     readonly viewerIsOwner: boolean;
-    /** The sentence under the rating and visibility line, when there is one (§6.4). */
-    readonly visibilityNotice: string | undefined;
+    /**
+     * What the slot under the rating and visibility line says, when it says anything (§6.4): a `moment` (a refusal or a failed
+     * write: assertive, danger) or the `standing` reason a private recipe stays private (muted, never a live region).
+     */
+    readonly visibilityNotice: VisibilityNotice | undefined;
+    /**
+     * The standing line, for a SCREEN READER only, in the render where the reason first appears after the cook's answer
+     * (board P6, KTD-6). `undefined` on a page that opens with the line, and for a change from one reason to another. The host
+     * mounts a polite hidden live region empty and fills it with this.
+     */
+    readonly visibilityAnnouncement: string | undefined;
     /** The action row's primary. */
     readonly primary: 'edit' | 'saveCopy' | undefined;
     /**
@@ -174,8 +183,12 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         offline,
         reportError,
     } = input;
-    const { detailActions, moreMenu, visibility: visibilityCopy } = useMessages(recipeActionMessages);
-    const { visibility: editorVisibility } = useMessages(editorMessages);
+    const {
+        detailActions,
+        moreMenu,
+        visibility: visibilityCopy,
+        publicRefusal: refusalLines,
+    } = useMessages(recipeActionMessages);
     const locale = useLocale();
     const deleteRecipe = useDeleteRecipe();
     const setVisibility = useSetRecipeVisibility();
@@ -303,8 +316,15 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
     const viewer = makeViewer({ id: viewerId });
     const viewerIsOwner = isOwner(recipe, viewer);
     const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
-    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, and the generic failure. The
-    // make-public confirm says its own failure inside itself, so it is not said twice.
+    // ONE function says why this recipe cannot be public (board P6): the menu below, the slot, and the editor's Public card all read it.
+    const standing = publicRefusalOf({
+        sourceType: recipe.sourceType,
+        sourceKind: recipe.sourceKind ?? null,
+        statementKind: recipe.statementKind ?? null,
+        held,
+    });
+    // §6.4: ONE slot under the rating and visibility line says every refusal of a Private, the generic failure, and why a
+    // private recipe stays private. The make-public confirm says its own failure inside itself, so it is not said twice.
     const visibilityNotice = visibilityNoticeOf(
         {
             viewerIsOwner,
@@ -313,13 +333,30 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             finishRefused,
             knownRefusal: recipePrivate.refusal,
             writeFailed: genericFailure && !confirmOpen && !statementOpen,
-            held,
+            standing,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),
         },
-        { ...visibilityCopy, publicHeld: editorVisibility.publicHeldBySource },
+        { ...visibilityCopy, publicRefusal: refusalLines },
     );
+
+    // KTD-6: the reason the owner's private recipe shows, from the render before this one (React's "store information from
+    // previous renders" pattern, no ref). It is spoken only in the render where it goes from NOTHING to a reason, after the
+    // page knew who was looking: a page that opens with it, or whose viewer is read later, says nothing. A moment line that
+    // clears and lets it return does not change it, so it is not said again.
+    const shownReason = viewerIsOwner && !isPublic ? standing : 'none';
+    const [seenReason, setSeenReason] = useState<typeof shownReason | undefined>(undefined);
+    const [announcement, setAnnouncement] = useState<string | undefined>(undefined);
+
+    if (ready && seenReason !== shownReason) {
+        setSeenReason(shownReason);
+        setAnnouncement(
+            seenReason === 'none' && shownReason !== 'none'
+                ? publicRefusalLineOf(shownReason, refusalLines)
+                : undefined,
+        );
+    }
 
     // §6.1/§6.4: the ⋯ menu's entries are decided once for both platforms (`detailMenuOf`).
     //
@@ -330,7 +367,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         isPublic,
         hasMarks: marks.hasMarks,
         offersPrivate: true,
-        mayBePublic: mayBePublic(recipePrivate.rule) && !held,
+        mayBePublic: standing === 'none',
     });
 
     const menuItem = (item: DetailMenuItem): ActionMenuItem => {
@@ -372,6 +409,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         ready,
         viewerIsOwner,
         visibilityNotice,
+        visibilityAnnouncement: announcement,
         // D7: a viewer may clone a PUBLIC recipe they do not own — the SAME `canClone` predicate on both platforms.
         primary: primaryOf({ viewerIsOwner, viewerCanClone: canClone(recipe, viewer) }),
         canStartCooking: isCookable({

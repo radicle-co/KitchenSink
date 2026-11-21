@@ -12,9 +12,12 @@ import {
 import { describe, expect, it } from 'vitest';
 
 import { makeRecipeDetail, makeRecipeFormValues } from '../../__fixtures__/index.js';
+import { recipeActionMessages } from '../../actions/messages.js';
+import { publicRefusalLineOf, publicRefusalOf } from '../../actions/publicRefusal.js';
 import {
     derivedVisibility,
     draftPrivateRule,
+    draftPublicFactsOf,
     draftSourceOf,
     isLinkOnly,
     lockedAnswerLabel,
@@ -529,5 +532,173 @@ describe('isLinkOnly: a paste that is nothing but a link', () => {
         expect(isLinkOnly(extractSourceLink(`2 eggs\n${ALLRECIPES}`))).toBe(false);
         expect(isLinkOnly(extractSourceLink('2 eggs'))).toBe(false);
         expect(isLinkOnly(extractSourceLink('https://commise.app/en/recipes/1'))).toBe(false);
+    });
+});
+
+/**
+ * Board P6 (plan makePublicRefusalNotice U3, KTD-5): the editor reads the SAME function as the recipe page, over the
+ * DRAFT's facts. These are the branches `draftPrivateRule` already takes, with the statement and the held flag beside them.
+ */
+describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
+    const person = (over = {}) =>
+        makeRecipeDetail({
+            statementKind: 'fromPerson',
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: FIRST,
+            visibility: RecipeVisibility.PRIVATE,
+            ...over,
+        });
+    const paid = makeRecipeDetail({
+        sourceType: RecipeSourceType.IMPORTED_PAID,
+        sourceKind: 'paid_site',
+        statementKind: 'source',
+        visibility: RecipeVisibility.PRIVATE,
+    });
+
+    it('a recipe never saved with a pasted link is a web copy: imported_public, public_web, no statement, not held', () => {
+        expect(draftPublicFactsOf(withLink(ALLRECIPES), undefined)).toEqual({
+            sourceType: RecipeSourceType.IMPORTED_PUBLIC,
+            sourceKind: 'public_web',
+            statementKind: null,
+            held: false,
+        });
+    });
+
+    it('a recipe never saved with no link is the cook’s own, nothing held', () => {
+        expect(draftPublicFactsOf(makeRecipeFormValues(), undefined)).toEqual({
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceKind: null,
+            statementKind: null,
+            held: false,
+        });
+    });
+
+    it('a stored web copy with its link taken off is the cook’s own, and held (the server recorded a source)', () => {
+        expect(draftPublicFactsOf(makeRecipeFormValues(), webCopy())).toEqual({
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceKind: null,
+            statementKind: null,
+            held: true,
+        });
+    });
+
+    it('a locked source is the server’s, whatever the field holds', () => {
+        expect(draftPublicFactsOf(withLink(ALLRECIPES), paid)).toEqual({
+            sourceType: RecipeSourceType.IMPORTED_PAID,
+            sourceKind: 'paid_site',
+            statementKind: 'source',
+            held: false,
+        });
+    });
+
+    it('a stored recipe with no change to the source keeps its stored facts', () => {
+        expect(draftPublicFactsOf(makeRecipeFormValues(), makeRecipeDetail({ statementKind: 'authored' }))).toEqual({
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceKind: null,
+            statementKind: 'authored',
+            held: false,
+        });
+    });
+
+    it('the server’s publicNeedsCheck is held', () => {
+        expect(draftPublicFactsOf(makeRecipeFormValues(), makeRecipeDetail({ publicNeedsCheck: true })).held).toBe(
+            true,
+        );
+    });
+
+    it('a stored "From another person" wins over a pasted link: the reason is fromPerson', () => {
+        const facts = draftPublicFactsOf(withLink(ALLRECIPES), person());
+
+        expect(facts.statementKind).toBe('fromPerson');
+        expect(publicRefusalOf(facts)).toBe('fromPerson');
+    });
+
+    it.each([
+        ['a pasted link', withLink(ALLRECIPES), undefined, 'policy.webPage'],
+        [
+            'a stored book',
+            makeRecipeFormValues(),
+            makeRecipeDetail({ sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' }),
+            'policy.book',
+        ],
+        ['a stored paid site', makeRecipeFormValues(), paid, 'policy.paidSite'],
+        ['a stored web copy with its link removed', makeRecipeFormValues(), webCopy(), 'sourceConflict'],
+        ['a recipe the cook wrote', makeRecipeFormValues(), undefined, 'none'],
+        ['"I wrote this"', makeRecipeFormValues(), makeRecipeDetail({ statementKind: 'authored' }), 'none'],
+    ] as const)('over %s the reason is %s', (_name, values, recipe, reason) => {
+        expect(publicRefusalOf(draftPublicFactsOf(values, recipe))).toBe(reason);
+    });
+});
+
+// AE7: for every stored recipe, the editor judges the very facts the recipe page judges, so the card's note and the page's
+// line are one reason and one line. The page's facts are written here from the stored recipe, the way the controller does.
+describe('AE7: the editor and the recipe page give one reason and one line over the same stored recipe', () => {
+    const lines = recipeActionMessages.en.publicRefusal;
+    const stored = (over: Parameters<typeof makeRecipeDetail>[0]) =>
+        makeRecipeDetail({ visibility: RecipeVisibility.PRIVATE, status: RecipeStatus.PUBLISHED, ...over });
+
+    it.each([
+        ['From another person', stored({ statementKind: 'fromPerson' }), 'fromPerson'],
+        ['a book', stored({ sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' }), 'policy.book'],
+        [
+            'a paid site',
+            stored({ sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' }),
+            'policy.paidSite',
+        ],
+        [
+            'a web page',
+            stored({ sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: 'public_web' }),
+            'policy.webPage',
+        ],
+        ['a held recipe', stored({ publicNeedsCheck: true }), 'sourceConflict'],
+    ] as const)('%s', (_name, recipe, reason) => {
+        const page = publicRefusalOf({
+            sourceType: recipe.sourceType,
+            sourceKind: recipe.sourceKind ?? null,
+            statementKind: recipe.statementKind ?? null,
+            held: recipe.publicNeedsCheck === true,
+        });
+        // The draft still holds the stored link (a web copy): taking it off is a different, held reason by design.
+        const values =
+            recipe.sourceType === RecipeSourceType.IMPORTED_PUBLIC ? withLink(ALLRECIPES) : makeRecipeFormValues();
+        const editor = publicRefusalOf(draftPublicFactsOf(values, recipe));
+
+        expect(page).toBe(reason);
+        expect(editor).toBe(page);
+        expect(publicRefusalLineOf(editor, lines)).toBe(publicRefusalLineOf(page, lines));
+        expect(publicRefusalLineOf(editor, lines)).toBeTruthy();
+    });
+});
+
+describe('derivedVisibility: sends Private whenever Public is refused (P6, DF-3)', () => {
+    const publicDraft = (over = {}) => makeRecipeFormValues({ visibility: RecipeVisibility.PUBLIC, ...over });
+
+    it('⛔ a "From another person" recipe is sent Private, never Public', () => {
+        const stored = makeRecipeDetail({
+            statementKind: 'fromPerson',
+            visibility: RecipeVisibility.PRIVATE,
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: FIRST,
+        });
+
+        expect(derivedVisibility(publicDraft(), stored)).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('a statement this client cannot name is sent Private (fail closed)', () => {
+        expect(derivedVisibility(publicDraft(), makeRecipeDetail({ statementKind: UNRECOGNISED_STATEMENT_KIND }))).toBe(
+            RecipeVisibility.PRIVATE,
+        );
+    });
+
+    it('a book or paid-site recipe is sent Private', () => {
+        const paid = makeRecipeDetail({ sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' });
+
+        expect(derivedVisibility(publicDraft(), paid)).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('the cook’s own recipe keeps the visibility the draft holds', () => {
+        expect(derivedVisibility(publicDraft(), makeRecipeDetail({ statementKind: 'authored' }))).toBe(
+            RecipeVisibility.PUBLIC,
+        );
     });
 });

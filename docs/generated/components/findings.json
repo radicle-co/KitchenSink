@@ -2499,8 +2499,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityAnnouncement visibilityNotice",
+                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityAnnouncement visibilityNotice"
             ]
         },
         {

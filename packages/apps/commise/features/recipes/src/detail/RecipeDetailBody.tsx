@@ -120,6 +120,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
     versionsHref,
     viewerIsOwner,
     visibilityNotice,
+    visibilityAnnouncement,
     marks,
     screenOn,
     descriptionExpanded,
@@ -214,10 +215,20 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             )}
                         </div>
                     )}
-                    {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
+                    {/* The owner's visibility notice (§6.4): a MOMENT is assertive, mounted empty and filled one render later by the host. */}
                     {owner && (
                         <LiveRegion politeness="assertive" className="text-meta text-danger-text">
-                            {visibilityNotice ?? ''}
+                            {visibilityNotice?.kind === 'moment' ? visibilityNotice.text : ''}
+                        </LiveRegion>
+                    )}
+                    {/* Board P6: why a private recipe stays private is plain muted text, never a live region. A separate polite hidden region,
+                        mounted empty, is filled once when the reason first appears (KTD-6, designer DN-1). */}
+                    {owner && visibilityNotice?.kind === 'standing' && (
+                        <p className="text-meta text-ink-muted">{visibilityNotice.text}</p>
+                    )}
+                    {owner && (
+                        <LiveRegion politeness="polite" visuallyHidden>
+                            {visibilityAnnouncement ?? ''}
                         </LiveRegion>
                     )}
                     {/* Provenance renders for EVERY viewer: it is a property of the recipe. */}

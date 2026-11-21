@@ -59,6 +59,8 @@ interface Mounted {
     readonly rendered: { readonly current: ReturnType<typeof useRecipeDetailController> | undefined };
     /** What the controller reported to the error seam. */
     readonly reportError: ReturnType<typeof vi.fn>;
+    /** The host re-reading the recipe (its query cache took the server's answer): the page renders with this one. */
+    readonly showRecipe: (next: Partial<RecipeDetail>) => void;
 }
 
 function mount(
@@ -106,13 +108,13 @@ function mount(
         ingredients: [makeIngredientView({ ingredientId: 'line_a', name: 'Flour' })],
         ...over.recipe,
     });
-    const { result } = renderHook(
-        () => {
-            marks.current = useCookMarks('rec_1', recipe.ingredients);
+    const { result, rerender } = renderHook(
+        (shown: RecipeDetail) => {
+            marks.current = useCookMarks('rec_1', shown.ingredients);
 
             rendered.current = useRecipeDetailController({
                 id: 'rec_1',
-                recipe,
+                recipe: shown,
                 sessionClaims: over.sessionClaims,
                 profile: over.profile ?? settledProfile(undefined),
                 finishRefused: over.finishRefused ?? false,
@@ -126,10 +128,18 @@ function mount(
 
             return rendered.current;
         },
-        { wrapper },
+        { wrapper, initialProps: recipe },
     );
 
-    return { result, nav, client, marks, rendered, reportError };
+    return {
+        result,
+        nav,
+        client,
+        marks,
+        rendered,
+        reportError,
+        showRecipe: (next) => rerender({ ...recipe, ...next }),
+    };
 }
 
 describe('useRecipeDetailController — who the viewer is', () => {
@@ -255,7 +265,10 @@ describe('useRecipeDetailController — the action row and the ⋯ menu', () => 
             expect(setVisibility).toHaveBeenCalled();
         });
         await waitFor(() =>
-            expect(result.current.visibilityNotice).toBe('Not available. All 50 of your private slots are in use.'),
+            expect(result.current.visibilityNotice).toEqual({
+                kind: 'moment',
+                text: 'Not available. All 50 of your private slots are in use.',
+            }),
         );
     });
 
@@ -542,7 +555,10 @@ describe('useRecipeDetailController — the visibility notice', () => {
         });
 
         await waitFor(() =>
-            expect(result.current.visibilityNotice).toBe('Not available. All 50 of your private slots are in use.'),
+            expect(result.current.visibilityNotice).toEqual({
+                kind: 'moment',
+                text: 'Not available. All 50 of your private slots are in use.',
+            }),
         );
     });
 });
@@ -778,9 +794,11 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
         const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsCheck: true } });
 
         expect(makePublicItem(mounted)).toBeUndefined();
-        expect(mounted.result.current.visibilityNotice).toBe(
-            'This recipe was saved with a source, so it stays private.',
-        );
+        expect(mounted.result.current.visibilityNotice).toEqual({
+            kind: 'standing',
+            reason: 'sourceConflict',
+            text: 'This recipe stays private because it was saved with a source.',
+        });
     });
 
     it('keeps Make public in the menu but unavailable while offline, saying why, and runs nothing', () => {
@@ -867,9 +885,11 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
             expect(invalidate).toHaveBeenCalledWith(
                 expect.objectContaining({ queryKey: expect.arrayContaining(['rec_1']) }),
             );
-            expect(mounted.result.current.visibilityNotice).toBe(
-                'This recipe was saved with a source, so it stays private.',
-            );
+            expect(mounted.result.current.visibilityNotice).toEqual({
+                kind: 'standing',
+                reason: 'sourceConflict',
+                text: 'This recipe stays private because it was saved with a source.',
+            });
         });
 
         it.each(['PUBLIC_CONFIRMATION_REQUIRED', 'FROM_PERSON_PRIVATE_ONLY'] as const)(
@@ -930,5 +950,163 @@ describe('useRecipeDetailController — Start cooking', () => {
         const { result } = mount({ recipe });
 
         expect(result.current.canStartCooking).toBe(isCookable({ status: recipe.status, stepCount: 2 }));
+    });
+});
+
+/**
+ * Board P6 (plan makePublicRefusalNotice U2, AE1-AE6): the page says why a private recipe stays private, as one standing
+ * line for the owner, and offers Make public only when nothing stops it. The line is announced once, only when it first
+ * appears after the cook's answer: a page that loads with it says nothing.
+ */
+describe('useRecipeDetailController — why a private recipe stays private (P6)', () => {
+    const owner = { sessionClaims: { external_id: OWNER }, profile: settledProfile(OWNER, 'upsell') };
+    const PRIVATE = { visibility: RecipeVisibility.PRIVATE };
+    const OWES = { ...PRIVATE, publicNeedsStatement: true };
+    const makePublicItem = (mounted: Mounted) =>
+        mounted.result.current.menu?.items.find((item) => item.id === 'makePublic');
+    const standingOf = (mounted: Mounted) =>
+        mounted.result.current.visibilityNotice?.kind === 'standing'
+            ? mounted.result.current.visibilityNotice
+            : undefined;
+    const WEB = { sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: 'public_web' } as const;
+    const BOOK = { sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' } as const;
+    const PAID = { sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' } as const;
+
+    it.each([
+        ['a web page', WEB, 'This recipe stays private because it’s from a web page.'],
+        ['a book', BOOK, 'This recipe stays private because it’s from a cookbook or magazine.'],
+        ['a paid website', PAID, 'This recipe stays private because it’s from a paid website.'],
+        [
+            'another person',
+            { statementKind: 'fromPerson' },
+            'This recipe stays private because it’s from another person.',
+        ],
+    ] as const)('AE1-AE3: a saved recipe from %s shows its line and offers no Make public', (_name, facts, line) => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, ...facts } });
+
+        expect(standingOf(mounted)?.text).toBe(line);
+        expect(makePublicItem(mounted)).toBeUndefined();
+    });
+
+    it('AE3: a "From another person" recipe offers no Make public even though its rule is slots', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, statementKind: 'fromPerson' } });
+
+        expect(makePublicItem(mounted)).toBeUndefined();
+    });
+
+    it('R3: "From another person" wins over a held recipe', () => {
+        const mounted = mount({
+            ...owner,
+            recipe: { ...PRIVATE, statementKind: 'fromPerson', publicNeedsCheck: true },
+        });
+
+        expect(standingOf(mounted)?.reason).toBe('fromPerson');
+    });
+
+    it('says the held line for a recipe a recorded source holds out of Public, and offers no Make public', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, publicNeedsCheck: true } });
+
+        expect(standingOf(mounted)?.reason).toBe('sourceConflict');
+        expect(makePublicItem(mounted)).toBeUndefined();
+    });
+
+    it('AE4: a page that opens with the line announces nothing', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, ...WEB } });
+
+        expect(standingOf(mounted)).toBeDefined();
+        expect(mounted.result.current.visibilityAnnouncement).toBeUndefined();
+    });
+
+    it('AE4: a page whose viewer is read later announces nothing either', () => {
+        const mounted = mount({ profile: profileInFlight, recipe: { ...PRIVATE, ...WEB } });
+
+        mounted.showRecipe({});
+        expect(mounted.result.current.visibilityAnnouncement).toBeUndefined();
+    });
+
+    it.each([
+        ['a web page', WEB, 'This recipe stays private because it’s from a web page.'],
+        ['a book', BOOK, 'This recipe stays private because it’s from a cookbook or magazine.'],
+        ['a paid website', PAID, 'This recipe stays private because it’s from a paid website.'],
+        [
+            'another person',
+            { statementKind: 'fromPerson' },
+            'This recipe stays private because it’s from another person.',
+        ],
+    ] as const)('AE1-AE3: after the answer %s, the line appears and is announced once', (_name, facts, line) => {
+        const mounted = mount({ ...owner, recipe: OWES });
+
+        expect(standingOf(mounted)).toBeUndefined();
+        expect(mounted.result.current.visibilityAnnouncement).toBeUndefined();
+
+        // The server's answer reaches the page through its query cache: the same recipe, now private with the answer.
+        mounted.showRecipe({ ...PRIVATE, publicNeedsStatement: false, ...facts });
+
+        expect(standingOf(mounted)?.text).toBe(line);
+        expect(mounted.result.current.visibilityAnnouncement).toBe(line);
+        expect(makePublicItem(mounted)).toBeUndefined();
+
+        // Rendering again, with nothing changed, says nothing new.
+        mounted.showRecipe({ ...PRIVATE, publicNeedsStatement: false, ...facts });
+        expect(mounted.result.current.visibilityAnnouncement).toBe(line);
+    });
+
+    it('a change from one reason to another shows the new line and says nothing', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, ...WEB } });
+
+        mounted.showRecipe({ ...PRIVATE, ...PAID });
+
+        expect(standingOf(mounted)?.reason).toBe('policy.paidSite');
+        expect(mounted.result.current.visibilityAnnouncement).toBeUndefined();
+    });
+
+    it('AE5: "I wrote this" shows no line and keeps Make public', () => {
+        const mounted = mount({ ...owner, recipe: { ...PRIVATE, statementKind: 'authored' } });
+
+        expect(mounted.result.current.visibilityNotice).toBeUndefined();
+        expect(makePublicItem(mounted)).toBeDefined();
+    });
+
+    it('AE6: a cook who does not own the recipe sees no line for any reason', () => {
+        const other = { sessionClaims: { external_id: 'usr_other' }, profile: settledProfile('usr_other', 'upsell') };
+
+        for (const facts of [WEB, BOOK, PAID, { statementKind: 'fromPerson' as const }, { publicNeedsCheck: true }]) {
+            expect(
+                mount({ ...other, recipe: { ...PRIVATE, ...facts } }).result.current.visibilityNotice,
+            ).toBeUndefined();
+        }
+    });
+
+    // ADR-0077: the cook and their household can open a private recipe. The reason is the owner's own record (the statement is
+    // owner-only on the wire), so a household member, who is a signed-in cook that does not own it, never sees the line.
+    it.each([
+        ['a web page', WEB],
+        ['a book', BOOK],
+        ['a paid website', PAID],
+        ['another person', { statementKind: 'fromPerson' as const }],
+        ['a recorded source', { publicNeedsCheck: true }],
+    ])('a household member reading a private recipe from %s sees no line and no announcement', (_name, facts) => {
+        const member = mount({
+            sessionClaims: { external_id: 'usr_household_member' },
+            profile: settledProfile('usr_household_member', 'upsell'),
+            recipe: { ...PRIVATE, ...facts },
+        });
+
+        expect(member.result.current.viewerIsOwner).toBe(false);
+        expect(member.result.current.visibilityNotice).toBeUndefined();
+        expect(member.result.current.visibilityAnnouncement).toBeUndefined();
+    });
+
+    it('the owner of a PUBLIC recipe whose facts give a reason sees no standing line', () => {
+        const mounted = mount({ ...owner, recipe: { visibility: RecipeVisibility.PUBLIC, ...WEB } });
+
+        expect(mounted.result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('KTD-7: a recipe with no statement and nothing recorded keeps Make public, even if a past attestation existed (not on the wire)', () => {
+        const mounted = mount({ ...owner, recipe: PRIVATE });
+
+        expect(makePublicItem(mounted)).toBeDefined();
+        expect(mounted.result.current.visibilityNotice).toBeUndefined();
     });
 });

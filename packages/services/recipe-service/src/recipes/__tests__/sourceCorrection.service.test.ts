@@ -178,6 +178,16 @@ describe('SourceCorrectionService.correct', () => {
         }
     });
 
+    it('AE18: a correction that makes a recipe private is applied at a FULL private-slot count: the count is never a reason to refuse it', async () => {
+        const t = build();
+
+        t.lockOwner.mockResolvedValueOnce(50);
+
+        await expect(t.service.correct(staff(), RECIPE_ID, body())).resolves.toEqual({ result: 'applied' });
+        expect(t.rewrite).toHaveBeenCalledTimes(1);
+        expect(t.holdClones).toHaveBeenCalledTimes(1);
+    });
+
     it('a restatement is "unchanged": nothing is written, no record is made, nothing is held', async () => {
         const t = build();
 

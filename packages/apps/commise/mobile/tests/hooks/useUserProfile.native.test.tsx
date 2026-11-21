@@ -18,7 +18,7 @@ const { endDeviceSession } = vi.hoisted(() => ({ endDeviceSession: vi.fn(async (
 vi.mock('../../src/storage/deviceSession.js', () => ({ endDeviceSession }));
 // The close's `leave` step clears the store-review record first (S12 U2); the record's storage is its own suite's subject.
 vi.mock('../../src/storage/storeReviewRecord.js', () => ({
-    nativeStoreReviewRecord: { clear: vi.fn(async () => undefined) },
+    nativeStoreReviewRecord: { clear: vi.fn(() => Promise.resolve()) },
 }));
 
 import { makeUserProfile, makeUserProfileUser } from '@commise/features-account/testing';

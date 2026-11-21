@@ -163,7 +163,8 @@ describe('the store-review record: ids that are names on every object', () => {
 
             expect(await record.read(id)).toEqual({ finishes: 0 });
             expect(await record.recordFinish(id)).toEqual({ finishes: 1 });
-            expect(Object.hasOwn(JSON.parse(device.data.get(STORE_REVIEW_KEY) ?? '{}'), id)).toBe(true);
+            // `Object.fromEntries` makes `__proto__` an own key, as the record's own write does.
+            expect(device.data.get(STORE_REVIEW_KEY)).toBe(JSON.stringify(Object.fromEntries([[id, { finishes: 1 }]])));
         },
     );
 
@@ -293,7 +294,7 @@ describe('the store-review record: clearing a cook', () => {
 
         expect(device.calls.write).toBe(0);
         expect(device.calls.remove).toBe(0);
-        expect(await setup().record.clear('user_a')).toBeUndefined();
+        await expect(setup().record.clear('user_a')).resolves.toBeUndefined();
     });
 
     it('with no cook id, writes nothing and reports once, with no user content', async () => {

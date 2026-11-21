@@ -57,6 +57,9 @@ export interface StoreReviewRecord {
 }
 
 /** The key's parsed map, or why there is none: `absent` (no key) or `unreadable` (stored, not a JSON object). */
+/** One cook's entry as read: the entry, or `bad` when it failed its schema or the key could not be read as a map. */
+type EntryRead = { readonly kind: 'entry'; readonly entry: StoreReviewEntry } | { readonly kind: 'bad' };
+
 type RawMap =
     | { readonly kind: 'map'; readonly map: Record<string, unknown> }
     | { readonly kind: 'absent' }
@@ -101,18 +104,18 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
         }
     };
 
-    const entryOf = (map: RawMap, userId: string): StoreReviewEntry | 'bad' => {
+    const entryOf = (map: RawMap, userId: string): EntryRead => {
         if (map.kind !== 'map') {
-            return map.kind === 'absent' ? { finishes: 0 } : 'bad';
+            return map.kind === 'absent' ? { kind: 'entry', entry: { finishes: 0 } } : { kind: 'bad' };
         }
 
         if (!Object.hasOwn(map.map, userId)) {
-            return { finishes: 0 };
+            return { kind: 'entry', entry: { finishes: 0 } };
         }
 
         const parsed = entrySchema.safeParse(map.map[userId]);
 
-        return parsed.success ? parsed.data : 'bad';
+        return parsed.success ? { kind: 'entry', entry: parsed.data } : { kind: 'bad' };
     };
 
     const reportBadOnce = (userId: string): void => {
@@ -134,17 +137,17 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
 
         const entry = entryOf(map, userId);
 
-        if (entry === 'bad') {
+        if (entry.kind === 'bad') {
             reportBadOnce(userId);
 
             return undefined;
         }
 
-        return entry;
+        return entry.entry;
     };
 
     /** One read-modify-write of this cook's entry, in the exclusive section. */
-    const update = (userId: string, change: (current: StoreReviewEntry | 'bad') => StoreReviewEntry) =>
+    const update = (userId: string, change: (current: EntryRead) => StoreReviewEntry) =>
         exclusive(LOCK_NAME, async (): Promise<StoreReviewEntry | undefined> => {
             const loaded = await load();
 
@@ -154,7 +157,7 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
 
             const current = entryOf(loaded, userId);
 
-            if (current === 'bad') {
+            if (current.kind === 'bad') {
                 reportBadOnce(userId);
             }
 
@@ -180,16 +183,18 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
         read,
         recordFinish: (userId) =>
             update(userId, (current) =>
-                current === 'bad'
+                current.kind === 'bad'
                     ? healed()
                     : {
-                          finishes: current.finishes + 1,
-                          ...(current.lastRequestAt === undefined ? {} : { lastRequestAt: current.lastRequestAt }),
+                          finishes: current.entry.finishes + 1,
+                          ...(current.entry.lastRequestAt === undefined
+                              ? {}
+                              : { lastRequestAt: current.entry.lastRequestAt }),
                       },
             ),
         recordRequest: (userId) =>
             update(userId, (current) =>
-                current === 'bad' ? healed() : { finishes: current.finishes, lastRequestAt: now() },
+                current.kind === 'bad' ? healed() : { finishes: current.entry.finishes, lastRequestAt: now() },
             ),
         clear: async (userId) => {
             if (userId === undefined) {
@@ -223,7 +228,7 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
                         return;
                     }
 
-                    const { [userId]: _removed, ...rest } = loaded.map;
+                    const rest = Object.fromEntries(Object.entries(loaded.map).filter(([id]) => id !== userId));
 
                     if (Object.keys(rest).length === 0) {
                         await port.remove(STORE_REVIEW_KEY);

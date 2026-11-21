@@ -13,13 +13,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { order, deleteMe, signOutAndVerify, clear, auth } = vi.hoisted(() => {
     const log: string[] = [];
+    const auth: { userId: string | null | undefined } = { userId: 'user_cook' };
 
     return {
         order: log,
         deleteMe: vi.fn(),
         signOutAndVerify: vi.fn(),
         clear: vi.fn(),
-        auth: { userId: 'user_cook' as string | null | undefined },
+        auth,
     };
 });
 
@@ -43,9 +44,21 @@ function closeAccount() {
 beforeEach(() => {
     order.length = 0;
     auth.userId = 'user_cook';
-    deleteMe.mockReset().mockImplementation(async () => void order.push('close'));
-    clear.mockReset().mockImplementation(async () => void order.push('clear'));
-    signOutAndVerify.mockReset().mockImplementation(async () => void order.push('leave'));
+    deleteMe.mockReset().mockImplementation(() => {
+        order.push('close');
+
+        return Promise.resolve();
+    });
+    clear.mockReset().mockImplementation(() => {
+        order.push('clear');
+
+        return Promise.resolve();
+    });
+    signOutAndVerify.mockReset().mockImplementation(() => {
+        order.push('leave');
+
+        return Promise.resolve();
+    });
 });
 
 afterEach(cleanup);
@@ -68,7 +81,9 @@ describe('useDeleteAccount (mobile): the store-review clear', () => {
 
         expect(clear).not.toHaveBeenCalled();
         expect(signOutAndVerify).not.toHaveBeenCalled();
-        await waitFor(() => expect(result.current.error?.step).toBe('close'));
+        await waitFor(() => {
+            expect(result.current.error?.step).toBe('close');
+        });
     });
 
     it('still signs out, and names the exit step, when the sign-out fails after the clear', async () => {
@@ -78,7 +93,9 @@ describe('useDeleteAccount (mobile): the store-review clear', () => {
         await run();
 
         expect(clear).toHaveBeenCalledTimes(1);
-        await waitFor(() => expect(result.current.error?.step).toBe('exit'));
+        await waitFor(() => {
+            expect(result.current.error?.step).toBe('exit');
+        });
     });
 
     it('asks to clear nobody when no cook id is known, and still signs out', async () => {

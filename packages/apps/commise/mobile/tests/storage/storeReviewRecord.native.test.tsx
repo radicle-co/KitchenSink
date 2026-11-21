@@ -15,14 +15,18 @@ const { asyncStorage } = vi.hoisted(() => ({ asyncStorage: { store: new Map<stri
 
 vi.mock('@react-native-async-storage/async-storage', () => ({
     default: {
-        getItem: async (key: string) => asyncStorage.store.get(key) ?? null,
-        setItem: async (key: string, value: string) => {
+        getItem: (key: string) => Promise.resolve(asyncStorage.store.get(key) ?? null),
+        setItem: (key: string, value: string) => {
             asyncStorage.store.set(key, value);
+
+            return Promise.resolve();
         },
-        removeItem: async (key: string) => {
+        removeItem: (key: string) => {
             asyncStorage.store.delete(key);
+
+            return Promise.resolve();
         },
-        getAllKeys: async () => [...asyncStorage.store.keys()],
+        getAllKeys: () => Promise.resolve([...asyncStorage.store.keys()]),
     },
 }));
 

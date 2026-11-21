@@ -370,7 +370,9 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     it('runs recipes, then account, then the sign-out — in that order', async () => {
         confirmErasure();
 
-        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        await waitFor(() => {
+            expect(signOutAndVerify).toHaveBeenCalledTimes(1);
+        });
         const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0] ?? 0;
         expect(order(erasureFn)).toBeLessThan(order(accountEraseFn));
         expect(order(accountEraseFn)).toBeLessThan(order(signOutAndVerify));
@@ -379,7 +381,9 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
     it('⛔ clears this cook`s store-review record after the account erasure is accepted and before the sign-out (S12 U2)', async () => {
         confirmErasure();
 
-        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        await waitFor(() => {
+            expect(signOutAndVerify).toHaveBeenCalledTimes(1);
+        });
         const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0] ?? 0;
         expect(clearReviewRecord).toHaveBeenCalledWith('user_cook');
         expect(order(accountEraseFn)).toBeLessThan(order(clearReviewRecord));

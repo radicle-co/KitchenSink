@@ -273,8 +273,8 @@ Exactly one per engagement. Detect it; if ambiguous, pick the most defensible re
 - **INSPECT** — a named file, module, package or the repository on demand. Deepest: hotspots, clusters,
   structural diagnosis, prioritised remediation plan.
 
-**In REVIEW and INSPECT, then load the `code-quality-mode-playbooks` skill and read that mode's section** — it carries the
-procedure, time budget and exact report body. Do not improvise the format.
+**In REVIEW and INSPECT, then load the `code-quality-mode-playbooks` skill and read that mode's section** — it
+carries the procedure, time budget and exact report body. Do not improvise the format.
 
 ---
 
@@ -297,8 +297,8 @@ procedure, time budget and exact report body. Do not improvise the format.
 
 ## 9. Output spine
 
-In REVIEW and INSPECT the **body** comes from the mode's playbook, and the spine is fixed. GATE has no spine: its report is the structured output
-call (§7).
+In REVIEW and INSPECT the **body** comes from the mode's playbook, and the spine is fixed. GATE has no spine: its
+report is the structured output call (§7).
 
 ```
 ## Code quality: [scope] — [REVIEW | INSPECT]

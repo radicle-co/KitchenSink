@@ -498,3 +498,164 @@ describe('gate.yml judge retry', () => {
         });
     });
 });
+
+/**
+ * The retry check names which filter clause decided, so the next crash can be told apart: the judge's prose said BLOCK
+ * (H1), `structured_output` was `""` or `false` (H2), or jq itself failed and the failure read as "no retry" (H3). Only
+ * booleans, exit codes and type names reach the log and the artifact. The prose is model output steered by the diff,
+ * so a line of it that starts with `::` would be a runner command: it must never be printed or uploaded.
+ */
+describe('the retry evidence', () => {
+    const PROSE = '::add-mask::leaky SECRET-PROSE-MARKER no BLOCK here';
+
+    interface EvidenceRun {
+        readonly stdout: string;
+        readonly stderr: string;
+        readonly output: string;
+        readonly projection: string | undefined;
+    }
+
+    function runRetryStep(executionFile: string | undefined, judgeOutput = ''): EvidenceRun {
+        const retry = step('retry');
+        const dir = mkdtempSync(path.join(tmpdir(), 'gateJudgeRetryEvidence-'));
+        dirs.push(dir);
+        const output = path.join(dir, 'output');
+
+        if (executionFile !== undefined) {
+            writeFileSync(path.join(dir, 'claude-execution-output.json'), executionFile);
+        }
+
+        const run = spawnSync('/bin/bash', ['-c', retry.run ?? ''], {
+            encoding: 'utf8',
+            env: {
+                PATH: '/usr/bin:/bin',
+                RUNNER_TEMP: dir,
+                GITHUB_OUTPUT: output,
+                ...retry.env,
+                JUDGE_OUTPUT: judgeOutput,
+            },
+        });
+
+        expect(run.status, run.stderr).toBe(0);
+
+        const projectionPath = path.join(dir, 'gateRetryEvidence.json');
+        let projection: string | undefined;
+
+        try {
+            projection = readFileSync(projectionPath, 'utf8');
+        } catch {
+            projection = undefined;
+        }
+
+        return { stdout: run.stdout, stderr: run.stderr, output: readFileSync(output, 'utf8'), projection };
+    }
+
+    const evidence = (run: EvidenceRun): Record<string, string> =>
+        Object.fromEntries(
+            run.stdout
+                .split('\n')
+                .filter((line) => line.startsWith('retry-evidence '))
+                .map((line) => line.slice('retry-evidence '.length).split('=') as [string, string]),
+        );
+
+    it('says which clause failed when the prose mentions BLOCK (H1)', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, result: PROSE }));
+
+        expect(run.output).toBe('retry=false\n');
+        expect(evidence(run)).toMatchObject({
+            subtype_success: 'true',
+            is_error_false: 'true',
+            structured_absent: 'true',
+            result_mentions_block: 'true',
+            filter: 'false',
+        });
+    });
+
+    it('says an empty-string structured output is present, not absent (H2)', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, structured_output: '', result: 'ok' }));
+
+        expect(run.output).toBe('retry=false\n');
+        expect(evidence(run)).toMatchObject({
+            structured_absent: 'false',
+            structured_empty_string: 'true',
+            structured_output_type: 'string',
+        });
+    });
+
+    it('says jq itself failed, and not that a clause was false (H3)', () => {
+        const run = runRetryStep(
+            JSON.stringify(['not an object', { type: 'result', subtype: 'success', is_error: false, result: 'ok' }]),
+        );
+
+        expect(run.output).toBe('retry=false\n');
+        expect(evidence(run)['filter']).toMatch(/^error:[2-5]$/u);
+    });
+
+    it('says the file is missing, and still writes retry=false', () => {
+        const run = runRetryStep(undefined);
+
+        expect(run.output).toBe('retry=false\n');
+        expect(evidence(run)['file_present']).toBe('false');
+        expect(run.projection).toBeUndefined();
+    });
+
+    it('keeps the retry decision for the retry shape', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, result: 'a report' }));
+
+        expect(run.output).toBe('retry=true\n');
+        expect(evidence(run)['filter']).toBe('true');
+    });
+
+    it('never prints the prose, on stdout or stderr', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false, result: PROSE }));
+
+        expect(run.stdout).not.toContain('SECRET-PROSE-MARKER');
+        expect(run.stderr).not.toContain('SECRET-PROSE-MARKER');
+        expect(run.stdout.split('\n').filter((line) => line.startsWith('::'))).toEqual([]);
+    });
+
+    it('writes a projection with the clause facts and no prose', () => {
+        const run = runRetryStep(
+            result({ subtype: 'success', is_error: false, num_turns: 30, result: PROSE, session_id: 'SECRET-SESSION' }),
+        );
+        const projection = JSON.parse(run.projection ?? 'null') as Record<string, unknown>;
+
+        expect(Object.keys(projection).sort()).toEqual([
+            'is_error',
+            'num_turns',
+            'result_length',
+            'result_mentions_block',
+            'result_type',
+            'structured_output_type',
+            'subtype',
+        ]);
+        expect(projection).toMatchObject({
+            subtype: 'success',
+            is_error: false,
+            num_turns: 30,
+            structured_output_type: 'null',
+            result_type: 'string',
+            result_mentions_block: true,
+        });
+        expect(run.projection).not.toContain('SECRET');
+    });
+
+    it('logs nothing and writes no projection when the first judge already gave an output', () => {
+        const run = runRetryStep(result({ subtype: 'success', is_error: false }), '{"verdict":"PASS"}');
+
+        expect(run.output).toBe('retry=false\n');
+        expect(run.projection).toBeUndefined();
+    });
+
+    it('uploads only the projection, for three days, and never fails the job for a missing file', () => {
+        const upload = steps.find((candidate) => candidate.name === 'Keep the retry evidence');
+
+        expect(upload?.uses).toMatch(/^actions\/upload-artifact@[0-9a-f]{40}/u);
+        expect(upload?.with).toMatchObject({
+            path: '${{ runner.temp }}/gateRetryEvidence.json',
+            'retention-days': 3,
+            'if-no-files-found': 'ignore',
+        });
+        expect(upload?.if).toContain('!cancelled()');
+    });
+});

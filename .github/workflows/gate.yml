@@ -306,11 +306,71 @@ jobs:
                       echo "retry=false" >>"$GITHUB_OUTPUT"
                       exit 0
                   fi
-                  if jq -e "$RETRY_FILTER" "${RUNNER_TEMP}/claude-execution-output.json" >/dev/null 2>&1; then
+                  FILE="${RUNNER_TEMP}/claude-execution-output.json"
+                  filter_rc=0
+                  jq -e "$RETRY_FILTER" "$FILE" >/dev/null 2>&1 || filter_rc=$?
+                  if [ "$filter_rc" -eq 0 ]; then
                       echo "retry=true" >>"$GITHUB_OUTPUT"
                   else
                       echo "retry=false" >>"$GITHUB_OUTPUT"
                   fi
+
+                  # EVIDENCE ONLY: it changes no decision above. It names which clause decided, so a failed retry is told
+                  # apart: the prose said BLOCK, `structured_output` was empty or false, or jq itself failed. Only booleans,
+                  # exit codes and type names are printed or kept. The judge's prose is steered by the diff, so a line of it
+                  # that starts with `::` would be a runner command, and it never reaches the log or the artifact.
+                  probe() {
+                      local rc=0 verdict
+                      jq -e "map(select(.type == \"result\")) | last | $2" "$FILE" >/dev/null 2>&1 || rc=$?
+                      case "$rc" in
+                          0) verdict=true ;;
+                          1) verdict=false ;;
+                          *) verdict="error:$rc" ;;
+                      esac
+                      echo "retry-evidence $1=$verdict"
+                  }
+                  kind_of() {
+                      local kind
+                      kind="$(jq -r "map(select(.type == \"result\")) | last | ($1 | type)" "$FILE" 2>/dev/null)" || kind=error
+                      case "$kind" in
+                          null | boolean | number | string | array | object) echo "retry-evidence $2_type=$kind" ;;
+                          *) echo "retry-evidence $2_type=error" ;;
+                      esac
+                  }
+                  if [ -f "$FILE" ]; then
+                      echo "retry-evidence file_present=true"
+                      case "$filter_rc" in
+                          0) echo "retry-evidence filter=true" ;;
+                          1) echo "retry-evidence filter=false" ;;
+                          *) echo "retry-evidence filter=error:$filter_rc" ;;
+                      esac
+                      probe result_entry_present '. != null'
+                      probe subtype_success '.subtype == "success"'
+                      probe is_error_false '.is_error == false'
+                      probe structured_absent '(.structured_output // null) == null'
+                      probe structured_empty_string '.structured_output == ""'
+                      probe structured_false '.structured_output == false'
+                      probe result_mentions_block '((.result // "") | test("BLOCK"))'
+                      kind_of '.structured_output' structured_output
+                      kind_of '.result' result
+                      jq 'map(select(.type == "result")) | last | {subtype, is_error, num_turns,
+                          structured_output_type: (.structured_output | type), result_type: (.result | type),
+                          result_length: (.result | if type == "string" then length else null end),
+                          result_mentions_block: ((.result // "") | test("BLOCK"))}' "$FILE" \
+                          >"${RUNNER_TEMP}/gateRetryEvidence.json" 2>/dev/null || rm -f "${RUNNER_TEMP}/gateRetryEvidence.json"
+                  else
+                      echo "retry-evidence file_present=false"
+                  fi
+
+            # The retry check's projection (clause facts and type names, no prose), kept three days for the next failure.
+            - name: Keep the retry evidence
+              if: ${{ !cancelled() && steps.retry.conclusion == 'success' }}
+              uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+              with:
+                  name: gateRetryEvidence-${{ env.SHA }}
+                  path: ${{ runner.temp }}/gateRetryEvidence.json
+                  if-no-files-found: ignore
+                  retention-days: 3
 
             - name: Judge the diff once more (GATE mode)
               id: judge-retry

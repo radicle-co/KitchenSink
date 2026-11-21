@@ -108,8 +108,11 @@ const agentsMissingTheTool = (workflow: string, readCard: (agent: string) => str
 const judgeStep = (agent: string, schema = `--json-schema '{"type":"object"}'`): string =>
     `            with:\n              claude_args: |\n                --max-turns 40\n                --agent ${agent}\n                ${schema}\n            env:\n              X: y\n`;
 
-const cardWith = (toolsLine: string | null): string =>
-    `---\nname: judge\ndescription: d\n${toolsLine === null ? '' : `tools: ${toolsLine}\n`}model: inherit\n---\nbody\n`;
+const cardWith = (toolsLine: string | null): string => {
+    const tools = toolsLine === null ? '' : `tools: ${toolsLine}\n`;
+
+    return `---\nname: judge\ndescription: d\n${tools}model: inherit\n---\nbody\n`;
+};
 
 describe('GATE judge card allows the structured output tool', () => {
     it('1. every judge step of the real gate.yml runs as a card whose real tools line lists StructuredOutput', () => {

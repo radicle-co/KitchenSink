@@ -7,8 +7,8 @@
  * not the caller, decides when the end has come. That is what keeps "ended" at most once per run however many sources
  * fire.
  *
- * The list holds up to `limit` timers, named by the caller on `start` and `restore` (see `TIMER_LIMIT`). One held
- * snapshot can be brought back by Undo. The order cooks see (`timerOrder`) and the order alarms sound (`alarmQueue`)
+ * The list holds up to `limit` timers (see `TIMER_LIMIT`), each labelled by the caller on `start`. One held snapshot
+ * can be brought back by Undo. The order cooks see (`timerOrder`) and the order alarms sound (`alarmQueue`)
  * are read here and nowhere else.
  *
  * The reducer has no servings input, because cook time does not scale with yield (FR-034a).
@@ -27,6 +27,15 @@ export const MAX_TIMER_MS = 86_400_000;
 /** How many timers a cook may hold at once. S6.U1 raises it to 10; this is the one authority for the rule. */
 export const TIMER_LIMIT = 1;
 
+/**
+ * What a row calls its timer: a name the cook typed, or the words read from the step's line. The reducer only carries
+ * it. Whether a number follows the words is the copy layer's rule (po P23), which tells the two kinds apart.
+ */
+export interface TimerLabel {
+    readonly kind: 'typed' | 'line';
+    readonly text: string;
+}
+
 /** What every timer carries. */
 export interface TimerBase {
     /** Stable for the timer's life, so anything that names this timer outside the reducer can name it by id. */
@@ -40,8 +49,8 @@ export interface TimerBase {
     readonly stepDigest: string;
     /** 1, 2, 3 ... unique among the timers and the held Undo on the same recipe and step. */
     readonly ordinal: number;
-    /** What the cook typed, or the label derived from the line. `undefined` means the cook gave none and none could be derived. */
-    readonly name: string | undefined;
+    /** What the cook typed, or the label read from the line. `undefined`: none, so the row says "Step {n}". */
+    readonly label: TimerLabel | undefined;
     /** The length of the current run's countdown, so the row can say "of 1 h 30". */
     readonly durationMs: number;
 }
@@ -117,7 +126,7 @@ export type TimerCommand =
           readonly recipeId: string;
           readonly stepIndex: number;
           readonly stepDigest: string;
-          readonly name: string | undefined;
+          readonly label: TimerLabel | undefined;
           readonly durationMs: number;
           readonly limit: number;
           readonly nowMs: number;
@@ -169,9 +178,9 @@ const atLimit = (state: TimerState): TimerResult => ({ state, events: [], refuse
 
 /** The fields every kind of timer shares, so a kind change never forgets one. */
 function baseOf(timer: ActiveTimer): TimerBase {
-    const { id, run, recipeId, stepIndex, stepDigest, ordinal, name, durationMs } = timer;
+    const { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs } = timer;
 
-    return { id, run, recipeId, stepIndex, stepDigest, ordinal, name, durationMs };
+    return { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs };
 }
 
 /**
@@ -262,7 +271,7 @@ function start(state: TimerState, command: Extract<TimerCommand, { kind: 'start'
         stepIndex: command.stepIndex,
         stepDigest: command.stepDigest,
         ordinal: lowestFreeOrdinal(holders(state), command.recipeId, command.stepIndex),
-        name: command.name,
+        label: command.label,
         durationMs: command.durationMs,
         endsAt: command.nowMs + command.durationMs,
     };

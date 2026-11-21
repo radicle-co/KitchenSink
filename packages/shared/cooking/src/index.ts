@@ -73,6 +73,7 @@ export type {
     TimerBase,
     TimerCommand,
     TimerEvent,
+    TimerLabel,
     TimerMove,
     TimerOrderEntry,
     TimerRefusal,

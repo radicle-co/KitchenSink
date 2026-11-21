@@ -92,7 +92,7 @@ function commandFor(
                 recipeId: 'r',
                 stepIndex: template.step,
                 stepDigest: `s1:${String(template.step).padStart(8, '0')}`,
-                name: undefined,
+                label: undefined,
                 durationMs: template.durationMs,
                 limit,
                 nowMs,

@@ -142,7 +142,7 @@ const BASE_HOMES = {
     stepDigest: 'stored',
     ordinal: 'stored',
     durationMs: 'stored',
-    name: 'notStored',
+    label: 'notStored',
 } as const satisfies Record<keyof TimerBase, FieldHome>;
 
 /**

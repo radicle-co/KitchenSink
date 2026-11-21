@@ -30,7 +30,7 @@ const START = {
     recipeId: 'roast',
     stepIndex: 3,
     stepDigest: 's1:0000000d',
-    name: 'Roast',
+    label: { kind: 'typed', text: 'Roast' },
     durationMs: 90 * MINUTE,
     limit: TIMER_LIMIT,
 } as const;
@@ -80,7 +80,7 @@ describe('start', () => {
             stepIndex: 3,
             stepDigest: 's1:0000000d',
             ordinal: 1,
-            name: 'Roast',
+            label: { kind: 'typed', text: 'Roast' },
             durationMs: 90 * MINUTE,
             endsAt: 1_000 + 90 * MINUTE,
         });
@@ -287,7 +287,7 @@ describe('ring', () => {
             stepIndex: 3,
             stepDigest: 's1:0000000d',
             ordinal: 2,
-            name: undefined,
+            label: undefined,
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -444,7 +444,7 @@ describe('addTime', () => {
             stepIndex: 3,
             stepDigest: 's1:0000000d',
             ordinal: 1,
-            name: undefined,
+            label: undefined,
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -803,7 +803,7 @@ describe('numbering and order edges', () => {
         stepIndex: 3,
         stepDigest: 's1:0000000d',
         ordinal: 1,
-        name: undefined,
+        label: undefined,
         durationMs: 10 * MINUTE,
         endsAt: 10 * MINUTE,
     } as const;
@@ -815,7 +815,7 @@ describe('numbering and order edges', () => {
         stepIndex: 3,
         stepDigest: 's1:0000000d',
         ordinal: 1,
-        name: undefined,
+        label: undefined,
         durationMs: 10 * MINUTE,
         endedAt,
     });
@@ -1013,6 +1013,22 @@ describe('time left', () => {
  * S3a.U3 C1 item 1 (AR1): a command for a timer carries the `run` it was meant for, and applies only when that is the
  * run the timer is in. A late tap from run 1 must not touch run 2 (a double tap of +5, a late lock-screen Stop).
  */
+describe('a timer carries the label it was started with', () => {
+    it.each([
+        ['a typed name', { kind: 'typed', text: 'Sauce' } as const],
+        ['a name read from the line', { kind: 'line', text: 'Roast' } as const],
+        ['none', undefined],
+    ])('%s is carried unchanged on the timer, and through a pause, a cancel and its Undo', (_name, label) => {
+        const first = reduceTimer(NO_TIMER, { ...START, label, nowMs: 0 }).state;
+        const paused = reduceTimer(first, { kind: 'pause', id: 't1', run: 1, nowMs: SECOND }).state;
+        const cancelled = reduceTimer(paused, { kind: 'cancel', id: 't1', run: 1, nowMs: 2 * SECOND }).state;
+        const back = reduceTimer(cancelled, { kind: 'restore', limit: TIMER_LIMIT, nowMs: 3 * SECOND }).state;
+
+        expect(timerOf(first)?.label).toEqual(label);
+        expect(timerOf(back)?.label).toEqual(label);
+    });
+});
+
 describe('a command names the run it is for', () => {
     it('a second +5 from the same ringing run is a no-op: one restart, ending five minutes after the first', () => {
         const first = reduceTimer(ringingState(), {

@@ -41,7 +41,7 @@ const start = (id: string, stepIndex: number, durationMs: number, nowMs: number)
     recipeId: RECIPE,
     stepIndex,
     stepDigest: `s1:0000000${String(stepIndex)}`,
-    name: undefined,
+    label: undefined,
     durationMs,
     limit: SESSION_TIMER_LIMIT,
     nowMs,

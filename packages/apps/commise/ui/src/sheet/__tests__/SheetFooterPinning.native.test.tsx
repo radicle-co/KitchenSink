@@ -16,6 +16,7 @@ import { createElement, type ComponentProps, type JSX } from 'react';
 import { Text, type ScrollView as ScrollViewType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DialogActions } from '../../dialogActions/DialogActions.native.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import type { SheetProps } from '../props.js';
@@ -286,5 +287,95 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
         renderSheet({ toolbar: { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> } });
 
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    });
+});
+
+/**
+ * A footer that holds `DialogActions` changes height with its form (stacked tall, row short), and the move between the
+ * two parents remounts it (staff D3). `pinnedFooter.ts`'s no-flip-back argument needs a footer of one height across the
+ * move, so without the width memento (staff D5) a remounted footer starts stacked again and the pin alternates.
+ */
+describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
+    const STACKED_FOOTER = 320;
+    const ROW_FOOTER = 150;
+    // Frame 800 and top 100: a row footer (250) pins, a stacked one (420) unpins, and a row box of 720 fits a row.
+    const FRAME = 800;
+    const TOP = 100;
+    const ACTIONS_WIDTH = 720;
+
+    const actionsRow = (): HTMLElement => screen.getByRole('button', { name: 'Keep' }).parentElement as HTMLElement;
+    const isRow = (): boolean => getComputedStyle(actionsRow()).flexDirection === 'row';
+    const inScroll = (): boolean => scrollRegion().contains(screen.getByRole('button', { name: 'Keep' }));
+
+    /** One layout round: every node reports the height of the form it rendered. Returns the form it started in. */
+    function round(): { readonly startedAsRow: boolean; readonly unpinned: boolean } {
+        const startedAsRow = isRow();
+        const footerView = actionsRow().parentElement as HTMLElement;
+
+        for (const [node, size] of [
+            [dialog(), FRAME],
+            [topBlock(), TOP],
+            [footerView, startedAsRow ? ROW_FOOTER : STACKED_FOOTER],
+        ] as const) {
+            Object.defineProperty(node, 'offsetHeight', { value: size, configurable: true });
+        }
+        Object.defineProperty(actionsRow(), 'offsetWidth', { value: ACTIONS_WIDTH, configurable: true });
+        reportLayout();
+
+        return { startedAsRow, unpinned: inScroll() };
+    }
+
+    const renderActionsSheet = (): void =>
+        renderSheet({
+            footer: (
+                <DialogActions sideBySideFrom={400}>
+                    <Text accessibilityRole="button">Keep</Text>
+                    <Text accessibilityRole="button">Do it</Text>
+                </DialogActions>
+            ),
+        });
+
+    it('settles: the footer stays where it is put and is a row on its first render after every move', () => {
+        renderActionsSheet();
+
+        const rounds = Array.from({ length: 6 }, () => round());
+        const settled = rounds.slice(2);
+
+        // The first moves are the opening's (stacked, then seeded as a row); from the third round nothing moves.
+        expect(new Set(settled.map((entry) => entry.unpinned)).size).toBe(1);
+        expect(settled.every((entry) => entry.startedAsRow)).toBe(true);
+    });
+
+    it('does not seed a DialogActions in the body from the footer’s memento', () => {
+        const actions = (names: readonly [string, string], key: string): JSX.Element => (
+            <DialogActions key={key} sideBySideFrom={400}>
+                <Text accessibilityRole="button">{names[0]}</Text>
+                <Text accessibilityRole="button">{names[1]}</Text>
+            </DialogActions>
+        );
+        const sheet = (bodyKey: string): JSX.Element => (
+            <Sheet
+                open
+                onOpenChange={vi.fn()}
+                title="Filter recipes"
+                closeLabel="Close filters"
+                size="content"
+                footer={actions(['Keep', 'Do it'], 'footer')}
+            >
+                {actions(['Body keep', 'Body do it'], bodyKey)}
+            </Sheet>
+        );
+        const { rerender } = render(sheet('first'));
+
+        // The footer's actions measure 720 and the frame remembers it.
+        Object.defineProperty(actionsRow(), 'offsetWidth', { value: ACTIONS_WIDTH, configurable: true });
+        reportLayout();
+        expect(isRow()).toBe(true);
+
+        // A body instance that mounts now starts stacked: the memento wraps the footer only.
+        act(() => rerender(sheet('second')));
+        const bodyRow = screen.getByRole('button', { name: 'Body keep' }).parentElement as HTMLElement;
+
+        expect(getComputedStyle(bodyRow).flexDirection).toBe('column-reverse');
     });
 });

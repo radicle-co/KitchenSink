@@ -12,7 +12,10 @@
  * and the footer together take more than half the sheet (`isFooterUnpinned`, owner ruling on I7); past that it becomes
  * the scroll region's last child and scrolls with the content, while Close stays pinned in the title row. Heights come
  * from `onLayout` (`usePinnedFooter`, `@commise/ui/layout`), and the region sits in `PinnedFooterScrollRegion`, which
- * keeps it one control tall through the layout pass that decision lags (issue #192). ⚠️ Moving
+ * keeps it one control tall through the layout pass that decision lags (issue #192). A footer that holds a
+ * `DialogActions` changes height with its form, so the panel holds the actions' width memento above the move
+ * (`dialogActions/dialogActionsWidth.ts`) and wraps only the footer in it: the remounted actions start as the form they
+ * had, and `layout/pinnedFooter.ts`'s no-flip-back argument holds. ⚠️ Moving
  * the footer remounts it, so a screen-reader cursor resting on `Done` is lost when a rotation or the keyboard flips
  * the decision; React Native has no sticky footer in a plain `ScrollView` that would keep the node in place.
  *
@@ -30,6 +33,7 @@ import type { TamaguiTextElement } from 'tamagui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
+import { DialogActionsWidthContext, useDialogActionsWidthMemento } from '../dialogActions/dialogActionsWidth.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Text } from '../text/Text.native.js';
@@ -112,6 +116,9 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     const titleRef = useScreenReaderFocusOnSignal<TamaguiTextElement>(landing === 'title' ? focusSignal : 0);
     const { panHandlers, translateY } = useSwipeToDismiss(onSwipeDismiss, reduceMotion);
     const pinning = usePinnedFooter();
+    // The width a `DialogActions` footer last measured, held ABOVE the footer's remount (the I7 move), so it comes back as
+    // the form it had and the footer does not change height across the move. Wraps the footer only, never the body.
+    const actionsWidth = useDialogActionsWidthMemento();
     // The one node handle: putting a scroll position back has no declarative form.
     const scroller = useRef<ScrollView>(null);
 
@@ -135,7 +142,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                 style={[styles.footer, endPadding, { borderTopColor: colors.lineDivider }]}
                 onLayout={pinning.onFooterLayout}
             >
-                {footer}
+                <DialogActionsWidthContext.Provider value={actionsWidth}>{footer}</DialogActionsWidthContext.Provider>
             </View>
         );
 

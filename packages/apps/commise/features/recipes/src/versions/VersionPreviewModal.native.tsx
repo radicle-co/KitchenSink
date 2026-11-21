@@ -34,7 +34,7 @@ import { useMessages } from '@commise/i18n/react';
 import { nativeTokens } from '@commise/ui/native';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { Button } from '@commise/ui/button';
-import { DialogActions } from '@commise/ui/dialog-actions';
+import { DialogActions, DialogActionsWidthContext, useDialogActionsWidthMemento } from '@commise/ui/dialog-actions';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
 import { PinnedFooterScrollRegion, usePinnedFooter } from '@commise/ui/layout';
 import { useTheme } from '@commise/ui/theme';
@@ -83,6 +83,9 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     // Past half the sheet, the pinned top and the actions leave the recipe a sliver (large text, a short phone), so the
     // actions become the scroller's last item. The title, errors and summary stay pinned; Android Back still closes.
     const pinning = usePinnedFooter();
+    // The actions change height with their form and remount when they move (above), so the width they last measured is
+    // held here, above the move, and the remounted actions start as the form they had (`dialogActionsWidth.ts`).
+    const actionsWidth = useDialogActionsWidthMemento();
 
     if (!open) {
         return null;
@@ -108,21 +111,23 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
     const actions = (
         <View style={styles.actions} onLayout={pinning.onFooterLayout}>
-            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
-                    {preview.keepCurrent}
-                </Button>
-                {showContent && version !== undefined && (
-                    <Button
-                        icon="rotateCcw"
-                        busy={isRestoring}
-                        width="fill"
-                        onPress={() => onRestore(version.versionNumber)}
-                    >
-                        {isRestoring ? preview.restoringThis : preview.restoreThis}
+            <DialogActionsWidthContext.Provider value={actionsWidth}>
+                <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                    <Button variant="secondary" icon="x" width="fill" onPress={onCancel}>
+                        {preview.keepCurrent}
                     </Button>
-                )}
-            </DialogActions>
+                    {showContent && version !== undefined && (
+                        <Button
+                            icon="rotateCcw"
+                            busy={isRestoring}
+                            width="fill"
+                            onPress={() => onRestore(version.versionNumber)}
+                        >
+                            {isRestoring ? preview.restoringThis : preview.restoreThis}
+                        </Button>
+                    )}
+                </DialogActions>
+            </DialogActionsWidthContext.Provider>
         </View>
     );
     // Only a loaded body has a scroller to move into.

@@ -7,14 +7,15 @@
  * the recipe page four; the field and its error are the answer's own; busy disables the list and ignores the platform back
  * route; the effect line is always drawn in the footer.
  */
-import { cleanup, screen, within } from '@testing-library/react';
+import { resizeObserver as observer } from '@commise/ui/testing/resize-observer';
+import { act, cleanup, screen, within } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { initialSheet, type StatementSheetState, type StatementSurface } from '../sourceStatement.js';
 import { SourceStatementSheet } from '../SourceStatementSheet.native.js';
-import { render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, renderWithTamagui, resolvedStyle } from '@commise/ui/testing/tamagui';
 
 afterEach(cleanup);
 
@@ -325,5 +326,82 @@ describe('SourceStatementSheet — paid website', () => {
         renderSheet({ surface: 'recipePage' });
 
         expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+    });
+});
+
+/**
+ * The footer's two actions are the house `DialogActions` (#391): stacked, main on top, whenever their labels would not fit
+ * side by side at the drawn text size, equal shares in a row. The threshold is in text units (`isSideBySide`).
+ */
+describe('SourceStatementSheet (native) — the footer actions', () => {
+    const element = (surface: StatementSurface) => (
+        <SourceStatementSheet
+            open
+            surface={surface}
+            state={initialSheet()}
+            dispatch={vi.fn()}
+            onConfirm={vi.fn()}
+            onDismiss={vi.fn()}
+        />
+    );
+
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    const dismissOf = (name: string): HTMLElement => pressFrameOf(screen.getByRole('button', { name }));
+    // Each button sits in a share, and the shares in the actions' row.
+    const rowOf = (name: string): HTMLElement => dismissOf(name).parentElement?.parentElement as HTMLElement;
+
+    function layOut(row: HTMLElement, width: number): void {
+        Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
+        Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
+        act(() => {
+            observer.callback?.([{ target: row } as unknown as ResizeObserverEntry], {} as ResizeObserver);
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+    }
+
+    it('stacks a 358 dp phone footer, Publish on top and Keep as draft after it in the tree', () => {
+        render(element('editor'));
+        layOut(rowOf('Keep as draft'), 358);
+
+        expect(resolvedStyle(rowOf('Keep as draft'), 'flexDirection')).toBe('column-reverse');
+
+        const buttons = screen
+            .getAllByRole('button')
+            .filter((button) => ['Keep as draft', 'Publish'].includes(button.textContent ?? ''));
+
+        expect(buttons.map((button) => button.textContent)).toStrictEqual(['Keep as draft', 'Publish']);
+    });
+
+    it.each([
+        ['editor', 'Keep as draft', 'Publish'],
+        ['recipePage', 'Cancel', 'Make public'],
+    ] as const)('sits the %s pair side by side in equal shares in a 416 dp dialog', (surface, dismiss, confirm) => {
+        render(element(surface));
+        layOut(rowOf(dismiss), 416);
+
+        expect(resolvedStyle(rowOf(dismiss), 'flexDirection')).toBe('row');
+
+        for (const name of [dismiss, confirm]) {
+            const share = dismissOf(name).parentElement as HTMLElement;
+
+            expect(resolvedStyle(share, 'flexGrow')).toBe('1');
+        }
+    });
+
+    it('stacks the same 416 dp dialog at the largest text (scale 2)', () => {
+        renderWithTamagui(element('editor'), 'light', 2);
+        layOut(rowOf('Keep as draft'), 416);
+
+        expect(resolvedStyle(rowOf('Keep as draft'), 'flexDirection')).toBe('column-reverse');
     });
 });

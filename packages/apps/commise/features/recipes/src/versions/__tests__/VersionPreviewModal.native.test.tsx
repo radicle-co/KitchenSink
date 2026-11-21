@@ -806,3 +806,65 @@ describe('VersionPreviewModal (native) — the pinned-footer limit', () => {
         expect(scrollRegionFloorOf(scrollerOf())).toBe(`${touchFloor()}px`);
     });
 });
+
+/**
+ * The move of the actions between the pinned slot and the scroller remounts them (staff D3), and `DialogActions` is
+ * taller stacked than as a row. Without the width memento (staff D5) the remounted actions start stacked again and the
+ * pin alternates. Frame 800 and top 100: a row footer of 150 pins, a stacked one of 320 unpins.
+ */
+describe('VersionPreviewModal (native) — the actions across the move', () => {
+    beforeEach(() => {
+        vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+        vi.useRealTimers();
+        observer.observed.clear();
+    });
+
+    const scrollerOf = (): HTMLElement => screen.getByText('Title').closest('[class*="r-overflowY"]') as HTMLElement;
+    const actionsRow = (): HTMLElement =>
+        pressFrameOf(screen.getByRole('button', { name: 'Keep current version' })).parentElement as HTMLElement;
+
+    /** One layout round: each node reports the height of the form it rendered. */
+    function round(): { readonly startedAsRow: boolean; readonly unpinned: boolean } {
+        const row = actionsRow();
+        const startedAsRow = appliedStyle(row, 'flex-direction') === 'row';
+        const footer = row.parentElement as HTMLElement;
+        const top = screen.getByRole('heading', { name: /^Version 10 Preview/u }).parentElement as HTMLElement;
+        const frame = top.parentElement as HTMLElement;
+
+        for (const [node, height] of [
+            [frame, 800],
+            [top, 100],
+            [footer, startedAsRow ? 150 : 320],
+            [row, 100],
+        ] as const) {
+            Object.defineProperty(node, 'offsetHeight', { value: height, configurable: true });
+        }
+        Object.defineProperty(row, 'offsetWidth', { value: 720, configurable: true });
+        act(() => {
+            observer.callback?.(
+                [frame, top, footer, row].map((target) => ({ target }) as unknown as ResizeObserverEntry),
+                {} as ResizeObserver,
+            );
+        });
+        act(() => {
+            vi.runOnlyPendingTimers();
+        });
+
+        return {
+            startedAsRow,
+            unpinned: scrollerOf().contains(screen.getByRole('button', { name: 'Restore this version' })),
+        };
+    }
+
+    it('settles: the actions stay where they are put and are a row on their first render after every move', () => {
+        render(<VersionPreviewModal {...baseProps({ version: populatedVersion, diffFromCurrent: populatedDiff })} />);
+
+        const settled = Array.from({ length: 6 }, () => round()).slice(2);
+
+        expect(new Set(settled.map((entry) => entry.unpinned)).size).toBe(1);
+        expect(settled.every((entry) => entry.startedAsRow)).toBe(true);
+    });
+});

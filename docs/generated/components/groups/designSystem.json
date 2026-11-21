@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 93,
-        "implementations": 150,
-        "props": 977,
-        "documentedComponents": 93,
-        "implementationsWithModuleDoc": 150,
+        "components": 94,
+        "implementations": 151,
+        "props": 1097,
+        "documentedComponents": 94,
+        "implementationsWithModuleDoc": 151,
         "implementationsWithComponentDoc": 136,
-        "documentedProps": 880,
-        "classifiedComponents": 86,
-        "componentsWithPatternTag": 93,
+        "documentedProps": 953,
+        "classifiedComponents": 87,
+        "componentsWithPatternTag": 94,
         "crossPlatformComponents": 57
     },
     "components": [
@@ -3830,6 +3830,8 @@
             "dir": "packages/apps/commise/ui/src/dialogActions",
             "kind": "presentational",
             "patterns": [
+                "Decorator — the per-child share wrapper (`EqualShare`) for `shares=\"equal\"`",
+                "Memento — the width restored from the frame's memento when a move remounts it",
                 "Responsive layout by container query — the row answers to its own box, not the viewport's, so one rule\n    serves a 448 px alert and a 672 px preview.",
                 "Strategy chosen by measurement — a row direction picked from the box's own measured width"
             ],
@@ -3846,7 +3848,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
                     "dir": "packages/apps/commise/ui/src/dialogActions",
-                    "moduleDoc": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.\nA presentational component: props to JSX, no state and no side effect.\n\nTwo elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer\n`@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The\nwrapper has inline-size containment, so it takes no width from its content and must be STRETCHED by its parent:\nput it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never\nput it inside a row or an `items-center` column, where it would collapse to nothing.\n\nThe buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and\nfocus order never change with the layout. A design-system `Button` passes `width=\"fill\"`; a Radix slot wears\n`dialogActionSlotClass` (from `dialogActionsClass.ts`) for the same threshold.",
+                    "moduleDoc": "@commise/ui/dialog-actions — the web design-system {@link DialogActions}: the action row of a dialog or sheet.\nA presentational component: props to JSX, no state and no side effect.\n\nTwo elements, because a container query styles a container's DESCENDANTS and never the container itself: an outer\n`@container/dialog` wrapper that is the thing measured, and the flex row inside it (`dialogActionsRow`). The\nwrapper has inline-size containment, so it takes no width from its content and must be STRETCHED by its parent:\nput it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never\nput it inside a row or an `items-center` column, where it would collapse to nothing.\n\nThe wrapper carries `data-dialog-actions`, the marker a `Sheet`'s scroll region reads through `:has()` to reserve its\nscrollbar gutter, so a scrollbar that comes and goes never changes this box's width (KTD8). `shares=\"equal\"` gives each\ndirect child an equal share from the threshold, by child variants on the row, so nothing is wrapped.\n\nThe buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and\nfocus order never change with the layout. A design-system `Button` passes `width=\"fill\"`; a Radix slot wears\n`dialogActionSlotClass` (from `dialogActionsClass.ts`) for the same threshold.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3869,6 +3871,18 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The buttons, in source order: the dismiss action first, the main action last. Give each `width=\"fill\"`.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        },
+                        {
+                            "name": "shares",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"content\"",
+                                "\"equal\""
+                            ],
+                            "required": false,
+                            "defaultValue": "content",
+                            "description": "How the actions share the row; `'content'` unless a caller needs equal shares.",
                             "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
                         },
                         {
@@ -3897,7 +3911,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.native.tsx",
                     "dir": "packages/apps/commise/ui/src/dialogActions",
-                    "moduleDoc": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or\nsheet. A presentational component: its one piece of state is the width it measured of itself.\n\nIt measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's\ncontent box. Before the first layout it stacks, the safe shape for the narrowest phone, so a first paint can never\nclip a button. The buttons stack full width with the main action on top (`column-reverse` over source order: dismiss\nfirst), then sit end-aligned in one row from `sideBySideFrom`. Give each button `width=\"fill\"`: in a row that keeps\nits content width.",
+                    "moduleDoc": "@commise/ui/dialog-actions — the native design-system {@link DialogActions}: the action row of a dialog or\nsheet. A presentational component: its one piece of state is the width it measured of itself.\n\nIt measures its OWN width from layout, because the window's width is not the width of a dialog card or a sheet's\ncontent box. Before the first layout it stacks (unless a frame's width memento seeds it, below), the safe shape for\nthe narrowest phone, so a first paint can never clip a button. The buttons stack full width with the main action on\ntop (`column-reverse` over source order: dismiss first), then sit end-aligned in one row from `sideBySideFrom` in\ntext units (`isSideBySide`: the threshold times the text scale, clamped to [1, 2]). Give each button\n`width=\"fill\"`: in a row that keeps its content width. `shares=\"equal\"` gives each action an equal share of the row.\nDirect children only, in source order; a Fragment counts as ONE action, and a `null` or `false` child gets no share.\n\nA frame that moves its footer (`BottomSheetPanel`, I7) remounts it: it holds the width memento\n(`dialogActionsWidth.ts`) above the move, this seeds from it, so the first frame after a move is the decided form,\nand its own layout still wins and is recorded back.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3906,6 +3920,14 @@
                         {
                             "name": "pattern",
                             "text": "Strategy chosen by measurement — a row direction picked from the box's own measured width"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — the per-child share wrapper (`EqualShare`) for `shares=\"equal\"`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Memento — the width restored from the frame's memento when a move remounts it"
                         }
                     ],
                     "description": "",
@@ -3923,6 +3945,18 @@
                             "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
                         },
                         {
+                            "name": "shares",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"content\"",
+                                "\"equal\""
+                            ],
+                            "required": false,
+                            "defaultValue": "content",
+                            "description": "How the actions share the row; `'content'` unless a caller needs equal shares.",
+                            "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        },
+                        {
                             "name": "sideBySideFrom",
                             "type": "enum",
                             "typeDetail": [
@@ -3934,6 +3968,1205 @@
                             "defaultValue": null,
                             "description": "The row's own width from which the actions sit side by side. Required: a default puts a number on labels nobody measured.",
                             "declaredIn": "packages/apps/commise/ui/src/dialogActions/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/dialogActions/EqualShare",
+            "name": "EqualShare",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/dialogActions",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — wraps one action with the share it takes in a row"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "EqualShare",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/dialogActions/EqualShare.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/dialogActions",
+                    "moduleDoc": "@commise/ui/dialog-actions — the native share of one action in a `DialogActions` row with `shares=\"equal\"`.\n\nIts own file because it is styled with Tamagui (ADR-0080), and a file that imports Tamagui holds no React Native\nstyling: `DialogActions.native.tsx` keeps its two StyleSheet entries (the ratchet only falls) and does not import it.\nA presentational component. It is always mounted around an action, and only its style changes with the form, so a flip never remounts a button.\n`minWidth 0` lets a long label wrap inside its share instead of widening the row; stacked, it adds nothing.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/dialog-actions — the native share of one action in a `DialogActions` row with `shares=\"equal\"`."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — wraps one action with the share it takes in a row"
+                        }
+                    ],
+                    "description": "",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityActions",
+                            "type": "readonly Readonly<{ name: string; label?: string; }>[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Provides an array of custom actions available for accessibility.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityElementsHidden",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether the accessibility elements contained within\nthis accessibility element are hidden.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityElementsHidden",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityHint",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "An accessibility hint helps users understand what will happen when they perform\nan action on the accessibility element when that result is not obvious from the\naccessibility label.\n\n\nSee https://reactnative.dev/docs/view#accessibilityHint",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityIgnoresInvertColors",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Prevents view from being inverted if set to true and color inversion is turned on.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Overrides the text that's read by the screen reader when the user interacts\nwith the element. By default, the label is constructed by traversing all\nthe children and accumulating all the `Text` nodes separated by space.\n\nSee https://reactnative.dev/docs/view#accessibilitylabel",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLabelledBy",
+                            "type": "string | string[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Identifies the element that labels the element it is applied to. When the assistive technology focuses on the component with this props,\nthe text is read aloud. The value should should match the nativeID of the related element.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLanguage",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to the accessibility services that the UI component is in\na specific language. The provided string should be formatted following\nthe BCP 47 specification (https://www.rfc-editor.org/info/bcp47).\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLargeContentTitle",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessibilityShowsLargeContentViewer` is set, this string will be used as title for the large content viewer.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilitylargecontenttitle",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityLiveRegion",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"none\"",
+                                "\"polite\"",
+                                "\"assertive\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services whether the user should be notified\nwhen this view changes. Works for Android API >= 19 only.\n@platform android\n\nSee https://reactnative.dev/docs/view#accessibilityliveregion",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityRespondsToUserInteraction",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Blocks the user from interacting with the component through keyboard while still allowing\nscreen reader to interact with it if this View is still accessible.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityRole",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services to treat UI component like a specific role.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityShowsLargeContentViewer",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A Boolean value that indicates whether or not to show the item in the large content viewer.\nAvailable on iOS 13.0+\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityshowslargecontentviewer",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityState",
+                            "type": "AccessibilityState",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services that UI Component is in a specific State.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityValue",
+                            "type": "Readonly<{ min?: number; max?: number; now?: number | undefined; text?: string | undefined; }> | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessibilityViewIsModal",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether VoiceOver should ignore the elements\nwithin views that are siblings of the receiver.\nDefault is `false`.\n@platform ios\n\nSee https://reactnative.dev/docs/view#accessibilityviewismodal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "accessible",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `true`, indicates that the view is an accessibility element.\nBy default, all the touchable elements are accessible.\n\nSee https://reactnative.dev/docs/view#accessible",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "animatedBy",
+                            "type": "\"default\" | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Select which animation driver to use for this component.\nPass a string key matching a driver registered in the `animations` config.\nExample: `<View animatedBy=\"spring\">` when config has `animations: { default: css, spring: moti }`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-busy",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "alias for accessibilityState\n\nsee https://reactnative.dev/docs/accessibility#accessibilitystate",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-checked",
+                            "type": "boolean | \"mixed\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-expanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-hidden",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A value indicating whether the accessibility elements contained within\nthis accessibility element are hidden.\n\nSee https://reactnative.dev/docs/view#aria-hidden",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Alias for accessibilityLabel  https://reactnative.dev/docs/view#accessibilitylabel\nhttps://github.com/facebook/react-native/issues/34424",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-labelledby",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Identifies the element that labels the element it is applied to. When the assistive technology focuses on the component with this props,\nthe text is read aloud. The value should should match the nativeID of the related element.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-live",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"polite\"",
+                                "\"assertive\"",
+                                "\"off\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Indicates to accessibility services whether the user should be notified\nwhen this view changes. Works for Android API >= 19 only.\n@platform android\n\nSee https://reactnative.dev/docs/view#accessibilityliveregion",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-modal",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The aria-modal attribute indicates content contained within a modal with aria-modal=\"true\"\nshould be accessible to the user.\nDefault is `false`.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-selected",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuemax",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "alias for accessibilityState\nIt represents textual description of a component's value, or for range-based components, such as sliders and progress bars.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuemin",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuenow",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "aria-valuetext",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "asChild",
+                            "type": "boolean | \"web\" | \"except-style\" | \"except-style-web\"",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When truthy passes through all props to a single child element, and avoids rendering its own element.\nMust pass just one child React element that will receive all the props.\n\nThe option \"except-style\" will avoid passing any style related props.\n\nThe option \"web\" will map all React Native style props to web props (onPress becomes onClick).\n\nThe option \"except-style-web\" combines the except-style and web options.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "className",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web className property, useful for applying styles from CSS on web only",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "collapsable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`true`",
+                            "description": "Views that are only used to layout their children or otherwise don't draw\nanything may be automatically removed from the native hierarchy as an\noptimization. Set this property to `false` to disable this optimization and\nensure that this `View` exists in the native view hierarchy.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "collapsableChildren",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`true`",
+                            "description": "Setting to false prevents direct children of the view from being removed\nfrom the native view hierarchy, similar to the effect of setting\n`collapsable={false}` on each child.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "container",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as an inline-size query container. A string names the\ncontainer for matching `@sm/name:` clauses.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "dangerouslySetInnerHTML",
+                            "type": "{ __html: string; }",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "debug",
+                            "type": "DebugProp",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableClassName",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disables className output of styles, instead using only inline styles",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableNativeStyle",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Opt this component out of the experimental native style fast path\n(setNativeStyleEngine); it re-renders through React on theme/media\nchanges like normal",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "disableOptimization",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Disable all compiler optimization",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "experimental_accessibilityOrder",
+                            "type": "string[]",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Defines the order in which descendant elements receive accessibility focus.\nThe elements in the array represent nativeID values for the respective\ndescendant elements.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "forceStyle",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hover\"",
+                                "\"press\"",
+                                "\"focus\"",
+                                "\"focusVisible\"",
+                                "\"focusWithin\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Forces the pseudo style state to be on",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "group",
+                            "type": "boolean | (string & {})",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Marks this component as a group for use in styling children based on parents named group\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "hasTVPreferredFocus",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether to force the Android TV focus engine to move focus to this view.\n@platform android\n@deprecated Use `focusable` instead",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "hitSlop",
+                            "type": "number | Insets | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Adds some area outside the typical bounds of the component for touch actions to register.\nTamagui uses Pressable internally so it supports `number | Insets` rather than just `Insets`",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "htmlFor",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "id",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Same as the web id property for setting a uid on an element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "importantForAccessibility",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"auto\"",
+                                "\"yes\"",
+                                "\"no\"",
+                                "\"no-hide-descendants\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls how view is important for accessibility which is if it fires accessibility events\nand if it is reported to accessibility services that query the screen.\nWorks for Android only. See http://developer.android.com/reference/android/R.attr.html#importantForAccessibility for references.\n\nPossible values:\n     'auto' - The system determines whether the view is important for accessibility - default (recommended).\n     'yes' - The view is important for accessibility.\n     'no' - The view is not important for accessibility.\n     'no-hide-descendants' - The view is not important for accessibility, nor are any of its descendant views.\n@platform android\n\nSee https://reactnative.dev/docs/view#importantforaccessibility",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "name",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "web: forwards to the HTML name attribute.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nativeBackgroundAndroid",
+                            "type": "AndroidDrawable",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nativeForegroundAndroid",
+                            "type": "AndroidDrawable",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nativeID",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used to locate this view from native classes.\n\n> This disables the 'layout-only view removal' optimization for this view!\n\nSee https://reactnative.dev/docs/view#nativeid",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "needsOffscreenAlphaCompositing",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`false`",
+                            "description": "Whether this `View` needs to be rendered offscreen and composited with an\nalpha in order to preserve 100% correct colors and blending behavior.\nThe default (`false`) falls back to drawing the component and its children\nwith reduced alpha applied to the paint used to draw each element\ninstead of rendering the full component offscreen and compositing it back\nwith an alpha value. This default may be noticeable and undesired in the\ncase where the `View` you are setting an opacity on has multiple\noverlapping elements (e.g. multiple overlapping `View`s, or text and a\nbackground).\n\nRendering offscreen to preserve correct alpha behavior is extremely\nexpensive and hard to debug for non-native developers, which is why it is\nnot turned on by default.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nextFocusDown",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Designates the next view to receive focus when the user navigates down.\nThe value is the `nativeID` of the target view.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nextFocusForward",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Designates the next view to receive focus when the user navigates\nforward. The value is the `nativeID` of the target view.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nextFocusLeft",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Designates the next view to receive focus when the user navigates left.\nThe value is the `nativeID` of the target view.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nextFocusRight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Designates the next view to receive focus when the user navigates right.\nThe value is the `nativeID` of the target view.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "nextFocusUp",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Designates the next view to receive focus when the user navigates up.\nThe value is the `nativeID` of the target view.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onAccessibilityAction",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => unknown) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessible` is true, the system will try to invoke this function\nwhen the user performs an accessibility custom action.",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onAccessibilityEscape",
+                            "type": "(() => unknown)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessible` is `true`, the system will invoke this function when the\nuser performs the escape gesture.\n\nSee https://reactnative.dev/docs/view#onaccessibilityescape",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onAccessibilityTap",
+                            "type": "(() => unknown)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessible` is true, the system will try to invoke this function\nwhen the user performs accessibility tap gesture.\n\nSee https://reactnative.dev/docs/view#onaccessibilitytap",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onBlurCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onClickCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onFocusCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onGotPointerCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onGotPointerCaptureCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onKeyDownCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onKeyUpCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onLostPointerCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onLostPointerCaptureCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onMagicTap",
+                            "type": "(() => unknown)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "When `accessible` is `true`, the system will invoke this function when the\nuser performs the magic tap gesture.\n\nSee https://reactnative.dev/docs/view#onmagictap",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onMoveShouldSetResponder",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Does this view want to \"claim\" touch responsiveness? This is called for\nevery touch move on the `View` when it is not the responder.\n\n`View.props.onMoveShouldSetResponder: (event) => [true | false]`, where\n`event` is a synthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onmoveshouldsetresponder",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onMoveShouldSetResponderCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If a parent `View` wants to prevent a child `View` from becoming responder\non a move, it should have this handler which returns `true`.\n\n`View.props.onMoveShouldSetResponderCapture: (event) => [true | false]`,\nwhere `event` is a synthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onMoveShouldsetrespondercapture",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerCancelCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerDownCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerEnter",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerEnterCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerLeave",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerLeaveCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerMoveCapture",
+                            "type": "((event: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerOut",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerOutCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerOver",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerOverCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onPointerUpCapture",
+                            "type": "((e: Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderEnd",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderGrant",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean | void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The View is now responding for touch events. This is the time to highlight\nand show the user what is happening.\n\n`View.props.onResponderGrant: (event) => {}`, where `event` is a synthetic\ntouch event as described above.\n\nReturn true from this callback to prevent any other native components from\nbecoming responder until this responder terminates (Android-only).\n\nSee https://reactnative.dev/docs/view#onrespondergrant",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderMove",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The user is moving their finger.\n\n`View.props.onResponderMove: (event) => {}`, where `event` is a synthetic\ntouch event as described above.\n\nSee https://reactnative.dev/docs/view#onrespondermove",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderReject",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Another responder is already active and will not release it to that `View`\nasking to be the responder.\n\n`View.props.onResponderReject: (event) => {}`, where `event` is a\nsynthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onresponderreject",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderRelease",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Fired at the end of the touch.\n\n`View.props.onResponderRelease: (event) => {}`, where `event` is a\nsynthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onresponderrelease",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderStart",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderTerminate",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The responder has been taken from the `View`. Might be taken by other\nviews after a call to `onResponderTerminationRequest`, or might be taken\nby the OS without asking (e.g., happens with control center/ notification\ncenter on iOS)\n\n`View.props.onResponderTerminate: (event) => {}`, where `event` is a\nsynthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onresponderterminate",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onResponderTerminationRequest",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Some other `View` wants to become responder and is asking this `View` to\nrelease its responder. Returning `true` allows its release.\n\n`View.props.onResponderTerminationRequest: (event) => {}`, where `event`\nis a synthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onresponderterminationrequest",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onStartShouldSetResponder",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Does this view want to become responder on the start of a touch?\n\n`View.props.onStartShouldSetResponder: (event) => [true | false]`, where\n`event` is a synthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onstartshouldsetresponder",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onStartShouldSetResponderCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => boolean) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If a parent `View` wants to prevent a child `View` from becoming responder\non a touch start, it should have this handler which returns `true`.\n\n`View.props.onStartShouldSetResponderCapture: (event) => [true | false]`,\nwhere `event` is a synthetic touch event as described above.\n\nSee https://reactnative.dev/docs/view#onstartshouldsetrespondercapture",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchCancel",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchCancelCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchEnd",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchEndCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchMove",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchMoveCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchStart",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "onTouchStartCapture",
+                            "type": "((e: Readonly<Omit<Readonly<{ bubbles: boolean; cancelable: boolean; currentTarget: number | ReactNativeElement; defaultPrevented: boolean | undefined; ... 11 more ...; type: string | undefined; }>, \"touchHistory\"> & { ...; }>) => void) | undefined",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<TamaguiElement>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "removeClippedSubviews",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "This is a special performance property exposed by `RCTView` and is useful\nfor scrolling content when there are many subviews, most of which are\noffscreen. For this property to be effective, it must be applied to a\nview that contains many subviews that extend outside its bound. The\nsubviews must also have `overflow: hidden`, as should the containing view\n(or one of its superviews).\n\nSee https://reactnative.dev/docs/view#removeclippedsubviews",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "render",
+                            "type": "keyof HTMLElementTagNameMap | (string & {}) | ReactElement<unknown, string | JSXElementConstructor<any>> | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Controls the rendered element on web.\n- String: renders as that HTML element (e.g., `render=\"button\"`)\n- JSX Element: clones element with merged props (e.g., `render={<a href=\"/\" />}`)\n- Function: full control with props and state (e.g., `render={(props) => <Custom {...props} />}`)\n@example render=\"button\"\n@example render={<a href=\"/\" />}\n@example render={(props, state) => <MyComponent {...props} isPressed={state.press} />}",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "renderToHardwareTextureAndroid",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`false`",
+                            "description": "Whether this `View` should render itself (and all of its children) into a\nsingle hardware texture on the GPU.\n\nOn Android, this is useful for animations and interactions that only\nmodify opacity, rotation, translation and/or scale: in those cases, the\nview does not have to be redrawn and display lists do not need to be\nre-executed. The texture can be re-used and re-composited with different\nparameters. The downside is that this can use up limited video memory, so\nthis prop should be set back to `false` at the end of the interaction/\nanimation.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "role",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"tab\"",
+                                "\"timer\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"button\"",
+                                "\"link\"",
+                                "\"heading\"",
+                                "\"group\"",
+                                "\"article\"",
+                                "\"dialog\"",
+                                "\"figure\"",
+                                "\"form\"",
+                                "\"img\"",
+                                "\"main\"",
+                                "\"meter\"",
+                                "\"option\"",
+                                "\"summary\"",
+                                "\"table\"",
+                                "\"alert\"",
+                                "\"alertdialog\"",
+                                "\"application\"",
+                                "\"banner\"",
+                                "\"cell\"",
+                                "\"checkbox\"",
+                                "\"columnheader\"",
+                                "\"combobox\"",
+                                "\"complementary\"",
+                                "\"contentinfo\"",
+                                "\"definition\"",
+                                "\"directory\"",
+                                "\"document\"",
+                                "\"feed\"",
+                                "\"grid\"",
+                                "\"listitem\"",
+                                "\"log\"",
+                                "\"marquee\"",
+                                "\"math\"",
+                                "\"menubar\"",
+                                "\"menuitem\"",
+                                "\"navigation\"",
+                                "\"none\"",
+                                "\"note\"",
+                                "\"presentation\"",
+                                "\"progressbar\"",
+                                "\"radio\"",
+                                "\"radiogroup\"",
+                                "\"region\"",
+                                "\"row\"",
+                                "\"rowgroup\"",
+                                "\"rowheader\"",
+                                "\"scrollbar\"",
+                                "\"searchbox\"",
+                                "\"separator\"",
+                                "\"slider\"",
+                                "\"spinbutton\"",
+                                "\"status\"",
+                                "\"switch\"",
+                                "\"tablist\"",
+                                "\"tabpanel\"",
+                                "\"term\"",
+                                "\"toolbar\"",
+                                "\"tooltip\"",
+                                "\"tree\"",
+                                "\"treegrid\"",
+                                "\"treeitem\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Equivalent to role=\"\" attribute on web for accessibility",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "screenReaderFocusable",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Enables the view to be screen reader focusable, not keyboard focusable. This has lower priority\nthan focusable or accessible props.\n@platform android",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "shouldRasterizeIOS",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "`false`",
+                            "description": "Whether this `View` should be rendered as a bitmap before compositing.\n\nOn iOS, this is useful for animations and interactions that do not\nmodify this component's dimensions nor its children; for example, when\ntranslating the position of a static view, rasterization allows the\nrenderer to skip re-rendering the view frame and re-use the cached\nbitmap.\n\nRasterization incurs an offscreen drawing pass and the bitmap consumes\nmemory. Test and measure when using this property.\n@platform ios",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "tabIndex",
+                            "type": "string | number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used for controlling the order of focus with keyboard or assistive device enavigation\nSee https://developer.mozilla.org/en-US/docs/Web/HTML/Global_attributes/tabindex",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "target",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "testID",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Used to locate this view in end-to-end tests.\n\n> This disables the 'layout-only view removal' optimization for this view!\n\nSee https://reactnative.dev/docs/view#testid",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "theme",
+                            "type": "ThemeName | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Applies a theme to this element",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "themeShallow",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "If given a theme it will only apply to this element, instead of passing down to children",
+                            "declaredIn": null
+                        },
+                        {
+                            "name": "untilMeasured",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"hide\"",
+                                "\"show\""
+                            ],
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Works alongside container. On native, children using container sizing can\nbe hidden until the parent is measured.\nSee: https://tamagui.dev/docs/intro/props",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],
@@ -4015,8 +5248,8 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"alert\"",
-                                "\"dialog\""
+                                "\"dialog\"",
+                                "\"alert\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -4112,8 +5345,8 @@
                             "name": "role",
                             "type": "enum",
                             "typeDetail": [
-                                "\"alert\"",
-                                "\"dialog\""
+                                "\"dialog\"",
+                                "\"alert\""
                             ],
                             "required": true,
                             "defaultValue": null,
@@ -5752,8 +6985,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"name\"",
-                                "\"email\"",
                                 "\"off\"",
+                                "\"email\"",
                                 "\"given-name\"",
                                 "\"family-name\"",
                                 "\"username\"",
@@ -6004,8 +7237,8 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"name\"",
-                                "\"email\"",
                                 "\"off\"",
+                                "\"email\"",
                                 "\"given-name\"",
                                 "\"family-name\"",
                                 "\"username\"",
@@ -8054,9 +9287,9 @@
                             "name": "aria-live",
                             "type": "enum",
                             "typeDetail": [
-                                "\"off\"",
                                 "\"polite\"",
-                                "\"assertive\""
+                                "\"assertive\"",
+                                "\"off\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -8814,7 +10047,7 @@
                         },
                         {
                             "name": "render",
-                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>> | keyof HTMLElementTagNameMap | (string & {}) | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "type": "keyof HTMLElementTagNameMap | (string & {}) | ReactElement<unknown, string | JSXElementConstructor<any>> | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -8842,10 +10075,8 @@
                                 "\"link\"",
                                 "\"heading\"",
                                 "\"group\"",
-                                "\"alert\"",
-                                "\"dialog\"",
-                                "\"none\"",
                                 "\"article\"",
+                                "\"dialog\"",
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"img\"",
@@ -8854,6 +10085,7 @@
                                 "\"option\"",
                                 "\"summary\"",
                                 "\"table\"",
+                                "\"alert\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"banner\"",
@@ -8875,6 +10107,7 @@
                                 "\"menubar\"",
                                 "\"menuitem\"",
                                 "\"navigation\"",
+                                "\"none\"",
                                 "\"note\"",
                                 "\"presentation\"",
                                 "\"progressbar\"",
@@ -10467,7 +11700,7 @@
                         },
                         {
                             "name": "render",
-                            "type": "ReactElement<unknown, string | JSXElementConstructor<any>> | keyof HTMLElementTagNameMap | (string & {}) | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
+                            "type": "keyof HTMLElementTagNameMap | (string & {}) | ReactElement<unknown, string | JSXElementConstructor<any>> | ((props: Record<...> & { ...; }, state: TamaguiComponentState) => ReactElement<...>)",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -10486,10 +11719,8 @@
                                 "\"link\"",
                                 "\"heading\"",
                                 "\"group\"",
-                                "\"alert\"",
-                                "\"dialog\"",
-                                "\"none\"",
                                 "\"article\"",
+                                "\"dialog\"",
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"img\"",
@@ -10498,6 +11729,7 @@
                                 "\"option\"",
                                 "\"summary\"",
                                 "\"table\"",
+                                "\"alert\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"banner\"",
@@ -10519,6 +11751,7 @@
                                 "\"menubar\"",
                                 "\"menuitem\"",
                                 "\"navigation\"",
+                                "\"none\"",
                                 "\"note\"",
                                 "\"presentation\"",
                                 "\"progressbar\"",
@@ -11239,8 +12472,8 @@
                             "typeDetail": [
                                 "\"button\"",
                                 "\"link\"",
-                                "\"none\"",
                                 "\"checkbox\"",
+                                "\"none\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -11380,8 +12613,8 @@
                             "typeDetail": [
                                 "\"button\"",
                                 "\"link\"",
-                                "\"none\"",
                                 "\"checkbox\"",
+                                "\"none\"",
                                 "\"switch\""
                             ],
                             "required": false,
@@ -13438,8 +14671,8 @@
                             "name": "width",
                             "type": "enum",
                             "typeDetail": [
-                                "\"share\"",
                                 "\"content\"",
+                                "\"share\"",
                                 "\"adaptive\""
                             ],
                             "required": false,
@@ -13558,8 +14791,8 @@
                             "name": "width",
                             "type": "enum",
                             "typeDetail": [
-                                "\"share\"",
                                 "\"content\"",
+                                "\"share\"",
                                 "\"adaptive\""
                             ],
                             "required": false,
@@ -13600,7 +14833,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx",
                     "dir": "packages/apps/commise/ui/src/sheet",
-                    "moduleDoc": "@commise/ui/sheet — the native sheet's skeleton, a bottom-anchored panel (native only: the web sheet's\npanel is `SheetPanel.tsx`, a different shape with different props): the title row with Close, the toolbar, the scroll region\nand the footer (`docs/design/ingredientSpecialization.md` §S8.1).\n\nIt alone applies the collapse. On native, focus is not read: a sheet with a toolbar holds no other text input\n(`SheetProps.children`), so an open keyboard in such a sheet means focus is in the toolbar's controls. Collapsed,\nthe title is visually hidden (the dialog is still named by it), the heading moves into the title row, and the\nfooter hides. ⛔ Close and the controls never change position in the tree, so the focused input never remounts.\n\nThe footer is pinned below the scroll region until everything pinned above the region (the title row and the toolbar)\nand the footer together take more than half the sheet (`isFooterUnpinned`, owner ruling on I7); past that it becomes\nthe scroll region's last child and scrolls with the content, while Close stays pinned in the title row. Heights come\nfrom `onLayout` (`usePinnedFooter`, `@commise/ui/layout`), and the region sits in `PinnedFooterScrollRegion`, which\nkeeps it one control tall through the layout pass that decision lags (issue #192). ⚠️ Moving\nthe footer remounts it, so a screen-reader cursor resting on `Done` is lost when a rotation or the keyboard flips\nthe decision; React Native has no sticky footer in a plain `ScrollView` that would keep the node in place.\n\nIt owns the device insets: the whole sheet by the part of each side inset it reaches (`sheetSideInsetPadding`); the\nfooter by the bottom inset, or, with no footer, the end of the scroll region. The top inset is the backdrop's. A downward swipe on the title row or the toolbar's\nheading row dismisses it; the scroll region keeps its own scrolling.\n\nA presentational component: it reads the device's insets, width and keyboard, and holds no domain state.",
+                    "moduleDoc": "@commise/ui/sheet — the native sheet's skeleton, a bottom-anchored panel (native only: the web sheet's\npanel is `SheetPanel.tsx`, a different shape with different props): the title row with Close, the toolbar, the scroll region\nand the footer (`docs/design/ingredientSpecialization.md` §S8.1).\n\nIt alone applies the collapse. On native, focus is not read: a sheet with a toolbar holds no other text input\n(`SheetProps.children`), so an open keyboard in such a sheet means focus is in the toolbar's controls. Collapsed,\nthe title is visually hidden (the dialog is still named by it), the heading moves into the title row, and the\nfooter hides. ⛔ Close and the controls never change position in the tree, so the focused input never remounts.\n\nThe footer is pinned below the scroll region until everything pinned above the region (the title row and the toolbar)\nand the footer together take more than half the sheet (`isFooterUnpinned`, owner ruling on I7); past that it becomes\nthe scroll region's last child and scrolls with the content, while Close stays pinned in the title row. Heights come\nfrom `onLayout` (`usePinnedFooter`, `@commise/ui/layout`), and the region sits in `PinnedFooterScrollRegion`, which\nkeeps it one control tall through the layout pass that decision lags (issue #192). A footer that holds a\n`DialogActions` changes height with its form, so the panel holds the actions' width memento above the move\n(`dialogActions/dialogActionsWidth.ts`) and wraps only the footer in it: the remounted actions start as the form they\nhad, and `layout/pinnedFooter.ts`'s no-flip-back argument holds. ⚠️ Moving\nthe footer remounts it, so a screen-reader cursor resting on `Done` is lost when a rotation or the keyboard flips\nthe decision; React Native has no sticky footer in a plain `ScrollView` that would keep the node in place.\n\nIt owns the device insets: the whole sheet by the part of each side inset it reaches (`sheetSideInsetPadding`); the\nfooter by the bottom inset, or, with no footer, the end of the scroll region. The top inset is the backdrop's. A downward swipe on the title row or the toolbar's\nheading row dismisses it; the scroll region keeps its own scrolling.\n\nA presentational component: it reads the device's insets, width and keyboard, and holds no domain state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -13713,8 +14946,8 @@
                             "name": "screenReaderLanding",
                             "type": "enum",
                             "typeDetail": [
-                                "\"title\"",
-                                "\"content\""
+                                "\"content\"",
+                                "\"title\""
                             ],
                             "required": false,
                             "defaultValue": "title",
@@ -14005,8 +15238,8 @@
                             "name": "screenReaderLanding",
                             "type": "enum",
                             "typeDetail": [
-                                "\"title\"",
-                                "\"content\""
+                                "\"content\"",
+                                "\"title\""
                             ],
                             "required": false,
                             "defaultValue": "title",
@@ -14188,8 +15421,8 @@
                             "name": "screenReaderLanding",
                             "type": "enum",
                             "typeDetail": [
-                                "\"title\"",
-                                "\"content\""
+                                "\"content\"",
+                                "\"title\""
                             ],
                             "required": false,
                             "defaultValue": "title",
@@ -15439,10 +16672,8 @@
                                 "\"link\"",
                                 "\"heading\"",
                                 "\"group\"",
-                                "\"alert\"",
-                                "\"dialog\"",
-                                "\"none\"",
                                 "\"article\"",
+                                "\"dialog\"",
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"img\"",
@@ -15451,6 +16682,7 @@
                                 "\"option\"",
                                 "\"summary\"",
                                 "\"table\"",
+                                "\"alert\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"banner\"",
@@ -15472,6 +16704,7 @@
                                 "\"menubar\"",
                                 "\"menuitem\"",
                                 "\"navigation\"",
+                                "\"none\"",
                                 "\"note\"",
                                 "\"presentation\"",
                                 "\"progressbar\"",
@@ -15620,10 +16853,8 @@
                                 "\"link\"",
                                 "\"heading\"",
                                 "\"group\"",
-                                "\"alert\"",
-                                "\"dialog\"",
-                                "\"none\"",
                                 "\"article\"",
+                                "\"dialog\"",
                                 "\"figure\"",
                                 "\"form\"",
                                 "\"img\"",
@@ -15632,6 +16863,7 @@
                                 "\"option\"",
                                 "\"summary\"",
                                 "\"table\"",
+                                "\"alert\"",
                                 "\"alertdialog\"",
                                 "\"application\"",
                                 "\"banner\"",
@@ -15653,6 +16885,7 @@
                                 "\"menubar\"",
                                 "\"menuitem\"",
                                 "\"navigation\"",
+                                "\"none\"",
                                 "\"note\"",
                                 "\"presentation\"",
                                 "\"progressbar\"",

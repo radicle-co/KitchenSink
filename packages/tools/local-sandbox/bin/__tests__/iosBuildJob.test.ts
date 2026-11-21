@@ -100,7 +100,7 @@ function makeWorld(): World {
 
         writeFileSync(
             file,
-            `#!/usr/bin/env bash\necho "${tool} $*" >> "$STUB_DIR/tools.log"\n[ "${tool} $1" = "npm ci" ] && mkdir -p node_modules\nexit 0\n`,
+            `#!/usr/bin/env bash\necho "${tool} $* registry=$npm_config_registry" >> "$STUB_DIR/tools.log"\n[ "${tool} $1" = "npm ci" ] && mkdir -p node_modules\nexit 0\n`,
         );
         chmodSync(file, 0o755);
     }
@@ -382,6 +382,20 @@ describe('iosBuildJob.sh: what it leaves behind', () => {
         // A second job reuses the same lock file: deleting a held flock file would let two holders in.
         expect(await startJob(world, 'jobB', 'keyB').exit).toBe(0);
         expect(statSync(path.join(buildRoot(world), 'build.lock')).ino).toBe(lockInode);
+    });
+
+    it('installs from the public npm registry, whatever registry the Mac user`s own npm configuration names', async () => {
+        const world = makeWorld();
+
+        upload(world, 'jobA', 'keyA', {}, 'fail3');
+        const a = startJob(world, 'jobA', 'keyA');
+
+        await a.exit;
+        // The first real build failed on `getaddrinfo ENOTFOUND` for a registry named in the Mac user's ~/.npmrc: npm rewrites
+        // the lockfile's registry host to the configured one. Mutation: drop the override, and `npm ci` asks that registry.
+        expect(readFileSync(marker(world, 'tools.log'), 'utf8')).toContain(
+            'npm ci registry=https://registry.npmjs.org/',
+        );
     });
 
     it('syncs the build tree by content: a file of the same size and time but other bytes is replaced', async () => {

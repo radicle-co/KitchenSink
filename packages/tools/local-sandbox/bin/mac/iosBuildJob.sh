@@ -127,6 +127,9 @@ lock_sha="$(shasum -a 256 work/src/package-lock.json | cut -d' ' -f1)"
 sha="${GITHUB_SHA:-}"
 node_bin="${KS_NODE_BIN:-$(ls -d "$HOME"/.nvm/versions/node/v24*/bin 2> /dev/null | sort -V | tail -1 || true)}"
 [ -z "$node_bin" ] || PATH="$node_bin:$PATH"
+# The lockfile names registry.npmjs.org, and npm rewrites that host to whatever the Mac user's ~/.npmrc configures (an
+# employer registry that is not always reachable). The build must not depend on it.
+export npm_config_registry=https://registry.npmjs.org/
 export PATH LANG=en_US.UTF-8 TEST_APP_CONTENT_KEY="$key" GITHUB_SHA="$sha" RUNNER_TEMP="$root/work/tmp" LOCK_SHA="$lock_sha"
 
 steps=$(

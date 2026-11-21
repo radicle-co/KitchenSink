@@ -34,6 +34,7 @@ interface Step {
     readonly env?: Record<string, string>;
     readonly with?: Record<string, string>;
     readonly 'continue-on-error'?: boolean;
+    readonly 'timeout-minutes'?: number;
 }
 
 const steps: readonly Step[] = (parse(readFileSync(GATE_YML, 'utf8')) as { jobs: { gate: { steps: Step[] } } }).jobs
@@ -78,6 +79,27 @@ function retryAllowed(executionFile: string | undefined): boolean {
     return spawnSync('/usr/bin/jq', ['-e', filter, file], { encoding: 'utf8' }).status === 0;
 }
 
+/** Runs the `retry` step's own shell with a temp RUNNER_TEMP and GITHUB_OUTPUT, and returns what it wrote to the output. */
+function retryStepOutput(executionFile: string | undefined): string {
+    const retry = step('retry');
+    const dir = mkdtempSync(path.join(tmpdir(), 'gateJudgeRetryStep-'));
+    dirs.push(dir);
+    const output = path.join(dir, 'output');
+
+    if (executionFile !== undefined) {
+        writeFileSync(path.join(dir, 'claude-execution-output.json'), executionFile);
+    }
+
+    const run = spawnSync('/bin/bash', ['-c', retry.run ?? ''], {
+        encoding: 'utf8',
+        env: { PATH: '/usr/bin:/bin', RUNNER_TEMP: dir, GITHUB_OUTPUT: output, ...retry.env },
+    });
+
+    expect(run.status, run.stderr).toBe(0);
+
+    return readFileSync(output, 'utf8');
+}
+
 const result = (fields: Record<string, unknown>): string =>
     JSON.stringify([{ type: 'system', subtype: 'init' }, { type: 'assistant' }, { type: 'result', ...fields }]);
 
@@ -112,6 +134,11 @@ describe('gate.yml judge retry', () => {
         expect(second?.with?.['claude_args']).toBe(first?.with?.['claude_args']);
         expect(second?.with?.['allowed_non_write_users']).toBe(first?.with?.['allowed_non_write_users']);
         expect(second?.with?.['claude_code_oauth_token']).toBe(first?.with?.['claude_code_oauth_token']);
+    });
+
+    it('limits the retry as the first judge is limited, so a hung retry cannot run to the six hour default', () => {
+        expect(judgeSteps[0]?.['timeout-minutes']).toBeGreaterThan(0);
+        expect(judgeSteps[1]?.['timeout-minutes']).toBe(judgeSteps[0]?.['timeout-minutes']);
     });
 
     it('keeps the retry prompt equal to the judge prompt plus one closing paragraph', () => {
@@ -189,6 +216,41 @@ describe('gate.yml judge retry', () => {
             const later = { type: 'result', subtype: 'error_max_turns', is_error: true };
 
             expect(retryAllowed(JSON.stringify([earlier, later]))).toBe(false);
+        });
+
+        it.each(['error_max_turns', 'error_during_execution', 'error_max_structured_output_retries'])(
+            'does not retry %s even when it does not report is_error',
+            (subtype) => {
+                // Mutation: drop the subtype test, and an error subtype that leaves is_error false is retried.
+                expect(retryAllowed(result({ subtype, is_error: false }))).toBe(false);
+            },
+        );
+
+        it('finds the result entry wherever it is, not only at the end of the file', () => {
+            const messages = [
+                { type: 'system', subtype: 'init' },
+                { type: 'result', subtype: 'success', is_error: false },
+                { type: 'system', subtype: 'cleanup' },
+            ];
+
+            // Mutation: drop the select on type, and the last entry (not a result) is read instead.
+            expect(retryAllowed(JSON.stringify(messages))).toBe(true);
+        });
+    });
+
+    describe('the retry step`s own shell', () => {
+        it('writes retry=true for the retry shape', () => {
+            expect(retryStepOutput(result({ subtype: 'success', is_error: false }))).toBe('retry=true\n');
+        });
+
+        it('writes retry=false for an error shape, a result with structured output and a missing file', () => {
+            expect(retryStepOutput(result({ subtype: 'error_max_turns', is_error: true }))).toBe('retry=false\n');
+            expect(
+                retryStepOutput(
+                    result({ subtype: 'success', is_error: false, structured_output: { verdict: 'PASS' } }),
+                ),
+            ).toBe('retry=false\n');
+            expect(retryStepOutput(undefined)).toBe('retry=false\n');
         });
     });
 });

@@ -28,8 +28,8 @@ export const MAX_TIMER_MS = 86_400_000;
 export const TIMER_LIMIT = 1;
 
 /**
- * What a row calls its timer when the cook named it. The reducer only carries it. A timer with none is named by the copy
- * layer from the step and the timer's origin (P23).
+ * What a row calls its timer when the cook named it. The reducer only carries it. A timer with none is named by the
+ * copy layer from the step and the timer's origin.
  */
 export interface TimerLabel {
     readonly kind: 'typed';
@@ -168,7 +168,10 @@ export type TimerCommand =
            * because nothing may sound for a timer the cook was not there to hear.
            */
           readonly kind: 'settleAway';
-          /** Whether another tab is alive and holds the alarm: then a due timer rings there, and here it only shows. */
+          /**
+           * Whether another tab of this cook is alive (it holds the presence lock): a due timer rings there, here it
+           * only shows.
+           */
           readonly heldElsewhere: boolean;
           readonly nowMs: number;
       }

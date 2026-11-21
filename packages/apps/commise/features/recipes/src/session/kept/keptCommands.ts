@@ -41,7 +41,7 @@ export type KeptCommand =
     | { readonly type: 'finish'; readonly recipeId: string }
     /** Removes the entry and its timers. */
     | { readonly type: 'endSession'; readonly recipeId: string }
-    /** Brings an End's entry and timers back. Refused whole when its timers would pass `limit` (P24). */
+    /** Brings an End's entry and timers back. Refused whole when its timers would pass `limit`. */
     | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot; readonly limit: number }
     /**
      * One reducer command on the record's timers as just re-read, so the limit, the ordinals and the rematch have one

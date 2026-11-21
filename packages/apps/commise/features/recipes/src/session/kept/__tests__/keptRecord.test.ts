@@ -90,8 +90,9 @@ describe('parseKeptDocument', () => {
         expect(ok(JSON.stringify(makeDoc({ timers: [makeEnded('endedAway')] }))).doc.timers).toHaveLength(1);
     });
 
-    // The record is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run`, `ordinal` and `origin` are required on every
-    // state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and reported.
+    // The record is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run`, `ordinal` and `origin` are
+    // required on every state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and
+    // reported.
     describe.each([
         ['a running timer', makeTimer],
         ['a paused timer', makePaused],

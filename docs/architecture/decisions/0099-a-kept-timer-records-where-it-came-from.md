@@ -35,4 +35,4 @@ it cannot tell an offered timer from an added one.
   a new version and not an optional field in version 1, which ADR-0094 forbids.
 - The golden literal of the record and the map of where each field comes from move to version 2, so a field added later
   fails a test until someone decides its source.
-- A timer started before this change cannot be read. This costs nothing today, because no app mounts the timers yet.
+- A timer started before this change cannot be read. This costs nothing today, because no screen starts a timer yet.

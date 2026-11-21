@@ -1,8 +1,8 @@
 /**
- * The v2 record is a one-way door (ADR 0094 section 2, ADR 0099 for v2), so its bytes are frozen here by a literal written by hand. A
- * rename that the writer and the reader share would pass a round trip, and only this test catches it. A second test
- * classifies every timer field by where its value comes from (ADR-0094 section 2), so a new field fails until someone
- * decides.
+ * The v2 record is a one-way door (ADR 0094 section 2, ADR 0099 for v2), so its bytes are frozen here by a literal
+ * written by hand. A rename that the writer and the reader share would pass a round trip, and only this test catches
+ * it. A second test classifies every timer field by where its value comes from (ADR-0094 section 2), so a new field
+ * fails until someone decides.
  */
 import { describe, expect, it } from 'vitest';
 

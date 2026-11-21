@@ -11,6 +11,7 @@ import {
     type KeptPort,
     type KeptSessionStore,
 } from '@commise/features-recipes/session';
+import { focusManager } from '@tanstack/react-query';
 import type { TimerEvent } from '@kitchensink/cooking-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -126,6 +127,24 @@ describe('write-through', () => {
         expect(timers.getSnapshot().timers[0]?.label?.text).toBe('Secret roast');
     });
 
+    it('writes nothing when a ring finds nothing due, as on every focus', async () => {
+        const device = makeDevice();
+        const { kept, timers } = await device.tab();
+
+        timers.start({ ...STEP, label: undefined, durationMs: 10 * MINUTE });
+        await settle();
+
+        const dispatch = vi.spyOn(kept, 'dispatch');
+
+        focusManager.setFocused(false);
+        vi.setSystemTime(Date.now() + MINUTE);
+        focusManager.setFocused(true);
+        await settle();
+
+        expect(dispatch).not.toHaveBeenCalled();
+        focusManager.setFocused();
+    });
+
     it('writes a pause, a +time and a cancel through', async () => {
         const device = makeDevice();
         const { timers } = await device.tab();
@@ -172,7 +191,7 @@ describe('hydration, and a reload (no sound for what ended while away)', () => {
     });
 });
 
-describe('a reload beside a tab that holds the alarm', () => {
+describe('a reload beside a tab of this cook that is alive', () => {
     it('shows the ringing timer and tells nothing: a tab that loads must not sound a ring it did not hear', async () => {
         const device = makeDevice();
         const first = await device.tab();

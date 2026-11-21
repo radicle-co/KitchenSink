@@ -49,8 +49,9 @@ export interface KeptSessionStoreDeps {
     readonly report: ErrorReporter;
     readonly warn: (message: string) => void;
     /**
-     * Whether another tab of this cook is alive and holds the alarm, asked once at hydrate, before this tab takes its own
-     * lock. Absent: no tab does, so a timer that ended while away is ended-away here.
+     * Whether another tab of this cook is alive (it holds the presence lock), asked once at hydrate, before this tab
+     * takes its own. Presence, not the alarm lock: a ringing tab with no unlocked audio holds no alarm lock and still
+     * rings. Absent: no tab is, so a timer that ended while away is ended-away here.
      */
     readonly heldElsewhere?: (subject: string) => Promise<boolean>;
 }

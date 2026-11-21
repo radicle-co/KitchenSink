@@ -6,8 +6,9 @@
  * `Date.now()`, holds one timeout, hears the app come to the front, and ends the session with the cook. React reads it
  * through `useSyncExternalStore` (`getSnapshot`, `subscribe`).
  *
- * With a kept store the record is the truth across tabs and this store is an optimistic copy (ADR-0094 section 6): every
- * change is applied here at once and written through, and when no write is in flight memory is rebuilt from the record.
+ * With a kept store the record is the truth across tabs and this store is an optimistic copy (ADR-0094 section 6):
+ * every change is applied here at once and written through, and when no write is in flight memory is rebuilt from the
+ * record.
  * `ended` is told once per (id, run), whether a local ring or a record change shows the timer ringing first, and what a
  * reload finds (a timer that ended while away) is never told.
  *
@@ -88,6 +89,28 @@ function earliestEnd(state: TimerState): number | undefined {
     return ends.length === 0 ? undefined : Math.min(...ends);
 }
 
+type Timer = TimerState['timers'][number];
+
+/** Two timers are the same when every field is: the label is the one object field, compared by its parts. */
+const sameTimer = (a: Timer, b: Timer): boolean => {
+    const { label: labelA, ...restA } = a;
+    const { label: labelB, ...restB } = b;
+    const keys = Object.keys(restA) as (keyof typeof restA)[];
+
+    return (
+        keys.length === Object.keys(restB).length &&
+        keys.every((key) => restA[key] === (restB as typeof restA)[key]) &&
+        labelA?.kind === labelB?.kind &&
+        labelA?.text === labelB?.text
+    );
+};
+
+/** Whether two states hold the same timers in the same order and the same Undo. Key order does not matter. */
+const sameState = (a: TimerState, b: TimerState): boolean =>
+    a.timers.length === b.timers.length &&
+    a.timers.every((timer, index) => sameTimer(timer, b.timers[index] as Timer)) &&
+    (a.undo === undefined ? b.undo === undefined : b.undo !== undefined && sameTimer(a.undo, b.undo));
+
 /**
  * Create the store.
  *
@@ -151,7 +174,7 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
                 }
             }
 
-            if (command.kind !== 'discardUndo') {
+            if (moved && command.kind !== 'discardUndo') {
                 persist(command, undoBefore);
             }
         }
@@ -181,7 +204,7 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
 
     /** Publishes `next` when it differs from what is held, and tells the listeners that the state changed. */
     function publish(next: TimerState): void {
-        if (JSON.stringify(next) === JSON.stringify(state)) {
+        if (sameState(next, state)) {
             return;
         }
 
@@ -252,6 +275,8 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
 
                 await kept.reread();
             })
+            // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported inside
+            // the kept store), so this only keeps a defect from becoming an unhandled rejection.
             .catch(() => undefined)
             .finally(() => {
                 inFlight -= 1;

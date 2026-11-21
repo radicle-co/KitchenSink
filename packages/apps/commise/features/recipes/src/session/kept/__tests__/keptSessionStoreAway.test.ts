@@ -1,7 +1,7 @@
 /**
  * Hydrate and the restore rule: a timer that ended while no tab held it is ended-away, written with the prune in
- * one write. A re-read never settles, so a timer that rang in another tab is left to ring there. Two stores over one port
- * and one lock make the start race of the limit (ADR-0094 section 6).
+ * one write. A re-read never settles, so a timer that rang in another tab is left to ring there. Two stores over one
+ * port and one lock make the start race of the limit (ADR-0094 section 6).
  */
 import { describe, expect, it, vi } from 'vitest';
 
@@ -92,7 +92,7 @@ describe('hydrate settles what ended while away', () => {
         expect(calls.write).toBe(0);
     });
 
-    it('with another tab holding the alarm, a due running timer is left ringing and a ringing one stays ringing', async () => {
+    it('with another tab of this cook alive (the presence lock), a due running timer is left ringing and a ringing one stays ringing', async () => {
         const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere: async () => true });
 
         await store.scope('A');
@@ -105,7 +105,7 @@ describe('hydrate settles what ended while away', () => {
         ]);
     });
 
-    it('asks whether another tab holds the alarm for the cook being scoped', async () => {
+    it('asks whether another tab of this cook is alive for the cook being scoped', async () => {
         const heldElsewhere = vi.fn(async () => false);
         const { store } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere });
 

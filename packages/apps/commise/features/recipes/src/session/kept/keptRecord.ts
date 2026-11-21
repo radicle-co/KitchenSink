@@ -1,10 +1,10 @@
 /**
- * @module The kept record, v2 (ADR-0094 section 2; ADR-0099 adds `origin`): one versioned document per user holding the cook's page ticks,
- * cooking sessions and timers. The format is a one-way door once a client has written it, so every read goes through a
- * strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no recipe text. An
- * ingredient tick is a content key (a line's digest and ordinal, ADR-0096), a hash and a count, so no recipe text
- * either. `ticks` accepts the same JSON as before (an array of strings), and a string that is
- * not a key is dropped on its own, so one old binding id never costs the document.
+ * @module The kept record, v2 (ADR-0094 section 2; ADR-0099 adds `origin`): one versioned document per user holding the
+ * cook's page ticks, cooking sessions and timers. The format is a one-way door once a client has written it, so every
+ * read goes through a strict zod parse. It holds ids, positions, digests, servings and instants only: no label, no
+ * recipe text. An ingredient tick is a content key (a line's digest and ordinal, ADR-0096), a hash and a count, so no
+ * recipe text either. `ticks` accepts the same JSON as before (an array of strings), and a string that is not a key is
+ * dropped on its own, so one old binding id never costs the document.
  *
  * @pattern Repository — the document schema and its parse/serialize pair are the persistence boundary.
  */

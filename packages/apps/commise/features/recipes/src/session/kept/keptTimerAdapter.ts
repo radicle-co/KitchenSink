@@ -1,7 +1,7 @@
 /**
  * @module The kept record's timer and the reducer's timer are two shapes of one thing: the record holds ISO instants
  * and a `state`, the reducer holds ms and a `kind`. This module is the only place that turns one into the other, so
- * neither shape learns the other The label is never stored (ADR-0094 section 2): it is dropped on the way
+ * neither shape learns the other. The label is never stored (ADR-0094 section 2): it is dropped on the way
  * out and absent on the way in, and the caller derives it from the matched step (R8a).
  *
  * @pattern Adapter — converts between the persisted timer and the cooking-core timer.

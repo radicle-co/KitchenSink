@@ -66,6 +66,7 @@ export function keptTimerOf(timer: ActiveTimer, prior: KeptTimer | undefined, no
             };
         case 'ringing':
             return { ...shared, state: 'ringing', endedAt: new Date(timer.endedAt).toISOString() };
+
         case 'endedAway': {
             const announcedAt = prior?.state === 'endedAway' && prior.run === run ? prior.announcedAt : undefined;
 

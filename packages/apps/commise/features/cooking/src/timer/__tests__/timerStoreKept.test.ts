@@ -15,6 +15,7 @@ import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { focusManager } from '@tanstack/react-query';
 import type { TimerEvent } from '@kitchensink/cooking-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 
 import { cookingMessages } from '../../messages.js';
 import { timerLabel } from '../timerCopy.js';
@@ -54,6 +55,7 @@ function makeDevice(initial: Record<string, string> = {}) {
         },
         keys: (prefix) => Promise.resolve([...data.keys()].filter((k) => k.startsWith(prefix))),
     };
+
     const locks: ExclusiveRunner = (name, work) => {
         const run = (queues.get(name) ?? Promise.resolve()).then(work, work);
 
@@ -64,6 +66,7 @@ function makeDevice(initial: Record<string, string> = {}) {
 
         return run;
     };
+
     const tab = async (
         heldElsewhere?: () => Promise<boolean>,
     ): Promise<{ readonly kept: KeptSessionStore; readonly timers: TimerStore; readonly ended: TimerEvent[] }> => {
@@ -108,8 +111,11 @@ const settle = async (): Promise<void> => {
     await vi.advanceTimersByTimeAsync(0);
 };
 
-const stored = (device: ReturnType<typeof makeDevice>): { timers: { id: string; state: string; origin: unknown }[] } =>
-    JSON.parse(device.data.get(KEY) ?? '{"timers":[]}');
+const storedSchema = z.object({
+    timers: z.array(z.looseObject({ id: z.string(), state: z.string(), origin: z.unknown() })),
+});
+const stored = (device: ReturnType<typeof makeDevice>): z.infer<typeof storedSchema> =>
+    storedSchema.parse(JSON.parse(device.data.get(KEY) ?? '{"timers":[]}'));
 
 describe('write-through', () => {
     it('answers a start at once, then holds the timer in the record: running, with its origin and no label', async () => {
@@ -207,8 +213,9 @@ describe('hydration, and a reload (no sound for what ended while away)', () => {
 describe('the name of an offered timer, across a reload', () => {
     const en = resolveMessages(cookingMessages, 'en');
     const step = { number: 3, lines: ['Roast 20 minutes.', 'Rest 10 minutes.'] } as const;
+
     const nameOf = (timers: TimerStore): string | undefined => {
-        const timer = timers.getSnapshot().timers[0];
+        const timer = timers.getSnapshot().timers.at(0);
 
         return timer === undefined ? undefined : timerLabel(timer, step, en.timer);
     };

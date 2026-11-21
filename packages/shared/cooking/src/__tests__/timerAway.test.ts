@@ -59,7 +59,7 @@ const endedAway = (id: string, endedAt: number): EndedAwayTimer => ({
     kind: 'endedAway',
     endedAt,
 });
-const stateOf = (timers: readonly ActiveTimer[], undo: TimerState['undo'] = undefined): TimerState => ({
+const stateOf = (timers: readonly ActiveTimer[], undo?: TimerState['undo']): TimerState => ({
     timers,
     undo,
 });

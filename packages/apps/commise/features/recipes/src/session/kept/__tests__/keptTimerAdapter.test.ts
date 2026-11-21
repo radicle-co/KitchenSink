@@ -74,11 +74,11 @@ describe('keptTimerOf', () => {
             expect(JSON.stringify(written)).not.toContain('secret roast');
         }
 
-        expect(keptTimerOf(all[0] as ActiveTimer, undefined, now)).toMatchObject({
+        expect(keptTimerOf(all[0], undefined, now)).toMatchObject({
             state: 'running',
             endsAt: iso(T0 + HOUR),
         });
-        expect(keptTimerOf(all[3] as ActiveTimer, undefined, now)).toMatchObject({
+        expect(keptTimerOf(all[3], undefined, now)).toMatchObject({
             state: 'endedAway',
             endedAt: iso(T0 + 7),
         });

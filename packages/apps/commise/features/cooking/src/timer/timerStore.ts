@@ -239,28 +239,27 @@ export function createTimerStore(initial: TimerState = NO_TIMER, kept?: KeptSess
 
         inFlight += 1;
 
-        void kept
-            .dispatch({ type: 'timer', command, undo })
-            .then(async (outcome) => {
-                if (outcome.kind !== 'refused') {
-                    return;
-                }
+        void (async (): Promise<void> => {
+            try {
+                const outcome = await kept.dispatch({ type: 'timer', command, undo });
 
-                // The record refused a start or an Undo (it is full): this tab's copy was stale, so read the record as
-                // it is. The cook keeps the Undo, to free a slot and try again.
-                if (command.kind === 'restore' && state.undo === undefined) {
-                    state = { ...state, undo };
-                }
+                if (outcome.kind === 'refused') {
+                    // The record refused a start or an Undo (it is full): this tab's copy was stale, so read the record
+                    // as it is. The cook keeps the Undo, to free a slot and try again.
+                    if (command.kind === 'restore' && state.undo === undefined) {
+                        state = { ...state, undo };
+                    }
 
-                await kept.reread();
-            })
-            // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported inside
-            // the kept store), so this only keeps a defect from becoming an unhandled rejection.
-            .catch(() => undefined)
-            .finally(() => {
+                    await kept.reread();
+                }
+            } catch {
+                // `dispatch` and `reread` resolve with an outcome and never reject (storage failures are reported inside
+                // the kept store), so this only keeps a defect from becoming an unhandled rejection.
+            } finally {
                 inFlight -= 1;
                 resync();
-            });
+            }
+        })();
     }
 
     /** Every timer and the Undo gone, with no `ended`: the cook this session was for has left. */

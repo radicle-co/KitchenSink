@@ -185,6 +185,7 @@ describe('restoreSession, re-admitted through the reducer', () => {
     const entry = makeCooking();
     const ended = (timers: KeptDocument['timers']): ReturnType<typeof snapshotForEnd> =>
         snapshotForEnd(makeDoc({ entries: { r1: entry }, timers }), 'r1');
+
     const snapshotOf = (timers: KeptDocument['timers']) => {
         const snapshot = ended(timers);
 

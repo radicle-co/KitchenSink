@@ -83,9 +83,7 @@ describe('hydrate settles what ended while away', () => {
     });
 
     it('writes nothing when no timer needs settling', async () => {
-        const { store, calls } = setup(
-            stored(makeDoc({ timers: [TIMERS[2], TIMERS[3]].flatMap((t) => (t ? [t] : [])) })),
-        );
+        const { store, calls } = setup(stored(makeDoc({ timers: TIMERS.slice(2, 4) })));
 
         await store.scope('A');
 
@@ -93,7 +91,9 @@ describe('hydrate settles what ended while away', () => {
     });
 
     it('another tab of this cook alive (the presence lock): due timer left ringing, ringing one stays', async () => {
-        const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere: async () => true });
+        const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), {
+            heldElsewhere: () => Promise.resolve(true),
+        });
 
         await store.scope('A');
 
@@ -106,7 +106,7 @@ describe('hydrate settles what ended while away', () => {
     });
 
     it('asks whether another tab of this cook is alive for the cook being scoped', async () => {
-        const heldElsewhere = vi.fn(async () => false);
+        const heldElsewhere = vi.fn(() => Promise.resolve(false));
         const { store } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere });
 
         await store.scope('A');
@@ -133,7 +133,7 @@ describe('hydrate settles what ended while away', () => {
 
         await store.scope('A');
 
-        data.set(KEY, serializeKeptDocument(makeDoc({ rev: 5, timers: [TIMERS[1]].flatMap((t) => (t ? [t] : [])) })));
+        data.set(KEY, serializeKeptDocument(makeDoc({ rev: 5, timers: TIMERS.slice(1, 2) })));
         fire();
         await store.reread();
 
@@ -176,7 +176,7 @@ describe('the start race across two tabs (the limit is read inside the lock)', (
             }) as const;
         const outcomes = await Promise.all([one.dispatch(start(timerId(1))), two.dispatch(start(timerId(2)))]);
 
-        expect(outcomes.map((o) => o.kind).sort()).toEqual(['applied', 'refused']);
+        expect(outcomes.map((o) => o.kind).sort((a, b) => a.localeCompare(b))).toEqual(['applied', 'refused']);
         expect(writtenDocument(fake.data.get(KEY)).timers).toHaveLength(1);
     });
 });

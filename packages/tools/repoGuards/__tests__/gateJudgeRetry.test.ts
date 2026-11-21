@@ -158,7 +158,14 @@ function verdictChoice(input: ChoiceInput): string {
         throw new Error('the verdict step has no selection block on RETRY_RAN');
     }
 
-    const script = `${run.slice(start, end + 1).join('\n')}\nif [ "$JUDGE_OUTCOME" != success ]; then echo "failed: $WHICH step ended as $JUDGE_OUTCOME"; else printf '%s %s' "$JUDGE_OUTCOME" "$STRUCTURED_OUTPUT"; fi\n`;
+    const script = [
+        ...run.slice(start, end + 1),
+        'if [ "$JUDGE_OUTCOME" != success ]; then',
+        '    echo "failed: $WHICH step ended as $JUDGE_OUTCOME"',
+        'else',
+        `    printf '%s %s' "$JUDGE_OUTCOME" "$STRUCTURED_OUTPUT"`,
+        'fi',
+    ].join('\n');
     const out = spawnSync('/bin/bash', ['-c', script], {
         encoding: 'utf8',
         env: {

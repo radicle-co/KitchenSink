@@ -282,15 +282,17 @@ jobs:
 
             # The action fails the judge step when the model ends in prose and never calls the structured output tool
             # ("--json-schema was provided but Claude did not return structured_output"). That one shape, and only that, is
-            # retried once: the judge FINISHED (a success result, no error) but gave no structured result. A timeout, an
-            # error result, `error_max_turns` or a missing file is not retried and stays fail-closed. A prose report that
-            # says BLOCK is not retried either: a second independent review would re-roll the verdict, so it fails closed.
+            # retried once: the judge FINISHED (a success result, no error) but gave no structured result. A timeout,
+            # an error result, `error_max_turns` or a missing file is not retried and stays fail-closed. A prose
+            # report that says BLOCK is not retried either: a second review would re-roll the verdict.
             - name: Check whether the judge only lacked the structured result
               id: retry
               if: ${{ !cancelled() && steps.judge.outcome == 'failure' }}
               env:
                   # The last result entry of the action's execution file: finished, no error, no structured output.
-                  RETRY_FILTER: 'map(select(.type == "result")) | last | (.subtype == "success" and .is_error == false and ((.structured_output // null) == null) and (((.result // "") | test("BLOCK")) | not))'
+                  RETRY_FILTER: >-
+                      map(select(.type == "result")) | last | (.subtype == "success" and .is_error == false
+                      and ((.structured_output // null) == null) and (((.result // "") | test("BLOCK")) | not))
               run: |
                   set -euo pipefail
                   if jq -e "$RETRY_FILTER" "${RUNNER_TEMP}/claude-execution-output.json" >/dev/null 2>&1; then
@@ -347,7 +349,7 @@ jobs:
               if: ${{ always() && (steps.scope.outputs.mode == 'reuse' || steps.scope.outputs.mode == 'none' || (steps.scope.outputs.mode == 'judge' && steps.evidence.outputs.ready == 'true')) }}
               env:
                   MODE: ${{ steps.scope.outputs.mode }}
-                  # Both answers are passed raw. The script below chooses: the retry's when it ran, else the first judge's.
+                  # Both answers are passed raw. The script chooses: the retry's when it ran, else the first judge's.
                   FIRST_OUTCOME: ${{ steps.judge.outcome }}
                   FIRST_OUTPUT: ${{ steps.judge.outputs.structured_output }}
                   RETRY_RAN: ${{ steps.retry.outputs.retry }}

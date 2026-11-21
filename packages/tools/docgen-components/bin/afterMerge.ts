@@ -16,7 +16,7 @@
  */
 import { execFileSync } from 'node:child_process';
 
-import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR } from '../src/config.js';
+import { GENERATED_OUTPUT_DIRS } from '../src/config.js';
 import { incomingDiffArgs } from '../src/incomingDiff.js';
 
 /**
@@ -58,9 +58,8 @@ function generate(): void {
     });
 }
 
-const outputFolders = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR];
 const isMergeCommit = git(['rev-parse', '-q', '--verify', 'HEAD^2']) !== null;
-const incoming = git(incomingDiffArgs(isMergeCommit, outputFolders));
+const incoming = git(incomingDiffArgs(isMergeCommit, GENERATED_OUTPUT_DIRS));
 
 if (incoming !== null && incoming.trim() !== '') {
     generate();

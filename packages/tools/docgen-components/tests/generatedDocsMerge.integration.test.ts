@@ -4,8 +4,10 @@
  * `coverage`, `counts`), so every pair of parallel PRs conflicted on derived output that `generatedOutput.integration`
  * already refuses to let go stale. The cure is three parts, and each is proved here against real git:
  *
- *   1. `.gitattributes` gives every generator output folder the `docgenRegenerate` merge driver. The folders are read
- *      from `config.ts`, which is the generator's own list, so a third output folder cannot be forgotten.
+ *   1. `.gitattributes` gives every generator output folder the `docgenRegenerate` merge driver. The folders are
+ *      `GENERATED_OUTPUT_DIRS` in `config.ts`, the one list the generator, the after-merge script and this suite read.
+ *      A folder added to it without an attribute line fails here, and an attribute line for a folder that is not in
+ *      it fails here too.
  *   2. The root `prepare` script runs the installer, since nothing else puts the driver on a machine.
  *   3. The driver keeps the current side (`installMergeDrivers.mjs` sets it to `true`), so the merge ends with no
  *      conflict, and the one after-merge script (`bin/afterMerge.ts`, run by `.husky/post-merge` and, for a merge
@@ -24,9 +26,8 @@ import { join } from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR, REPO_ROOT } from '../src/config.js';
+import { COMPONENTS_OUT_DIR, GENERATED_OUTPUT_DIRS, REPO_ROOT } from '../src/config.js';
 
-const OUT_DIRS = [COMPONENTS_OUT_DIR, DESIGN_OUT_DIR] as const;
 const INSTALLER = join(REPO_ROOT, 'scripts/installMergeDrivers.mjs');
 const POST_MERGE = join(REPO_ROOT, '.husky/post-merge');
 const POST_COMMIT = join(REPO_ROOT, '.husky/post-commit');
@@ -140,11 +141,21 @@ function mergeTwoPrs(
 }
 
 describe('the output folders carry the merge driver', () => {
-    it.each(OUT_DIRS)('%s and its subfolders are attributed to docgenRegenerate', (directory) => {
+    it.each(GENERATED_OUTPUT_DIRS)('%s and its subfolders are attributed to docgenRegenerate', (directory) => {
         const files = [`${directory}/index.json`, `${directory}/groups/a.json`];
         const out = git(REPO_ROOT, 'check-attr', 'merge', '--', ...files);
 
         expect(out.trim().split('\n')).toEqual(files.map((file) => `${file}: merge: docgenRegenerate`));
+    });
+});
+
+describe('the attribute lines and the generator agree on the folders', () => {
+    it('attributes no folder the generator does not own', () => {
+        const attributed = readFileSync(join(REPO_ROOT, '.gitattributes'), 'utf8')
+            .split('\n')
+            .flatMap((line) => /^(\S+)\/\*\*\s+merge=docgenRegenerate\s*$/u.exec(line)?.[1] ?? []);
+
+        expect([...attributed].sort()).toEqual([...GENERATED_OUTPUT_DIRS].sort());
     });
 });
 
@@ -217,7 +228,7 @@ describe('the hooks regenerate when the incoming side changed an output folder',
         return repo;
     }
 
-    it.each(OUT_DIRS)(
+    it.each(GENERATED_OUTPUT_DIRS)(
         'post-merge runs docs:generate when a file under %s changed on the incoming side',
         (directory) => {
             expect(generations(mergeOfUntouchedFile(`${directory}/groups/a.json`), POST_MERGE)).toBe(1);

@@ -219,6 +219,15 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
         const lanes = plans.flatMap((plan) => plan.lanes);
 
+        // A cause no lane can fix fails here, before a service, a user or a device exists to be cleaned up.
+        for (const plan of plans.filter((candidate) => candidate.lanes.length > 0)) {
+            await plan.adapter.preflight?.({
+                runId: path.basename(deps.stateDir),
+                stateDir: deps.stateDir,
+                repoRoot: deps.repoRoot,
+            });
+        }
+
         const code =
             lanes.length === 0
                 ? 0

@@ -360,4 +360,45 @@ describe('IosAdapter', () => {
             new Error('the tunnel ssh exited with code 255 during the run'),
         );
     });
+    describe('preflight', () => {
+        const run = { runId: 'r', stateDir: '/s', repoRoot: '/repo' };
+        const isCheck = (line: string): boolean => /buildIosApp\.sh check abc /u.test(line);
+        const isContentKey = (line: string): boolean => /buildIosApp\.sh content-key/u.test(line);
+
+        it('checks the built app for the content key and opens no tunnel', async () => {
+            const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+            await new IosAdapter(options(recorder.shell)).preflight(run);
+
+            expect(recorder.commands.filter(isCheck)).toHaveLength(1);
+            expect(recorder.tunnels).toEqual([]);
+        });
+
+        it("refuses with the script's own words when no app is built for the key, and opens no tunnel", async () => {
+            const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+            const refusing: IosShell = {
+                ...recorder.shell,
+                run: (command, args) =>
+                    args.includes('check')
+                        ? Promise.reject(
+                              new Error('buildIosApp: no test app for key abc. Build it: buildIosApp.sh build abc'),
+                          )
+                        : recorder.shell.run(command, args),
+            };
+
+            await expect(new IosAdapter(options(refusing)).preflight(run)).rejects.toThrow('no test app for key abc');
+            expect(recorder.tunnels).toEqual([]);
+        });
+
+        it('leaves prepareHost to open the tunnel without asking the Mac for the key or the check a second time', async () => {
+            const recorder = makeShell({ 'content-key': 'abc\n', 'testApp.manifest': MANIFEST });
+            const adapter = new IosAdapter(options(recorder.shell));
+
+            await adapter.preflight(run);
+            await adapter.prepareHost(run);
+
+            expect(recorder.commands.filter(isContentKey)).toHaveLength(1);
+            expect(recorder.commands.filter(isCheck)).toHaveLength(1);
+            expect(recorder.tunnels).toHaveLength(1);
+        });
+    });
 });

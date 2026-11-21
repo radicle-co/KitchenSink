@@ -77,6 +77,18 @@ function fakeAdapter(
     };
 }
 
+/** The adapter with a preflight that records itself and fails with `failure` when one is given. */
+function withPreflight(events: string[], adapter: DeviceAdapter, failure?: Error): DeviceAdapter {
+    return {
+        ...adapter,
+        preflight: () => {
+            events.push(`preflight ${adapter.platform}`);
+
+            return failure === undefined ? Promise.resolve() : Promise.reject(failure);
+        },
+    };
+}
+
 interface Harness {
     readonly events: string[];
     readonly state: string;
@@ -1081,5 +1093,60 @@ describe('runLaneRun — a lost tunnel', () => {
             expect(events).toContain('stop SIGTERM');
             expect(events).not.toContain('stop SIGKILL');
         });
+    });
+});
+
+describe('runLaneRun: the preflight of each adapter', () => {
+    it('checks every planned platform before it starts a service, makes a user or boots a device', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) => withPreflight(events, fakeAdapter(events, platform)),
+        };
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } });
+
+        const preflights = events.flatMap((event, at) => (event.startsWith('preflight ') ? [at] : []));
+        const firstWork = events.findIndex((event) =>
+            /^(startServices|createRunUsers|prepareHost|startDevice)/u.test(event),
+        );
+
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual([
+            'preflight android',
+            'preflight ios',
+        ]);
+        expect(Math.max(...preflights)).toBeLessThan(firstWork);
+    });
+
+    it('refuses the run when a preflight fails: no service, no user, no device, and the lock is released', async () => {
+        const made = harness();
+        const { events } = made;
+        const deps: LaneRunDeps = {
+            ...made.deps,
+            adapterFor: (platform) =>
+                withPreflight(
+                    events,
+                    fakeAdapter(events, platform),
+                    platform === 'ios' ? new Error('no iOS app for key abc') : undefined,
+                ),
+        };
+
+        await expect(
+            runLaneRun(deps, { platforms: ['android', 'ios'], selection: { android: 'all', ios: 'all' } }),
+        ).rejects.toThrow('no iOS app for key abc');
+
+        expect(
+            events.filter((event) => /^(startServices|createRunUsers|prepareHost|startDevice|setupLane)/u.test(event)),
+        ).toEqual([]);
+        expect(events).toContain('unlock');
+    });
+
+    it('does not preflight a platform that has nothing to run', async () => {
+        const { deps, events } = harness({ selectFlows: () => Promise.resolve({ flows: [], notes: [], owed: [] }) });
+
+        await runLaneRun(deps, { platforms: ['ios'], selection: { android: 'all', ios: 'all' } });
+
+        expect(events.filter((event) => event.startsWith('preflight '))).toEqual([]);
     });
 });

@@ -193,8 +193,33 @@ const SCRIPT_CASES: readonly GoldenCase[] = [
     },
 ];
 
+/**
+ * AE18 (po, qse 2026-11-21): "Adapted" means restructured, so a faithful paraphrase does not earn it and a restructured
+ * rewrite does. Each case is defined by its edit operations on {@link ROOTS_BASE}, never by a measure. Our own text.
+ *
+ * Case P: every step kept in the original order, each sentence's meaning kept, the wording changed until v1's A, R and
+ * F pass. Expected: not earned. v1 alone passes it, so it pins the alignment measure.
+ *
+ * Case M: the same recipe with the steps merged and their order changed (the seasoning before the cutting, the oven
+ * heat moved into the roasting step), new wording. Expected: earned, at v1 alone and with the alignment measure.
+ */
+const AE18_CASES: readonly GoldenCase[] = [
+    {
+        name: 'roots: a faithful in-order paraphrase (AE18 case P)',
+        baseline: ROOTS_BASE,
+        steps: 'Bring the oven up to 220 degrees. Scrape your carrots together with the parsnips, then slice them into chunky sticks of equal length. Coat them in a deep baking tray with oil and a generous sprinkling of salt plus some thyme sprigs. Cook for forty minutes in the oven, flipping them once, till the borders darken and crisp up. Trickle honey over for the final five minutes and bring to the table hot.',
+        pass: false,
+    },
+    {
+        name: 'roots: the steps merged and reordered (AE18 case M)',
+        baseline: ROOTS_BASE,
+        steps: 'Put the oil, a generous pinch of salt and some thyme sprigs into a deep baking tray first. Scrape the carrots and parsnips, cut them into chunky sticks of equal length and roll them in that mixture. Roast in an oven heated to 220 degrees, flipping once, for forty minutes until dark and crunchy at the edges, and trickle honey over for the last five minutes. Bring everything to the table hot.',
+        pass: true,
+    },
+];
+
 /** The whole golden set. */
-export const GOLDEN_V1: readonly GoldenCase[] = [...PASSING, ...FAILING, ...SCRIPT_CASES];
+export const GOLDEN_V1: readonly GoldenCase[] = [...PASSING, ...FAILING, ...SCRIPT_CASES, ...AE18_CASES];
 
 /**
  * The measures v1 reported for each case when it was frozen (2026-11-21). A change in any number fails the golden test,
@@ -324,5 +349,7 @@ export const GOLDEN_V1_MEASURES: Readonly<
     },
     'roots: one accent and one combining mark on every word': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
     'roots: the identical text': { kept: 62, total: 62, longestRun: 64, newWords: 0 },
+    'roots: a faithful in-order paraphrase (AE18 case P)': { kept: 4, total: 62, longestRun: 3, newWords: 26 },
+    'roots: the steps merged and reordered (AE18 case M)': { kept: 10, total: 62, longestRun: 5, newWords: 24 },
     'devanagari: the same consonants with other vowel signs': { kept: 10, total: 10, longestRun: 30, newWords: 0 },
 };

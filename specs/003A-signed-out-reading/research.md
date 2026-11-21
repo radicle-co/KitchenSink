@@ -131,27 +131,21 @@ forms equal (spec FR-001).
 
 ## R4. Author standing
 
-**Decision**: recipe-service asks identity on each origin miss of a public read, through `AuthorStandingPort` and its
-identity adapter. Identity answers on a new internal route to a recipe-signed token with its own audience. No answer,
-or an error, reads as `unknown`, which is closed. The contract is in
-[contracts/publicReaderToken.md](contracts/publicReaderToken.md).
+**Decision**: recipe-service asks identity through `AuthorStandingPort` and its identity adapter (U4a) in two places: on each origin miss of a public read, for the recipe's author and its credit's cooks, and on each signed-in recipe read of a cook's copy (003B FR-062b), for the copy's credit cooks other than the reader. No other read asks: no list, collection, search or non-copy read. Identity answers on a new internal route to a recipe-signed token with its own audience. No answer, or an error, reads as `unknown`, which is closed. The contract is in [contracts/publicReaderToken.md](contracts/publicReaderToken.md).
 
-**Rationale**: ADR-0081 replaced a status call with a better source, the caller's own signed token. A public read has
-no author token: the reader asks, and the author is not part of the request. So that source does not exist here.
-ADR-0081 also rejected a status call on every USER request, because every read and write then gains a
-dependency. A public read is different. It is cached for 5 minutes on the web, it is rare by comparison, and failing
-closed is the right answer for it. The synchronous read shows a suspension within the cache life with no new data to
-keep in step.
+**Budget and signals**: one deadline, `AUTHOR_STANDING_TIMEOUT_MS = 250`, covers the whole call. This is the impact read's budget on the same detail path. Ids are deduplicated and sent in chunks of at most 24, at most 4 in flight. An id not answered by the deadline is `unknown`. There is no retry and no cache. Each failed chunk writes one EMF line (`Commise/RecipeAuthorStanding`, `author-standing-read-failed`, `Stage` only, with `reason`, `caller` and `idCount` as fields). An alarm (sum ≥ 1 in 3 of 5 minutes) reaches Sentry through the stage's relay (ADR-0062).
+
+**Rationale**: ADR-0081 rejected a status call on every user request, because every read and write would then depend on it. That holds for the requester, whose token carries their standing, so the reader's own standing is read from the token here too. It does not cover other cooks. A public read has no author token, and a copy's credit names cooks who are not the requester. The signed-in read never depends on the call for its answer: a failure hides every cook's name and the link, except the reader's own, and answers `200`. Only the public read's own author answers `503`, and that page is cached for 5 minutes on the web.
 
 **Alternatives rejected**:
 
 - **A read model in recipe fed by identity's status events.** It keeps a second copy of identity's state, and a missed
   event leaves a suspended author's page open, which is the dangerous direction. It needs an outbox, delivery, a
-  backfill and a reconciliation sweep.
+  backfill and a reconciliation sweep. The signed-in copy read adds load, not a new risk. An in-process cache is rejected for the same reason: it is a second copy of identity's state.
 
 **Owed later.** When 021 section C adds sitemaps and IndexNow, a suspension must push an exit event (`021-FR-074`).
 A pull cannot do that. Then a recipe leg joins the deletion worker's lifecycle fan-out and feeds an `author_standings`
-table behind the same port. Only the adapter changes.
+table behind the same port. Only the adapter changes. Move to the read model before 021 §C if failures exceed 1% of copy reads over a week, or if k6 shows the copy read's p95 more than 100 ms above a non-copy read.
 
 **Recipes left public at erasure** (owner ruling 2026-11-09, spec Q8). Account closure has no recipe leg today
 (`deletionWorker.ts`): it bans the user at Clerk and marks the identity row `tombstoned`. Erasure deletes a cook's

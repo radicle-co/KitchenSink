@@ -236,19 +236,33 @@ describe('a confirmed source answer (e2e, ADR-0099)', () => {
             expect(detail.json).toMatchObject({ sourceCorrected: true, sourceConfirmed: true });
         });
 
-        it('a held recipe is refused Public even when the database CHECK would also refuse it: the service answers first', async () => {
-            const { id } = await create({ statement: AUTHORED, visibility: 'private' });
+        it('a held DRAFT is refused Public with the typed SOURCE_CORRECTED too, never the CHECK as a 500 (recipes_held_is_not_public)', async () => {
+            const { id } = await create({ status: 'draft', visibility: 'private' });
 
             await db.execute(sql`UPDATE recipes SET source_correction_hold = true WHERE id = ${id}`);
 
-            const asked = await send('PATCH', `/api/v1/recipes/${id}`, {
-                expectedVersion: 1,
+            const asked = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
                 visibility: 'public',
                 publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
             });
 
-            expect([400, 403]).toContain(asked.status);
+            expect(asked.status).toBe(400);
+            expect(JSON.stringify(asked.json)).toContain('SOURCE_CORRECTED');
             expect((await readRow(id)).visibility).toBe('private');
+        });
+
+        it('a clone of a held recipe is held and private, by the database, whoever the cloner is (KTD-4)', async () => {
+            const { id } = await create({ statement: AUTHORED, visibility: 'private' });
+
+            await db.execute(sql`UPDATE recipes SET source_correction_hold = true WHERE id = ${id}`);
+
+            const cloned = await send('POST', `/api/v1/recipes/${id}/clone`, {});
+
+            expect(cloned.status).toBe(201);
+
+            const clone = await readRow(cloned.json['id'] as string);
+
+            expect(clone).toMatchObject({ sourceCorrectionHold: true, visibility: 'private' });
         });
     });
 });

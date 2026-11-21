@@ -50,7 +50,7 @@ export const recipeSourceCorrections = pgTable(
         check('recipe_source_corrections_ground_check', inArray(table.ground, [...SOURCE_CORRECTION_GROUNDS])),
         check(
             'recipe_source_corrections_reason_check',
-            sql`btrim(${table.reason}) <> '' AND length(${table.reason}) <= ${sql.raw(String(SOURCE_CORRECTION_REASON_MAX_LENGTH))}`,
+            sql`btrim(${table.reason}) <> '' AND length(${table.reason}) <= ${SOURCE_CORRECTION_REASON_MAX_LENGTH}`,
         ),
         check(
             'recipe_source_corrections_actor_shape',

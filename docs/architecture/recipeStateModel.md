@@ -291,6 +291,7 @@ visibility decision gives every reason except `unrecognised`, and `policy` is sp
 | `fromPerson`        | `recipeState.refusal.fromPerson`        | A recipe from another person is private only.                                                                        |
 | `statementRequired` | `recipeState.refusal.statementRequired` | Say where it is from before making it public.                                                                        |
 | `sourceConflict`    | `recipeState.refusal.sourceConflict`    | Evidence of another source holds it off Public.                                                                      |
+| `sourceCorrected`   | `recipeState.refusal.sourceCorrected`   | Commise corrected the source, so the recipe stays private (the correction hold, ADR-0099).                           |
 | `privateSlots`      | `recipeState.refusal.privateSlots`      | No free private slot.                                                                                                |
 | `contained`         | none                                    | Refuses only test principals, so no cook meets it. It has no label.                                                  |
 | `unrecognised`      | `recipeState.refusal.unrecognised`      | The client met a source or statement kind it does not know. It fails closed to private. The server never returns it. |

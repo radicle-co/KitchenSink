@@ -255,6 +255,25 @@ export function evaluatePublishedState(
         readonly statementRequired: boolean;
     },
 ): VisibilityDecision {
+    // ⛔ The one refusal that does not wait for a published recipe: the database refuses a held recipe that is public whatever its
+    // status (`recipes_held_is_not_public`, migration 0092), so a PUBLIC DRAFT of one is answered here, as a typed refusal, and
+    // never reaches the CHECK as a 500. Containment is asked first, as everywhere.
+    if (
+        input.sourceCorrected &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        input.status !== RecipeStatus.PUBLISHED
+    ) {
+        const containment = evaluateContainment({
+            principalKind: input.principalKind,
+            containment: input.containment,
+            action: 'publish',
+        });
+
+        return containment.allowed
+            ? denySourceCorrected()
+            : { allowed: false, denial: 'contained', reason: containment.reason };
+    }
+
     if (input.status !== RecipeStatus.PUBLISHED || input.visibility !== RecipeVisibility.PUBLIC) {
         return allow('The recipe is not left published and public.');
     }

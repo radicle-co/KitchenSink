@@ -298,7 +298,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             clonedFromId: null,
             sourceAttribution: null,
             sourceUrl: null,
-            sourceConfirmedAt: null,
+            sourceConfirmedAt: status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
             sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({
@@ -428,7 +428,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             clonedFromId: null,
             sourceAttribution: null,
             sourceUrl: null,
-            sourceConfirmedAt: null,
+            sourceConfirmedAt: new Date('2026-11-10T00:00:00.000Z'),
             sourceCorrectionHold: false,
         });
 
@@ -566,7 +566,7 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             clonedFromId: null,
             sourceAttribution: null,
             sourceUrl: null,
-            sourceConfirmedAt: null,
+            sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
             sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({

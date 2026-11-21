@@ -53,6 +53,8 @@ const TX = { __tx: true };
 const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
 let stored: RecipeRow;
+/** The private recipes the free cook holds, as the slot count under the lock reads them. */
+let heldSlots = 0;
 /** What a read OUTSIDE the lock sees (`findById`), when it differs from the locked row: a write that raced the statement. */
 let preLockStatementKind: RecipeRow['statementKind'] | undefined;
 
@@ -100,10 +102,10 @@ async function call(method: string, path: string, body: unknown): Promise<Respon
     );
 }
 
-async function refusalOf(response: Response): Promise<{ status: number; details: unknown }> {
+async function refusalOf(response: Response): Promise<{ status: number; code: string; details: unknown }> {
     const parsed = recipeApiErrorSchema.parse(await response.json());
 
-    return { status: response.status, details: 'details' in parsed ? parsed.details : undefined };
+    return { status: response.status, code: parsed.code, details: 'details' in parsed ? parsed.details : undefined };
 }
 
 beforeAll(async () => {
@@ -127,7 +129,7 @@ beforeAll(async () => {
                               )
                             : undefined,
                     privateFoodLines: async () => [],
-                    lockAndCountPrivateSlots: async () => 0,
+                    lockAndCountPrivateSlots: async () => heldSlots,
                     lockSlotFacts: async () => ({
                         visibility: stored.visibility,
                         status: stored.status,
@@ -179,6 +181,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+    heldSlots = 0;
     preLockStatementKind = undefined;
     vi.clearAllMocks();
     hasFromPerson.mockImplementation(async () => false);
@@ -311,19 +314,17 @@ describe('a confirmed answer is locked on every route (KTD-1, AE1, AE2, AE3, AE5
         },
     );
 
-    it.each(CALLERS.flatMap((caller) => ARMS.map((arm) => ({ caller, arm }))))(
-        'the same move on an UNCONFIRMED $arm.name through $caller.name is not refused by the lock (the twin)',
-        async ({ caller, arm }) => {
-            // Unconfirmed, and not a clone or a curator text, so the pre-P8 rule applies. "Another person" and a paid site stay
-            // locked whatever the confirmation says (today's locks), so only the arms the confirmation alone locks are twins.
-            if (arm.row.statementKind === 'fromPerson' || arm.name === 'a paid site') {
-                return;
-            }
+    // "Another person" and a paid site stay locked whatever the confirmation says (today's locks), so only the arms the confirmation
+    // alone locks have an open twin. An unconfirmed recipe is a DRAFT: a published one is confirmed by the database.
+    const TWIN_ARMS = ARMS.filter((arm) => arm.row.statementKind !== 'fromPerson' && arm.name !== 'a paid site');
 
+    it.each(CALLERS.flatMap((caller) => TWIN_ARMS.map((arm) => ({ caller, arm }))))(
+        'the same move on an UNCONFIRMED draft holding $arm.name through $caller.name is not refused by the lock (the twin)',
+        async ({ caller, arm }) => {
             stored = makeRecipeRow({
                 id: RECIPE_ID,
                 ownerId: COOK,
-                status: caller.status,
+                status: 'draft',
                 visibility: 'private',
                 cuisine: 'italian',
                 sourceConfirmedAt: null,
@@ -383,6 +384,25 @@ describe('a confirmed own answer can only be downgraded, and the recipe is priva
             expect.anything(),
         );
         expect(stored).toMatchObject({ visibility: 'private' });
+    });
+
+    it('a downgrade that needs a private slot is refused PRIVATE_SLOTS_FULL at the limit, and the answer stays (AE19)', async () => {
+        heldSlots = 50;
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            visibility: 'public',
+            cuisine: 'italian',
+            sourceConfirmedAt: CONFIRMED_AT,
+            statementKind: 'authored',
+        });
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: BOOK });
+
+        expect(await refusalOf(response)).toMatchObject({ status: 403, code: 'PRIVATE_SLOTS_FULL' });
+        expect(update).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'public' });
     });
 
     it('after the downgrade the answer is locked: the book cannot go back to "I wrote this" (AE4)', async () => {
@@ -515,7 +535,7 @@ describe('a restatement writes no columns and no evidence (KTD-2, AE6, AE15)', (
         stored = makeRecipeRow({
             id: RECIPE_ID,
             ownerId: COOK,
-            status: 'published',
+            status: 'draft',
             visibility: 'private',
             cuisine: 'italian',
             sourceType: 'imported_public',
@@ -572,6 +592,24 @@ describe('a staff-corrected recipe is held off Public (KTD-4, AE9)', () => {
         });
 
         expect(response.status).toBe(200);
+    });
+
+    it('a clone of a held recipe defaults to private (the wiring; the database also forces it, see the LOCAL e2e)', async () => {
+        // A held recipe is private by the CHECK, which would make the clone private for that reason alone. The double states the
+        // impossible public held row so that only the hold can make this clone private.
+        stored = makeRecipeRow({
+            id: RECIPE_ID,
+            ownerId: COOK,
+            status: 'published',
+            visibility: 'public',
+            sourceConfirmedAt: CONFIRMED_AT,
+            sourceCorrectionHold: true,
+        });
+
+        const response = await call('POST', `/api/v1/recipes/${RECIPE_ID}/clone`, {});
+
+        expect(response.status).toBe(201);
+        expect(create).toHaveBeenCalledWith(expect.objectContaining({ visibility: 'private' }), expect.anything());
     });
 
     it('Private is never refused by the hold', async () => {

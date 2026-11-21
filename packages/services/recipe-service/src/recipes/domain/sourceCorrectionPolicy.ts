@@ -93,19 +93,10 @@ export function restatesStored(statement: RecipeStatementInput, stored: StoredSo
             return (
                 stored.sourceKind === 'public_web' &&
                 stored.sourceUrl !== null &&
-                safeSourceKey(statement.citation) === safeSourceKey(stored.sourceUrl)
+                sourceKeyOf(statement.citation) === sourceKeyOf(stored.sourceUrl)
             );
         default:
             return false;
-    }
-}
-
-/** The source key of an address, or `undefined` for one that is not an address (an unusable statement never restates). */
-function safeSourceKey(address: string): string | undefined {
-    try {
-        return sourceKeyOf(address);
-    } catch {
-        return undefined;
     }
 }
 

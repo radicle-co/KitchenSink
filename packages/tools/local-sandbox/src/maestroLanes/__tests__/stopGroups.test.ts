@@ -1,7 +1,7 @@
 import { spawn } from 'node:child_process';
 import { setTimeout as delay } from 'node:timers/promises';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { processGroup, stopTargets, type StopTarget } from '../stopGroups.js';
 
@@ -95,6 +95,22 @@ describe('processGroup', () => {
             }
         }
     });
+
+    it.each([-1, 0, 1])(
+        'never signals for pid %i: kill(-0) hits our own group and kill(-1) every process of the user',
+        (pid) => {
+            const kill = vi.spyOn(process, 'kill').mockImplementation(() => true);
+
+            try {
+                processGroup(pid).stop('SIGTERM');
+                processGroup(pid).stop('SIGKILL');
+
+                expect(kill).not.toHaveBeenCalled();
+            } finally {
+                kill.mockRestore();
+            }
+        },
+    );
 
     /** A detached shell that exits at once while its `sleep` child keeps the group alive. */
     async function leaderGoneChildStays(): Promise<number> {

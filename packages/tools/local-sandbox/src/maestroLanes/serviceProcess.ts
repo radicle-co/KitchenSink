@@ -35,7 +35,7 @@ export async function startService(spec: ServiceSpec, start: ServiceStart): Prom
     for (let waited = 0; waited < READY_POLLS; waited += 1) {
         await delay(start.pollMs ?? 1_000);
 
-        if (!pidIsAlive(pid)) {
+        if (pid < 2 || !pidIsAlive(pid)) {
             throw new Error(`maestro:lanes: ${spec.name} exited - log: ${start.log}`);
         }
 

@@ -87,4 +87,15 @@ describe('startService stop', () => {
         // The service's group id is the last pid spawned; the child must be gone, not left behind by a SIGTERM-only stop.
         expect(pids.every((pid) => !processGroup(pid).running())).toBe(true);
     });
+
+    it('rejects at once, naming the exit, when the leader exits before it is ready', async () => {
+        const service = serviceWith('exit 0\n', false);
+        await expect(startService(spec, { ...service, pollMs: 300 })).rejects.toThrow(/consumer exited/u);
+    });
+
+    it('treats a failed spawn (pid -1) as exited, not as alive: kill(-1, 0) would succeed', async () => {
+        const started = startService(spec, { log: '/nonexistent', spawn: () => ({ pid: -1 }), pollMs: 1 });
+
+        await expect(started).rejects.toThrow(/consumer exited/u);
+    });
 });

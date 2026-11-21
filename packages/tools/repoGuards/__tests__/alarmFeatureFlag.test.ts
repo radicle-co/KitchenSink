@@ -427,7 +427,7 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
         expect(APPS.every(({ stacks }) => stacks.length > 0)).toBe(true);
     });
 
-    it('finds the eight alarm-owning stacks and every alarm', () => {
+    it('finds the nine alarm-owning stacks and every alarm', () => {
         // Pinned as a FLOOR, not an equality: a new alarm must inherit the rule, never trip this count. The
         // floor is what makes every gate below non-vacuous — a discovery that silently found nothing would
         // otherwise report a perfectly gated tree.
@@ -438,13 +438,14 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
             'packages/services/food-service/infra/lib/FoodServiceStack.ts',
             'packages/services/identity-webhooks/infra/lib/WebhooksStack.ts',
             'packages/services/identity/infra/lib/IdentityServiceStack.ts',
+            'packages/services/recipe-service/infra/lib/RecipeServiceStack.ts',
             'packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts',
             'packages/services/remote-search/infra/lib/RemoteSearchStack.ts',
         ]);
         // An exact count, not a floor: a floor cannot tell "an alarm was added" from "the walk counted the gated
         // branch twice". A new alarm changes this number on purpose, in the commit that adds it. 42: the bulk
         // import purge's `BulkImportPurgeBehindAlarm` joined the recipe-workers block.
-        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(42);
+        expect(ALARM_SOURCES.flatMap(discoverAlarms).length).toBe(43);
         expect(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => alarm.id)).toHaveLength(
             new Set(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => `${alarm.file}#${alarm.id}`)).size,
         );

@@ -132,7 +132,12 @@ function synthSchemaTemplate(stage: string, baseStage: string): Template {
     return Template.fromStack(stack);
 }
 
-function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string): Template {
+function synthTemplate(
+    stage: string,
+    baseStage: string,
+    foodServiceUrl?: string,
+    alarms: { readonly alarmsEnabled: boolean; readonly alertEmail?: string } = { alarmsEnabled: false },
+): Template {
     const app = testApp({ context: { ...VPC_LOOKUP_CONTEXT } });
     const stack = new RecipeServiceStack(app, `Recipe-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
@@ -143,6 +148,7 @@ function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         foodServiceUrl: foodServiceUrl ?? `https://food-${stage}.example.com`,
+        ...alarms,
     });
 
     return Template.fromStack(stack);
@@ -1194,6 +1200,7 @@ describe('the log drains are attached only when CI resolved a forwarder ARN', ()
         const template = Template.fromStack(
             new RecipeServiceStack(testApp({ context: { ...VPC_LOOKUP_CONTEXT } }), 'RecipeServiceStackDrain', {
                 env: { account: '123456789012', region: 'us-east-1' },
+                alarmsEnabled: false,
                 stage: 'sandbox',
                 baseStage: 'sandbox',
                 vpcId: 'vpc-12345678',
@@ -1250,6 +1257,7 @@ describe('every ECS service and cluster carries the per-PR Environment tag (ADR-
             desiredCount: 1,
             vpcId: 'vpc-12345678',
             foodServiceUrl: 'https://food-pr-1.example.com',
+            alarmsEnabled: false,
         });
 
         // Exactly what `bin/app.ts` does for a `pr-` stage.
@@ -1365,5 +1373,59 @@ describe('media CDN wiring (ADR-0064)', () => {
         expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('distribution/');
         expect(JSON.stringify(invalidation[0]?.['Resource'])).not.toBe('"*"');
         expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('SsmParameterValue');
+    });
+});
+
+/**
+ * The source-correction volume alarm (ADR-0099, plan everyAnswerSourceLock KTD-11, qse Q-10; staff's binding reading in
+ * `decisions/everyAnswerSourceLock-staff.md`): an alarm directly on the EMF metric `source.corrected`, no metric filter. A staff
+ * correction is rare and manual, so more than 10 in a day is a leaked grant or a runaway script.
+ */
+describe('the source-correction volume alarm (ADR-0099)', () => {
+    const ENABLED = { alarmsEnabled: true, alertEmail: 'ops@example.com' } as const;
+
+    it('watches Commise/RecipeSource source.corrected on the Stage dimension: Sum over 86400 s, above 10, missing data not breaching', () => {
+        synthTemplate('prod', 'prod', undefined, ENABLED).hasResourceProperties('AWS::CloudWatch::Alarm', {
+            Namespace: 'Commise/RecipeSource',
+            MetricName: 'source.corrected',
+            Dimensions: [{ Name: 'Stage', Value: 'prod' }],
+            Statistic: 'Sum',
+            Period: 86400,
+            EvaluationPeriods: 1,
+            Threshold: 10,
+            ComparisonOperator: 'GreaterThanThreshold',
+            TreatMissingData: 'notBreaching',
+        });
+    });
+
+    it('notifies the stack`s own alarm topic, which lets CloudWatch publish to it and has an email subscription', () => {
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'));
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+
+        expect(alarms).toHaveLength(1);
+        expect(topics).toHaveLength(1);
+        expect(JSON.stringify(alarms[0]?.Properties.AlarmActions)).toContain(topics[0]);
+        template.hasResourceProperties('AWS::SNS::TopicPolicy', {
+            PolicyDocument: {
+                Statement: Match.arrayWith([
+                    Match.objectLike({ Sid: 'AllowCloudWatchAlarmPublish', Action: 'sns:Publish' }),
+                ]),
+            },
+        });
+        template.hasResourceProperties('AWS::SNS::Subscription', { Protocol: 'email', Endpoint: 'ops@example.com' });
+    });
+
+    it('is keyed to the deploy stage, so a preview watches its own series', () => {
+        synthTemplate('pr-73', 'sandbox', undefined, ENABLED).hasResourceProperties('AWS::CloudWatch::Alarm', {
+            Dimensions: [{ Name: 'Stage', Value: 'pr-73' }],
+        });
+    });
+
+    it('creates NO alarm while the stage switch is off, and the topic stays (a topic nothing publishes to costs nothing)', () => {
+        const template = synthTemplate('prod', 'prod');
+
+        template.resourceCountIs('AWS::CloudWatch::Alarm', 0);
+        template.resourceCountIs('AWS::SNS::Topic', 1);
     });
 });

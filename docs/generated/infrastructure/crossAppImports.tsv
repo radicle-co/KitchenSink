@@ -58,6 +58,7 @@ packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kit
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:LambdaSecurityGroupId
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-network-{stage}:ServiceSecurityGroupId
 packages/services/identity/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-service-logs-{stage}:IdentityServiceLogGroupName
+packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbArn
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId
 packages/services/recipe-service/infra/bin/app.ts	packages/infra/global/bin/app.ts	kitchensink-alb-{baseStage}:SharedAlbDnsName

@@ -8,6 +8,8 @@ import {
     type StackProps,
     aws_ec2 as ec2,
     aws_ecr as ecr,
+    aws_cloudwatch as cloudwatch,
+    aws_cloudwatch_actions as cloudwatchActions,
     aws_ecs as ecs,
     aws_elasticloadbalancingv2 as elbv2,
     aws_iam as iam,
@@ -18,6 +20,7 @@ import {
     aws_route53 as route53,
     aws_route53_targets as route53_targets,
     aws_s3 as s3,
+    aws_sns as sns,
     aws_ssm as ssm,
 } from 'aws-cdk-lib';
 import type { Construct } from 'constructs';
@@ -36,10 +39,12 @@ import {
     clerkAuthEnvironment,
     CONTAINER_INSIGHTS_TIER,
     schemaCurrencyEnvironment,
+    subscribeAlarmEmail,
 } from '@radicle-co/infra-shared/security';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 
 /**
  * Resolve the recipe service's DNS label for a stage. prod → `recipe`; every other stage → `recipe-{stage}`
@@ -105,7 +110,28 @@ export interface RecipeServiceStackProps extends StackProps {
      * been told where food lives fails at synth, not in production.
      */
     readonly foodServiceUrl: string;
+    /**
+     * Whether this stage creates its alarms (ADR-0062, `alarmFeatureFlag.test.ts`). Resolved at SYNTH from `ALARMS_ENABLED` in
+     * `bin/app.ts`; absent fails closed. The topic below is created either way, because a topic nothing publishes to costs nothing.
+     */
+    readonly alarmsEnabled: boolean;
+    /** The alarm recipient, per-stage configuration and never a committed literal. Absent means no subscription, not a synth failure. */
+    readonly alertEmail?: string;
 }
+
+/**
+ * The EMF namespace and metric the source-correction volume alarm watches (ADR-0099, plan everyAnswerSourceLock KTD-11).
+ *
+ * ⛔ MUST EQUAL `SOURCE_EVENT_NAMESPACE` and `SOURCE_CORRECTED_METRIC` in `src/recipes/sourceEvents.ts`: the same knowledge on either
+ * side of the infra boundary. The alarm extracts by exact namespace, dimension and metric name, so a divergence fails nothing at
+ * deploy and leaves a permanent, confident `OK` under `treatMissingData: NOT_BREACHING`. repoGuards W3 catches a metric NAME the
+ * runtime never mentions; nothing catches the namespace, so this comment is the pairing.
+ */
+const SOURCE_EVENT_NAMESPACE = 'Commise/RecipeSource';
+const SOURCE_CORRECTED_METRIC = 'source.corrected';
+
+/** More corrections than this in one day is a leaked grant or a runaway script: staff corrections are rare and manual. */
+const SOURCE_CORRECTED_DAILY_THRESHOLD = 10;
 
 /**
  * Assert `foodServiceUrl` is an absolute http(s) origin, or throw naming the deploy variable that supplies it.
@@ -617,6 +643,51 @@ export class RecipeServiceStack extends Stack {
         }
 
         this.serviceUrl = `https://${serviceDomain}`;
+
+        // ── Alarm topic and the source-correction volume alarm (ADR-0099 / ADR-0062) ─────────────────────
+        const alarmTopic = new sns.Topic(this, 'RecipeServiceAlarmTopic', {
+            enforceSSL: true,
+            displayName: `Recipe service alarms (${stage})`,
+        });
+
+        subscribeAlarmEmail(alarmTopic, props.alertEmail);
+
+        // ⛔ WITHOUT THIS THE ALARM FIRES AND REACHES NOBODY: `enforceSSL` attaches a topic policy that REPLACES the SNS default,
+        // whose implicit account `Allow` is the only reason a same-account CloudWatch alarm could publish here. Enforced on every
+        // alarm topic by `packages/tools/repoGuards/__tests__/alarmTopicPublishGrant.test.ts`.
+        alarmTopic.addToResourcePolicy(
+            new iam.PolicyStatement({
+                sid: 'AllowCloudWatchAlarmPublish',
+                effect: iam.Effect.ALLOW,
+                principals: [new iam.ServicePrincipal('cloudwatch.amazonaws.com')],
+                actions: ['sns:Publish'],
+                resources: [alarmTopic.topicArn],
+                conditions: { StringEquals: { 'aws:SourceAccount': this.account } },
+            }),
+        );
+
+        if (props.alarmsEnabled) {
+            relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(stage));
+
+            // The metric is an EMF line `src/recipes/sourceEvents.ts` writes, with `Stage` as its one dimension (DD29): an alarm
+            // directly on it, no metric filter (staff's binding reading, decisions/everyAnswerSourceLock-staff.md). Sum over a day.
+            new cloudwatch.Alarm(this, 'SourceCorrectionVolumeAlarm', {
+                alarmName: `kitchensink-recipe-source-corrected-${stage}`,
+                alarmDescription:
+                    'More than 10 staff source corrections in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).',
+                metric: new cloudwatch.Metric({
+                    namespace: SOURCE_EVENT_NAMESPACE,
+                    metricName: SOURCE_CORRECTED_METRIC,
+                    dimensionsMap: { Stage: stage },
+                    statistic: 'Sum',
+                    period: Duration.days(1),
+                }),
+                threshold: SOURCE_CORRECTED_DAILY_THRESHOLD,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            }).addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+        }
 
         // ── Outputs ─────────────────────────────────────────────────────────────────────────────
         new CfnOutput(this, 'RecipeServiceUrl', {

@@ -86,6 +86,7 @@ recipes/sourceFromPaste	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, Reci
 recipes/sourceStatement	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/sourceStatementPaidSite	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/sourceStatementFromPerson	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
+recipes/makePublicRefusal	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/quantityRange	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/preparationGroups	HomeScreen, RecipeDetailScreen, RecipeEditorScreen, RecipeListScreen
 recipes/ingredientGroups	HomeScreen, RecipeEditorScreen, RecipeListScreen

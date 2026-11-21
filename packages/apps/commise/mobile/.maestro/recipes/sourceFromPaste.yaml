@@ -139,7 +139,7 @@ appId: ${APP_ID}
       when:
           platform: Android
       commands:
-          - assertVisible: 'This recipe was saved with a source, so it stays private.'
+          - assertVisible: 'This recipe stays private because it was saved with a source.'
 - runFlow:
       when:
           platform: iOS

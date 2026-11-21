@@ -1,0 +1,117 @@
+appId: ${APP_ID}
+---
+# Why a recipe cannot be public, on a device (board P6, plan makePublicRefusalNotice, AE1). A pasted recipe is
+# published privately with no answer, so the recipe page owes a statement. The cook opens the page's ⋯ and chooses Make
+# public. The recipe owes a statement (`recipe.publicNeedsStatement`), so Make public opens the source sheet with no
+# confirm first (`useMakePublicConfirm`, ADR-0095: with no statement owed, the confirm is always asked). The cook answers
+# "From a web page" with its link, and the recipe stays private. The page then says why in one standing line, and the
+# ⋯ no longer offers Make public. Mobile mirror of the web Playwright case `makePublicRefusalNotice.spec.ts`.
+#
+# What only a device proves: the sheet over the page with the keyboard up for the link field, the line drawn on the
+# page after the sheet closes, and the ⋯ menu rebuilt without Make public. The pure decisions, the announcement and the
+# tones are the component tests' subject on both platforms. Reseeded before it runs.
+- runFlow: ../auth/signin.yaml
+
+- assertVisible: 'My recipes'
+- tapOn: 'New recipe'
+- assertVisible: 'Close editor'
+- runFlow:
+      file: common/typeTitle.yaml
+      env:
+          TITLE: 'Maestro Refusal Soup'
+- runFlow: common/chooseCuisine.yaml
+- runFlow: common/addTomatoAndStep.yaml
+
+# Paste one more step, so the draft is a pasted one.
+- runFlow:
+      file: common/jumpToSection.yaml
+      env:
+          SECTION: 'Steps'
+- tapOn: 'Paste steps'
+- tapOn:
+      text: 'Steps'
+      below: 'Paste steps'
+- inputText: 'Simmer the stock.'
+- assertVisible: 'Add 1 step'
+- tapOn: 'Add 1 step'
+- extendedWaitUntil:
+      notVisible: 'Add 1 step'
+      timeout: 20000
+
+# Publish asks first; the cook publishes privately and answers nothing, so the page still owes a statement.
+- runFlow: common/closeEditorKeyboard.yaml
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'Publish'
+          DIRECTION: DOWN
+          TIMEOUT: 20000
+- tapOn: 'Publish'
+- extendedWaitUntil:
+      visible: 'Where is this recipe from?'
+      timeout: 20000
+# Publish privately is a choice, and Publish is the button: no answer is picked until the cook picks one.
+- tapOn: 'Publish privately'
+- tapOn:
+      text: 'Publish'
+      below: 'Where is this recipe from?'
+      # Publishing moves the screen for seconds, and the notice below lasts 6 s (maestroTransientNoticeWait.test.ts).
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      visible: 'Recipe published.'
+      timeout: 40000
+- extendedWaitUntil:
+      notVisible: 'Close editor'
+      timeout: 60000
+- extendedWaitUntil:
+      visible:
+          text: 'Maestro Refusal Soup.*'
+      timeout: 40000
+- extendedWaitUntil:
+      visible:
+          text: '^Private$'
+      timeout: 40000
+# Nothing is wrong yet, so the page says nothing about why.
+- assertNotVisible: 'This recipe stays private because.*'
+
+# The ⋯ is in the detail's TOP BAR and scrolls away with the header, so reach it by scrolling back UP.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'More actions for .*'
+- tapOn: 'Make public'
+# The recipe owes a statement, so Make public opens the source sheet with no confirm (see the header).
+- extendedWaitUntil:
+      visible: 'Where is this recipe from?'
+      timeout: 20000
+- tapOn: 'From a web page'
+- tapOn: 'Link to the page'
+- inputText: 'https://www.allrecipes.com/recipe/1/soup/'
+# The keyboard is closed with a tap on the sheet's own heading: closeEditorKeyboard.yaml is for the editor page.
+- tapOn: 'Where is this recipe from?'
+- tapOn:
+      text: 'Make public'
+      below: 'Where is this recipe from?'
+      waitToSettleTimeoutMs: 1000
+- extendedWaitUntil:
+      notVisible: 'Where is this recipe from?'
+      timeout: 40000
+
+# The recipe stayed private, and the page says why, once, in plain text.
+- extendedWaitUntil:
+      visible: 'This recipe stays private because it’s from a web page\.'
+      timeout: 40000
+- assertVisible: '^Private$'
+
+# The ⋯ no longer offers Make public.
+- runFlow:
+      file: common/scrollIntoTapView.yaml
+      env:
+          TARGET: 'More actions for .*'
+          DIRECTION: UP
+          TIMEOUT: 20000
+- tapOn: 'More actions for .*'
+- assertNotVisible: 'Make public'

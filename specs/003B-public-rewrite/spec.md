@@ -549,7 +549,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 #### G. Credit, label and licence
 
 - **FR-060**: A recipe with `source_record_id` set (a public version, or a cook's copy of one) MUST show, wherever it is shown, the credit of ADR-0093 §4. The credit reads the
-  version's own `recipes.public_credit`, set at Publish from the credit the cook was shown (data-model "Columns on
+  version's own `recipes.public_credit`, set at Publish from the credit the cook was shown (a cook's copy inherits it at clone, T394) (data-model "Columns on
   existing tables"). `free` shows `credit.written` with the AI disclosure, and `credit.basedOn` with the domain
   line. `{site}` is the registrable domain and a link, read from the source record. `paid` (a clearly paid or an
   unknown paid source, or a paid-list page with no clear signal) shows `credit.written` only: no site is named,
@@ -562,7 +562,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 - **FR-062**: The text of a recipe with `source_record_id` set (a public version, or a cook's copy of one) carries the licence and credit of ADR-0093 §4, and the cook's later edits are
   under the same licence. The terms of service say who owns the written steps and the cook's edits. `review.licence`
   links to them. "Publish" is the cook's acceptance of that licence for their edits, recorded as the Publish
-  confirmation row (wording `publicVersionConfirm.v1`, data-model "Columns on existing tables").
+  confirmation row (wording `publicVersionConfirm.v1`, data-model "Columns on existing tables"). A cook's copy records the implicit `publicConfirm` row any recipe records when it goes public (`statementAttestation.ts`).
 - **FR-063**: A public version MUST show "Report a problem" (`publicPage.report`). A report hides the version until
   staff look and decide, as ADR-0093 §4 and `020-FR-082` say. 020 owns the hide, the decision and the statement of
   reasons. While it is hidden the owner sees `publicPage.hiddenOwner`, and a reader sees
@@ -648,7 +648,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 #### K. Release
 
 - **FR-090**: The feature MUST sit behind one switch, read in one place, shared by web and mobile, and per market
-  (ADR-0093 §6a, which rules the launch state). The reader's market (C-31, T383) decides whether a row that carries `source_record_id` is shown (C-31), and
+  (ADR-0093 §6a, which rules the launch state). The reader's market (C-31, T383) decides whether a row that carries `source_record_id` is shown, and
   the cook's market does not gate publishing. There is one switch for each market, all on at launch. With the feature
   switch off, imports behave as today (private only, offer reason `switchOff`).
 - **FR-091**: Web and mobile MUST ship every state in the same release (`CODING_STANDARDS.md` §14).

@@ -73,6 +73,22 @@ describe('shownDuration', () => {
     });
 });
 
+describe('a length is cut to whole seconds and never below zero', () => {
+    it('floors 59.999 s to 59 s, shown and spoken', () => {
+        expect(shownDuration(59_999, en.duration)).toBe(fillTemplate(en.duration.secondsOnly, { s: 59 }));
+        expect(spokenDuration(59_999, en.duration, 'en')).toBe(pluralOf(en.duration.seconds, 59, 'en'));
+    });
+
+    it('reads a negative length as zero, shown and spoken', () => {
+        expect(shownDuration(-5_000, en.duration)).toBe(fillTemplate(en.duration.secondsOnly, { s: 0 }));
+        expect(spokenDuration(-5_000, en.duration, 'en')).toBe(pluralOf(en.duration.seconds, 0, 'en'));
+    });
+
+    it('says zero seconds in words for zero', () => {
+        expect(spokenDuration(0, en.duration, 'en')).toBe(pluralOf(en.duration.seconds, 0, 'en'));
+    });
+});
+
 describe('spokenDuration', () => {
     it('says words, drops zero parts and joins with a space', () => {
         expect(spokenDuration(HOUR + 5 * MIN, en.duration, 'en')).toBe(

@@ -265,6 +265,18 @@ describe('a change of cook', () => {
         expect(told).toEqual([]);
     });
 
+    it('drops a held Undo with no timer beside it, so a restore after the change does nothing', () => {
+        const store = storeOf(stateOf(startAt('t1', 5 * MINUTE), { kind: 'cancel', id: 't1', run: 1, nowMs: T0 }));
+
+        expect(store.getSnapshot().undo?.id).toBe('t1');
+
+        store.observeCook('A');
+        store.observeCook('B');
+        store.command({ kind: 'restore' });
+
+        expect(store.getSnapshot()).toEqual(NO_TIMER);
+    });
+
     it('keeps everything while Clerk is loading (undefined)', () => {
         const store = storeOf(crowded());
 

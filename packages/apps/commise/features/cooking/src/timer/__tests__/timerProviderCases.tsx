@@ -70,6 +70,21 @@ export function timerProviderCases(): void {
         expect(view.timers().alarmQueue).toEqual([]);
     });
 
+    it('names the held Undo timer after a cancel', () => {
+        const view = mount('A');
+        let id: string | undefined;
+
+        act(() => {
+            id = view.timers().start({ ...STEP, durationMs: 5 * MINUTE });
+        });
+        act(() => {
+            view.timers().command({ kind: 'cancel', id: id ?? '', run: 1 });
+        });
+
+        expect(id).toBeDefined();
+        expect(view.timers().undoId).toBe(id);
+    });
+
     it('clears the timers when the cook changes, in the same commit', () => {
         const view = mount('A');
 

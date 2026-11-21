@@ -53,6 +53,8 @@ describe('lineLabelOf', () => {
         // D80: four words at most, and a label is never cut to fit.
         ['keeps a label of four words', 'Bake the loaf slowly 20 min', 'Bake the loaf slowly'],
         ['gives none for a label of five words', 'Bake the whole loaf slowly 20 min', undefined],
+        // qse: a connector glued to a digit is part of a measure, not a connector.
+        ['keeps a connector glued to a digit', 'Cut into 2in 10 min', 'Cut into 2in'],
         // Staff, 2026-11-20: a stop that is not a sentence end.
         ['does not cut at a decimal point', 'Bake at 180.5 degrees for 20 min', 'Bake at 180.5 degrees'],
         ['does not cut at an abbreviation', 'Simmer approx. 20 min', 'Simmer'],

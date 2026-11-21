@@ -144,6 +144,8 @@ describe('the files the judge sees at their base version', () => {
             'AGENTS.md',
             '.mcp.json',
             '.claude/agents/staff-code-quality.md',
+            '.claude',
+            'pkg/.claude',
             'docs/CODING_STANDARDS.md',
             'docs/engineering/ENGINEERING_EXCELLENCE.md',
             'docs/architecture/decisions/0098-gate-runs-in-ci.md',
@@ -238,10 +240,16 @@ describe('the brief states the base facts', () => {
         assert.match(brief, /The restored files are the text at the tip of the base branch\./);
     });
 
-    it('has no base-copy section when this pull request changes no plan or tasks file', () => {
+    it('always states the task locations, and lists base copies only when the pull request changes a plan or tasks file', () => {
         for (const brief of [renderBrief(input), renderBrief({ ...input, baseCopies: [] })]) {
-            assert.doesNotMatch(brief, /Plan and tasks files/);
-            assert.doesNotMatch(brief, /wrap-up task/);
+            assert.doesNotMatch(brief, /Plan and tasks files this pull request changes/);
+            assert.match(
+                brief,
+                /^This pull request changes no plan or tasks file, so their checked-out text is the base text\.$/m,
+            );
+            assert.match(brief, /A wrap-up task counts only in a file at one of these locations:/);
+            assert.match(brief, /^- docs\/plans\/<name>\.md$/m);
+            assert.match(brief, /never counts\./);
         }
     });
 

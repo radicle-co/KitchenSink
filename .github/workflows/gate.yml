@@ -115,7 +115,7 @@ jobs:
                   fi
                   # grep exits 1 on no match, which is not an error here; exit 2 (a real error) still fails the step.
                   pick() { grep "$@" || [ "$?" -eq 1 ]; }
-                  pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude/|^docs/CODING_STANDARDS\.md$|^docs/engineering(/|$)|^docs/architecture(/|$)|^docs/adr(/|$)|^adr(/|$)'
+                  pattern='(^|/)(CLAUDE\.md|CLAUDE\.local\.md|AGENTS\.md|\.mcp\.json)$|(^|/)\.claude(/|$)|^docs/CODING_STANDARDS\.md$|^docs/engineering(/|$)|^docs/architecture(/|$)|^docs/adr(/|$)|^adr(/|$)'
                   git ls-files -z | pick -zE "$pattern" | xargs -0 -r git rm -q -f --
                   rm -rf .claude
                   git ls-tree -r -z --name-only "$BASE_SHA" | pick -zE "$pattern" |

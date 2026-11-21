@@ -5,8 +5,9 @@
 //       Finds the files this PR changes, hashes their content at <head>, restores the earlier verdicts from <ledger>
 //       (one sub-directory per earlier run, oldest first, each holding gateVerdict.json), and writes what to judge:
 //       plan.json, judgeBrief.md and changes.diff in <out>. Prints `mode=none|reuse|judge`. A deleted code or test file
-//       is judged too. The brief also lists the merge-base copy of every plan or tasks file the whole PR changes, and the
-//       judged files the checkout holds at the base version. --rejudge-blocked (a `gate-rerun`) judges a file whose latest verdict is BLOCK again.
+//       is judged too. The brief also lists the merge-base copy of every plan or tasks file the whole PR changes, and
+//       the judged files the checkout holds at the base version. --rejudge-blocked (a `gate-rerun`) judges a file
+//       whose latest verdict is BLOCK again.
 //   node gateRun.mjs record --out <dir> --sha <head> [--judge <file holding the judge's structured output>]
 //       Merges the judge's verdict for the judged files with the carried ones, writes gateVerdict.json (the `gate-<sha>`
 //       artifact) and gateReview.md, and prints `state=` and `description=` for the commit status.
@@ -68,11 +69,11 @@ function blobIds(repo, head, paths) {
 
 /**
  * The base copy of every plan or tasks file the whole PR changes or deletes, written under <out>/base/<path>. A path is
- * absent from the merge base only when `ls-tree` succeeds with no output; a failing git command throws, so the plan
+ * absent from the merge base only when `ls-tree` succeeds with no output (`git merge-base` has already failed on a bad
+ * base); a failing git command throws, so the plan
  * step fails and GATE posts a failure instead of calling a file new because git broke.
  */
 function baseCopies(repo, mergeBase, out, sources, removed) {
-    git(repo, ['rev-parse', '--verify', `${mergeBase}^{commit}`]);
     const atBase = blobIds(repo, mergeBase, sources);
     return sources.map((path) => {
         const gone = removed.includes(path);

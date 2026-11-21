@@ -52,7 +52,13 @@ describe('GATE judge files restored from the base branch', () => {
 
         for (const restored of [
             'CLAUDE.md',
+            'packages/x/CLAUDE.md',
+            'CLAUDE.local.md',
+            'AGENTS.md',
+            '.mcp.json',
             '.claude/agents/staff-code-quality.md',
+            '.claude',
+            'pkg/.claude',
             'docs/CODING_STANDARDS.md',
             'docs/architecture/decisions/0098-gate-runs-in-ci.md',
             'docs/engineering/ENGINEERING_EXCELLENCE.md',

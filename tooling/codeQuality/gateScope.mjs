@@ -92,7 +92,7 @@ export const wrapUpSourcesOf = (names) => names.filter((name) => WRAP_UP_SOURCE.
  */
 export const RESTORED_FROM_BASE_ALTERNATIVES = [
     '(^|/)(CLAUDE\\.md|CLAUDE\\.local\\.md|AGENTS\\.md|\\.mcp\\.json)$',
-    '(^|/)\\.claude/',
+    '(^|/)\\.claude(/|$)',
     '^docs/CODING_STANDARDS\\.md$',
     '^docs/engineering(/|$)',
     '^docs/architecture(/|$)',
@@ -151,7 +151,7 @@ export function renderBrief({ mode, files, deleted = [], diffPath, baseCopies = 
                   '',
               ]),
         ...(baseCopies.length === 0
-            ? []
+            ? ['This pull request changes no plan or tasks file, so their checked-out text is the base text.', '']
             : [
                   'Plan and tasks files this pull request changes (whole PR, against the base):',
                   '',
@@ -164,11 +164,14 @@ export function renderBrief({ mode, files, deleted = [], diffPath, baseCopies = 
                   'The base copies are the text at the merge base of this pull request.',
                   'A wrap-up task counts only if the base copy holds it.',
                   'A plan or tasks file not listed here is unchanged by this pull request, so its checked-out text is the base text.',
-                  'A wrap-up task counts only in a file at one of these locations:',
-                  ...WRAP_UP_LOCATIONS.map((location) => `- ${location.label}`),
-                  'A task in any other file, such as docs/plans/sub/x.md or specs/f/followUps.md, never counts.',
                   '',
               ]),
+        'A wrap-up task counts only in a file at one of these locations:',
+        '',
+        ...WRAP_UP_LOCATIONS.map((location) => `- ${location.label}`),
+        '',
+        'A task in any other file, such as docs/plans/sub/x.md or specs/f/followUps.md, never counts.',
+        '',
         ...(restored.length === 0
             ? []
             : [

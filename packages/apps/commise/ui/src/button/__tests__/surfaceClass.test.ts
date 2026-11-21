@@ -262,6 +262,15 @@ describe('buttonSurfaceClass — the state matrix (§1.10)', () => {
         }
     });
 
+    // The recipe only turns the resolved tone into a class. WHEN a glyph is steel is `glyphToneOf`'s, and the type test
+    // pins that only a secondary button can ask for the action tone.
+    it('draws the glyph in actionText under the action tone, and quiet always', () => {
+        expect(buttonGlyphClass('secondary', 'action')).toBe('text-action-text');
+        expect(buttonGlyphClass('secondary', 'label')).toBe('');
+        expect(buttonGlyphClass('secondary')).toBe('');
+        expect(buttonGlyphClass('quiet', 'label')).toBe('text-action-text');
+    });
+
     it('paints inline destructive as a danger label on the neutral surface', () => {
         const tokens = tokensOf(buttonSurfaceClass('destructive'));
 

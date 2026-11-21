@@ -160,7 +160,7 @@ describe('the Button card, compiled and run as a page', () => {
         const childrenOf = (root: Element): unknown[] =>
             (root.props['children'] as Element[]).map((child) => ({ type: child.type, ...child.props }));
 
-        expect(html.startsWith('<!-- @dsCard group="Actions" height=340 -->')).toBe(true);
+        expect(html.startsWith('<!-- @dsCard group="Actions" height=580 -->')).toBe(true);
         expect(roots['w']?.props['className']).toBe('row');
         expect(roots['n']?.props['className']).toBe('col');
 
@@ -170,6 +170,24 @@ describe('the Button card, compiled and run as a page', () => {
             { type, variant: 'ghost', children: 'Skip for now' },
             { type, variant: 'destructive', icon: 'trash', children: 'Delete recipe' },
             { type, variant: 'primary', busy: true, icon: 'plus', children: 'Saving' },
+            { type, variant: 'secondary', icon: 'chevronRight', children: 'Next step' },
+            { type, variant: 'secondary', icon: 'chevronRight', glyphTone: 'action', children: 'Next step' },
+            {
+                type,
+                variant: 'secondary',
+                icon: 'chevronRight',
+                glyphTone: 'action',
+                disabled: true,
+                children: 'Next step',
+            },
+            {
+                type,
+                variant: 'secondary',
+                icon: 'chevronRight',
+                glyphTone: 'action',
+                busy: true,
+                children: 'Next step',
+            },
         ];
 
         expect(childrenOf(roots['w'] as Element)).toEqual(states('WebButton'));

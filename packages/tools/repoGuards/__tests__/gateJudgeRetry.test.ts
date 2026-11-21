@@ -78,7 +78,7 @@ function retryAllowed(executionFile: string | undefined): boolean {
         writeFileSync(file, executionFile);
     }
 
-    const run = spawnSync('jq', ['-e', filter, file], { encoding: 'utf8' });
+    const run = spawnSync('/usr/bin/jq', ['-e', filter, file], { encoding: 'utf8' });
 
     // A missing jq must fail the test, not read as "no retry".
     expect(run.error).toBeUndefined();

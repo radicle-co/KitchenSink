@@ -106,8 +106,8 @@ export function publicRefusalOf(facts: PublicRefusalFacts): PublicRefusal {
  */
 export function publicRefusalOfStored(
     recipe: Pick<PublicRefusalFacts, 'sourceType'> & {
-        readonly sourceKind?: RecipeSourceKindView | null | undefined;
-        readonly statementKind?: RecipeStatementKindView | null | undefined;
+        readonly sourceKind?: RecipeSourceKindView | null;
+        readonly statementKind?: RecipeStatementKindView | null;
     },
     held: boolean,
 ): PublicRefusal {

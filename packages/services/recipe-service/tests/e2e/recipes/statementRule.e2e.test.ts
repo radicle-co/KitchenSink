@@ -212,8 +212,35 @@ describe('the statement rule (e2e)', () => {
 
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
     // statement after the first publish. The cook may change it, and the evidence still keeps the recipe out of Public.
-    it('after the first publish, web then "I wrote this" is written, and Public is still refused as SOURCE_CONFLICT', async () => {
+    /** Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE batch 3): a confirmed web source is relabelled by Commise only. */
+    it('after the first publish, a confirmed web source cannot become "I wrote this": 403 SOURCE_LOCKED, and Public is still refused', async () => {
         const { id, version } = await create({ visibility: 'private', statement: WEB });
+
+        const changed = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: AUTHORED });
+
+        expect(changed.status).toBe(403);
+        expect(reasonOf(changed.json)).toBe('SOURCE_LOCKED');
+        expect(await readRow(id)).toMatchObject({ sourceKind: 'public_web', statementKind: 'source' });
+
+        const opened = await send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(opened.status).toBe(400);
+        // The private-only refusal (a web copy is never public), which names no `details.reason`: not the evidence rule's.
+        expect(opened.json['code']).toBe('INVALID_VISIBILITY');
+        expect(reasonOf(opened.json)).toBeUndefined();
+        expect(String(opened.json['message'])).toMatch(/private-only/i);
+        expect(await readRow(id)).toMatchObject({ visibility: 'private' });
+    });
+
+    /**
+     * The evidence rule's twin of the case above, on a DRAFT (unconfirmed, so the answer is still open): web, then "I wrote this",
+     * then Public is refused as SOURCE_CONFLICT (P8 qse condition: one LOCAL e2e keeps asserting it).
+     */
+    it('on a draft, web then "I wrote this" is written, and Public is still refused as SOURCE_CONFLICT', async () => {
+        const { id, version } = await create({ status: 'draft', visibility: 'private', statement: WEB });
 
         const changed = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: AUTHORED });
 
@@ -230,22 +257,23 @@ describe('the statement rule (e2e)', () => {
         expect(await readRow(id)).toMatchObject({ visibility: 'private' });
     });
 
-    it('after the first publish, "I wrote this" changed to a web statement forces Private and writes evidence', async () => {
+    it('after the first publish, a confirmed "I wrote this" cannot be changed to a web statement: 403 SOURCE_LOCKED, nothing written', async () => {
         const { id, version } = await create({ statement: AUTHORED });
 
         expect(await readRow(id)).toMatchObject({ visibility: 'public', statementKind: 'authored' });
 
         const changed = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: WEB });
 
-        expect(changed.status).toBe(200);
-        expect(await readRow(id)).toMatchObject({ visibility: 'private', sourceKind: 'public_web' });
+        expect(changed.status).toBe(403);
+        expect(reasonOf(changed.json)).toBe('SOURCE_LOCKED');
+        expect(await readRow(id)).toMatchObject({ visibility: 'public', sourceKind: null, statementKind: 'authored' });
 
         const { rows } = await pool.query<{ n: string }>(
             'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
             [id],
         );
 
-        expect(Number(rows[0]?.n)).toBe(1);
+        expect(Number(rows[0]?.n)).toBe(0);
     });
 
     it('after the first publish, a recipe with NO statement takes a web statement with Private in one write, and keeps its evidence', async () => {

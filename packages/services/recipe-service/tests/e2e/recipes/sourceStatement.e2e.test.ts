@@ -253,13 +253,26 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): this case asserted 403 SOURCE_LOCKED for clearing a
     // statement after the first publish. The statement stays editable; the evidence row stays and is never cleared.
-    it('after the first publish the cook may clear the statement: 200, the source goes, and the evidence stays', async () => {
+    /**
+     * Flipped by P8 (ADR-0099, KTD-1; qse TEST-CHANGE batch 3). They asserted that a published recipe's source could be cleared,
+     * and that "I wrote this" could become a web link, after the first publish. The first publish confirms the answer (migration
+     * 0092), so only Commise changes a confirmed one; a confirmed own answer can only be downgraded to a book or a paid site.
+     */
+    it('refuses to clear a confirmed web source after the first publish: 403 SOURCE_LOCKED, and the evidence stays', async () => {
         const { id, version } = await create({ visibility: 'private', statement: STATEMENT });
 
-        const { status } = await send('PATCH', `/api/v1/recipes/${id}`, { expectedVersion: version, statement: null });
+        const { status, json } = await send('PATCH', `/api/v1/recipes/${id}`, {
+            expectedVersion: version,
+            statement: null,
+        });
 
-        expect(status).toBe(200);
-        expect(await readRow(id)).toMatchObject({ sourceType: 'user_created', sourceKind: null, sourceUrl: null });
+        expect(status).toBe(403);
+        expect(JSON.stringify(json)).toContain('SOURCE_LOCKED');
+        expect(await readRow(id)).toMatchObject({
+            sourceType: 'imported_public',
+            sourceKind: 'public_web',
+            sourceUrl: LINK,
+        });
 
         const { rows } = await pool.query<{ n: string }>(
             'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
@@ -269,29 +282,26 @@ describe('a pasted web link as the recipe source (e2e)', () => {
         expect(Number(rows[0]?.n)).toBe(1);
     });
 
-    it('after the first publish, "I wrote this" changed to a web link forces Private in the same write and appends evidence', async () => {
+    it('refuses to change a confirmed "I wrote this" to a web link after the first publish: 403, the recipe stays public and no evidence is written', async () => {
         const { id, version } = await create({ visibility: 'public', statement: AUTHORED });
 
         expect(await readRow(id)).toMatchObject({ visibility: 'public', statementKind: 'authored' });
 
-        const { status } = await send('PATCH', `/api/v1/recipes/${id}`, {
+        const { status, json } = await send('PATCH', `/api/v1/recipes/${id}`, {
             expectedVersion: version,
             statement: STATEMENT,
         });
 
-        expect(status).toBe(200);
-        expect(await readRow(id)).toMatchObject({
-            visibility: 'private',
-            sourceKind: 'public_web',
-            statementKind: 'source',
-        });
+        expect(status).toBe(403);
+        expect(JSON.stringify(json)).toContain('SOURCE_LOCKED');
+        expect(await readRow(id)).toMatchObject({ visibility: 'public', sourceKind: null, statementKind: 'authored' });
 
         const { rows } = await pool.query<{ n: string }>(
             'SELECT count(*) AS n FROM recipe_source_evidence WHERE recipe_id = $1',
             [id],
         );
 
-        expect(Number(rows[0]?.n)).toBe(1);
+        expect(Number(rows[0]?.n)).toBe(0);
     });
 
     it('set-visibility public on a web copy is refused, and it stays private', async () => {
@@ -328,6 +338,11 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             clonedFromId: null,
             // The citation a paid site stated again is judged against; a web copy's is its site.
             sourceAttribution: 'allrecipes.com',
+            // 0092: the link the paid-site and web restatements are compared with, the confirmation (a draft is unconfirmed) and the
+            // staff hold. Selected by the same read, so a missing column fails here and not only in a mocked double.
+            sourceUrl: LINK,
+            sourceConfirmedAt: null,
+            sourceCorrectionHold: false,
         });
     });
 

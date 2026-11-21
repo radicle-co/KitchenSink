@@ -84,4 +84,5 @@ export { durationParts, elapsedParts, offerSecondsOf, readDuration, stepWaitsOf 
 export type { DurationParts, ElapsedParts, OfferInput, StepWaits, StepWaitsInput, Wait } from './duration.js';
 export { jobShapeOf } from './jobShape.js';
 export type { JobRow, JobShape, JobShapeInput, JobStepInput, JobTotal } from './jobShape.js';
-export type { DurationReading } from './durationReading.js';
+export type { DurationReading, ReadingSpan } from './durationReading.js';
+export { lineLabelOf } from './lineLabel.js';

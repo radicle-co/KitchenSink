@@ -159,7 +159,10 @@ export function readDuration(line: string): DurationReading {
     // Only a span that is exactly one range carries its high end.
     const [only] = amounts;
 
-    return oneReading(total, amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined);
+    return oneReading(total, amounts.length === 1 && bareMinutes === undefined ? only?.highSeconds : undefined, {
+        start: at,
+        end: at + span.length,
+    });
 }
 
 /** The one duration a line reads, in seconds, or `undefined` when it reads none or several. */

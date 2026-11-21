@@ -1,4 +1,12 @@
-import type { DurationReading } from '../durationReading.js';
+/**
+ * A reading as the frozen reader gave it, before a `one` reading carried its span. The golden rows are never edited,
+ * so they keep this shape, and a test compares what the rows record (kind and seconds). Spans are asserted in
+ * `durationSpan.test.ts`.
+ */
+export type GoldenReading =
+    | { readonly kind: 'none' }
+    | { readonly kind: 'one'; readonly seconds: number; readonly highSeconds?: number }
+    | { readonly kind: 'many' };
 
 /**
  * The digit-only golden readings: what `readDuration` of origin/main a0e3653f5, which reads digits only, answered for
@@ -39,7 +47,7 @@ import type { DurationReading } from '../durationReading.js';
  */
 export interface DigitReading {
     readonly line: string;
-    readonly reading: DurationReading;
+    readonly reading: GoldenReading;
 }
 
 export const DIGIT_READINGS: readonly DigitReading[] = [

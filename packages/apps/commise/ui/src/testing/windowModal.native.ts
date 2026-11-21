@@ -16,16 +16,17 @@ import { expect } from 'vitest';
  * @returns The window, for further checks.
  */
 export function expectWindowIsTheModal(dialog: HTMLElement): HTMLElement {
-    const window = dialog.closest<HTMLElement>('[aria-modal="true"]');
+    const modal = dialog.closest<HTMLElement>('[aria-modal="true"]');
 
     // Not "true": Tamagui's `Dialog` writes `aria-modal="false"` itself for `modal={false}`, which is not modal.
     expect(dialog.getAttribute('aria-modal')).not.toBe('true');
-    expect(window).not.toBeNull();
 
-    const view = window as HTMLElement;
+    if (modal === null) {
+        throw new Error("The dialog has no modal ancestor: OverlayHost's window view lost `aria-modal`.");
+    }
 
-    expect(view.hasAttribute('role')).toBe(false);
-    expect(view.parentElement?.closest('[aria-modal="true"]')).not.toBeNull();
+    expect(modal.hasAttribute('role')).toBe(false);
+    expect(modal.parentElement?.closest('[aria-modal="true"]')).not.toBeNull();
 
-    return view;
+    return modal;
 }

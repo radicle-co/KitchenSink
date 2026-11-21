@@ -8,7 +8,7 @@
  * `ResizeObserver` that jsdom lacks, so this file serves the heights itself (as `SheetFooterPinning.native.test.tsx`
  * does). It proves the WIRING: which height the outlet's offset is built from. Where it paints is a device frame.
  */
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize, resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { AccessibilityInfo, Pressable, Text } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -95,10 +95,7 @@ function layOut(heights: { readonly sheet: number; readonly topBlock: number; re
     }
 
     act(() => {
-        observer.callback?.(
-            [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize();
     });
     act(() => {
         vi.runOnlyPendingTimers();

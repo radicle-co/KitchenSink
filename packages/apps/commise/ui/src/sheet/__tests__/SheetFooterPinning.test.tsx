@@ -16,17 +16,26 @@ import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { resizeEntryOf } from '../../testing/resizeObserver.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.js';
 
 /** Every `ResizeObserver` the Sheet creates, with what it watches. */
-const observers = new Set<{ readonly callback: ResizeObserverCallback; readonly observed: Set<Element> }>();
+const observers = new Set<{
+    readonly callback: ResizeObserverCallback;
+    readonly observed: Set<Element>;
+    readonly observer: ResizeObserver;
+}>();
 
 class RecordingResizeObserver {
-    private readonly record: { readonly callback: ResizeObserverCallback; readonly observed: Set<Element> };
+    private readonly record: {
+        readonly callback: ResizeObserverCallback;
+        readonly observed: Set<Element>;
+        readonly observer: ResizeObserver;
+    };
 
     public constructor(callback: ResizeObserverCallback) {
-        this.record = { callback, observed: new Set() };
+        this.record = { callback, observed: new Set(), observer: this };
         observers.add(this.record);
     }
 
@@ -105,10 +114,7 @@ function layOut(heights: { readonly sheet: number; readonly titleRow: number; re
 
     act(() => {
         for (const record of observers) {
-            record.callback(
-                [...record.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-                {} as ResizeObserver,
-            );
+            record.callback([...record.observed].map(resizeEntryOf), record.observer);
         }
     });
 }

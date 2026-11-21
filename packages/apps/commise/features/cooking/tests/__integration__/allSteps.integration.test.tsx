@@ -42,7 +42,7 @@ const start = (id: string, stepIndex: number, durationMs: number, nowMs: number)
     stepIndex,
     stepDigest: `s1:0000000${String(stepIndex)}`,
     label: undefined,
-    origin: 'added',
+    origin: { kind: 'added' },
     durationMs,
     limit: SESSION_TIMER_LIMIT,
     nowMs,

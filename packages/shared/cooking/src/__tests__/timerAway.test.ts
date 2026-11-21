@@ -22,7 +22,7 @@ const BASE = {
     stepIndex: 3,
     stepDigest: 's1:0000000d',
     label: undefined,
-    origin: 'added',
+    origin: { kind: 'added' },
 } as const;
 
 const running = (id: string, endsAt: number, over: Partial<RunningTimer> = {}): RunningTimer => ({

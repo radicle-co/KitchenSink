@@ -40,7 +40,7 @@ const START = {
     stepIndex: 3,
     stepDigest: 's1:0000000d',
     label: undefined,
-    origin: 'offer',
+    origin: { kind: 'offer', lineIndex: null },
     durationMs: 10 * 60_000,
     nowMs: NOW,
 } as const;
@@ -59,7 +59,7 @@ describe('the kept timer command', () => {
                 ordinal: 1,
                 run: 1,
                 durationMs: 10 * 60_000,
-                origin: 'offer',
+                origin: { kind: 'offer', lineIndex: null },
                 state: 'running',
                 endsAt: iso(NOW + 10 * 60_000),
             },

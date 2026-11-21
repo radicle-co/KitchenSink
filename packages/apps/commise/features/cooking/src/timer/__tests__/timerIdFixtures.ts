@@ -11,7 +11,7 @@ export function keptSchemaTakesId(id: string): boolean {
         ordinal: 1,
         run: 1,
         durationMs: 60_000,
-        origin: 'added',
+        origin: { kind: 'added' },
         endsAt: '2026-11-20T10:00:00.000Z',
     }).success;
 }

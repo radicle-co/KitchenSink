@@ -3,7 +3,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createTimerStore } from '../timerStore.js';
 
-const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', label: undefined, origin: 'added' } as const;
+const STEP = {
+    recipeId: 'roast',
+    stepIndex: 2,
+    stepDigest: 's1:0000000d',
+    label: undefined,
+    origin: { kind: 'added' },
+} as const;
 const MINUTE = 60_000;
 
 beforeEach(() => {

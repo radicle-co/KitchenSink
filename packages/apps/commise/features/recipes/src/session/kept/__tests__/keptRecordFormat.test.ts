@@ -27,14 +27,14 @@ const GOLDEN_V2 =
     '"r2":{"kind":"page","ticks":["l1:00000003#0"],"lastTouch":"2026-06-01T12:00:00.000Z"}},' +
     '"timers":[' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0001","recipeId":"r1","stepIndex":2,"stepDigest":"s1:0000000c",' +
-    '"ordinal":1,"run":1,"durationMs":5400000,"origin":"offer","state":"running","endsAt":"2026-06-01T13:30:00.250Z"},' +
+    '"ordinal":1,"run":1,"durationMs":5400000,"origin":{"kind":"offer","lineIndex":1},"state":"running","endsAt":"2026-06-01T13:30:00.250Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0002","recipeId":"r1","stepIndex":2,"stepDigest":"s1:0000000c",' +
-    '"ordinal":2,"run":3,"durationMs":600000,"origin":"added","state":"paused","remainingMs":123456,' +
+    '"ordinal":2,"run":3,"durationMs":600000,"origin":{"kind":"added"},"state":"paused","remainingMs":123456,' +
     '"pausedAt":"2026-06-01T12:05:00.500Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0003","recipeId":"r2","stepIndex":0,"stepDigest":"s1:0000000a",' +
-    '"ordinal":1,"run":2,"durationMs":5000,"origin":"offer","state":"ringing","endedAt":"2026-06-01T12:00:05.001Z"},' +
+    '"ordinal":1,"run":2,"durationMs":5000,"origin":{"kind":"offer","lineIndex":null},"state":"ringing","endedAt":"2026-06-01T12:00:05.001Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0004","recipeId":"r2","stepIndex":1,"stepDigest":"s1:0000000b",' +
-    '"ordinal":2,"run":1,"durationMs":86400000,"origin":"added","state":"endedAway","endedAt":"2026-06-02T12:00:00.000Z",' +
+    '"ordinal":2,"run":1,"durationMs":86400000,"origin":{"kind":"added"},"state":"endedAway","endedAt":"2026-06-02T12:00:00.000Z",' +
     '"announcedAt":"2026-06-02T12:30:00.999Z"}]}';
 
 const EXPECTED_V2: KeptDocument = {
@@ -61,7 +61,7 @@ const EXPECTED_V2: KeptDocument = {
             ordinal: 1,
             run: 1,
             durationMs: 5_400_000,
-            origin: 'offer',
+            origin: { kind: 'offer', lineIndex: 1 },
             state: 'running',
             endsAt: '2026-06-01T13:30:00.250Z',
         },
@@ -73,7 +73,7 @@ const EXPECTED_V2: KeptDocument = {
             ordinal: 2,
             run: 3,
             durationMs: 600_000,
-            origin: 'added',
+            origin: { kind: 'added' },
             state: 'paused',
             remainingMs: 123_456,
             pausedAt: '2026-06-01T12:05:00.500Z',
@@ -86,7 +86,7 @@ const EXPECTED_V2: KeptDocument = {
             ordinal: 1,
             run: 2,
             durationMs: 5_000,
-            origin: 'offer',
+            origin: { kind: 'offer', lineIndex: null },
             state: 'ringing',
             endedAt: '2026-06-01T12:00:05.001Z',
         },
@@ -98,7 +98,7 @@ const EXPECTED_V2: KeptDocument = {
             ordinal: 2,
             run: 1,
             durationMs: 86_400_000,
-            origin: 'added',
+            origin: { kind: 'added' },
             state: 'endedAway',
             endedAt: '2026-06-02T12:00:00.000Z',
             announcedAt: '2026-06-02T12:30:00.999Z',

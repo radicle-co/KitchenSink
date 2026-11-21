@@ -17,7 +17,7 @@ const SHARED = {
     ordinal: 1,
     run: 1,
     durationMs: HOUR,
-    origin: 'added',
+    origin: { kind: 'added' },
 } as const;
 
 describe('activeTimerOf', () => {
@@ -105,10 +105,12 @@ describe('keptTimerOf', () => {
     });
 
     it('carries the origin both ways, so an offered timer is still offered after a round trip', () => {
-        const offered = makeTimer({ origin: 'offer' });
+        const offered = makeTimer({ origin: { kind: 'offer', lineIndex: null } });
 
-        expect(activeTimerOf(offered)).toMatchObject({ origin: 'offer' });
-        expect(keptTimerOf(activeTimerOf(offered), offered, now)).toMatchObject({ origin: 'offer' });
+        expect(activeTimerOf(offered)).toMatchObject({ origin: { kind: 'offer', lineIndex: null } });
+        expect(keptTimerOf(activeTimerOf(offered), offered, now)).toMatchObject({
+            origin: { kind: 'offer', lineIndex: null },
+        });
     });
 
     it('round-trips a stored timer of each state', () => {

@@ -70,8 +70,14 @@ const timerBase = {
      * stored.
      */
     durationMs: z.int().refine(isValidTimerMs),
-    /** Where the timer came from (cooking-core `TimerOrigin`): it decides whether the row reads the step's line. */
-    origin: z.enum(['offer', 'added']),
+    /**
+     * Where the timer came from (cooking-core `TimerOrigin`): an offer names the step line that offered it by index,
+     * never by text, and `null` is a line that is not known. Strict, so no line text can be stored.
+     */
+    origin: z.discriminatedUnion('kind', [
+        z.strictObject({ kind: z.literal('offer'), lineIndex: z.int().nonnegative().nullable() }),
+        z.strictObject({ kind: z.literal('added') }),
+    ]),
 };
 
 /**

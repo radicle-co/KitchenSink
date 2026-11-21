@@ -167,7 +167,7 @@ describe('the start race across two tabs (the limit is read inside the lock)', (
                     stepIndex: 3,
                     stepDigest: 's1:0000000d',
                     label: undefined,
-                    origin: 'added',
+                    origin: { kind: 'added' },
                     durationMs: 60_000,
                     limit: 1,
                     nowMs: NOW,

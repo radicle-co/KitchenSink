@@ -4,7 +4,7 @@
 - **Date:** 2026-11-21
 - **Relates to:** [ADR-0094](0094-kept-cooking-session-record.md) (the kept record, its one-way door and its rule that
   any shape change is a new version). Spec [008](../../../specs/008-cooking-mode/spec.md).
-- **Drivers:** the product and design decision that only a timer that the step offered reads the step's own line as
+- **Drivers:** the product and design decision that only a timer that a step line offered reads that line's label as
   its name, and it keeps that name after "+ time" and a reload. A timer the cook adds with no name reads "Step {n}".
 
 ## Context
@@ -20,12 +20,19 @@ it cannot tell an offered timer from an added one.
 
 ## Decision
 
-1. The timer carries `origin`, one of `offer` and `added`. `start` sets it, and every other command keeps it, as it
-   keeps `recipeId`. The reducer (`reduceTimer` in cooking-core) is the one owner.
+1. The timer carries `origin`, one of `{ kind: 'offer', lineIndex }` and `{ kind: 'added' }`. An offer names the step
+   line that offered it by its index in the step, and never by its text. `lineIndex` is `null` when the line is not
+   known. `start` sets the origin, and every other command keeps it, as it keeps `recipeId`. The one exception is
+   `rematch`: when a timer did not keep its step (the step's digest changed), an offer forgets its line and becomes
+   `{ kind: 'offer', lineIndex: null }`, because the old index may now name another line. The reducer (`reduceTimer` in
+   cooking-core) is the one owner.
 2. The kept record moves to version 2, and `origin` is required on every timer state (`running`, `paused`, `ringing`,
-   `endedAway`). A timer with no origin, or with a value outside the set, is dropped on its own, as any bad timer is.
-3. The name has one source, `timerLabel(timer, step, copy)`: the typed label, else for an offered timer the first line
-   label of the matched step, else "Step {n}". The `line` kind leaves the label type, so memory holds typed labels only.
+   `endedAway`). It is a strict object, so no line text and no stray key can be stored. A timer with no origin, or with
+   a value outside the set, is dropped on its own, as any bad timer is.
+3. The name has one source, `timerLabel(timer, step, copy)`: the typed label, else for an offer with a known line the
+   label of that line of the matched step, else "Step {n}". An offer whose line is not known, or not in the step, reads
+   "Step {n}". It does not fall back to the first label of the step: on a step with two timed lines that would name the
+   second timer after the first. The `line` kind leaves the label type, so memory holds typed labels only.
 4. There is no migration. The product holds no live data, so a version 1 document fails the version 2 parse and is
    treated as no record and removed, as any unreadable document is.
 

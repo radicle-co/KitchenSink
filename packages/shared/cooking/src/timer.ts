@@ -37,11 +37,12 @@ export interface TimerLabel {
 }
 
 /**
- * Where a timer came from. `offer`: the step offered it and the cook took it, so the row may read the step's own line.
- * `added`: the cook made it, so an unnamed one reads "Step {n}". Stored with the timer (kept record v2), so it
- * survives "+ time" and a reload, which a duration or "no typed label" would not.
+ * Where a timer came from. `offer`: a line of the step offered it and the cook took it, so the row reads that line's
+ * label. `lineIndex` is the line's place in the step, never its text; `null` means the line is not known (the step's
+ * text changed). `added`: the cook made it, so an unnamed one reads "Step {n}". Stored with the timer (kept record
+ * v2), so it survives "+ time" and a reload, which a duration or "no typed label" would not.
  */
-export type TimerOrigin = 'offer' | 'added';
+export type TimerOrigin = { readonly kind: 'offer'; readonly lineIndex: number | null } | { readonly kind: 'added' };
 
 /** What every timer carries. */
 export interface TimerBase {
@@ -453,12 +454,17 @@ function ring(state: TimerState, nowMs: number): TimerResult {
     return { state: { timers: state.timers.map((t) => rung.get(t.id) ?? t), undo: state.undo }, events };
 }
 
+/** An offer whose step text changed no longer knows which line offered it. Pure. */
+const forgetLine = (origin: TimerOrigin): TimerOrigin =>
+    origin.kind === 'offer' ? { kind: 'offer', lineIndex: null } : origin;
+
 /**
  * The step rewrite as one reducer command, so the numbering rule has one writer. "Kept its step" means the move's
  * digest equals the timer's stored one, not that the index is unchanged: `matchStep` falls back to the clamped old index
  * when a step was deleted, so a timer whose step was deleted can keep its index while one whose step survived moves.
  * Timers with no move count as kept. Each timer keeps its number when it is still free on its new step, in the order:
- * kept its step first, then the older number, then the id.
+ * kept its step first, then the older number, then the id. A timer that did not keep its step forgets which line
+ * offered it (`forgetLine`).
  */
 function rematch(state: TimerState, moves: readonly TimerMove[]): TimerResult {
     const moveOf = new Map(moves.map((m) => [m.id, m]));
@@ -482,7 +488,12 @@ function rematch(state: TimerState, moves: readonly TimerMove[]): TimerResult {
     );
     const placed = new Map<
         string,
-        { readonly stepIndex: number; readonly stepDigest: string; readonly ordinal: number }
+        {
+            readonly stepIndex: number;
+            readonly stepDigest: string;
+            readonly ordinal: number;
+            readonly origin: TimerOrigin;
+        }
     >();
     const claimed: TimerBase[] = [];
 
@@ -491,7 +502,12 @@ function rematch(state: TimerState, moves: readonly TimerMove[]): TimerResult {
         const taken = claimed.some((c) => sameStep(c, timer.recipeId, stepIndex) && c.ordinal === timer.ordinal);
         const ordinal = taken ? lowestFreeOrdinal(claimed, timer.recipeId, stepIndex) : timer.ordinal;
 
-        placed.set(timer.id, { stepIndex, stepDigest: move?.stepDigest ?? timer.stepDigest, ordinal });
+        placed.set(timer.id, {
+            stepIndex,
+            stepDigest: move?.stepDigest ?? timer.stepDigest,
+            ordinal,
+            origin: kept({ timer, move }) ? timer.origin : forgetLine(timer.origin),
+        });
         claimed.push({ ...timer, stepIndex, ordinal });
     }
 

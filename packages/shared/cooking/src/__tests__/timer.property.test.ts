@@ -40,7 +40,11 @@ const templateArb: fc.Arbitrary<Template> = fc.oneof(
         kind: fc.constant('start' as const),
         durationMs: fc.integer({ min: MIN_TIMER_MS, max: 3_600_000 }),
         step: fc.integer({ min: 0, max: 2 }),
-        origin: fc.constantFrom('offer' as const, 'added' as const),
+        origin: fc.constantFrom(
+            { kind: 'offer', lineIndex: 1 } as const,
+            { kind: 'offer', lineIndex: null } as const,
+            { kind: 'added' } as const,
+        ),
     }),
     fc.record({
         kind: fc.constantFrom(
@@ -310,8 +314,9 @@ describe('the timer model over any command sequence', () => {
     });
 
     /**
-     * A timer keeps the origin it started with through every command, so the row
-     * keeps the step's line label after "+ time", a ring, an Undo or a reload's settle. Mutant: one command resets it.
+     * A timer keeps the origin it started with through every command, so the row keeps its name after "+ time", a
+     * ring, an Undo or a reload's settle. The one change allowed is a rematch that moved the timer off its step text:
+     * an offer then forgets its line (`lineIndex: null`) and nothing else. Mutant: one command resets the origin.
      */
     it('keeps the origin a timer started with, in every command sequence', () => {
         fc.assert(
@@ -324,7 +329,15 @@ describe('the timer model over any command sequence', () => {
                     }
 
                     for (const timer of holdersOf(after)) {
-                        expect(timer.origin).toBe(startedAs.get(timer.id));
+                        const expected = startedAs.get(timer.id);
+
+                        if (expected !== undefined && timer.origin.kind === 'offer' && expected.kind === 'offer') {
+                            if (command.kind === 'rematch' && timer.origin.lineIndex === null) {
+                                startedAs.set(timer.id, timer.origin);
+                            }
+                        }
+
+                        expect(timer.origin).toEqual(startedAs.get(timer.id));
                     }
                 }
             }),

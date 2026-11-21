@@ -144,7 +144,7 @@ describe('a timer across Finish and Cook it again', () => {
         stepIndex: 0,
         stepDigest: 's1:0000000d',
         label: undefined,
-        origin: 'added',
+        origin: { kind: 'added' },
     } as const;
 
     afterEach(() => {

@@ -11,16 +11,19 @@ import {
     type KeptPort,
     type KeptSessionStore,
 } from '@commise/features-recipes/session';
+import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { focusManager } from '@tanstack/react-query';
 import type { TimerEvent } from '@kitchensink/cooking-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { cookingMessages } from '../../messages.js';
+import { timerLabel } from '../timerCopy.js';
 import { createTimerStore, type TimerStore } from '../timerStore.js';
 
 const T0 = Date.parse('2026-11-20T10:00:00.000Z');
 const MINUTE = 60_000;
 const KEY = `${KEPT_KEY_PREFIX}A`;
-const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', origin: 'added' } as const;
+const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', origin: { kind: 'added' } } as const;
 
 beforeEach(() => {
     vi.useFakeTimers({ now: T0 });
@@ -105,7 +108,7 @@ const settle = async (): Promise<void> => {
     await vi.advanceTimersByTimeAsync(0);
 };
 
-const stored = (device: ReturnType<typeof makeDevice>): { timers: { id: string; state: string; origin: string }[] } =>
+const stored = (device: ReturnType<typeof makeDevice>): { timers: { id: string; state: string; origin: unknown }[] } =>
     JSON.parse(device.data.get(KEY) ?? '{"timers":[]}');
 
 describe('write-through', () => {
@@ -122,7 +125,7 @@ describe('write-through', () => {
         const record = stored(device);
 
         expect(record.timers).toHaveLength(1);
-        expect(record.timers[0]).toMatchObject({ id, state: 'running', origin: 'added' });
+        expect(record.timers[0]).toMatchObject({ id, state: 'running', origin: { kind: 'added' } });
         expect(JSON.stringify(record)).not.toContain('Secret roast');
         expect(timers.getSnapshot().timers[0]?.label?.text).toBe('Secret roast');
     });
@@ -180,14 +183,78 @@ describe('hydration, and a reload (no sound for what ended while away)', () => {
         const device = makeDevice();
         const first = await device.tab();
 
-        first.timers.start({ ...STEP, origin: 'offer', label: undefined, durationMs: 90 * MINUTE });
+        first.timers.start({
+            ...STEP,
+            origin: { kind: 'offer', lineIndex: null },
+            label: undefined,
+            durationMs: 90 * MINUTE,
+        });
         await settle();
         vi.setSystemTime(T0 + 20 * MINUTE);
 
         const reloaded = await device.tab();
         const timer = reloaded.timers.getSnapshot().timers[0];
 
-        expect(timer).toMatchObject({ kind: 'running', endsAt: T0 + 90 * MINUTE, origin: 'offer', label: undefined });
+        expect(timer).toMatchObject({
+            kind: 'running',
+            endsAt: T0 + 90 * MINUTE,
+            origin: { kind: 'offer', lineIndex: null },
+            label: undefined,
+        });
+    });
+});
+
+describe('the name of an offered timer, across a reload', () => {
+    const en = resolveMessages(cookingMessages, 'en');
+    const step = { number: 3, lines: ['Roast 20 minutes.', 'Rest 10 minutes.'] } as const;
+    const nameOf = (timers: TimerStore): string | undefined => {
+        const timer = timers.getSnapshot().timers[0];
+
+        return timer === undefined ? undefined : timerLabel(timer, step, en.timer);
+    };
+
+    it.each([
+        [0, 'Roast'],
+        [1, 'Rest'],
+    ])('line %d reads %s, before and after a reload', async (lineIndex, name) => {
+        const device = makeDevice();
+        const first = await device.tab();
+
+        first.timers.start({
+            ...STEP,
+            origin: { kind: 'offer', lineIndex },
+            label: undefined,
+            durationMs: 10 * MINUTE,
+        });
+        await settle();
+
+        expect(nameOf(first.timers)).toBe(name);
+        expect(nameOf((await device.tab()).timers)).toBe(name);
+    });
+
+    it('reads "Step n" after the step text was edited and the page reloaded', async () => {
+        const device = makeDevice();
+        const first = await device.tab();
+
+        first.timers.start({
+            ...STEP,
+            origin: { kind: 'offer', lineIndex: 1 },
+            label: undefined,
+            durationMs: 10 * MINUTE,
+        });
+        await settle();
+
+        const id = first.timers.getSnapshot().timers[0]?.id ?? '';
+
+        first.timers.command({
+            kind: 'rematch',
+            moves: [{ id, stepIndex: STEP.stepIndex, stepDigest: 's1:0000ffff' }],
+        });
+        await settle();
+
+        const reloaded = await device.tab();
+
+        expect(nameOf(reloaded.timers)).toBe(fillTemplate(en.timer.stepLabel, { n: 3 }));
     });
 });
 

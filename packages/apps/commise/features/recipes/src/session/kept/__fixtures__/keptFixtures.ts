@@ -40,7 +40,7 @@ const timerBase = {
     ordinal: 1,
     run: 1,
     durationMs: HOUR,
-    origin: 'added' as const,
+    origin: { kind: 'added' } as const,
 };
 
 type Over<T> = Partial<Omit<T, 'state'>>;

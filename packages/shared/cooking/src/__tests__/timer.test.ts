@@ -31,7 +31,7 @@ const START = {
     stepIndex: 3,
     stepDigest: 's1:0000000d',
     label: { kind: 'typed', text: 'Roast' },
-    origin: 'added',
+    origin: { kind: 'added' },
     durationMs: 90 * MINUTE,
     limit: TIMER_LIMIT,
 } as const;
@@ -82,7 +82,7 @@ describe('start', () => {
             stepDigest: 's1:0000000d',
             ordinal: 1,
             label: { kind: 'typed', text: 'Roast' },
-            origin: 'added',
+            origin: { kind: 'added' },
             durationMs: 90 * MINUTE,
             endsAt: 1_000 + 90 * MINUTE,
         });
@@ -290,7 +290,7 @@ describe('ring', () => {
             stepDigest: 's1:0000000d',
             ordinal: 2,
             label: undefined,
-            origin: 'added',
+            origin: { kind: 'added' },
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -448,7 +448,7 @@ describe('addTime', () => {
             stepDigest: 's1:0000000d',
             ordinal: 1,
             label: undefined,
-            origin: 'added',
+            origin: { kind: 'added' },
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -808,7 +808,7 @@ describe('numbering and order edges', () => {
         stepDigest: 's1:0000000d',
         ordinal: 1,
         label: undefined,
-        origin: 'added',
+        origin: { kind: 'added' },
         durationMs: 10 * MINUTE,
         endsAt: 10 * MINUTE,
     } as const;
@@ -821,7 +821,7 @@ describe('numbering and order edges', () => {
         stepDigest: 's1:0000000d',
         ordinal: 1,
         label: undefined,
-        origin: 'added',
+        origin: { kind: 'added' },
         durationMs: 10 * MINUTE,
         endedAt,
     });
@@ -1020,8 +1020,8 @@ describe('time left', () => {
  * command, so the row keeps the step's line label after "+ time" and a reload.
  */
 describe('a timer carries the origin it was started with', () => {
-    it.each(['offer', 'added'] as const)(
-        '%s survives a pause, a resume, +5, a ring, a cancel and its Undo',
+    it.each([{ kind: 'offer', lineIndex: 2 }, { kind: 'offer', lineIndex: null }, { kind: 'added' }] as const)(
+        '%j survives a pause, a resume, +5, a ring, a cancel and its Undo',
         (origin) => {
             const first = reduceTimer(NO_TIMER, { ...START, origin, nowMs: 0 }).state;
             const paused = reduceTimer(first, { kind: 'pause', id: 't1', run: 1, nowMs: SECOND }).state;
@@ -1045,10 +1045,10 @@ describe('a timer carries the origin it was started with', () => {
             const back = reduceTimer(cancelled, { kind: 'restore', limit: TIMER_LIMIT, nowMs: 203 * MINUTE }).state;
 
             for (const state of [first, paused, resumed, plus, rung, again, back]) {
-                expect(timerOf(state)?.origin).toBe(origin);
+                expect(timerOf(state)?.origin).toEqual(origin);
             }
 
-            expect(cancelled.undo?.origin).toBe(origin);
+            expect(cancelled.undo?.origin).toEqual(origin);
         },
     );
 });

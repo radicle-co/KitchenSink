@@ -5,7 +5,7 @@ appId: ${APP_ID}
 # One column: the top bar's Ingredients button opens the sheet over the step, and closing it leaves the cook on the SAME
 # step. The two-column band needs 800 wide, which only a tablet reaches, so it is proved by the component tests.
 - runFlow: common/openCookingRecipe.yaml
-- assertVisible: 'Step 1 of 3'
+- assertVisible: 'Step 1 of 3'
 - tapOn: '^Heat the oven to 200 degrees\.$'
 - assertVisible: 'You ticked 1 line'
 
@@ -16,5 +16,5 @@ appId: ${APP_ID}
 # ── CLOSING IT KEEPS THE STEP AND THE TICK ──
 - tapOn: 'Close ingredients'
 - assertNotVisible: 'Close ingredients'
-- assertVisible: 'Step 1 of 3'
+- assertVisible: 'Step 1 of 3'
 - assertVisible: 'You ticked 1 line'

@@ -22,6 +22,7 @@ import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { failureEvidenceDir, pruneFailureRuns } from './failureEvidence.js';
 import type { HostLock } from './hostLock.js';
+import type { StagedOneOffs } from './oneOffStage.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
 import { laneRunnerEnv, type LaneChild } from './laneProcess.js';
 import type { DeviceAdapter, LanePlatform, LaneSpec } from './laneTypes.js';
@@ -36,6 +37,11 @@ export interface LaneRunRequest {
     readonly requested?: number;
     /** The flows named on the command line or `all` for every platform, or the impact selector's answer for each. */
     readonly selection: Selection | Readonly<Record<LanePlatform, Selection>>;
+    /**
+     * The staged one-off flow ids (`oneOffStage`). When given, a platform runs only these: the selector is not asked,
+     * every lane is handed the ids, and the green stamp does not move.
+     */
+    readonly oneOffs?: readonly string[];
 }
 
 const selectionFor = (selection: LaneRunRequest['selection'], platform: LanePlatform): Selection =>
@@ -106,6 +112,12 @@ export interface LaneRunDeps {
     settleStamp(settlement: StampSettlement): Promise<void>;
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
+    /**
+     * `--one-off` runs: copy the flows into `.maestro/oneOff/<runId>/` and answer their ids. Called once, under the host
+     * lock, before any adapter step (the iOS flows sync to the Mac in `prepareHost`). It throws when a one-off is
+     * refused. Absent for a run of committed flows.
+     */
+    stageOneOffs?(): StagedOneOffs;
     readonly staggerMs: number;
     /** How long a stopped lane has to exit before it is killed. Defaults to {@link STOP_GRACE_MS}. */
     readonly stopGraceMs?: number;
@@ -129,6 +141,8 @@ interface PlatformPlan {
     readonly owed: readonly string[];
     readonly selector: string;
     readonly lanes: readonly LaneSpec[];
+    /** The staged one-off ids this platform runs; empty for a run of committed flows. */
+    readonly oneOffs: readonly string[];
 }
 
 const laneName = (lane: LaneSpec): string => `${lane.platform}-${lane.index}`;
@@ -145,11 +159,14 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
     if (selection !== 'all' && selection.length === 0) {
         deps.log(`nothing to run on ${platform}: no change touches a screen a flow covers`);
 
-        return { adapter, flows: [], owed: [], selector: '', lanes: [] };
+        return { adapter, flows: [], owed: [], selector: '', lanes: [], oneOffs: [] };
     }
 
-    const selector = selection === 'all' ? '' : flowSelector(selection);
-    const { flows, notes, owed } = await deps.selectFlows(platform, selector);
+    const oneOffs = request.oneOffs ?? [];
+    const selector = selection === 'all' || oneOffs.length > 0 ? '' : flowSelector(selection);
+    // A one-off has no row in the runner's registry, so the runner's selector would refuse it: they are the flows.
+    const { flows, notes, owed } =
+        oneOffs.length > 0 ? { flows: oneOffs, notes: [], owed: [] } : await deps.selectFlows(platform, selector);
 
     for (const note of notes) {
         deps.log(note);
@@ -158,7 +175,7 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
     if (flows.length === 0) {
         deps.log(`nothing to run on ${platform}: no selected flow is one these lanes can serve`);
 
-        return { adapter, flows: [], owed, selector, lanes: [] };
+        return { adapter, flows: [], owed, selector, lanes: [], oneOffs: [] };
     }
 
     const identityCap = await deps.identityCap(platform);
@@ -190,6 +207,7 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
         flows,
         owed,
         selector,
+        oneOffs,
         lanes: laneSpecs({ platform, count, stateDir: deps.stateDir, deviceFor: (index) => adapter.deviceFor(index) }),
     };
 }
@@ -210,11 +228,15 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
         );
     }
 
+    let staged: StagedOneOffs | undefined;
+
     try {
+        staged = deps.stageOneOffs?.();
+        const planned = staged === undefined ? request : { ...request, oneOffs: staged.ids };
         const plans: PlatformPlan[] = [];
 
-        for (const platform of request.platforms) {
-            plans.push(await planPlatform(deps, request, platform));
+        for (const platform of planned.platforms) {
+            plans.push(await planPlatform(deps, planned, platform));
         }
 
         const lanes = plans.flatMap((plan) => plan.lanes);
@@ -229,7 +251,9 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
                   );
 
         // A platform with nothing to run passed nothing, which is not a failure: its stamp may still move.
-        for (const plan of plans.filter((candidate) => candidate.lanes.length === 0 && !deps.aborted())) {
+        for (const plan of plans.filter(
+            (candidate) => candidate.lanes.length === 0 && candidate.oneOffs.length === 0 && !deps.aborted(),
+        )) {
             await deps.settleStamp({
                 platform: plan.adapter.platform,
                 flows: [],
@@ -241,6 +265,7 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
         return code;
     } finally {
+        staged?.remove();
         lock.release();
     }
 }
@@ -262,6 +287,7 @@ async function runPlanned(
             lockDir: deps.lockDir,
             evidenceDir: failureEvidenceDir(lane.stateDir, deps.runStamp),
             adapterEnv: plan?.adapter.laneEnv(lane) ?? {},
+            oneOffFlows: plan?.oneOffs ?? [],
         });
     };
 
@@ -421,7 +447,8 @@ async function runPlanned(
 
         const checked = await deps.checkScreens(lanes);
 
-        for (const plan of plans) {
+        // A one-off is not part of the committed suite, so a run of one-offs earns the stamp nothing.
+        for (const plan of plans.filter((candidate) => candidate.oneOffs.length === 0)) {
             const { platform } = plan.adapter;
 
             await deps.settleStamp({

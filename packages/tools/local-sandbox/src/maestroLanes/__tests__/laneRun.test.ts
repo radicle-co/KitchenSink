@@ -1083,3 +1083,113 @@ describe('runLaneRun — a lost tunnel', () => {
         });
     });
 });
+
+describe('runLaneRun: one-off flows', () => {
+    const oneOffs = ['oneOff/run1/shots', 'oneOff/run1/more'];
+
+    it('runs only the staged ids: the selector is never asked, and each lane is packed over them', async () => {
+        const selectFlows = vi.fn(() => Promise.resolve({ flows: ['committed'], notes: [], owed: [] }));
+        const pack = vi.fn((_platform: string, index: number, count: number, flows: readonly string[]) =>
+            Promise.resolve(flows.filter((_, position) => position % count === index - 1)),
+        );
+        const { deps } = harness({ selectFlows, pack });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+
+        expect(selectFlows).not.toHaveBeenCalled();
+        expect(pack).toHaveBeenCalledWith('android', 1, 2, oneOffs);
+    });
+
+    it('hands each lane the ids in MAESTRO_ONE_OFF_FLOWS and no selector pairs', async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+
+        for (const index of [1, 2]) {
+            const env = envOf(laneFile(state, index));
+
+            expect(env['MAESTRO_ONE_OFF_FLOWS']).toBe(oneOffs.join(' '));
+            expect(env['MAESTRO_FLOW_SELECTOR']).toBe('');
+        }
+    });
+
+    it('gives a run with no one-off no MAESTRO_ONE_OFF_FLOWS at all', async () => {
+        const { state, deps } = harness();
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        expect(envOf(laneFile(state, 1))).not.toHaveProperty('MAESTRO_ONE_OFF_FLOWS');
+    });
+
+    it('never moves the green stamp: a one-off is not part of the committed suite', async () => {
+        const settleStamp = vi.fn(() => Promise.resolve());
+        const { deps } = harness({ settleStamp });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+
+        expect(settleStamp).not.toHaveBeenCalled();
+    });
+    describe('staging', () => {
+        const staged = (events: string[], ids: readonly string[] = oneOffs) => ({
+            stageOneOffs: () => {
+                events.push('stage');
+
+                return {
+                    ids,
+                    remove: () => {
+                        events.push('unstage');
+                    },
+                };
+            },
+        });
+
+        it('stages under the lock, before the host is prepared, and runs the staged ids', async () => {
+            const made = harness();
+            const { events } = made;
+            const deps: LaneRunDeps = { ...made.deps, ...staged(events) };
+
+            await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+            const order = events.filter((event) => /^(lock|stage|prepareHost|unstage|unlock)/u.test(event));
+
+            expect(order).toEqual(['lock', 'stage', 'prepareHost android', 'unstage', 'unlock']);
+        });
+
+        it('removes the staged flows when the run fails, and when it is stopped', async () => {
+            const failing = harness();
+            const failDeps: LaneRunDeps = {
+                ...failing.deps,
+                ...staged(failing.events),
+                startServices: () => Promise.reject(new Error('services failed')),
+            };
+
+            await expect(runLaneRun(failDeps, { platforms: ['android'], selection: 'all' })).rejects.toThrow(
+                'services failed',
+            );
+            expect(failing.events).toContain('unstage');
+
+            const stopped = harness();
+            const stopDeps: LaneRunDeps = { ...stopped.deps, ...staged(stopped.events), aborted: () => true };
+
+            await runLaneRun(stopDeps, { platforms: ['android'], selection: 'all' });
+
+            expect(stopped.events).toContain('unstage');
+        });
+
+        it('starts nothing, and releases the lock, when a one-off is refused', async () => {
+            const made = harness();
+            const deps: LaneRunDeps = {
+                ...made.deps,
+                stageOneOffs: () => {
+                    throw new Error('/tmp/a.yaml: ../../nope.yaml: not found');
+                },
+            };
+
+            await expect(runLaneRun(deps, { platforms: ['android'], selection: 'all' })).rejects.toThrow('nope.yaml');
+            expect(made.events.filter((event) => /^(startServices|createRunUsers|prepareHost)/u.test(event))).toEqual(
+                [],
+            );
+            expect(made.events).toContain('unlock');
+        });
+    });
+});

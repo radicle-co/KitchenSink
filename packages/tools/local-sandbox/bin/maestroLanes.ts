@@ -38,6 +38,7 @@ import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/
 import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
+import { stageOneOffs } from '../src/maestroLanes/oneOffStage.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
@@ -48,6 +49,7 @@ import { startSharedServices, type RunningService, type ServiceSpec } from '../s
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOCAL_MAESTRO = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
+const MAESTRO_DIR = path.join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro');
 const RUNNER = path.join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 /** `localMaestro.sh`'s default state folder too; `localSettings.test.ts` holds the two equal. */
 const STATE_DIR = path.join(stateRoot(), 'localMaestro');
@@ -476,7 +478,9 @@ async function main(argv: readonly string[]): Promise<number> {
         process.stdout.write(`maestro:lanes: ${new Date().toISOString().slice(11, 19)} ${line}\n`);
     };
 
-    const choices = await resolveSelection(args, base, log);
+    // A one-off run runs only its own flows: the impact selector has nothing to say about them.
+    const choices =
+        args.oneOffs === undefined ? await resolveSelection(args, base, log) : new Map<LanePlatform, PlatformChoice>();
 
     const children = new Set<LaneChild>();
     let aborted = false;
@@ -612,6 +616,12 @@ async function main(argv: readonly string[]): Promise<number> {
                 log,
             }),
         aborted: () => aborted,
+        ...(args.oneOffs === undefined
+            ? {}
+            : {
+                  stageOneOffs: () =>
+                      stageOneOffs({ maestroDir: MAESTRO_DIR, paths: args.oneOffs ?? [], runId: deps.runStamp }),
+              }),
         staggerMs: args.staggerSeconds * 1000,
         log,
     };

@@ -22,6 +22,7 @@ import { Pressable, type View } from 'react-native';
 import { styled, XStack, YStack } from 'tamagui';
 
 import { heldVisibility } from '../actions/privateGate.js';
+import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import {
     visibilityChoice,
@@ -82,12 +83,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onPremiumRequired,
     onConfirmPublic,
     onFreeASlot,
-    webSource,
-    publicHeld,
+    publicRefusal,
     confirmLine: confirmText,
     focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
+    const { publicRefusal: refusalLines } = useMessages(recipeActionMessages);
     // A ref, for the reason `useScreenReaderFocusOnSignal` states: moving the reading cursor has no declarative form. It goes to
     // the Public card, not the group: a container that is not itself an accessibility element takes no cursor on iOS, and the
     // card reads its title and, when it is unavailable, the held note as its hint.
@@ -100,13 +101,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         facts,
         refusal: privateRefusal,
         messages: v,
-        ...(webSource === undefined ? {} : { webSource }),
-        ...(publicHeld === undefined ? {} : { publicHeld }),
+        refusalLines,
+        publicRefusal,
         ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(shown, chosen, savedVisibility, facts);
+        const next = visibilityChoice(shown, chosen, savedVisibility, facts, publicRefusal);
 
         if (next === 'confirmPublic') {
             onConfirmPublic();

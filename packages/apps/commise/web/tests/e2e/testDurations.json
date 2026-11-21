@@ -220,6 +220,7 @@
     "chromium › layoutContainers.spec.ts › <main> as a container — 600 px › gives content 552 px, the narrow class": 1732,
     "chromium › layoutContainers.spec.ts › <main> as a container — 767 px › gives content 719 px, the regular class": 1827,
     "chromium › layoutContainers.spec.ts › <main> as a container — 768 px › gives content 720 px, the regular class": 2049,
+    "chromium › makePublicRefusalNotice.spec.ts › why a recipe cannot be public (P6) › Make public, answered \"From a web page\": the page says why, once, and stops offering Make public": 3500,
     "chromium › namelessLines.spec.ts › recipe lines with no name (plan 002) › a line food could not name offers one Try again, and a retry that names it moves focus to Ingredients": 2906,
     "chromium › namelessLines.spec.ts › recipe lines with no name (plan 002) › a restore the server refuses says so in the list and inside the preview, marking the line": 2747,
     "chromium › needsReviewJump.spec.ts › the Needs review badge for a viewer who does not own the recipe › shows the plain badge and no link to the editor": 2898,

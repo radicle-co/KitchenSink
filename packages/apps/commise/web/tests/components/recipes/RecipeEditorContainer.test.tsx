@@ -636,7 +636,10 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
     });
 
     describe('a book or paid-site recipe: private only', () => {
-        const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+        const REASON = {
+            imported_physical: 'This recipe stays private because it’s from a cookbook or magazine.',
+            imported_paid: 'This recipe stays private because it’s from a paid website.',
+        } as const;
 
         it.each(['imported_physical', 'imported_paid'] as const)(
             '⛔ shows Public refused on a private %s recipe: focusable, not disabled, with the reason as its description',
@@ -653,7 +656,7 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
 
                 expect(pub.getAttribute('aria-disabled')).toBe('true');
                 expect(pub.disabled).toBe(false);
-                expect(pub).toHaveAccessibleDescription(REASON);
+                expect(pub).toHaveAccessibleDescription(REASON[sourceType]);
                 pub.focus();
                 expect(document.activeElement).toBe(pub);
             },
@@ -679,7 +682,10 @@ describe('RecipeEditorContainer (web) — Private (E1, private slots and Pro)', 
             await openRecipe(clientWithSlots({ used: 10, limit: 50 }), 'rec_own_pub', RecipeVisibility.PRIVATE);
 
             expect(screen.getByRole('radio', { name: /^Public/u }).getAttribute('aria-disabled')).toBeNull();
-            expect(screen.queryByText(REASON)).toBeNull();
+
+            for (const line of Object.values(REASON)) {
+                expect(screen.queryByText(line)).toBeNull();
+            }
         });
     });
 

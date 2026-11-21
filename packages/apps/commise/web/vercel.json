@@ -2,6 +2,7 @@
     "$schema": "https://openapi.vercel.sh/vercel.json",
     "framework": "nextjs",
     "buildCommand": "NODE_OPTIONS=--max-old-space-size=7168 npx turbo run build --filter=@commise/web",
+    "ignoreCommand": "[ \"$VERCEL_ENV\" = preview ] && [ -z \"$VERCEL_GIT_PULL_REQUEST_ID\" ] && [ -z \"$PREVIEW_PR_NUMBER\" ]",
     "github": {
         "silent": true
     }

@@ -117,3 +117,24 @@ describe('stepWaitsOf, times outside the timer bounds', () => {
         });
     });
 });
+
+describe('stepWaitsOf, a time that repeats', () => {
+    it('marks the wait of a repeat line and no other wait', () => {
+        expect(stepWaitsOf({ lines: ['Fry 10 minutes each side.', 'Rest 5 minutes.'] })).toStrictEqual({
+            kind: 'lines',
+            waits: [
+                { seconds: 600, offers: true, perRepeat: true },
+                { seconds: 300, offers: true },
+            ],
+            unread: false,
+        });
+    });
+
+    it('keeps the mark on a range wait', () => {
+        expect(stepWaitsOf({ lines: ['Fry 3 to 4 minutes per side.'] })).toStrictEqual({
+            kind: 'lines',
+            waits: [{ seconds: 180, highSeconds: 240, offers: true, perRepeat: true }],
+            unread: false,
+        });
+    });
+});

@@ -45,6 +45,7 @@ import { recipeActionMessages } from '../actions/messages.js';
 import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
+import { publicOfferOf } from './publishBlockedCopy.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
 import { originalLinesOf } from '../form/wire.js';
 import { pendingIngredientIds } from '../form/ingredientStatus.js';
@@ -325,8 +326,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                         <RecipeVisibilityField
                             values={editor.values}
                             onChange={editor.setValues}
-                            webSource={source.webSource}
-                            publicHeld={editor.publicHeld}
+                            publicRefusal={editor.publicRefusal}
                             focusSignal={source.visibilityFocus}
                             {...(editor.confirmLineShown ? { confirmLine: publicConfirm.line } : {})}
                             {...privateChoice.field}
@@ -466,8 +466,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                               : undefined
                     }
                     onKeepDraft={editor.keepAsDraft}
-                    // ⛔ A recipe copied from a web page can only be private (ADR-0089): the ask has no such control.
-                    {...(source.webSource ? { webSource: true } : { onPublishPublic: editor.publishAsPublic })}
+                    // ⛔ A recipe whose Public is refused can only be private (ADR-0089, board P6): the ask has no such control. One
+                    // function (`publicRefusalOf`) decides every Public offer; a web page keeps its own words.
+                    {...publicOfferOf(editor.publicRefusal, editor.publishAsPublic)}
                 />
             )}
         </>

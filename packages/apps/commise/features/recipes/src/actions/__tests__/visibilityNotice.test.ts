@@ -15,14 +15,10 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { editorMessages } from '../../editor/messages.js';
 import { recipeActionMessages } from '../messages.js';
 import { visibilityNoticeOf, type VisibilityNoticeInput } from '../visibilityNotice.js';
 
-const copy = {
-    ...recipeActionMessages.en.visibility,
-    publicHeld: editorMessages.en.visibility.publicHeldBySource,
-};
+const copy = { ...recipeActionMessages.en.visibility, publicRefusal: recipeActionMessages.en.publicRefusal };
 const FINAL = copy.privateRefused.final;
 // The slots sentence is filled with the SERVER's limit; this package states no number of its own.
 const SLOTS = 'Not available. All 50 of your private slots are in use.';
@@ -35,10 +31,12 @@ const base: VisibilityNoticeInput = {
     knownRefusal: 'final',
     writeFailed: false,
     slotLimit: 50,
-    held: false,
+    standing: 'none',
 };
-const noticeOf = (overrides: Partial<VisibilityNoticeInput>): string | undefined =>
+const noticeOf = (overrides: Partial<VisibilityNoticeInput>): ReturnType<typeof visibilityNoticeOf> =>
     visibilityNoticeOf({ ...base, ...overrides }, copy);
+/** What the slot says as a MOMENT (needs action now). The whole result is compared, so a standing line of the same words fails. */
+const moment = (text: string) => ({ kind: 'moment', text }) as const;
 
 describe('visibilityNoticeOf — the finish claim (a link or route param the reader may forge)', () => {
     it.each([
@@ -47,7 +45,7 @@ describe('visibilityNoticeOf — the finish claim (a link or route param the rea
         ['premium', FINAL],
         ['slots', SLOTS],
     ] as const)('⛔ says the %s refusal in its own words for an owner of a public recipe', (knownRefusal, words) => {
-        expect(noticeOf({ finishRefused: true, knownRefusal })).toBe(words);
+        expect(noticeOf({ finishRefused: true, knownRefusal })).toEqual(moment(words));
     });
 
     it('is silent without a claim, whatever the page knows', () => {
@@ -70,35 +68,35 @@ describe('visibilityNoticeOf — a refusal the server gave', () => {
     it.each(['final', 'premium', 'slots'] as const)(
         'says the %s reason for an owner of a public recipe',
         (serverRefusal) => {
-            expect(noticeOf({ serverRefusal, knownRefusal: undefined })).toBe(
-                serverRefusal === 'slots' ? SLOTS : FINAL,
+            expect(noticeOf({ serverRefusal, knownRefusal: undefined })).toEqual(
+                moment(serverRefusal === 'slots' ? SLOTS : FINAL),
             );
         },
     );
 
     it('is silent once the recipe is no longer public', () => {
-        expect(noticeOf({ serverRefusal: 'final', isPublic: false, writeFailed: true })).toBeUndefined();
+        expect(noticeOf({ serverRefusal: 'final', isPublic: false })).toBeUndefined();
     });
 });
 
 describe('visibilityNoticeOf — precedence', () => {
     it('lets the latest server answer win over the finish claim', () => {
-        expect(noticeOf({ serverRefusal: 'slots', finishRefused: true, knownRefusal: 'final' })).toBe(SLOTS);
+        expect(noticeOf({ serverRefusal: 'slots', finishRefused: true, knownRefusal: 'final' })).toEqual(moment(SLOTS));
     });
 
     it('lets a later generic failure of the page’s own write win over the finish claim: it is the more recent word', () => {
-        expect(noticeOf({ writeFailed: true, finishRefused: true, knownRefusal: 'final' })).toBe(copy.error);
+        expect(noticeOf({ writeFailed: true, finishRefused: true, knownRefusal: 'final' })).toEqual(moment(copy.error));
     });
 
     it('lets a server refusal win over the generic failure it caused', () => {
-        expect(noticeOf({ serverRefusal: 'final', writeFailed: true })).toBe(FINAL);
+        expect(noticeOf({ serverRefusal: 'final', writeFailed: true })).toEqual(moment(FINAL));
     });
 });
 
 describe('visibilityNoticeOf — the generic failure', () => {
     it('says the generic error for the owner, public or private', () => {
-        expect(noticeOf({ writeFailed: true })).toBe(copy.error);
-        expect(noticeOf({ writeFailed: true, isPublic: false })).toBe(copy.error);
+        expect(noticeOf({ writeFailed: true })).toEqual(moment(copy.error));
+        expect(noticeOf({ writeFailed: true, isPublic: false })).toEqual(moment(copy.error));
     });
 
     it('is silent for a non-owner', () => {
@@ -113,31 +111,57 @@ describe('visibilityNoticeOf — the generic failure', () => {
 
 describe('visibilityNoticeOf — the slots sentence', () => {
     it('replaces the retired "still public" line with the editor board`s words', () => {
-        expect(noticeOf({ serverRefusal: 'slots' })).toBe('Not available. All 50 of your private slots are in use.');
+        expect(noticeOf({ serverRefusal: 'slots' })).toEqual(
+            moment('Not available. All 50 of your private slots are in use.'),
+        );
     });
 
     it('states the limit it is given, whatever it is', () => {
-        expect(noticeOf({ serverRefusal: 'slots', slotLimit: 75 })).toBe(
-            'Not available. All 75 of your private slots are in use.',
+        expect(noticeOf({ serverRefusal: 'slots', slotLimit: 75 })).toEqual(
+            moment('Not available. All 75 of your private slots are in use.'),
         );
     });
 
     it('⛔ with no limit to state, says the generic failure rather than a number it made up', () => {
-        expect(noticeOf({ serverRefusal: 'slots', slotLimit: undefined })).toBe(copy.error);
-        expect(noticeOf({ finishRefused: true, knownRefusal: 'slots', slotLimit: undefined })).toBe(copy.error);
+        expect(noticeOf({ serverRefusal: 'slots', slotLimit: undefined })).toEqual(moment(copy.error));
+        expect(noticeOf({ finishRefused: true, knownRefusal: 'slots', slotLimit: undefined })).toEqual(
+            moment(copy.error),
+        );
     });
 });
 
-/** ADR-0095: a recorded source holds the recipe out of Public, and the page says so. */
+/**
+ * ADR-0095: a recorded source holds the recipe out of Public, and the page says so. REWRITTEN for board P6 (qse
+ * TEST-CHANGE, decisions/makePublicRefusalNotice-qse.md): `held` was a flag that won over every other word; it is now the
+ * standing `sourceConflict` reason, said in the designer's words and below any moment line.
+ */
 describe('visibilityNoticeOf — a recipe held out of Public by a recorded source', () => {
-    const HELD = 'This recipe was saved with a source, so it stays private.';
+    const HELD = copy.publicRefusal.sourceConflict;
 
-    it('says the held note to the owner, over any other word, and says nothing to a viewer who is not the owner', () => {
-        expect(visibilityNoticeOf({ ...base, held: true, isPublic: false, writeFailed: true }, copy)).toBe(HELD);
-        expect(visibilityNoticeOf({ ...base, held: true, viewerIsOwner: false }, copy)).toBeUndefined();
+    it('says the designer’s held line to the owner of a private recipe, as a standing line', () => {
+        expect(noticeOf({ standing: 'sourceConflict', isPublic: false })).toEqual({
+            kind: 'standing',
+            reason: 'sourceConflict',
+            text: HELD,
+        });
+        expect(HELD).toBe('This recipe stays private because it was saved with a source.');
     });
 
-    it('says nothing of it when the recipe is not held', () => {
-        expect(visibilityNoticeOf({ ...base, held: false, isPublic: false }, copy)).toBeUndefined();
+    it('lets a failed write win over it: the generic failure is a moment', () => {
+        expect(noticeOf({ standing: 'sourceConflict', isPublic: false, writeFailed: true })).toEqual(
+            moment(copy.error),
+        );
+    });
+
+    it('says nothing to a viewer who is not the owner', () => {
+        expect(noticeOf({ standing: 'sourceConflict', viewerIsOwner: false })).toBeUndefined();
+    });
+
+    it('says nothing when nothing stops Public', () => {
+        expect(noticeOf({ standing: 'none', isPublic: false })).toBeUndefined();
+    });
+
+    it('says nothing while the recipe is public', () => {
+        expect(noticeOf({ standing: 'sourceConflict', isPublic: true })).toBeUndefined();
     });
 });

@@ -493,8 +493,9 @@ wrap-up PR. Before writing code, write the failing test in EVERY tier the change
 - **Every other end-to-end flow still has to exist** (Playwright for web, Maestro for mobile, local and deployed e2e
   where §7.1 requires them). Their job is to prevent regression, so the flows of a feature's stories may land together
   in ONE wrap-up PR at the end of the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The feature is NOT DONE until
-  the wrap-up PR merges and its flows pass.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The deferral counts only when
+  that task already exists on the base branch, in the feature's plan or tasks file, and covers this story's flows. A
+  task the same PR adds does not count. The feature is NOT DONE until the wrap-up PR merges and its flows pass.
 - **A story PR still carries its unit tests and its component and integration tests.** Deferring them is a violation.
 
 ### What a mocked test structurally CANNOT prove — and why the real-dependency tier is not optional

@@ -777,8 +777,9 @@ fixture user).
 - **Every other end-to-end flow still has to exist.** Playwright for web and Maestro for mobile stay required for every
   story. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up PR at the end of
   the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The feature is NOT DONE until
-  the wrap-up PR merges and its flows pass.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The deferral counts only when
+  that task already exists on the base branch, in the feature's plan or tasks file, and covers this story's flows. A
+  task the same PR adds does not count. The feature is NOT DONE until the wrap-up PR merges and its flows pass.
 - **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.
 
 ### Test File Location

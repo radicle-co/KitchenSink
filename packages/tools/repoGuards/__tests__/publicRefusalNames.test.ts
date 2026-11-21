@@ -39,7 +39,7 @@ const shownReasons = (): string[] => {
     );
     const body = /export const PUBLIC_REFUSALS = \[([^\]]*)\] as const;/.exec(source)?.[1] ?? '';
 
-    return [...body.matchAll(/'([^']+)'/g)].map((match) => match[1] ?? '').filter((name) => name !== 'none');
+    return [...body.matchAll(/'([^']+)'/g)].map(([, name]) => name).filter((name) => name !== 'none');
 };
 
 describe('publicRefusalOf: the reason names are the state model’s', () => {

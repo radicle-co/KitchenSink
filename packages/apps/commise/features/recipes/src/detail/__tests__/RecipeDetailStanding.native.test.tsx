@@ -23,10 +23,12 @@ import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index
 import type { VisibilityNotice } from '../../actions/visibilityNotice.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
-const platform = vi.hoisted(() => ({
-    os: 'ios' as 'ios' | 'android',
-    announce: vi.fn<(message: string, options: unknown) => void>(),
-}));
+const platform = vi.hoisted(
+    (): { os: 'ios' | 'android'; announce: ReturnType<typeof vi.fn<(message: string, options: unknown) => void>> } => ({
+        os: 'ios',
+        announce: vi.fn<(message: string, options: unknown) => void>(),
+    }),
+);
 
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
@@ -115,7 +117,7 @@ describe('RecipeDetailView (native) — the standing reason line (P6)', () => {
         const regions = document.querySelectorAll('[aria-live="assertive"]');
 
         expect(regions).toHaveLength(1);
-        expect(regions.item(0)?.textContent).toBe('');
+        expect(regions.item(0).textContent).toBe('');
     });
 
     it('announces nothing on a page that opens with the line', () => {

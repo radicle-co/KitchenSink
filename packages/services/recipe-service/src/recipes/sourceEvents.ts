@@ -8,13 +8,9 @@
  *
  * @pattern Observer — fire-and-forget metric lines
  */
+import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
+
 import { buildStageCountMetricLine, resolveMetricStage } from '../common/emfMetricLine.js';
-
-/** The namespace every source-lock metric is published under. */
-export const SOURCE_EVENT_NAMESPACE = 'Commise/RecipeSource';
-
-/** The metric the correction volume alarm watches (ADR-0100 runbook: more than 10 in a day is a leaked scope or a runaway script). */
-export const SOURCE_CORRECTED_METRIC = 'source.corrected';
 
 /** The routes by which a cook's write can meet the lock. */
 export type LockedRoute = 'update' | 'setVisibility' | 'create';

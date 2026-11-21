@@ -2,14 +2,10 @@
  * The source lock's three log events (plan everyAnswerSourceLock KTD-11, ADR-0100): each is one EMF line dimensioned by `Stage`
  * alone, and none carries an answer, a citation, a link or a reason (qse Q-3).
  */
+import { SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
 import { describe, expect, it, vi } from 'vitest';
 
-import {
-    SOURCE_EVENT_NAMESPACE,
-    recordSourceCorrected,
-    recordSourceCorrectionRefused,
-    recordSourceLockRefused,
-} from '../sourceEvents.js';
+import { recordSourceCorrected, recordSourceCorrectionRefused, recordSourceLockRefused } from '../sourceEvents.js';
 
 function lineOf(emit: (sink: (line: string) => void) => void): Record<string, unknown> {
     const sink = vi.fn();

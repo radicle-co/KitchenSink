@@ -16,6 +16,7 @@ import {
 } from '@radicle-co/infra-shared/alb';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
+import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
@@ -1386,8 +1387,8 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
 
     it('watches Commise/RecipeSource source.corrected on the Stage dimension: Sum over 86400 s, above 10, missing data not breaching', () => {
         synthTemplate('prod', 'prod', undefined, ENABLED).hasResourceProperties('AWS::CloudWatch::Alarm', {
-            Namespace: 'Commise/RecipeSource',
-            MetricName: 'source.corrected',
+            Namespace: SOURCE_EVENT_NAMESPACE,
+            MetricName: SOURCE_CORRECTED_METRIC,
             Dimensions: [{ Name: 'Stage', Value: 'prod' }],
             Statistic: 'Sum',
             Period: 86400,

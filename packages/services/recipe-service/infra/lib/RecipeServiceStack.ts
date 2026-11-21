@@ -44,6 +44,7 @@ import {
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
 import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 
 /**
@@ -118,17 +119,6 @@ export interface RecipeServiceStackProps extends StackProps {
     /** The alarm recipient, per-stage configuration and never a committed literal. Absent means no subscription, not a synth failure. */
     readonly alertEmail?: string;
 }
-
-/**
- * The EMF namespace and metric the source-correction volume alarm watches (ADR-0100, plan everyAnswerSourceLock KTD-11).
- *
- * ⛔ MUST EQUAL `SOURCE_EVENT_NAMESPACE` and `SOURCE_CORRECTED_METRIC` in `src/recipes/sourceEvents.ts`: the same knowledge on either
- * side of the infra boundary. The alarm extracts by exact namespace, dimension and metric name, so a divergence fails nothing at
- * deploy and leaves a permanent, confident `OK` under `treatMissingData: NOT_BREACHING`. repoGuards W3 catches a metric NAME the
- * runtime never mentions; nothing catches the namespace, so this comment is the pairing.
- */
-const SOURCE_EVENT_NAMESPACE = 'Commise/RecipeSource';
-const SOURCE_CORRECTED_METRIC = 'source.corrected';
 
 /** More corrections than this in one day is a leaked grant or a runaway script: staff corrections are rare and manual. */
 const SOURCE_CORRECTED_DAILY_THRESHOLD = 10;

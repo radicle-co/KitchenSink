@@ -134,7 +134,8 @@ function countedAt(tokens: readonly string[], index: number): Amount | undefined
 /** "an hour", "a minute", but only where the next token cannot make the unit a part of another word or phrase. */
 function articleAt(tokens: readonly string[], index: number): Amount | undefined {
     const unitWord = tokens[index + 1] ?? '';
-    const follower = tokens[index + 2];
+    // `at` is typed `T | undefined`, so the guard below is a real one whatever `noUncheckedIndexedAccess` says.
+    const follower = tokens.at(index + 2);
 
     if (!isArticle(tokens[index]) || !ARTICLE_UNITS.has(unitWord)) {
         return undefined;

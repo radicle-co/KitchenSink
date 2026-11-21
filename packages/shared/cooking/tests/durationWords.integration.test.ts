@@ -81,7 +81,8 @@ describe('a rate per weight is no wait, over a step the real splitter made', () 
 });
 
 describe('a repeat rate offers its time, over a step the real splitter made (P56)', () => {
-    const [step] = cookingStepsOf([
+    // `at` is typed `T | undefined`, so the optional chain below is a real one.
+    const step = cookingStepsOf([
         recipeStepSchema.parse({
             id: '01JCOOKINGWORDSINTEG00098',
             recipeId: RECIPE_ID,
@@ -93,7 +94,7 @@ describe('a repeat rate offers its time, over a step the real splitter made (P56
                 'Microwave 1 minute per potato.',
             ].join(' '),
         }),
-    ]);
+    ]).at(0);
 
     it('offers the two repeat lines and not the weight or food rates', () => {
         const lines = step?.lines ?? [];

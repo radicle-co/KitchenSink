@@ -630,20 +630,6 @@ This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this
 - **"It can't run in this environment" is NEVER an excuse to omit a test.** A required test is always **written**, and it runs where its tier runs: unit, integration and guards in CI; LOCAL e2e on a developer's machine (owner ruling 2026-10-03, [§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target)); DEPLOYED e2e and k6 against a deployed target. A missing test file is a violation. ⚠️ The deployed e2e and k6 tiers are the one place where "did not run" is a legitimate CI outcome, and only for the ruled reason: there was no deployed target ([§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target) rule 2). That excuses the RUN, never the WRITING, and never the reporting of a skip as a pass.
 - The `>= 70% unit / <= 20% integration / <= 10% E2E` pyramid still holds; **k6 is a separate, additional performance gate**, not part of the pyramid.
 
-### 7.1b Cheapest tier first, and the end-to-end wrap-up
-
-- **Unit tests are always written**, for every change.
-- **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
-  end. Do not run an end-to-end suite when a component or integration test already proves the behaviour.
-- **During development, write and run an end-to-end test (Playwright, Maestro, local e2e) only when no lower tier can
-  prove the behaviour.**
-- **Every other end-to-end flow still has to exist.** Playwright for web and Maestro for mobile stay required for every
-  story. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up PR at the end of
-  the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The feature is NOT DONE until
-  the wrap-up PR merges and its flows pass.
-- **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.
-
 ### 7.1a Integration MOCKS; end-to-end uses the REAL thing — and every suite states its TARGET
 
 ⛔ **OWNER RULING, 2026-10-03 — it outranks the 2026-09-20 text below and any ADR:**
@@ -780,6 +766,20 @@ rename it or relabel its target so the guard goes quiet.
 Playwright (`tests/e2e/*.spec.ts`) and `.maestro/` keep their folders. CI job **keys** never change (`GITHUB_JOB` is
 folded into the run-scoped Clerk fixture identity by `deriveRunKey`, so renaming a key silently re-keys every
 fixture user).
+
+### 7.1b Cheapest tier first, and the end-to-end wrap-up
+
+- **Unit tests are always written**, for every change.
+- **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
+  end. Do not run an end-to-end suite when a component or integration test already proves the behaviour.
+- **During development, write and run an end-to-end test (Playwright, Maestro, local e2e) only when no lower tier can
+  prove the behaviour.**
+- **Every other end-to-end flow still has to exist.** Playwright for web and Maestro for mobile stay required for every
+  story. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up PR at the end of
+  the feature.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The feature is NOT DONE until
+  the wrap-up PR merges and its flows pass.
+- **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.
 
 ### Test File Location
 

@@ -78,9 +78,9 @@ const stepsDisallowingTheTool = (workflow: string): number =>
         ).length;
 
 /** The names on the card's `tools:` frontmatter line, or `null` when the card has no such line. */
-const cardTools = (card: string): string[] | null => {
+const cardTools = (card: string, key = 'tools'): string[] | null => {
     const frontmatter = /^---\n([\s\S]*?)\n---/u.exec(card)?.[1] ?? '';
-    const line = /^tools:\s*(.*)$/mu.exec(frontmatter)?.[1];
+    const line = new RegExp(`^${key}:\\s*(.*)$`, 'mu').exec(frontmatter)?.[1];
 
     return line === undefined ? null : line.split(',').map((tool) => tool.trim());
 };
@@ -88,10 +88,14 @@ const cardTools = (card: string): string[] | null => {
 /** The agents that a structured judge runs as but whose card does not allow the structured output tool. */
 const agentsMissingTheTool = (workflow: string, readCard: (agent: string) => string): string[] =>
     structuredJudgeAgents(workflow).filter((agent) => {
-        const tools = cardTools(readCard(agent));
+        const card = readCard(agent);
+        const tools = cardTools(card);
 
         // A card with no `tools:` line inherits every tool, including this one.
-        return tools !== null && !tools.includes(STRUCTURED_OUTPUT_TOOL);
+        return (
+            (tools !== null && !tools.includes(STRUCTURED_OUTPUT_TOOL)) ||
+            (cardTools(card, 'disallowedTools') ?? []).includes(STRUCTURED_OUTPUT_TOOL)
+        );
     });
 
 const judgeStep = (agent: string, schema = `--json-schema '{"type":"object"}'`): string =>
@@ -169,5 +173,11 @@ describe('GATE judge card allows the structured output tool', () => {
         const workflow = judgeStep('judge').replace('--agent judge', '--agent=judge');
 
         expect(agentsMissingTheTool(workflow, () => cardWith('Read'))).toEqual(['judge']);
+    });
+
+    it('11. a card whose disallowedTools field names StructuredOutput fails the guard, even when tools lists it', () => {
+        const card = `---\nname: judge\ntools: Read, StructuredOutput\ndisallowedTools: Bash, StructuredOutput\n---\nbody\n`;
+
+        expect(agentsMissingTheTool(judgeStep('judge'), () => card)).toEqual(['judge']);
     });
 });

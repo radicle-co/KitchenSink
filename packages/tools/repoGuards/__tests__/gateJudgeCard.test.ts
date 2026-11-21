@@ -4,9 +4,8 @@
  *
  * The GATE judge runs as `--agent staff-code-quality` with read-only tools and no shell. Before this guard the card gave it
  * instructions it could not meet or that competed with the structured call: a refusal that needs `$GITHUB_ACTIONS`, a
- * playbook skill it cannot load, a fixed prose report spine, and a request to run tests. Each regression the QSE and
- * the red team named is pinned below (decisions/gateJudgeRetry-staff.md RC-1 step 2, decisions/gateJudgeCard-qse.md,
- * reviews/gateJudgeRetry-redteam.md), and each test was seen red on the regression it names.
+ * playbook skill it cannot load, a fixed prose report spine, and a request to run tests. Each of those regressions
+ * is pinned below, and each test was seen red on the regression it names.
  *
  * These are text guards: they prove the instruction is on the card, not that the model obeys it. The proof is the first
  * PRs judged after this one merges.

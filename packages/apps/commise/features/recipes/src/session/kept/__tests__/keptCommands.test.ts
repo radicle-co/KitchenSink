@@ -292,7 +292,8 @@ describe('End then Undo (ADR-0094 section 2)', () => {
             throw new Error('no snapshot');
         }
 
-        const back = applied(run(ended, { type: 'restoreSession', snapshot }));
+        // Before the timer's end: one that ended meanwhile comes back ringing (keptTimerCommands.test.ts).
+        const back = applied(run(ended, { type: 'restoreSession', snapshot, limit: 10 }, iso(T0)));
 
         expect(back.entries).toEqual(before.entries);
         expect(back.timers).toEqual(before.timers);
@@ -306,7 +307,7 @@ describe('End then Undo (ADR-0094 section 2)', () => {
             throw new Error('no snapshot');
         }
 
-        expect(run(before, { type: 'restoreSession', snapshot })).toEqual({ kind: 'unchanged' });
+        expect(run(before, { type: 'restoreSession', snapshot, limit: 10 })).toEqual({ kind: 'unchanged' });
     });
 
     it('ticks made on the page entry in the window are merged, not overwritten', () => {
@@ -318,7 +319,7 @@ describe('End then Undo (ADR-0094 section 2)', () => {
             throw new Error('no snapshot');
         }
 
-        const back = applied(run(withPage, { type: 'restoreSession', snapshot }));
+        const back = applied(run(withPage, { type: 'restoreSession', snapshot, limit: 10 }));
 
         expect(back.entries['r1']).toMatchObject({ kind: 'cooking', ticks: [TICK.butter, TICK.salt] });
     });
@@ -337,7 +338,7 @@ describe('End then Undo (ADR-0094 section 2)', () => {
         }
 
         const withPage = makeDoc({ entries: { r1: makePage({ servings: 6, lastTouch: pageTouch }) } });
-        const back = applied(run(withPage, { type: 'restoreSession', snapshot }));
+        const back = applied(run(withPage, { type: 'restoreSession', snapshot, limit: 10 }));
 
         expect(back.entries['r1']).toMatchObject({ kind: 'cooking', servings: expected });
     });

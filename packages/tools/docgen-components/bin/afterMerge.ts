@@ -9,7 +9,8 @@
  * regenerate: the very case the driver exists for. For a merge commit the script diffs `HEAD^1...HEAD^2`, the incoming
  * branch's own change. A fast-forward has no second parent, so it diffs `ORIG_HEAD HEAD`.
  *
- * Not handled: a rebase. It runs neither hook, and CI's generated-docs check still fails stale output.
+ * Not handled: a rebase, which runs neither hook, and `git merge --squash`, which leaves no merge commit to read. CI's
+ * generated-docs check still fails stale output for both.
  *
  * @sideEffect Runs git and npm, and rewrites the generated documentation directories. It never stages or commits.
  */

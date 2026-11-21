@@ -81,6 +81,10 @@ viewer, like the other owner-only fields (ADR-0090, #301). It is computed the wa
 
 The same read, `GET /api/v1/recipes/{id}` only (no list read carries it), carries the owner-only `publicVersionJob: { jobId, state } | null`: the latest job (by `created_at`) whose `private_recipe_id` is the recipe, or `null`. P6 uses it to show the `yourImports.publicWriting` or `yourImports.publicReady` line, which opens the writing or review screen (a Both path left while writing, or a later route in progress). After the job's 24-hour expiry it is no longer routed to, and the later route's "Share a public version" stays.
 
+`GET /api/v1/recipes/{id}` also carries, for the owner only, `sourceRecordId: string | null` and `publicNeedsEdit: boolean` (true when `source_record_id` is set, the recipe is `user_created` and it has no substantive edit, FR-062a). A move to public of such a recipe answers `400 INVALID_VISIBILITY` with `details.reason = 'PUBLIC_NEEDS_EDIT'` (a value of the `apiError.schema.ts` reason enum), and the client maps it to `editor.visibility.publicNeedsEdit`.
+
+The public read of a copy carries `credits: Array<{ role: 'checker' | 'adapter', recipeId: string | null, displayName: string | null }>`, in chain order (FR-062b). `recipeId` is null once the credited recipe is deleted, and `displayName` is null once the credited account is erased. The entry is kept, and the client shows `rights.removedCook` for it.
+
 ## Start a public version
 
 `POST /api/v1/import/{importId}/items/{ordinal}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
@@ -215,10 +219,10 @@ The import list entry (`GET /api/v1/import`) gains `publicVersions: { requested,
 
 ## Recipe writes
 
-`PATCH /api/v1/recipes/{id}` and version restore on a public version answer `422 { code: 'tooSimilar' }` on a
+`PATCH /api/v1/recipes/{id}`, version restore, `setVisibility` and the publish of a draft, on a recipe with `source_record_id` set (a public version, or a cook's copy of one), answer `422 { code: 'tooSimilar' }` on a
 refusal by the wording guard (FR-050). When the stored fingerprint's key version cannot be read, they answer a retryable
 `503 { code: 'checkUnavailable' }` and raise an alarm (FR-050a). The editor keeps the cook's edit in its device draft. A
-save that makes the version private runs no wording check. No new route.
+save that leaves the recipe private runs no wording check, and the move into published and public does (FR-050). No new route.
 
 ## Duplicate lookup
 

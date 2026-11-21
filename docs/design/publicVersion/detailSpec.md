@@ -69,6 +69,16 @@ Under the badge row, same type:
 | `credit.basedOn` with a 60-char domain | `overflow-wrap: anywhere` on the link only.                                                       |
 | `review.licence` (about 100 chars)     | Wraps. At 320 it takes 4 lines, at +35% 6 lines. Acceptable: it is below the fold-critical facts. |
 
+### 1.4 Rights label and credit chain on a cook's copy (003B FR-062b)
+
+Strings: designer round 14, 2026-11-20 (spec.md §7.2). The label states facts only. It never says who owns the cook's changes.
+
+1. With no earlier cook: `rights.adaptedFromCommise`. With earlier cooks: `rights.adaptedChain`, two lines, the first naming `{cook}`, the copy's owner, and `{source}`, the last earlier cook, the second the Commise credit. "CC BY-SA 4.0" is a link to the licence deed.
+2. An erased account in `{source}` or in the list reads `rights.removedCook`. The entry stays.
+3. Earlier cooks beyond `{source}`: `rights.chainShow` opens the list and `rights.chainHide` closes it. With none, there is no disclosure.
+4. The disclosure opens in place under the label, on phone and desktop. No hover and no popover. The items are plain text with no links, newest first, one name per line, ending with Commise's line. At 320 the list is stacked with no indent. On desktop it stays within the credit block's width.
+5. `editor.visibility.publicNeedsEdit` wraps in the unavailable-card slot: 2 lines in English and 3 in German at 320. It is never truncated. `editor.visibility.publicHeldByPaste` wins over it.
+
 ---
 
 ## 2. C2 Hidden views

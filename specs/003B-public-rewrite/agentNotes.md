@@ -21,7 +21,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **Two doors to public for a third-party recipe** (FR-015): Publish of the Commise-written version (default), or the cook's own "Adapted by you" rewrite through the similarity check and 020's review (never for a paid source). Not the visibility toggle, not a clone, not a 027 replace.
 - **The page key is released** on delete, 020 rejection and opt-out (FR-034a). Hold it while a version is hidden by a report.
 - **The fingerprint key** is a Secrets Manager secret, rotation keeps old versions readable (FR-050a).
-- **The wording check runs on every save of a public version**, inside the recipe write, against the hashed fingerprint
+- **The wording check runs before any write that leaves a recipe with `source_record_id` set (a public version, or a cook's copy of one) published and public**, inside the recipe write, against the hashed fingerprint
   in the append-only source record. The source text is never kept for it. The job holds the source step text in `source_steps` only until it ends, so a retry sends the same text (FR-033).
 - **Publish is one transaction**: server fact check, wording check, recipe insert under the unique
   source page key. Monitoring counts public versions per source from the source records. The 020 hold still applies.
@@ -33,6 +33,7 @@ Rules that are easy to get wrong. Read before working on this feature.
 - **Public repo.** Write product behaviour only.
 - **ADR-0093 carries the amendments** to 004, 016, 020, 021 and the paste spec. Do
   not write them again from 003B.
+- **A cook's copy** takes label 6 with its credit chain (`recipe_credits`), never label 2. Its credit line names the chain's `checker` entry, never the copier, and reads `credit.writtenNoCook` when that entry has no cook (FR-062b). It is gated by `publicNeedsEdit` and a paste keeps it private (FR-062a).
 - **Credits disclose AI**: "Steps written by Commise with AI, checked by {cook}." Free sites add the domain line. Paid
   sites name no domain. Publishing needs age 16 or over.
 - **The item's draft is `recipe_import_items.payload`.** Only `claimSave` (every save that ends the paste in a recipe, FR-016a) clears it. The worker, the expiry and the sweep never touch it. An explicit discard on the public-only path deletes the import (`ImportService.delete`), and a paste import has no discard column (a file item sets `discarded_at`). A job's text is cleared at most 73 h 15 min after Start while the sweep runs. The attempt count has a holder chosen by the job's stored `path` (never inferred from `private_recipe_id`): the item for `public`, `recipes.public_attempts` for `both` and `later`; the job has no `attempts` column. The AI-use counters are held by the item when the job has an import item and by the job when it has none. A discard never deletes a file item row.

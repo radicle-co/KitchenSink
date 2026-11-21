@@ -457,11 +457,11 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   locales. A locale-less address MUST redirect to the locale the browser's `Accept-Language` negotiates, and a browser
   that matches no shipped locale MUST go to the default route locale, `en-US` (ADR-0082: the library is open, and a
   browser language is not a market, `025-FR-001`). A bare `en` MUST redirect to the negotiated locale, never straight to
-  a market. The page MUST send `s-maxage` with no `Vary: Accept-Language` header, and use no incremental static regeneration. Its
+  a market. The page MUST send `Vercel-CDN-Cache-Control: s-maxage=60, stale-while-revalidate=240` from `next.config` with no `Vary: Accept-Language` header, and use no incremental static regeneration. A `Cache-Control` set there does not hold on a dynamic page, and Vercel removes `s-maxage` from the browser's response, so the browser sees none. Previews are cached per deployment. Its
   response MUST NOT depend on a cookie, the `Authorization` header, the `Accept-Language` header or any query parameter,
   so every cached copy of one path holds the same bytes, except Next's own RSC payload for that path (owner 2026-11-20, Q3, amending `021-FR-062`). The CDN keys on
   the full URL, and its key is not configurable. So each distinct query string, a share mark included, is its own cache
-  entry holding the same bytes. The public address and the
+  entry holding the same bytes. So the middleware MUST redirect (`308`) any public address that carries a query parameter other than one well-formed share mark to the same address without it, and it keeps `_rsc` only on a request with the `RSC: 1` header. A random parameter then never makes a new cache entry. The public address and the
   in-app address `/{locale}/recipes/{id}` stay two addresses (owner 2026-11-20); merging them is out of scope.
 - **FR-015a**: The page's own words MUST be in the locale in the address, with English as the fallback when a catalog
   has no copy. The recipe's own text is never translated. The native public view uses the app's own language
@@ -470,7 +470,7 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   web host and the API distribution (`021-FR-063`). It MUST NOT count against the per-user throttle, and it MUST NOT
   fall into a bucket that every signed-out reader shares. A rate-limit answer MUST NOT set a cookie or run a challenge
   that sets one. The web server's page renders MAY carry a secret, rotated header that lifts only the API's
-  per-address limit and grants no read (owner ruling 2026-11-09, Q4).
+  per-address limit and grants no read (owner ruling 2026-11-09, Q4). One rule keyed on that header is a single budget bucket: past its ceiling the API answers `429`, the page shows the try-again state of acceptance scenario 1 of this story, and an alarm fires (ADR-0062). The exempt rule MUST NOT exist without that budget rule. The Firewall's per-address key groups an IPv6 address by its /64 prefix or by the JA4 fingerprint (unverified), and a `429` sets no cookie. The page rule is held as code (plan unit U11).
 - **FR-017**: Every public page MUST say `noindex` until 021 section C ships, because a page must not be indexable before
   the removal machinery (`021-FR-074`) exists (owner ruling 2026-11-09, Q7). 021 MUST remove this `noindex` when its
   sitemap and fast removal path ship (`021-FR-020a`). Each requirement names the other, so the two cannot drift. Every non-production public page MUST say `noindex` always. The page still

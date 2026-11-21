@@ -483,9 +483,9 @@ creator page.
   author. The page never falls back to the name from the sign-in provider (FR-024).
 - **A creator renames their handle.** Recipe addresses do not contain the handle, so they do not change.
 - **A clone whose original is deleted.** If the clone meets the rule, it stays open by link. Its "adapted from" link
-  goes away with the original (`001-FR-005d`).
+  goes away with the original, and its place in the credit chain stays (`001-FR-005d`).
 - **The original cook erases their account.** Clones by others survive with the original cook's attribution stripped
-  (`001-FR-005d`). They are noindex anyway.
+  (`001-FR-005d`): the credit entry is kept, the name is blanked, and `rights.removedCook` is shown. They are noindex anyway.
 - **A visitor arrives from an in-app browser** (Instagram, TikTok, Facebook) that does not open universal links. The
   page offers "Open in the app" (FR-036).
 - **A visitor installs the app from the page.** On Android, the install referrer carries the recipe address, so the
@@ -772,7 +772,7 @@ Session 2026-11-15.)_
   `noindex` and MUST be left out of sitemaps. While the recipe it came from is open, the clone MUST show an "adapted
   from" link to it. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
   `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0093.)_ A clone never copies a cook's
-  private copy of an imported recipe, only a public form a reader can see.
+  private copy of an imported recipe, only a public form a reader can see. A copy of a public version carries its credit chain (003B `recipe_credits`), and its credit line reads the chain, never the "adapted from" link.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
   The label "Public domain" is derived from the grant plus a passing record (`016-FR-015d`). There is no new

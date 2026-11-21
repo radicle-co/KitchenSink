@@ -169,8 +169,8 @@ The grouped read is one query and does not run the lazy expiry: until the sweep 
 - `recipes.source_record_id uuid NULL`: the text derives from this source record. It is set on a public version, and on a cook's copy of one. FK `recipe_source_records`, no cascade. It keys the FR-050 wording check, the credit and the CC BY-SA licence and the reader-market term.
 - `recipes.source_page_key text NULL`: the page key. Only a public version holds it.
 - `source_type = 'commise_written'` marks a public version; it keys the public-version label and the page key.
-- CHECKs (each `NOT VALID`, then validated by T030): (1) `source_type <> 'commise_written' OR source_record_id IS NOT NULL`; (2) `source_page_key IS NULL OR source_type = 'commise_written'`; (3) `source_record_id IS NULL OR source_type IN ('commise_written', 'user_created')`. T029 adds them and T026 asserts them.
-- A copy of a public version is `user_created`. It keeps `source_record_id`, `public_credit` and `cloned_from_id`, has a NULL `source_page_key`, and starts as a draft. It never holds a page key and never counts for `publicExists` (FR-034). Its source is locked (`sourceIsCorrectable`), so it takes no statement; a copy the cook pasted into stays private.
+- CHECKs (each `NOT VALID`, then validated by T030): (1) `recipes_public_version_has_record`: `source_type <> 'commise_written' OR source_record_id IS NOT NULL`; (2) `recipes_page_key_only_public_version`: `source_page_key IS NULL OR source_type = 'commise_written'`; (3) `recipes_record_source_types`: `source_record_id IS NULL OR source_type IN ('commise_written', 'user_created')`. T029 adds them under these names and T026 asserts the names.
+- A copy of a public version is `user_created`. It keeps `source_record_id`, `public_credit` and `cloned_from_id`, has a NULL `source_page_key`, and starts as a draft. It never holds a page key and never counts for `publicExists` (FR-034). Its source is locked (`sourceIsCorrectable`), so it takes no statement; a copy the cook pasted into stays private. Its label is label 6 and its credit chain is `recipe_credits` (below, FR-062b). Its owner read carries `sourceRecordId` and `publicNeedsEdit` (FR-062a).
 - A partial `UNIQUE (source_page_key) WHERE source_page_key IS NOT NULL` gives one
   public version per source page (FR-034) and is Publish's idempotency key. The key is released (set to NULL) in the same
   transaction as its cause: delete (the row goes), a 020 rejection, or a publisher opt-out
@@ -215,6 +215,20 @@ row is written. Recipe-service holds no age data. `clerk-verify` parses the clai
 ADR-0089 §6's evidence record holds no source steps. This feature keeps source step text in `public_version_jobs.source_steps`, while the job lives (at most 73 h 15 min, above), so a retry sends the writer the same text, and in the import item's draft until FR-033 clears it. The source record keeps hashes only. Keys are never
 deleted, so a missing key version is an operator fault. A later save then answers `503 checkUnavailable` and raises an
 alarm, and Publish answers the same `503`, leaving the job `ready` (FR-050a).
+
+## `recipe_credits` (the credit chain of a copy)
+
+One row per credited cook on a cook's copy of a public version (FR-062b). It is written by the clone, in the clone's transaction, and never changes afterwards except when erasure clears an account id.
+
+| Column               | Type                                          | Rule                                                                                                                                                                                                                                                                                                |
+| -------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipe_id`          | uuid NOT NULL, FK `recipes` ON DELETE CASCADE | The copy. The rows go with it.                                                                                                                                                                                                                                                                      |
+| `position`           | smallint NOT NULL                             | 0 is the `checker`. Each `adapter` follows in the order of the copies. Primary key `(recipe_id, position)`.                                                                                                                                                                                         |
+| `role`               | text NOT NULL                                 | CHECK in (`checker`, `adapter`), and CHECK `(role = 'checker') = (position = 0)`.                                                                                                                                                                                                                   |
+| `credited_recipe_id` | uuid NULL, FK `recipes` ON DELETE SET NULL    | The recipe the entry names. NULL once that recipe is deleted. The entry stays.                                                                                                                                                                                                                      |
+| `credited_owner_id`  | text NULL                                     | The account id of that recipe's owner at the time of the copy. Names are read live. NULL after that account's erasure: the entry is kept, the name is blanked, and `rights.removedCook` is shown. Partial index `WHERE credited_owner_id IS NOT NULL`, which the erasure worker finds rows through. |
+
+The erasure worker sets `credited_owner_id` to NULL for the erased account, in the same transaction as its other sweeps, and `erasureSweepCoverage` lists the table as swept. The Commise credit hangs off `recipes.source_record_id`, not off a row here. T029 writes the table, T026 and T399 test it.
 
 ## Not stored
 

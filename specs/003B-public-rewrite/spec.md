@@ -238,7 +238,12 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 - **A paid page with no publication date**: the hold counts from the first import of that page by any cook (FR-017).
 - **A public version from a source later added to the paid list**: read live at the next public door (ADR-0082 §8).
   It is not withdrawn by this feature. A later publisher opt-out withdraws it (`016`, ADR-0093 §5). (C-12)
-- **Account erasure**: the public version follows 016's erasure and donation rules like any public recipe.
+- **Account erasure**: a recipe with `source_record_id` set (a public version or a cook's copy of one) is never donated at erasure (2026-11-20). The erasure worker cannot run the wording check (FR-050), so it fails closed, as third-party-source rows are already kept out of donation. Such a row follows the erasure rules for a recipe that is not donated (T394, T398).
+- **A cook copies a public version**: the copy is private and a draft. It cannot go public until its steps or ingredients differ from the version it was copied from. A title or tag change alone does not unlock it (FR-062a).
+- **A cook pastes into a copy**: the copy stays private for good. Deleting the pasted text does not release it, and a clone of it stays private too (FR-062a).
+- **Edit then revert**: `has_substantive_edit` is a one-way flag, so a cook who changes a step and changes it back has unlocked the copy. The wording check of FR-050 still runs before the copy goes public.
+- **Commise text pasted by hand into a new recipe**: it has no source record, so the switch does not cover it. A cook who falsely states "I wrote this" is bound by the existing statement attestation.
+- **A credited cook erases their account, or a credited recipe is deleted**: the copy keeps its credit chain. A deleted recipe keeps its place. For an erased account, the entry is kept, the name is blanked, and `rights.removedCook` is shown (FR-062b). When the erased account is the `checker`, the credit line reads `credit.writtenNoCook`.
 
 ## Requirements _(mandatory)_
 
@@ -513,8 +518,9 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 
 #### F. Every save of a public version
 
-- **FR-050**: Every save of the steps or title of a recipe with `source_record_id` set (a public version, or a cook's copy of one), at the review and at any later edit, MUST run the
-  wording check against the source's stored fingerprint (FR-080). A save over the threshold MUST be refused, with
+- **FR-050**: The wording check MUST run before any write that leaves a recipe with `source_record_id` set (a public version, or a cook's copy of one) published and public, when
+  the steps or title changed or when the write is the move into published and public: an update, a version restore, `setVisibility` and the publish of a draft. One pure function,
+  `wordingCheckDue(before, after, sourceRecordId)` in `visibilityPolicy`, decides, so private, then edit, then public cannot skip the check. A write that leaves the recipe private runs no check. The check runs against the source's stored fingerprint (FR-080). A save over the threshold MUST be refused, with
   `blocked.body` (`blocked.bodyBoth` on the Both path). The steps use 027's measure and threshold (`027-FR-042`, 027 research R3). This feature sets none. A
   title is too short for that measure, so a title MUST NOT equal the source's title once both are normalised, and its
   check uses 2-word shingles. The check runs inside the recipe write, so it covers an edit and a version restore
@@ -550,7 +556,7 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
 
 - **FR-060**: A recipe with `source_record_id` set (a public version, or a cook's copy of one) MUST show, wherever it is shown, the credit of ADR-0093 §4. The credit reads the
   version's own `recipes.public_credit`, set at Publish from the credit the cook was shown (a cook's copy inherits it at clone, T394) (data-model "Columns on
-  existing tables"). `free` shows `credit.written` with the AI disclosure, and `credit.basedOn` with the domain
+  existing tables"). `free` shows `credit.written` with the AI disclosure (on a copy, `{cook}` is the cook of the chain's `checker` entry, never the cook who made the copy, FR-062b), and `credit.basedOn` with the domain
   line. `{site}` is the registrable domain and a link, read from the source record. `paid` (a clearly paid or an
   unknown paid source, or a paid-list page with no clear signal) shows `credit.written` only: no site is named,
   linked or read for display, and its schema.org data carries no `isBasedOn` (FR-018). `{cook}` is the display name,
@@ -558,11 +564,23 @@ capacity frees up; the cook still reads and confirms each draft (FR-087). (C-6)
   address.
 - **FR-061**: A public version's rights label MUST be a new derived label, "Steps written by Commise", never "Written by
   you" and never "Adapted by you" (`016-FR-015i`). It is open to the web (`021-FR-002`). Adding the value is a one-way
-  door and needs an ADR before code. (C-11)
+  door and needs an ADR before code. (C-11) A cook's copy of a public version does not take it: the copy takes label 6, with Commise as the credited source (`016-FR-015c`, FR-062b).
 - **FR-062**: The text of a recipe with `source_record_id` set (a public version, or a cook's copy of one) carries the licence and credit of ADR-0093 §4, and the cook's later edits are
   under the same licence. The terms of service say who owns the written steps and the cook's edits. `review.licence`
   links to them. "Publish" is the cook's acceptance of that licence for their edits, recorded as the Publish
   confirmation row (wording `publicVersionConfirm.v1`, data-model "Columns on existing tables"). A cook's copy records the implicit `publicConfirm` row any recipe records when it goes public (`statementAttestation.ts`).
+- **FR-062a**: A cook's copy of a public version (`RecipesService.clone`) MUST start private and as a draft, and MUST NOT go public until its steps or ingredients differ from the version it was copied from (`has_substantive_edit`, `001-FR-005`). A change to the title or tags alone does not unlock it.
+    - The refusal is `400 INVALID_VISIBILITY` with `details.reason = 'PUBLIC_NEEDS_EDIT'`. The owner's read of the recipe carries `publicNeedsEdit`, true when `source_record_id` is set, the recipe is `user_created` and it has no substantive edit. It is for the owner only. The editor shows the state from that flag and never from a draft diff, and Publish stays enabled.
+    - A copy the cook pastes into stays private for good. It keeps the paste marker (`content_pasted_at`), so deleting the pasted text does not release it, and a clone of it keeps the marker.
+    - The source of a copy is locked (`sourceIsCorrectable`), so no statement is asked and none can be set.
+    - The client states two held states with their own keys (research R8). **A**, an unedited copy: `editor.visibility.publicNeedsEdit`, which wraps (2 lines in English, 3 in German at 320) and is never truncated. The Public card is unavailable but focusable (`aria-disabled`, and an `accessibilityHint` on mobile). On the recipe page there is no Make public, and the note sits in the visibility slot. It clears silently once the steps or ingredients differ, and no modal opens. **B**, a pasted copy: `editor.visibility.publicHeldByPaste`. It is permanent and announced politely once, when the text is pasted. B wins over A.
+    - The existing `publicHeldBySource` is not used for a copy, because it says the source holds the recipe back and that is false for a copy. `editor.sourceLink.locked` stays true as written.
+- **FR-062b**: A cook's copy of a public version MUST carry its credit chain: one `checker` entry for the version it came from, then one `adapter` entry for each cook who copied and changed it before (data-model `recipe_credits`). Each entry stores a recipe id and an account id taken at the time of the copy, and every name is read live.
+    - The copy's rights label is label 6 (`016-FR-015c`). Its source is the last `adapter` entry, else Commise, and it never reads `cloned_from_id`, which can go. The Commise credit line shows whenever `source_record_id` is set.
+    - The credit line's "checked by" names the `checker` entry, never the cook who made the copy. When that entry has no cook (the account is erased), the line is `credit.writtenNoCook`: "Steps written by Commise with AI, checked by a cook." (designer string, 2026-11-20).
+    - The copy's label (designer strings, 2026-11-20, research R8). With no `adapter` entry: `rights.adaptedFromCommise`. With one or more: `rights.adaptedChain`, line 1 naming `{cook}`, the copy's owner, and `{source}`, the last `adapter` entry, and line 2 the Commise credit. Both state facts only: neither says who owns the cook's changes. "CC BY-SA 4.0" links to the licence deed. An erased account in `{source}` or in the list reads `rights.removedCook`.
+    - The earlier credits (the `adapter` entries before `{source}`, then Commise) sit behind `rights.chainShow` and `rights.chainHide`. The list opens in place under the label, on phone and desktop. It has no hover and no popover. Its items are plain text with no links, newest first, ending with Commise's line. It is stacked with no indent at 320 and stays within the credit block's width on desktop. When there are no earlier cooks beyond `{source}`, there is no disclosure.
+    - Deleting a credited recipe keeps its entry. Erasing a credited account clears that account's id from every entry, and the entry stays.
 - **FR-063**: A public version MUST show "Report a problem" (`publicPage.report`). A report hides the version until
   staff look and decide, as ADR-0093 §4 and `020-FR-082` say. 020 owns the hide, the decision and the statement of
   reasons. While it is hidden the owner sees `publicPage.hiddenOwner`, and a reader sees
@@ -789,6 +807,7 @@ Still owed:
 - ADR-0072 §2 and §8: the paste-and-link import ADR amends them (T004). In §2's paste bullet, the client's "refuse when unpaid and delete" would
   refuse every paste, so it becomes a read-only room check at paste start, and the save-time `429` is the refusal. §8's first-send charge becomes bulk-only. ADR-0073 §8's pause gains the public-version jobs of FR-087 (the pause says a third-party copy can never go public, and a public version is a different recipe).
   ADR-0072 gets an Amended-by line, and the DD32 entry of the deliberate-decisions register is updated in the same task.
+- ADR-0093 §6a's per-market term (the reader's market decides whether a row that carries `source_record_id` is shown) extends to a cook's copy of a public version, which carries `source_record_id` too. The feature ADR records the amendment, owed (T004).
 - ADR-0024 §3 (a third no-retry path) and the label, licence, provenance and stored-credit (`recipes.public_credit`)
   one-way doors (FR-060, FR-061, FR-062, data-model), in the feature ADR, owed (T004).
 

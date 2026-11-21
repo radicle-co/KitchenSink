@@ -1,12 +1,20 @@
+import { KEPT_KEY_PREFIX, type KeptSessionStore } from '@commise/features-recipes/session';
 import { focusManager } from '@tanstack/react-query';
 import { act, render, renderHook } from '@testing-library/react';
 import { StrictMode, type ReactElement } from 'react';
 import { expect, it, vi } from 'vitest';
 
+import { makeKeptStore } from '../../__fixtures__/makeKeptStore.js';
 import { TimerProvider } from '../TimerProvider.js';
 import { useCookingTimers } from '../useCookingTimers.js';
 
-const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', label: undefined } as const;
+const STEP = {
+    recipeId: 'roast',
+    stepIndex: 2,
+    stepDigest: 's1:0000000d',
+    label: undefined,
+    origin: { kind: 'added' },
+} as const;
 const MINUTE = 60_000;
 
 /** What the probe last read: the hook's value in the newest render. */
@@ -17,7 +25,11 @@ interface Mounted {
 }
 
 /** Mounts a probe of the hook under a provider whose cook the test can change. */
-function mount(subject: string | null | undefined, strict = false): Mounted {
+function mount(
+    subject: string | null | undefined,
+    strict = false,
+    kept: KeptSessionStore = makeKeptStore().kept,
+): Mounted {
     let read: ReturnType<typeof useCookingTimers> | undefined;
 
     const Probe = (): null => {
@@ -28,7 +40,7 @@ function mount(subject: string | null | undefined, strict = false): Mounted {
 
     const tree = (cook: string | null | undefined): ReactElement => {
         const inner = (
-            <TimerProvider subject={cook}>
+            <TimerProvider subject={cook} kept={kept}>
                 <Probe />
             </TimerProvider>
         );
@@ -68,6 +80,22 @@ export function timerProviderCases(): void {
 
         expect(view.timers().order).toHaveLength(1);
         expect(view.timers().alarmQueue).toEqual([]);
+    });
+
+    it('writes a started timer through to the kept record it was given', async () => {
+        const { kept, data } = makeKeptStore();
+        const view = mount('A', false, kept);
+
+        await act(async () => {
+            await kept.scope('A');
+        });
+        await act(async () => {
+            view.timers().start({ ...STEP, durationMs: 5 * MINUTE });
+            await Promise.resolve();
+        });
+        await vi.waitFor(() => {
+            expect(data.get(`${KEPT_KEY_PREFIX}A`)).toContain('"origin":{"kind":"added"}');
+        });
     });
 
     it('names the held Undo timer after a cancel', () => {

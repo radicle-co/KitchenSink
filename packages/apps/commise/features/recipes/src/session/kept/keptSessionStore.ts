@@ -179,14 +179,40 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 }
             }
 
-            const pruned = applyKeptCommand(doc, { type: 'prune' }, deps.now());
+            const now = deps.now();
+            const pruned = applyKeptCommand(doc, { type: 'prune' }, now);
 
             if (pruned.kind === 'applied') {
                 doc = pruned.doc;
+            }
 
-                if (writable && state.generation === generation) {
-                    await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
-                }
+            // The restore rule: timers that ended while no tab held them become ended-away, in the same write as
+            // the prune. A re-read never does this, so a timer that rang in another tab is left to ring there.
+            const settled = applyKeptCommand(
+                doc,
+                {
+                    type: 'timer',
+                    command: {
+                        kind: 'settleAway',
+                        // No lock that tracks open tabs exists yet, so no tab is known to be alive: see ADR-0099.
+                        heldElsewhere: false,
+                        nowMs: Date.parse(now),
+                    },
+                    undo: undefined,
+                },
+                now,
+            );
+
+            if (settled.kind === 'applied') {
+                doc = settled.doc;
+            }
+
+            if (
+                (pruned.kind === 'applied' || settled.kind === 'applied') &&
+                writable &&
+                state.generation === generation
+            ) {
+                await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
             }
 
             if (state.generation === generation) {

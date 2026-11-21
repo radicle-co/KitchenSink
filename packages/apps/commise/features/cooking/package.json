@@ -24,6 +24,7 @@
         "@commise/ui": "*",
         "@kitchensink/cooking-core": "*",
         "@kitchensink/recipe-core": "*",
+        "dequal": "^2.0.3",
         "uuid": "^14.0.3",
         "zod": "^4.6.7"
     },

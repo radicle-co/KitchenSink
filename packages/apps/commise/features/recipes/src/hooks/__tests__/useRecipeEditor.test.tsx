@@ -11,8 +11,10 @@
 import type { ErrorReporter } from '@commise/features-core';
 import { act, renderHook } from '@testing-library/react';
 import {
+    RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
+    UNRECOGNISED_STATEMENT_KIND,
     type RecipeDetail,
     type RecipeSnapshot,
     type VersionConflictSide,
@@ -4388,6 +4390,181 @@ describe('a draft with a web link as its Source (ADR-0089)', () => {
                 },
             },
         });
+    });
+});
+
+/**
+ * ADDED for board P6 (plan makePublicRefusalNotice U3, KTD-5, designer DF-3): the editor reads the SAME `publicRefusalOf` the
+ * recipe page reads, over the DRAFT's facts, so it never sends a Public the server refuses. A stored "From another person"
+ * recipe has the slots rule and used to be sent Public when the draft said so.
+ */
+describe('the editor says why Public is refused, and never sends it (P6)', () => {
+    const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
+    const FROM_PERSON = makeRecipeDetail({
+        id: 'rec_1',
+        currentVersion: 3,
+        status: RecipeStatus.PUBLISHED,
+        visibility: RecipeVisibility.PRIVATE,
+        statementKind: 'fromPerson',
+    });
+
+    it('is `none` for a typed recipe, and the web-page reason once a link is pasted', () => {
+        const { result } = mount();
+
+        expect(result.current.publicRefusal).toBe('none');
+
+        act(() => {
+            result.current.setValues({ ...complete(), sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
+    });
+
+    it('is the fromPerson reason for a stored "From another person" recipe, whatever the draft holds', () => {
+        const { result } = mount({ recipe: FROM_PERSON });
+
+        expect(result.current.publicRefusal).toBe('fromPerson');
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, visibility: RecipeVisibility.PUBLIC });
+        });
+
+        expect(result.current.publicRefusal).toBe('fromPerson');
+        // The cook's own choice is left alone; only what is SENT is derived.
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    it('⛔ a stored "From another person" recipe is SENT Private though the draft says Public', async () => {
+        const { result, port } = mount({ recipe: FROM_PERSON });
+
+        act(() => {
+            result.current.setValues({
+                ...result.current.values,
+                title: 'Gran’s stew',
+                visibility: RecipeVisibility.PUBLIC,
+            });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        // An update leaves `visibility` out when it is unchanged from what the server holds (Private), so the proof is the write,
+        // its content, and that no write anywhere carried Public.
+        const sent = port.submitted.map(
+            (entry) => (entry.payload as { input: { visibility?: string; title?: string } }).input,
+        );
+
+        expect(sent.length).toBeGreaterThan(0);
+        expect(sent[0]).toMatchObject({ title: 'Gran’s stew' });
+        expect(sent.map((input) => input.visibility ?? RecipeVisibility.PRIVATE)).toEqual(
+            sent.map(() => RecipeVisibility.PRIVATE),
+        );
+    });
+
+    // Staff review of 57c15425c: a PUBLIC recipe of a kind this app cannot name is neither unpublished nor shown as Private.
+    it('⛔ a stored PUBLIC recipe with an unrecognised statement: no reason, Public stays selected, Save sends no visibility write', async () => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            statementKind: UNRECOGNISED_STATEMENT_KIND,
+        });
+        const { result, port } = mount({ recipe });
+
+        expect(result.current.publicRefusal).toBe('none');
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited' });
+        });
+        act(() => {
+            result.current.saveChanges('');
+        });
+        await settle();
+
+        const sent = port.submitted.map((entry) => (entry.payload as { input: { visibility?: string } }).input);
+
+        expect(sent.length).toBeGreaterThan(0);
+        expect(sent.map((input) => input.visibility)).not.toContain(RecipeVisibility.PRIVATE);
+    });
+
+    it('a stored PUBLIC recipe with a pasted link still shows the web-page reason', () => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+        });
+        const { result } = mount({ recipe });
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
+    });
+
+    // Staff review of 65ad26cbe: the blocked sheet's "Publish as public" was a dead control for a refused recipe. The hook
+    // guard is the same one function every Public offer reads, so a stray call does nothing.
+    it.each([
+        ['a "From another person" recipe', { statementKind: 'fromPerson' as const }],
+        ['a book recipe', { sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' as const }],
+    ])('⛔ %s at the slot cap: publishAsPublic does nothing', async (_name, over) => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PRIVATE,
+            ...over,
+        });
+        const { result, port } = mount({ recipe }, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited' });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+
+        act(() => {
+            result.current.publishAsPublic();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+    });
+
+    it('⛔ both cards refused (a web link, and no private slot): Publish asks noSlot and sends nothing, Keep as draft keeps the draft', async () => {
+        const { result, port } = mount({}, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues({ ...complete(), sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
+
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(port.submitExclusive).not.toHaveBeenCalled();
+
+        act(() => {
+            result.current.keepAsDraft();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toBeUndefined();
+        expect(result.current.values.sourceLink).toBe(ALLRECIPES);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
     });
 });
 

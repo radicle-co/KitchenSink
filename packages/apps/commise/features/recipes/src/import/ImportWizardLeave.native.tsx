@@ -44,6 +44,7 @@ export const ImportWizardLeave: FC<ImportWizardLeaveProps> = ({
             title={l.title}
             closeLabel={l.close}
             size="content"
+            presentation="dialog"
             footer={
                 <View style={styles.actions}>
                     <Button variant="secondary" icon="chevronLeft" width="fill" onPress={onKeepReviewing}>

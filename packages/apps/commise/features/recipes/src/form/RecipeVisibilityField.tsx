@@ -24,6 +24,7 @@ import { RecipeVisibility as RecipeVisibilityValue, type RecipeVisibility } from
 import type { FC } from 'react';
 
 import { heldVisibility } from '../actions/privateGate.js';
+import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import {
     visibilityChoice,
@@ -66,12 +67,12 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
     onPremiumRequired,
     onConfirmPublic,
     onFreeASlot,
-    webSource,
-    publicHeld,
+    publicRefusal,
     confirmLine: confirmText,
     focusSignal = 0,
 }) => {
     const { visibility: v } = useMessages(editorMessages);
+    const { publicRefusal: refusalLines } = useMessages(recipeActionMessages);
     const group = useFocusOnSignal<HTMLFieldSetElement>(focusSignal);
     // Idempotent over a host that already passes the held value: the field enforces the rule rather than trusting it.
     const savedVisibility = heldVisibility(held, values.visibility);
@@ -81,13 +82,13 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         facts,
         refusal: privateRefusal,
         messages: v,
-        ...(webSource === undefined ? {} : { webSource }),
-        ...(publicHeld === undefined ? {} : { publicHeld }),
+        refusalLines,
+        publicRefusal,
         ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 
     const choose = (chosen: RecipeVisibility): void => {
-        const next = visibilityChoice(shown, chosen, savedVisibility, facts);
+        const next = visibilityChoice(shown, chosen, savedVisibility, facts, publicRefusal);
 
         if (next === 'confirmPublic') {
             onConfirmPublic();

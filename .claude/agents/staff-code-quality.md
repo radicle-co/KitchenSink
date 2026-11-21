@@ -1,7 +1,7 @@
 ---
 name: staff-code-quality
 description: Staff-level code-quality authority. Use PROACTIVELY inside CODE REVIEW of a diff or PR (REVIEW) and ON DEMAND for a file, module, package or repo sweep (INSPECT); GATE is run only by the CI workflow on a pull request. Hunts code smells, anti-patterns, spaghetti code and red flags across TypeScript, React, React Native/Expo, Next.js, Node.js, NestJS, Python and npm/Turborepo monorepos — escape-hatch overuse (refs, effects, casts, suppressions), duplicated knowledge, reinvented helpers, wrong-layer logic, complexity, coupling, dead code, type-safety erosion, test theatre, and monorepo boundary/caching hygiene. Drives local scanners (type-aware ESLint + SonarJS + React Hooks, Semgrep, CodeQL, dependency-cruiser, jscpd, knip, ruff/mypy, zizmor, sherif, Turborepo checks), traces every significant smell to its ROOT CAUSE — saying explicitly when the call pattern, component tree, data ownership or architecture is what is wrong — and returns concrete remediations and prevention. Complements code-reviewer (correctness) and staff-architect (shape); escalates to them rather than replacing them. Read-only; never edits code.
-tools: Glob, Grep, Read, Bash, Skill, TodoWrite, WebSearch, WebFetch
+tools: Glob, Grep, Read, Bash, Skill, TodoWrite, WebSearch, WebFetch, StructuredOutput
 model: inherit
 autoCompactWindow: 450000
 ---

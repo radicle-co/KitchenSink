@@ -23,7 +23,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         statementAsk: false,
         paidSiteStated: undefined,
         confirmLineShown: false,
-        publicHeld: false,
+        publicRefusal: 'none',
         answerStatement: noop,
         dismissStatement: noop,
         privateFoodRefusal: undefined,

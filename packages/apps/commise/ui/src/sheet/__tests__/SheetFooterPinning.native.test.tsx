@@ -10,7 +10,7 @@
  *
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize } from '../../testing/resizeObserver.js';
 import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, useEffect, type ComponentProps, type FC, type JSX } from 'react';
 import { Text, TextInput, type ScrollView as ScrollViewType } from 'react-native';
@@ -146,10 +146,7 @@ function layOut(heights: { readonly sheet: number; readonly topBlock: number; re
 /** Fire the observer for every node it watches, then let react-native-web's deferred measurement run. */
 function reportLayout(): void {
     act(() => {
-        observer.callback?.(
-            [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize();
     });
     act(() => {
         vi.runOnlyPendingTimers();

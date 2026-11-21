@@ -57,6 +57,7 @@ ingredientTypeahead.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, 
 ingredientUnmatched.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 ingredientVariantSearch.spec.ts	/, /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]
 layoutContainers.spec.ts	/, /sign-in/[[...sign-in]]
+makePublicRefusalNotice.spec.ts	/, /recipes/[id], /sign-in/[[...sign-in]]
 mockupFidelity.spec.ts	*
 namelessLines.spec.ts	/, /recipes/[id], /recipes/[id]/versions, /sign-in/[[...sign-in]]
 needsReviewJump.spec.ts	/, /recipes/[id], /recipes/[id]/edit, /recipes/new, /sign-in/[[...sign-in]]

@@ -32,6 +32,7 @@ import {
 } from '../../__fixtures__/index.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { QUANTITY_LINE_SHAPES } from '../__fixtures__/quantityLineShapes.js';
+import type { VisibilityNotice } from '../../actions/visibilityNotice.js';
 import { RecipeDetailBody } from '../RecipeDetailBody.native.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 import { resetServingScale } from '../servingScale.js';
@@ -1688,7 +1689,8 @@ describe('RecipeDetailView (native) — N1: the title is said once, by its heade
  */
 describe('RecipeDetailView (native) — the visibility notice', () => {
     const NOTICE = 'This recipe is still public: it couldn’t be made private.';
-    const view = (visibilityNotice?: string, viewerIsOwner = true): ReactElement => (
+    const MOMENT: VisibilityNotice = { kind: 'moment', text: NOTICE };
+    const view = (visibilityNotice?: VisibilityNotice, viewerIsOwner = true): ReactElement => (
         <RecipeDetailView
             unreachableRetry={idleUnreachableRetry}
             {...(viewerIsOwner ? { viewerIsOwner } : {})}
@@ -1710,7 +1712,7 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
         const { rerender } = render(view(), OwnerScope);
         const before = regions()[0];
 
-        rerender(view(NOTICE));
+        rerender(view(MOMENT));
 
         expect(regions()).toHaveLength(1);
         expect(regions()[0]).toBe(before);
@@ -1720,7 +1722,7 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
     // REWRITTEN IN SLICE 1 follow-up: the region is the typed `LiveRegion` (a type role and a colour role, not a `style`), so
     // its colour is read through the theme and its size follows the system text scale, which a hand-picked style did not.
     it.each(['light', 'dark'] as const)('shows the words in the danger colour role in the %s scheme', (scheme) => {
-        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, scheme);
+        renderWithTamagui(<OwnerScope>{view(MOMENT)}</OwnerScope>, scheme);
 
         expect(resolvedColour(screen.getByRole('alert'), 'color')).toBe(rgb(rolesFor(scheme).dangerText));
     });
@@ -1728,16 +1730,16 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
     it('sets the words in the meta role, and grows them with the system text scale', () => {
         const { fontSize } = nativeTokens.type.meta;
 
-        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, 'light');
+        renderWithTamagui(<OwnerScope>{view(MOMENT)}</OwnerScope>, 'light');
         expect(resolvedStyle(screen.getByRole('alert'), 'fontSize')).toBe(`${String(fontSize)}px`);
         cleanup();
 
-        renderWithTamagui(<OwnerScope>{view(NOTICE)}</OwnerScope>, 'light', 2);
+        renderWithTamagui(<OwnerScope>{view(MOMENT)}</OwnerScope>, 'light', 2);
         expect(resolvedStyle(screen.getByRole('alert'), 'fontSize')).toBe(`${String(fontSize * 2)}px`);
     });
 
     it('sits directly under the rating and visibility line', () => {
-        render(view(NOTICE), OwnerScope);
+        render(view(MOMENT), OwnerScope);
 
         const region = screen.getByRole('alert');
         const ratingLine = screen.getByText('Public').parentElement?.parentElement as HTMLElement;
@@ -1746,7 +1748,7 @@ describe('RecipeDetailView (native) — the visibility notice', () => {
     });
 
     it('mounts nothing for another cook, even when handed a notice', () => {
-        render(view(NOTICE, false));
+        render(view(MOMENT, false));
 
         expect(regions()).toHaveLength(0);
         expect(screen.queryByText(NOTICE)).toBeNull();

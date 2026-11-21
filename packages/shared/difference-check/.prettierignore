@@ -1,0 +1,8 @@
+# Build output is not source. Prettier resolves .prettierignore from its CWD, and turbo runs each
+# package's `format:check` with CWD = the package — so the ROOT .prettierignore does not apply here.
+# Without this file, `npm run lint` fails on emitted dist/ the moment a build has run.
+dist
+
+# DERIVED from `src/confusables/confusables.txt` by `generateConfusables.ts` and held byte-equal to its output by
+# `confusables.test.ts`: the generator owns these bytes (the root `.prettierignore` names it too).
+src/confusables/confusablesV1.generated.ts

@@ -1,4 +1,4 @@
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize, resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { useEffect, type FC } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -34,10 +34,7 @@ function layOut(width: number, levels = 1): void {
     Object.defineProperty(row, 'offsetWidth', { value: width, configurable: true });
     Object.defineProperty(row, 'offsetHeight', { value: 100, configurable: true });
     act(() => {
-        observer.callback?.(
-            [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize();
     });
     act(() => {
         vi.runOnlyPendingTimers();

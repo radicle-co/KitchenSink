@@ -54,7 +54,7 @@ const baseOf = (stepIndex: number, overrides: Partial<TimerBase> = {}): TimerBas
         stepIndex,
         stepDigest: 's1:00000000',
         ordinal: 1,
-        name: undefined,
+        label: undefined,
         durationMs: 60_000,
         ...overrides,
     };

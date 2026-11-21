@@ -79,6 +79,8 @@ export const Sheet: FC<SheetProps> = ({
     const insets = useSafeAreaInsets();
     const { colors } = useTheme();
     const [shown, setShown] = useState(0);
+    // The footer's last reported height: the snackbar sits above a footer (designer D78).
+    const [footHeight, setFootHeight] = useState(0);
     // Whether the engine has reported a transition: only an engine that is animating has an exit to wait for. One that
     // never reports (no layout yet, or a lane with no frames) leaves the window at once, as it did before the engine.
     const [engineLive, setEngineLive] = useState(false);
@@ -153,6 +155,7 @@ export const Sheet: FC<SheetProps> = ({
                 busy={busy}
                 toolbar={toolbar}
                 footer={footer}
+                onFootHeight={setFootHeight}
                 focusSignal={shown}
                 screenReaderLanding={screenReaderLanding}
                 reduceMotion={reduceMotion}
@@ -181,6 +184,10 @@ export const Sheet: FC<SheetProps> = ({
     return (
         <OverlayHost
             visible={visible}
+            // A closing sheet hands the snackbar back at once, while its exit still plays.
+            presenting={windowOpen}
+            // A centred dialog's footer is not at the window's foot.
+            footHeight={centred || footer === undefined ? 0 : footHeight}
             transparent
             statusBarTranslucent
             navigationBarTranslucent

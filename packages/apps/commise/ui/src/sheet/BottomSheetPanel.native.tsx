@@ -60,6 +60,11 @@ export interface BottomSheetPanelProps extends Pick<
     'title' | 'closeLabel' | 'size' | 'presentation' | 'busy' | 'toolbar' | 'footer'
 > {
     readonly children: ReactNode;
+    /**
+     * Called with the footer's height, bottom inset included, each time the footer reports its layout. The sheet keeps
+     * it so the snackbar sits above the footer.
+     */
+    readonly onFootHeight?: (height: number) => void;
     /** Advances each time the Modal shows; the title takes screen-reader focus on each advance. */
     readonly focusSignal: number;
     /** Where the cursor lands on open (`SheetProps.screenReaderLanding`); read once, when the panel mounts for an opening. */
@@ -95,6 +100,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
     toolbar,
     footer,
     children,
+    onFootHeight,
     focusSignal,
     screenReaderLanding = 'title',
     reduceMotion,
@@ -140,7 +146,10 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         footer === undefined || collapsed ? null : (
             <View
                 style={[styles.footer, endPadding, { borderTopColor: colors.lineDivider }]}
-                onLayout={pinning.onFooterLayout}
+                onLayout={(event) => {
+                    pinning.onFooterLayout(event);
+                    onFootHeight?.(event.nativeEvent.layout.height);
+                }}
             >
                 <DialogActionsWidthContext.Provider value={actionsWidth}>{footer}</DialogActionsWidthContext.Provider>
             </View>
@@ -150,7 +159,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
         <ToneScope tone="paperOverlay">
             <Animated.View
                 role="dialog"
-                aria-modal
+                collapsable={false}
                 aria-busy={busy || undefined}
                 style={[
                     styles.sheet,

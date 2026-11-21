@@ -78,7 +78,7 @@ describe('publishBlockedCopyOf', () => {
             },
         );
 
-        it('says the web words for policy.webPage, a stored web copy as much as a pasted link', () => {
+        it('says the web words for policy.webPage and not the refused words', () => {
             expect(publishBlockedCopyOf(50, m, false, FEATURES, 'policy.webPage').body).toContain(
                 'copied from a web page',
             );

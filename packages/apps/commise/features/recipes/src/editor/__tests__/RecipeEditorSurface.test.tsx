@@ -862,6 +862,28 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
     });
 
+    it('with every slot used, a locked stored web copy with no link in the draft still gets the web words (one reason for card and sheet)', async () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    clonedFromId: 'rec_origin',
+                    cuisine: 'Italian',
+                }),
+            },
+            publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+        });
+
+        const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+        expect(within(dialog).getByText(/A recipe copied from a web page can only be private/u)).toBeTruthy();
+        expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
+    });
+
     it.each([
         ['a book recipe', { sourceType: 'imported_physical' as const, sourceKind: 'book' as const }],
         ['a "From another person" recipe', { statementKind: 'fromPerson' as const }],

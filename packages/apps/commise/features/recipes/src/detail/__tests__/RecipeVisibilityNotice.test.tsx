@@ -13,6 +13,8 @@ describe('RecipeVisibilityNotice (web)', () => {
         render(<RecipeVisibilityNotice notice={{ kind: 'moment', text: 'Could not save' }} announcement={undefined} />);
 
         expect(screen.getByRole('alert').textContent).toBe('Could not save');
+        // Drawn once: never also as the muted standing line.
+        expect(screen.getAllByText('Could not save')).toHaveLength(1);
     });
 
     it('draws a standing line outside every live region, and leaves the assertive region empty', () => {

@@ -35,6 +35,8 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { stopProcessesUnder } from './__fixtures__/processesUnder.js';
+
 const JOB_SCRIPT = fileURLToPath(new URL('../mac/iosBuildJob.sh', import.meta.url));
 const SYSTEM_PATH = '/usr/bin:/bin';
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
@@ -228,7 +230,7 @@ function killQuietly(pid: number): void {
     }
 }
 
-afterEach(() => {
+afterEach(async () => {
     for (const child of jobs.splice(0)) {
         if (child.pid !== undefined) {
             killQuietly(-child.pid);
@@ -242,7 +244,10 @@ afterEach(() => {
             }
         }
 
+        const survivors = await stopProcessesUnder(world.root);
+
         rmSync(world.root, { recursive: true, force: true });
+        expect(survivors, 'processes left running under the test folder').toEqual([]);
     }
 });
 

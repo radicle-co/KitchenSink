@@ -30,6 +30,8 @@ import { fileURLToPath } from 'node:url';
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { stopProcessesUnder } from './__fixtures__/processesUnder.js';
+
 import { macPathsOf } from '../../src/maestroLanes/macSession.js';
 
 const CLIENT = fileURLToPath(new URL('../mac/buildIosApp.sh', import.meta.url));
@@ -198,9 +200,13 @@ const jobIdsIn = (text: string): string[] => [
 const fakeJob = (body: string): string =>
     `#!/usr/bin/env bash\njob="$1"\nd="$HOME/ksIos/build.noindex/jobs/$job"\n${body}\n`;
 
-afterEach(() => {
+afterEach(async () => {
     for (const root of roots.splice(0)) {
+        // The client leaves its job running on the Mac when it gives up or dies, so the job may outlive the case.
+        const survivors = await stopProcessesUnder(root);
+
         rmSync(root, { recursive: true, force: true });
+        expect(survivors, 'processes left running under the test folder').toEqual([]);
     }
 });
 

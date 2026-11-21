@@ -19,8 +19,8 @@ import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR } from '../src/config.js';
 
 /**
  * Git is run from PATH through env on purpose: its place differs per machine (Homebrew, Nix, /usr/bin). The scanner's
- * PATH rule guards against a PATH an attacker controls, and here PATH is the developer's own. The repo's ESLint does not
- * load that rule, so it cannot carry a reasoned disable.
+ * PATH rule guards against a PATH an attacker controls, and here PATH is the developer's own. The repo's ESLint does
+ * not load that rule, so it cannot carry a reasoned disable.
  */
 const ENV = '/usr/bin/env';
 

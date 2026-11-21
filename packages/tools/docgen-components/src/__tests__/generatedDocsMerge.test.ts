@@ -28,8 +28,12 @@ const INSTALLER = join(REPO_ROOT, 'scripts/installMergeDrivers.mjs');
 const POST_MERGE = join(REPO_ROOT, '.husky/post-merge');
 const TOTALS_FILE = `${COMPONENTS_OUT_DIR}/index.json`;
 
+/** Absolute, so the test never resolves a command through a PATH it does not control. */
+const GIT = '/usr/bin/git';
+const SH = '/bin/sh';
+
 const git = (cwd: string, ...args: string[]): string =>
-    execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+    execFileSync(GIT, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 
 const scratch: string[] = [];
 
@@ -50,7 +54,7 @@ function makeRepo(installDriver: boolean): string {
     copyFileSync(join(REPO_ROOT, '.gitattributes'), join(repo, '.gitattributes'));
 
     if (installDriver) {
-        execFileSync('node', [INSTALLER], { cwd: repo });
+        execFileSync(process.execPath, [INSTALLER], { cwd: repo });
     }
 
     writeTotals(repo, 10);
@@ -64,7 +68,7 @@ function writeTotals(repo: string, components: number): void {
     mkdirSync(join(repo, COMPONENTS_OUT_DIR), { recursive: true });
     writeFileSync(
         join(repo, TOTALS_FILE),
-        `{\n    "totals": { "components": ${components} },\n    "schemaVersion": 1\n}\n`,
+        `{\n    "totals": { "components": ${String(components)} },\n    "schemaVersion": 1\n}\n`,
         'utf8',
     );
 }
@@ -145,7 +149,7 @@ describe('the post-merge hook regenerates when a merge touched an output folder'
         git(repo, 'commit', '-qm', 'main moves');
         git(repo, 'merge', '-q', '--no-edit', 'feature');
 
-        execFileSync('sh', [POST_MERGE], {
+        execFileSync(SH, [POST_MERGE], {
             cwd: repo,
             env: { ...process.env, PATH: `${bin}:${process.env['PATH'] ?? ''}` },
             stdio: 'ignore',

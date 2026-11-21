@@ -18,8 +18,9 @@ import { execFileSync } from 'node:child_process';
 import { COMPONENTS_OUT_DIR, DESIGN_OUT_DIR } from '../src/config.js';
 
 /**
- * Git is looked up on PATH, because its place differs per machine (Homebrew, Nix, /usr/bin). `env` is at a fixed path
- * on every machine this runs on, so the command itself is absolute and nothing here resolves a command by PATH alone.
+ * Git is run from PATH through env on purpose: its place differs per machine (Homebrew, Nix, /usr/bin). The scanner's
+ * PATH rule guards against a PATH an attacker controls, and here PATH is the developer's own. The repo's ESLint does not
+ * load that rule, so it cannot carry a reasoned disable.
  */
 const ENV = '/usr/bin/env';
 

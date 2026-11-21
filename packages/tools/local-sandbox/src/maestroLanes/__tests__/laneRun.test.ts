@@ -991,10 +991,15 @@ describe('runLaneRun — a lost tunnel', () => {
 
         it('kills the lane whose group stays even when another lane is already gone, and waits for it', async () => {
             const { events, deps } = harness({ staggerMs: 0 });
+            // The loss comes after the second lane started, never on a timer: on a slow machine a timer fires before
+            // that lane is spawned, and the case then has no lane 2 to kill.
+            let secondLaneStarted!: () => void;
             const lost = new Promise<Error>((resolve) => {
-                setTimeout(() => {
-                    resolve(LOSS);
-                }, 20);
+                secondLaneStarted = () => {
+                    setTimeout(() => {
+                        resolve(LOSS);
+                    }, 20);
+                };
             });
             const run = runLaneRun(
                 {
@@ -1003,6 +1008,10 @@ describe('runLaneRun — a lost tunnel', () => {
                     adapterFor: (platform) => fakeAdapter(events, platform, lost),
                     spawnLane: (lane) => {
                         let groupAlive = lane.index === 2;
+
+                        if (lane.index === 2) {
+                            secondLaneStarted();
+                        }
 
                         return fakeLaneChild({
                             running: () => groupAlive,

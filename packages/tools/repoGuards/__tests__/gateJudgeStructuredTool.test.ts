@@ -161,6 +161,7 @@ describe('GATE judge card allows the structured output tool', () => {
             ['good', cardWith('StructuredOutput')],
             ['bad', cardWith('Read')],
         ]);
+
         const readCard = (agent: string): string => {
             const card = cards.get(agent);
 

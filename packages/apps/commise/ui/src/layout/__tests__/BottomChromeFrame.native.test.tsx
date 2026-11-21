@@ -11,7 +11,7 @@
  * react-native-web reports layout through one `ResizeObserver` and each node's `offsetHeight`, neither of which jsdom
  * has, so the test records the observer and reports a height through it (the `PhotoCarousel.native.test.tsx` method).
  */
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize } from '../../testing/resizeObserver.js';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import type { FC } from 'react';
 import { Text, View } from 'react-native';
@@ -53,10 +53,7 @@ function layOutFooter(height: number): void {
 
     Object.defineProperty(box, 'offsetHeight', { value: height, configurable: true });
     act(() => {
-        observer.callback?.(
-            [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize();
     });
     act(() => {
         vi.runOnlyPendingTimers();

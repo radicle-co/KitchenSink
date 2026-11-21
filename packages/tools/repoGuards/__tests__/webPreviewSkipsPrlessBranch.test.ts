@@ -16,7 +16,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
+
+import { parseModule } from './appSources.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../..');
 const VERCEL_JSON = path.join(repoRoot, 'packages/apps/commise/web/vercel.json');
@@ -38,6 +41,23 @@ function ignoreCommand(): string {
 /** The exit code Vercel reads, for a build whose environment is exactly `environment`. */
 function verdict(environment: Readonly<Record<string, string>>): number | null {
     return spawnSync('/bin/sh', ['-c', ignoreCommand()], { env: { PATH: '/usr/bin:/bin', ...environment } }).status;
+}
+
+/** The names in `PR_NUMBER_SOURCES = [...] as const` of previewEndpoints.ts, read from its syntax tree. */
+function prNumberSources(): readonly string[] {
+    const file = parseModule(PREVIEW_ENDPOINTS, readFileSync(PREVIEW_ENDPOINTS, 'utf8'));
+    const declaration = file.statements
+        .filter(ts.isVariableStatement)
+        .flatMap((statement) => [...statement.declarationList.declarations])
+        .find((candidate) => ts.isIdentifier(candidate.name) && candidate.name.text === 'PR_NUMBER_SOURCES');
+    const initializer = declaration?.initializer;
+    const list = initializer !== undefined && ts.isAsExpression(initializer) ? initializer.expression : initializer;
+
+    if (list === undefined || !ts.isArrayLiteralExpression(list)) {
+        throw new Error('previewEndpoints.ts has no PR_NUMBER_SOURCES array');
+    }
+
+    return list.elements.filter(ts.isStringLiteralLike).map((element) => element.text);
 }
 
 describe('vercel.json ignoreCommand', () => {
@@ -66,13 +86,12 @@ describe('vercel.json ignoreCommand', () => {
     });
 
     it('names every pull request source that previewEndpoints.ts reads, or a build that needs one would be skipped', () => {
-        const declaration = /PR_NUMBER_SOURCES = \[([^\]]*)\]/u.exec(readFileSync(PREVIEW_ENDPOINTS, 'utf8'));
-        const names = [...(declaration?.[1] ?? '').matchAll(/'([A-Z_]+)'/gu)].map((match) => match[1] ?? '');
+        const names = prNumberSources();
 
         expect(names.length).toBeGreaterThan(0);
 
         for (const name of names) {
-            expect(ignoreCommand(), `${name} is missing from ignoreCommand`).toContain(name);
+            expect(ignoreCommand(), `${name} is missing from ignoreCommand`).toContain(`"$${name}"`);
         }
     });
 });

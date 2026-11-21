@@ -33,12 +33,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const JOB_SCRIPT = fileURLToPath(new URL('../mac/iosBuildJob.sh', import.meta.url));
 const SYSTEM_PATH = '/usr/bin:/bin';
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
 const BASH = '/bin/bash';
+
+// Every case starts real processes and waits on files, up to `WAIT_MS`; a loaded runner needs more than vitest's 5 s.
+vi.setConfig({ testTimeout: 30_000 });
 const WAIT_MS = 15_000;
 const BUILD_STUB = 'packages/apps/commise/mobile/scripts/buildTestApp.sh';
 

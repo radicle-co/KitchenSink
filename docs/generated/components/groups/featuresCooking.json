@@ -6,11 +6,11 @@
     "coverage": {
         "components": 19,
         "implementations": 35,
-        "props": 128,
+        "props": 129,
         "documentedComponents": 19,
         "implementationsWithModuleDoc": 35,
         "implementationsWithComponentDoc": 35,
-        "documentedProps": 117,
+        "documentedProps": 118,
         "classifiedComponents": 19,
         "componentsWithPatternTag": 9,
         "crossPlatformComponents": 17
@@ -2473,7 +2473,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The cook and the subtree."
+                            "text": "props - The cook, the kept store and the subtree."
                         },
                         {
                             "name": "returns",
@@ -2487,6 +2487,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "kept",
+                            "type": "KeptSessionStore",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The device's kept session store: the record every timer change is written through to.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx"
+                        },
                         {
                             "name": "subject",
                             "type": "string | null | undefined",

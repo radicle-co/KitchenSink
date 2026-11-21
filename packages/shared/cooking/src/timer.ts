@@ -28,13 +28,20 @@ export const MAX_TIMER_MS = 86_400_000;
 export const TIMER_LIMIT = 1;
 
 /**
- * What a row calls its timer: a name the cook typed, or the words read from the step's line. The reducer only carries
- * it. Whether a number follows the words is the copy layer's rule (po P23), which tells the two kinds apart.
+ * What a row calls its timer when the cook named it. The reducer only carries it. A timer with none is named by the copy
+ * layer from the step and the timer's origin (P23).
  */
 export interface TimerLabel {
-    readonly kind: 'typed' | 'line';
+    readonly kind: 'typed';
     readonly text: string;
 }
+
+/**
+ * Where a timer came from. `offer`: the step offered it and the cook took it, so the row may read the step's own line.
+ * `added`: the cook made it, so an unnamed one reads "Step {n}". Stored with the timer (kept record v2), so it
+ * survives "+ time" and a reload, which a duration or "no typed label" would not.
+ */
+export type TimerOrigin = 'offer' | 'added';
 
 /** What every timer carries. */
 export interface TimerBase {
@@ -49,8 +56,9 @@ export interface TimerBase {
     readonly stepDigest: string;
     /** 1, 2, 3 ... unique among the timers and the held Undo on the same recipe and step. */
     readonly ordinal: number;
-    /** What the cook typed, or the label read from the line. `undefined`: none, so the row says "Step {n}". */
+    /** What the cook typed. `undefined`: none, so the row is named from the step and the origin. */
     readonly label: TimerLabel | undefined;
+    readonly origin: TimerOrigin;
     /** The length of the current run's countdown, so the row can say "of 1 h 30". */
     readonly durationMs: number;
 }
@@ -127,6 +135,7 @@ export type TimerCommand =
           readonly stepIndex: number;
           readonly stepDigest: string;
           readonly label: TimerLabel | undefined;
+          readonly origin: TimerOrigin;
           readonly durationMs: number;
           readonly limit: number;
           readonly nowMs: number;
@@ -146,6 +155,23 @@ export type TimerCommand =
           readonly nowMs: number;
       }
     | { readonly kind: 'restore'; readonly limit: number; readonly nowMs: number }
+    | {
+          /** Bring a list of timers back (Undo of End). Refused whole past `limit`. */
+          readonly kind: 'readmit';
+          readonly timers: readonly ActiveTimer[];
+          readonly limit: number;
+          readonly nowMs: number;
+      }
+    | {
+          /**
+           * The restore rule: a hydrate settles timers that ended while this tab was away. It raises no event,
+           * because nothing may sound for a timer the cook was not there to hear.
+           */
+          readonly kind: 'settleAway';
+          /** Whether another tab is alive and holds the alarm: then a due timer rings there, and here it only shows. */
+          readonly heldElsewhere: boolean;
+          readonly nowMs: number;
+      }
     | { readonly kind: 'ring'; readonly nowMs: number }
     | { readonly kind: 'rematch'; readonly moves: readonly TimerMove[]; readonly nowMs: number };
 
@@ -178,9 +204,9 @@ const atLimit = (state: TimerState): TimerResult => ({ state, events: [], refuse
 
 /** The fields every kind of timer shares, so a kind change never forgets one. */
 function baseOf(timer: ActiveTimer): TimerBase {
-    const { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs } = timer;
+    const { id, run, recipeId, stepIndex, stepDigest, ordinal, label, origin, durationMs } = timer;
 
-    return { id, run, recipeId, stepIndex, stepDigest, ordinal, label, durationMs };
+    return { id, run, recipeId, stepIndex, stepDigest, ordinal, label, origin, durationMs };
 }
 
 /**
@@ -272,12 +298,62 @@ function start(state: TimerState, command: Extract<TimerCommand, { kind: 'start'
         stepDigest: command.stepDigest,
         ordinal: lowestFreeOrdinal(holders(state), command.recipeId, command.stepIndex),
         label: command.label,
+        origin: command.origin,
         durationMs: command.durationMs,
         endsAt: command.nowMs + command.durationMs,
     };
 
     return quiet({ timers: [...state.timers, timer], undo: state.undo });
 }
+
+/**
+ * The one admit step of `restore` and `readmit`: timers come into the list, refused whole when they would pass the
+ * limit, each keeping its number unless another holder on its step has it, and a running one past its end coming back
+ * ringing with its one `ended`.
+ *
+ * @param state - The settled list.
+ * @param incoming - The timers to bring in. One whose id is already in the list is skipped.
+ * @param against - The timers whose numbers count, so the held Undo is included or left out as the caller says.
+ * @param limit - How many timers the list may hold.
+ * @param nowMs - The clock.
+ * @returns The list with the timers added, or the limit refusal with the state given. Pure.
+ */
+function admit(
+    state: TimerState,
+    incoming: readonly ActiveTimer[],
+    against: readonly TimerBase[],
+    limit: number,
+    nowMs: number,
+): { readonly timers: readonly ActiveTimer[]; readonly events: readonly TimerEvent[] } | undefined {
+    const heldIds = new Set(state.timers.map((t) => t.id));
+    const fresh = incoming.filter((t) => !heldIds.has(t.id));
+
+    if (state.timers.length + fresh.length > limit) {
+        return undefined;
+    }
+
+    const claimed: TimerBase[] = [...against];
+    const placed = fresh.map((timer) => {
+        const taken = claimed.some((c) => sameStep(c, timer.recipeId, timer.stepIndex) && c.ordinal === timer.ordinal);
+        const ordinal = taken ? lowestFreeOrdinal(claimed, timer.recipeId, timer.stepIndex) : timer.ordinal;
+
+        claimed.push({ ...timer, ordinal });
+
+        return { ...timer, ordinal };
+    });
+    const rung = placed.map((timer) =>
+        timer.kind === 'running' && nowMs >= timer.endsAt ? toRinging(timer, timer.endsAt) : timer,
+    );
+    const events = rung
+        .filter((timer, i) => timer !== placed[i])
+        .sort((a, b) => alarmOrder({ at: endedAtOf(a), id: a.id }, { at: endedAtOf(b), id: b.id }))
+        .map(endedEvent);
+
+    return { timers: [...state.timers, ...rung], events };
+}
+
+/** The instant a ringing or ended-away timer ended. */
+const endedAtOf = (timer: ActiveTimer): number => (isWaitingForCook(timer) ? timer.endedAt : 0);
 
 function restore(state: TimerState, command: Extract<TimerCommand, { kind: 'restore' }>): TimerResult {
     const { undo, timers } = state;
@@ -287,23 +363,43 @@ function restore(state: TimerState, command: Extract<TimerCommand, { kind: 'rest
     }
 
     // The Undo stays, so the cook can free a slot and try again inside the window.
-    if (timers.length >= command.limit) {
-        return atLimit(state);
-    }
+    const admitted = admit(state, [undo], timers, command.limit, command.nowMs);
 
-    const heldNumberTaken = timers.some(
-        (t) => sameStep(t, undo.recipeId, undo.stepIndex) && t.ordinal === undo.ordinal,
-    );
-    const ordinal = heldNumberTaken ? lowestFreeOrdinal(timers, undo.recipeId, undo.stepIndex) : undo.ordinal;
-    const back: HeldTimer = { ...undo, ordinal };
+    return admitted === undefined
+        ? atLimit(state)
+        : { state: { timers: admitted.timers, undo: undefined }, events: admitted.events };
+}
 
-    if (back.kind === 'running' && command.nowMs >= back.endsAt) {
-        const rung = toRinging(back, back.endsAt);
+function readmit(state: TimerState, command: Extract<TimerCommand, { kind: 'readmit' }>): TimerResult {
+    const admitted = admit(state, command.timers, holders(state), command.limit, command.nowMs);
 
-        return { state: { timers: [...timers, rung], undo: undefined }, events: [endedEvent(rung)] };
-    }
+    return admitted === undefined
+        ? atLimit(state)
+        : { state: { timers: admitted.timers, undo: state.undo }, events: admitted.events };
+}
 
-    return quiet({ timers: [...timers, back], undo: undefined });
+/**
+ * The restore rule. It does not settle by `ring` first, which would raise `ended` for the timers it settles.
+ * Returns the state it was given when nothing changed, so a caller can tell a no-op from a write.
+ */
+function settleAway(state: TimerState, command: Extract<TimerCommand, { kind: 'settleAway' }>): TimerResult {
+    const settled = state.timers.map((timer): ActiveTimer => {
+        if (timer.kind === 'running' && command.nowMs >= timer.endsAt) {
+            return command.heldElsewhere
+                ? toRinging(timer, timer.endsAt)
+                : { ...baseOf(timer), kind: 'endedAway', endedAt: timer.endsAt };
+        }
+
+        if (timer.kind === 'ringing' && !command.heldElsewhere) {
+            return { ...baseOf(timer), kind: 'endedAway', endedAt: timer.endedAt };
+        }
+
+        return timer;
+    });
+
+    return settled.some((timer, i) => timer !== state.timers[i])
+        ? quiet({ timers: settled, undo: state.undo })
+        : quiet(state);
 }
 
 function addTime(state: TimerState, command: Extract<TimerCommand, { kind: 'addTime' }>): TimerResult {
@@ -402,7 +498,7 @@ function rematch(state: TimerState, moves: readonly TimerMove[]): TimerResult {
 }
 
 /** The command on a settled list. `reduceTimer` settles first, so no running timer here is past its end. */
-function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 'ring' }>): TimerResult {
+function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 'ring' | 'settleAway' }>): TimerResult {
     switch (command.kind) {
         case 'start':
             return start(state, command);
@@ -453,6 +549,9 @@ function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 
         case 'restore':
             return restore(state, command);
 
+        case 'readmit':
+            return readmit(state, command);
+
         case 'discardUndo':
             return state.undo?.id === command.id ? quiet({ timers: state.timers, undo: undefined }) : quiet(state);
 
@@ -493,6 +592,10 @@ function applyCommand(state: TimerState, command: Exclude<TimerCommand, { kind: 
 export function reduceTimer(state: TimerState, command: TimerCommand): TimerResult {
     if (command.kind === 'ring') {
         return ring(state, command.nowMs);
+    }
+
+    if (command.kind === 'settleAway') {
+        return settleAway(state, command);
     }
 
     const settled = ring(state, command.nowMs);

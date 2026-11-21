@@ -4,9 +4,17 @@
  *
  * @pattern Command — a discriminated union applied by one pure reducer with an exhaustive switch (the Visitor).
  */
-import { matchStep, matchStepStrict } from '@kitchensink/cooking-core';
+import {
+    matchStep,
+    matchStepStrict,
+    reduceTimer,
+    type HeldTimer,
+    type TimerCommand,
+    type TimerRefusal,
+} from '@kitchensink/cooking-core';
 
 import type { IngredientTickKey } from '../../common/ingredientTickKey.js';
+import { activeTimerOf, keptTimerOf } from './keptTimerAdapter.js';
 import { sessionClock, timerClock } from './sessionClock.js';
 import type { CookingEntry, KeptDocument, KeptEntry, KeptTimer, LineTickRef, StepMark } from './keptRecord.js';
 
@@ -33,7 +41,14 @@ export type KeptCommand =
     | { readonly type: 'finish'; readonly recipeId: string }
     /** Removes the entry and its timers. */
     | { readonly type: 'endSession'; readonly recipeId: string }
-    | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot }
+    /** Brings an End's entry and timers back. Refused whole when its timers would pass `limit` (P24). */
+    | { readonly type: 'restoreSession'; readonly snapshot: EndedSnapshot; readonly limit: number }
+    /**
+     * One reducer command on the record's timers as just re-read, so the limit, the ordinals and the rematch have one
+     * owner (cooking-core) and the limit is read inside the lock. `undo` is the cook's held Undo, which the record does
+     * not hold but whose number the reducer counts. The reducer's events are dropped: the caller tells the cook.
+     */
+    | { readonly type: 'timer'; readonly command: TimerCommand; readonly undo: HeldTimer | undefined }
     /**
      * Moves a recipe's step, marks and line ticks onto the recipe's current steps (ADR-0094 section 9). Timers are not
      * moved here: the timer reducer moves them with its `rematch` command. Ingredient ticks are content keys, so they
@@ -47,7 +62,9 @@ export type KeptOutcome =
     /** No write: a no-op, or a stale command dropped. */
     | { readonly kind: 'unchanged' }
     /** `startSession` over an existing cooking entry (ADR-0094 section 2): nothing written, open at this step. */
-    | { readonly kind: 'joined'; readonly step: StepMark };
+    | { readonly kind: 'joined'; readonly step: StepMark }
+    /** A timer command the reducer declined (the limit): nothing is written. */
+    | { readonly kind: 'refused'; readonly reason: TimerRefusal };
 
 const UNCHANGED: KeptOutcome = { kind: 'unchanged' };
 
@@ -143,12 +160,53 @@ function onCooking(
     return next === undefined ? UNCHANGED : applied(doc, { entries: withEntry(doc, recipeId, next) });
 }
 
-function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'restoreSession' }>): KeptOutcome {
+/** The record's timers after the reducer changed them: each stored timer keeps what only the record held. */
+function storedTimers(
+    doc: KeptDocument,
+    result: ReturnType<typeof reduceTimer>,
+    nowMs: number,
+    priors: readonly KeptTimer[] = doc.timers,
+): readonly KeptTimer[] {
+    const priorOf = new Map(priors.map((t) => [t.id, t]));
+
+    return result.state.timers.map((timer) => keptTimerOf(timer, priorOf.get(timer.id), nowMs));
+}
+
+function timerCommand(doc: KeptDocument, c: Extract<KeptCommand, { type: 'timer' }>): KeptOutcome {
+    const state = { timers: doc.timers.map(activeTimerOf), undo: c.undo };
+    const result = reduceTimer(state, c.command);
+
+    if (result.refused !== undefined) {
+        return { kind: 'refused', reason: result.refused };
+    }
+
+    return result.state.timers === state.timers
+        ? UNCHANGED
+        : applied(doc, { timers: storedTimers(doc, result, c.command.nowMs) });
+}
+
+function restoreSession(
+    doc: KeptDocument,
+    c: Extract<KeptCommand, { type: 'restoreSession' }>,
+    now: string,
+): KeptOutcome {
     const { snapshot } = c;
     const existing = doc.entries[snapshot.recipeId];
 
     if (existing?.kind === 'cooking') {
         return UNCHANGED;
+    }
+
+    const nowMs = Date.parse(now);
+    // The reducer applies the limit, the numbers and a timer that ended meanwhile; a refusal refuses the whole Undo,
+    // entry included, so the cook never gets half of an End back.
+    const result = reduceTimer(
+        { timers: doc.timers.map(activeTimerOf), undo: undefined },
+        { kind: 'readmit', timers: snapshot.timers.map(activeTimerOf), limit: c.limit, nowMs },
+    );
+
+    if (result.refused !== undefined) {
+        return { kind: 'refused', reason: result.refused };
     }
 
     let entry: CookingEntry = snapshot.entry;
@@ -168,9 +226,7 @@ function restoreSession(doc: KeptDocument, c: Extract<KeptCommand, { type: 'rest
 
     return applied(doc, {
         entries: withEntry(doc, snapshot.recipeId, entry),
-        // The timer limit is not applied here: the timer reducer applies it through its `restore` command
-        // (ADR-0094 section 2).
-        timers: [...doc.timers, ...snapshot.timers],
+        timers: storedTimers(doc, result, nowMs, [...doc.timers, ...snapshot.timers]),
     });
 }
 
@@ -252,7 +308,9 @@ export function applyKeptCommand(doc: KeptDocument, command: KeptCommand, now: s
                       timers: doc.timers.filter((t) => t.recipeId !== command.recipeId),
                   });
         case 'restoreSession':
-            return restoreSession(doc, command);
+            return restoreSession(doc, command, now);
+        case 'timer':
+            return timerCommand(doc, command);
         case 'rebind':
             return rebind(doc, command);
         case 'prune':

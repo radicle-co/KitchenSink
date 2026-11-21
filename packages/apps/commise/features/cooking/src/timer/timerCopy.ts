@@ -4,7 +4,7 @@
  * say the same words (staff S26, designer D16, D18).
  */
 import { fillTemplate, pluralOf } from '@commise/i18n';
-import { durationParts, elapsedParts } from '@kitchensink/cooking-core';
+import { durationParts, elapsedParts, lineLabelOf } from '@kitchensink/cooking-core';
 import type { ActiveTimer, HmsParts } from '@kitchensink/cooking-core';
 
 import type { CookingDurationMessages, CookingMessages, CookingTimerMessages } from '../messages.js';
@@ -12,17 +12,35 @@ import type { CookingDurationMessages, CookingMessages, CookingTimerMessages } f
 /** The whole seconds in a length, rounded down: the copy never shows a fraction of a second. */
 const partsOf = (ms: number): HmsParts => durationParts(Math.floor(Math.max(0, ms) / 1000));
 
+/** The matched step a timer's name is read from: its 1-based number and the lines the step shows. */
+export interface TimerStep {
+    readonly number: number;
+    readonly lines: readonly string[];
+}
+
 /**
  * The name of a timer in a row, a control name or the alarm.
  *
- * @param timer - Its label.
- * @param stepNumber - The 1-based step number it was started from.
+ * @param timer - Its typed label, if any, and where it came from.
+ * @param step - The step the timer is matched to now (a gone recipe passes no lines).
  * @param copy - The timer copy.
- * @returns What the cook typed, as typed, else the line label, else "Step {n}". The ordinal is not here: it goes with the
- *   step (designer), and S3a holds one timer. Pure.
+ * @returns What the cook typed, as typed; else, for a timer the step offered, the first line label of the step; else
+ *   "Step {n}". The origin decides, never the length or the absence of a typed name, so an offered timer keeps its
+ *   name after "+ time" and a reload. The ordinal is not here: it goes with the step (designer). Pure.
  */
-export function timerLabel(timer: Pick<ActiveTimer, 'label'>, stepNumber: number, copy: CookingTimerMessages): string {
-    return timer.label?.text ?? fillTemplate(copy.stepLabel, { n: stepNumber });
+export function timerLabel(
+    timer: Pick<ActiveTimer, 'label' | 'origin'>,
+    step: TimerStep,
+    copy: CookingTimerMessages,
+): string {
+    if (timer.label !== undefined) {
+        return timer.label.text;
+    }
+
+    const fromLine =
+        timer.origin === 'offer' ? step.lines.map(lineLabelOf).find((label) => label !== undefined) : undefined;
+
+    return fromLine ?? fillTemplate(copy.stepLabel, { n: step.number });
 }
 
 /**

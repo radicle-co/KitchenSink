@@ -19,7 +19,7 @@ import {
 describe('keptKeyFor', () => {
     it('is the per-user key of ADR-0094 section 8, condition 3', () => {
         expect(keptKeyFor('user_1')).toBe('cook.v2.user_1');
-        expect(KEPT_RECORD_VERSION).toBe(1);
+        expect(KEPT_RECORD_VERSION).toBe(2);
     });
 });
 
@@ -57,7 +57,7 @@ describe('parseKeptDocument', () => {
     it.each([
         ['not JSON', '{nope'],
         ['a JSON array', '[]'],
-        ['the wrong version', JSON.stringify({ ...makeDoc(), v: 2 })],
+        ['the wrong version', JSON.stringify({ ...makeDoc(), v: 3 })],
         ['an unknown document key', JSON.stringify({ ...makeDoc(), extra: 1 })],
         ['an entry with an unknown key', rawKeptDocument({ entries: { r1: { ...makeCooking(), note: 'x' } } })],
         ['an entry of an unknown kind', JSON.stringify({ ...makeDoc(), entries: { r1: { kind: 'other' } } })],
@@ -90,7 +90,7 @@ describe('parseKeptDocument', () => {
         expect(ok(JSON.stringify(makeDoc({ timers: [makeEnded('endedAway')] }))).doc.timers).toHaveLength(1);
     });
 
-    // v1 is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run` and `ordinal` are required on every
+    // The record is a one-way door (ADR 0094 section 2): the reducer's `durationMs`, `run`, `ordinal` and `origin` are required on every
     // state, so a timer that lacks one, or holds one the reducer could never hold, is dropped and reported.
     describe.each([
         ['a running timer', makeTimer],
@@ -109,6 +109,10 @@ describe('parseKeptDocument', () => {
             ['no ordinal', { ordinal: undefined }],
             ['an ordinal of 0', { ordinal: 0 }],
             ['an ordinal that is not an integer', { ordinal: 1.5 }],
+            // v2 (ADR 0099): where the timer came from is required on every state.
+            ['no origin', { origin: undefined }],
+            ['an origin outside the set', { origin: 'line' }],
+            ['an origin of the wrong type', { origin: 1 }],
         ])('with %s is dropped and reported, beside a good timer and the entry', (_name, over) => {
             const good = makeTimer({ id: timerId(2) });
             const parsed = ok(
@@ -170,6 +174,22 @@ describe('parseKeptDocument', () => {
 
         expect(parsed.doc.timers).toEqual([]);
         expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
+    });
+
+    it('drops a timer that carries a label of the removed line kind, as it drops any label', () => {
+        const labelled = { ...makeTimer(), label: { kind: 'line', text: 'Roast' } };
+        const parsed = ok(rawKeptDocument({ timers: [labelled] }));
+
+        expect(parsed.doc.timers).toEqual([]);
+        expect(parsed.droppedTimerIds).toEqual([timerId(1)]);
+    });
+
+    // There is no migration (no live data). A valid v1 document fails the v2 parse, so the
+    // store treats it as no record and removes it, as it does any unreadable document.
+    it('reads a valid v1 document as invalid, so it is removed and never half-read', () => {
+        const v1 = rawKeptDocument({ entries: { r1: makeCooking() }, timers: [makeTimer()], v: 1 });
+
+        expect(parseKeptDocument(v1)).toEqual({ kind: 'invalid' });
     });
 
     it('drops a timer whose id is not a UUIDv7', () => {

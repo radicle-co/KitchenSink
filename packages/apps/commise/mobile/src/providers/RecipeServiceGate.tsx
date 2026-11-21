@@ -108,7 +108,9 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
             >
                 {/* S3a.U3: the cook's timers outlive every screen and end with the cook, so they are mounted here,
                     fed the same raw `userId` as the device session scope. */}
-                <TimerProvider subject={userId}>{children}</TimerProvider>
+                <TimerProvider subject={userId} kept={nativeKeptSessionStore}>
+                    {children}
+                </TimerProvider>
             </RecipeServicesTree>
         </SyncProvider>
     );

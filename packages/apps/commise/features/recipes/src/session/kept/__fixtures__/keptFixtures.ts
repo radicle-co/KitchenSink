@@ -40,6 +40,7 @@ const timerBase = {
     ordinal: 1,
     run: 1,
     durationMs: HOUR,
+    origin: 'added' as const,
 };
 
 type Over<T> = Partial<Omit<T, 'state'>>;
@@ -74,7 +75,7 @@ export const makeEnded = (
 };
 
 export const makeDoc = (over: Partial<KeptDocument> = {}): KeptDocument => ({
-    v: 1,
+    v: 2,
     rev: 1,
     entries: {},
     timers: [],
@@ -91,7 +92,7 @@ export const rawKeptDocument = ({
     ...rest
 }: { readonly entries?: Readonly<Record<string, unknown>>; readonly timers?: readonly unknown[] } & Readonly<
     Record<string, unknown>
-> = {}): string => JSON.stringify({ v: 1, rev: 1, entries, timers, ...rest });
+> = {}): string => JSON.stringify({ v: 2, rev: 1, entries, timers, ...rest });
 
 /** What a store wrote, read back through the record's own parser, so a record the reader would refuse fails the test. */
 export const writtenDocument = (raw: string | undefined): KeptDocument => {

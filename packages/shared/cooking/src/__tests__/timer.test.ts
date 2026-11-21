@@ -31,6 +31,7 @@ const START = {
     stepIndex: 3,
     stepDigest: 's1:0000000d',
     label: { kind: 'typed', text: 'Roast' },
+    origin: 'added',
     durationMs: 90 * MINUTE,
     limit: TIMER_LIMIT,
 } as const;
@@ -81,6 +82,7 @@ describe('start', () => {
             stepDigest: 's1:0000000d',
             ordinal: 1,
             label: { kind: 'typed', text: 'Roast' },
+            origin: 'added',
             durationMs: 90 * MINUTE,
             endsAt: 1_000 + 90 * MINUTE,
         });
@@ -288,6 +290,7 @@ describe('ring', () => {
             stepDigest: 's1:0000000d',
             ordinal: 2,
             label: undefined,
+            origin: 'added',
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -445,6 +448,7 @@ describe('addTime', () => {
             stepDigest: 's1:0000000d',
             ordinal: 1,
             label: undefined,
+            origin: 'added',
             durationMs: 10 * MINUTE,
             endedAt: MINUTE,
         };
@@ -804,6 +808,7 @@ describe('numbering and order edges', () => {
         stepDigest: 's1:0000000d',
         ordinal: 1,
         label: undefined,
+        origin: 'added',
         durationMs: 10 * MINUTE,
         endsAt: 10 * MINUTE,
     } as const;
@@ -816,6 +821,7 @@ describe('numbering and order edges', () => {
         stepDigest: 's1:0000000d',
         ordinal: 1,
         label: undefined,
+        origin: 'added',
         durationMs: 10 * MINUTE,
         endedAt,
     });
@@ -1010,13 +1016,50 @@ describe('time left', () => {
 });
 
 /**
+ * The origin of a timer is stored and never changes. An offered timer keeps it through every
+ * command, so the row keeps the step's line label after "+ time" and a reload.
+ */
+describe('a timer carries the origin it was started with', () => {
+    it.each(['offer', 'added'] as const)(
+        '%s survives a pause, a resume, +5, a ring, a cancel and its Undo',
+        (origin) => {
+            const first = reduceTimer(NO_TIMER, { ...START, origin, nowMs: 0 }).state;
+            const paused = reduceTimer(first, { kind: 'pause', id: 't1', run: 1, nowMs: SECOND }).state;
+            const resumed = reduceTimer(paused, { kind: 'resume', id: 't1', run: 1, nowMs: 2 * SECOND }).state;
+            const plus = reduceTimer(resumed, {
+                kind: 'addTime',
+                id: 't1',
+                run: 1,
+                addMs: 5 * MINUTE,
+                nowMs: 3 * SECOND,
+            }).state;
+            const rung = reduceTimer(plus, { kind: 'ring', nowMs: 200 * MINUTE }).state;
+            const again = reduceTimer(rung, {
+                kind: 'addTime',
+                id: 't1',
+                run: 1,
+                addMs: 10 * MINUTE,
+                nowMs: 201 * MINUTE,
+            }).state;
+            const cancelled = reduceTimer(again, { kind: 'cancel', id: 't1', run: 2, nowMs: 202 * MINUTE }).state;
+            const back = reduceTimer(cancelled, { kind: 'restore', limit: TIMER_LIMIT, nowMs: 203 * MINUTE }).state;
+
+            for (const state of [first, paused, resumed, plus, rung, again, back]) {
+                expect(timerOf(state)?.origin).toBe(origin);
+            }
+
+            expect(cancelled.undo?.origin).toBe(origin);
+        },
+    );
+});
+
+/**
  * S3a.U3 C1 item 1 (AR1): a command for a timer carries the `run` it was meant for, and applies only when that is the
  * run the timer is in. A late tap from run 1 must not touch run 2 (a double tap of +5, a late lock-screen Stop).
  */
 describe('a timer carries the label it was started with', () => {
     it.each([
         ['a typed name', { kind: 'typed', text: 'Sauce' } as const],
-        ['a name read from the line', { kind: 'line', text: 'Roast' } as const],
         ['none', undefined],
     ])('%s is carried unchanged on the timer, and through a pause, a cancel and its Undo', (_name, label) => {
         const first = reduceTimer(NO_TIMER, { ...START, label, nowMs: 0 }).state;

@@ -48,6 +48,11 @@ export interface KeptSessionStoreDeps {
     readonly now: () => string;
     readonly report: ErrorReporter;
     readonly warn: (message: string) => void;
+    /**
+     * Whether another tab of this cook is alive and holds the alarm, asked once at hydrate, before this tab takes its own
+     * lock. Absent: no tab does, so a timer that ended while away is ended-away here.
+     */
+    readonly heldElsewhere?: (subject: string) => Promise<boolean>;
 }
 
 interface StoreState {
@@ -179,14 +184,39 @@ export function createKeptSessionStore(deps: KeptSessionStoreDeps): KeptSessionS
                 }
             }
 
-            const pruned = applyKeptCommand(doc, { type: 'prune' }, deps.now());
+            const now = deps.now();
+            const pruned = applyKeptCommand(doc, { type: 'prune' }, now);
 
             if (pruned.kind === 'applied') {
                 doc = pruned.doc;
+            }
 
-                if (writable && state.generation === generation) {
-                    await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
-                }
+            // The restore rule: timers that ended while no tab held them become ended-away, in the same write as
+            // the prune. A re-read never does this, so a timer that rang in another tab is left to ring there.
+            const settled = applyKeptCommand(
+                doc,
+                {
+                    type: 'timer',
+                    command: {
+                        kind: 'settleAway',
+                        heldElsewhere: (await deps.heldElsewhere?.(subject)) ?? false,
+                        nowMs: Date.parse(now),
+                    },
+                    undo: undefined,
+                },
+                now,
+            );
+
+            if (settled.kind === 'applied') {
+                doc = settled.doc;
+            }
+
+            if (
+                (pruned.kind === 'applied' || settled.kind === 'applied') &&
+                writable &&
+                state.generation === generation
+            ) {
+                await persist(key, doc, parsed.kind === 'ok' ? parsed.doc.rev : 0);
             }
 
             if (state.generation === generation) {

@@ -20,7 +20,9 @@ import { WINDOW_LAYERS } from '../../overlay/windowLayers.js';
 import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import { SnackbarOutlet } from '../SnackbarOutlet.native.js';
+import { SNACKBAR_GAP } from '../props.js';
 import type { SnackbarApi, SnackbarHandle, SnackbarInput } from '../props.js';
+import { STUB_INSETS } from '../../testing/safeAreaContext.native.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 beforeEach(() => {
@@ -307,5 +309,38 @@ describe('SnackbarOutlet outside a snackbar host', () => {
         const [region] = regionsHolding('Ticks cleared');
 
         expect(resolvedStyle(region, 'zIndex')).toBe(String(WINDOW_LAYERS.snackbar));
+    });
+});
+
+describe('SnackbarOutlet footer offset', () => {
+    /** The status region of one outlet in a host, with the footer height the window reports. */
+    function regionAbove(footHeight?: number): HTMLElement {
+        render(
+            <SnackbarHost>
+                <SnackbarOutlet presenting depth={1} {...(footHeight === undefined ? {} : { footHeight })} />
+            </SnackbarHost>,
+        );
+
+        // The host draws its own status region too; the outlet's is the one named for it.
+        const [region] = screen
+            .getAllByRole('status')
+            .filter((node) => node.getAttribute('name') === 'SnackbarOutletRegion');
+
+        if (region === undefined) {
+            throw new Error('The outlet drew no status region.');
+        }
+
+        return region;
+    }
+
+    it('sits one gap above the window safe area when no footer is pinned', () => {
+        expect(resolvedStyle(regionAbove(), 'bottom')).toBe(`${STUB_INSETS.bottom + SNACKBAR_GAP}px`);
+    });
+
+    it('sits one gap above a pinned footer, which already holds the bottom inset, so it never covers the footer', () => {
+        const footer = 120;
+
+        expect(footer).not.toBe(STUB_INSETS.bottom);
+        expect(resolvedStyle(regionAbove(footer), 'bottom')).toBe(`${footer + SNACKBAR_GAP}px`);
     });
 });

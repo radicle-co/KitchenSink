@@ -4,5 +4,3 @@
 export { CookingScreen } from './CookingScreen.native.js';
 export { cookingReadSourceOf, useCookingRead, type CookingReadSource } from './cookingRead.js';
 export type { CookingScreenProps } from './cookingViewProps.js';
-export { createStoreReviewRecord } from './storeReview/storeReviewRecord.js';
-export type { StoreReviewEntry, StoreReviewRecord } from './storeReview/storeReviewRecord.js';

@@ -7,7 +7,7 @@
  *
  * @pattern Adapter — the feature's record bound to the phone's port, clock and reporter.
  */
-import { createStoreReviewRecord } from '@commise/features-cooking/mobile';
+import { createStoreReviewRecord } from '@commise/features-cooking/storeReview';
 
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeExclusiveRunner, nativeKeptPort } from './keptSessionStore.js';

@@ -278,6 +278,19 @@ async function tool(env: Env, what: string, args: readonly string[]): Promise<st
     return outcome.stdout;
 }
 
+/**
+ * One selector row, `flow|reason`, as a line a person reads: `flow (reason)`. Only the first `|` separates; a reason
+ * may carry another. A row with no reason is the flow alone.
+ *
+ * @param row - A `needs-sandbox` or `prerequisite-not-run` row from the selector.
+ * @returns The row as `flow (reason)`.
+ */
+function rowNote(row: string): string {
+    const bar = row.indexOf('|');
+
+    return bar === -1 ? row : `${row.slice(0, bar)} (${row.slice(bar + 1)})`;
+}
+
 /** What the runner selects for this platform's lanes, after its platform and local filters. */
 async function selectFlows(base: Env, platform: LanePlatform, selector: string) {
     const outcome = await run('bash', [RUNNER, 'shard-selection', '1', '1', ...selector.split(' ').filter(Boolean)], {
@@ -298,8 +311,8 @@ async function selectFlows(base: Env, platform: LanePlatform, selector: string) 
         flows: values('flow'),
         owed: values('needs-sandbox').map((row) => row.split('|')[0] ?? ''),
         notes: [
-            ...values('needs-sandbox').map((row) => `not run locally: needs sandbox - ${row.replace('|', ' (')})`),
-            ...values('prerequisite-not-run').map((row) => `prerequisite not run locally: ${row.replace('|', ' (')})`),
+            ...values('needs-sandbox').map((row) => `not run locally: needs sandbox - ${rowNote(row)}`),
+            ...values('prerequisite-not-run').map((row) => `prerequisite not run locally: ${rowNote(row)}`),
             ...values('excluded').map((flow) => `excluded on ${platform}: ${flow}`),
         ],
     };

@@ -46,12 +46,15 @@ vi.mock('react-native', async (importOriginal) => {
 
 const { signOut, signOutAndVerify } = vi.hoisted(() => ({ signOut: vi.fn(), signOutAndVerify: vi.fn() }));
 vi.mock('@clerk/expo', () => ({
-    useAuth: () => ({ signOut }),
+    useAuth: () => ({ signOut, userId: 'user_cook' }),
     useClerk: () => ({ signOut, loaded: true, status: 'ready', session: null }),
 }));
 vi.mock('../../src/hooks/useSignOutAndVerify.js', () => ({
     useSignOutAndVerify: () => ({ signOutAndVerify }),
 }));
+// S12 U2: the erasure's `leave` step clears this cook's store-review record first (plan 0011 KTD2).
+const { clearReviewRecord } = vi.hoisted(() => ({ clearReviewRecord: vi.fn() }));
+vi.mock('../../src/storage/storeReviewRecord.js', () => ({ nativeStoreReviewRecord: { clear: clearReviewRecord } }));
 
 /** The recipe-side erasure call, and the ACCOUNT-level one (plan U2) — separate calls, both needed. */
 const { erasureFn, accountEraseFn } = vi.hoisted(() => ({ erasureFn: vi.fn(), accountEraseFn: vi.fn() }));
@@ -118,6 +121,7 @@ beforeEach(() => {
     accountEraseFn.mockReset().mockResolvedValue(undefined);
     signOut.mockReset().mockResolvedValue(undefined);
     signOutAndVerify.mockReset().mockResolvedValue(undefined);
+    clearReviewRecord.mockReset().mockResolvedValue(undefined);
     deleteMutate.mockReset();
     setDeleteAccount();
     setRecipes([]);
@@ -370,6 +374,26 @@ describe('AccountDangerZone (native) — erase (irreversible)', () => {
         const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0] ?? 0;
         expect(order(erasureFn)).toBeLessThan(order(accountEraseFn));
         expect(order(accountEraseFn)).toBeLessThan(order(signOutAndVerify));
+    });
+
+    it('⛔ clears this cook`s store-review record after the account erasure is accepted and before the sign-out (S12 U2)', async () => {
+        confirmErasure();
+
+        await waitFor(() => expect(signOutAndVerify).toHaveBeenCalledTimes(1));
+        const order = (mock: { mock: { invocationCallOrder: number[] } }) => mock.mock.invocationCallOrder[0] ?? 0;
+        expect(clearReviewRecord).toHaveBeenCalledWith('user_cook');
+        expect(order(accountEraseFn)).toBeLessThan(order(clearReviewRecord));
+        expect(order(clearReviewRecord)).toBeLessThan(order(signOutAndVerify));
+    });
+
+    it('⛔ leaves the store-review record when the account erasure fails', async () => {
+        accountEraseFn.mockRejectedValue(new Error('503'));
+        confirmErasure();
+
+        expect(await screen.findByText(erase.error)).toBeTruthy();
+        expect(accountEraseFn).toHaveBeenCalledTimes(1);
+        expect(clearReviewRecord).not.toHaveBeenCalled();
+        expect(signOutAndVerify).not.toHaveBeenCalled();
     });
 
     /**

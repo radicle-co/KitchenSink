@@ -92,7 +92,7 @@ describe('hydrate settles what ended while away', () => {
         expect(calls.write).toBe(0);
     });
 
-    it('with another tab of this cook alive (the presence lock), a due running timer is left ringing and a ringing one stays ringing', async () => {
+    it('another tab of this cook alive (the presence lock): due timer left ringing, ringing one stays', async () => {
         const { store, data } = setup(stored(makeDoc({ timers: TIMERS })), { heldElsewhere: async () => true });
 
         await store.scope('A');
@@ -142,7 +142,7 @@ describe('hydrate settles what ended while away', () => {
 });
 
 describe('the start race across two tabs (the limit is read inside the lock)', () => {
-    it('two stores over one port and one lock start a timer at limit 1 together: one applied, one refused', async () => {
+    it('two stores on one port and lock start at limit 1 together: one applied, one refused', async () => {
         const fake = makeFakePort({});
         const locks = makeFakeLocks();
         const make = () =>

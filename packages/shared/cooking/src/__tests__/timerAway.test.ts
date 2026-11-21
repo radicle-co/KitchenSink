@@ -112,7 +112,7 @@ describe('settleAway', () => {
         expect(result.events).toEqual([]);
     });
 
-    it('with another tab holding the alarm, a due running timer rings and a ringing one stays ringing, still with no event', () => {
+    it('another tab of this cook alive (the presence lock): a due timer rings, a ringing one stays, no event', () => {
         const result = reduceTimer(stateOf([running('t1', 90 * MINUTE), ringing('t2', 95 * MINUTE)]), {
             kind: 'settleAway',
             heldElsewhere: true,

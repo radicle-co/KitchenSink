@@ -42,6 +42,16 @@ const gateBullet = (): string => between(card, '- **GATE** —', '- **REVIEW** �
 /** The playbook's GATE section: from its heading to the REVIEW heading. */
 const playbookGate = (): string => between(playbook, '## GATE —', '## REVIEW —');
 
+const rawStandards = readFileSync(path.join(repoRoot, 'docs/CODING_STANDARDS.md'), 'utf8');
+const rawClaude = readFileSync(path.join(repoRoot, 'CLAUDE.md'), 'utf8');
+
+/** CODING_STANDARDS §7.1b: from its heading to the next heading, never across the whole file. */
+const standardsSection = (): string =>
+    between(fold(rawStandards), '### 7.1b Cheapest tier first', '### Test File Location');
+
+/** CLAUDE.md "Cheapest tier first": from its heading to the next heading. */
+const claudeSection = (): string => between(fold(rawClaude), '### Cheapest tier first', '### What a mocked test');
+
 const countOf = (text: string, needle: string): number => text.split(needle).length - 1;
 
 describe('the staff-code-quality card, GATE mode', () => {
@@ -133,17 +143,17 @@ describe('the staff-code-quality card, GATE mode', () => {
         expect(playbookGate()).toContain('In CI, **Length** and **Body** below do not apply');
     });
 
-    it('11. step 5 keeps the owner wrap-up deferral and asks a schema change for its local e2e', () => {
+    it('11. step 5 points at the one deferral rule and asks a schema change for its local e2e', () => {
         const step = between(playbookGate(), '5. Required test tiers', '6. Return the structured result');
 
         expect(step).toContain('wrap-up PR');
-        expect(step).toContain('already exists on the base branch');
+        expect(step).toContain('CODING_STANDARDS §7.1b');
         expect(step).toContain('never deferred');
         expect(step).toContain('schema → the local e2e of CODING_STANDARDS §7.1a');
         expect(step).not.toContain('migration integration test');
     });
 
-    it('12. a deferred e2e counts only when the wrap-up task is already on the base branch, because the judge never sees the PR body', () => {
+    it('12. the card, step 5 and CLAUDE.md point at §7.1b and do not restate its deferral rule', () => {
         const bullet = between(
             card,
             'A deferred end-to-end tier is not a "missing required test tier".',
@@ -154,14 +164,39 @@ describe('the staff-code-quality card, GATE mode', () => {
         for (const [name, text] of [
             ['the card bullet', bullet],
             ['playbook step 5', step],
+            ['CLAUDE.md', claudeSection()],
         ] as const) {
-            expect(text, name).toContain('already exists on the base branch');
-            expect(text, name).toContain('plan or tasks file');
-            expect(text, name).toContain("covers this story's flows");
-            expect(text, name).toContain('A wrap-up task that this diff adds or changes does not count');
+            expect(text, name).toContain('§7.1b');
+            expect(text, name).not.toContain('already exists on the base branch');
+            expect(text, name).not.toContain('plan or tasks file');
+            expect(text, name).not.toContain('PR body names');
+            expect(text, name).not.toContain('PR body must name');
         }
 
-        expect(bullet).not.toContain('PR body names');
-        expect(step).not.toContain('PR body must name');
+        expect(bullet).toContain('CODING_STANDARDS §7.1b');
+        expect(bullet).toContain('A missing unit, component or integration tier is still a major finding');
+        expect(bullet).toContain('CODING_STANDARDS §7.1a');
+    });
+
+    it('13. §7.1b is the one full statement of the deferral rule', () => {
+        const rule = standardsSection();
+
+        for (const clause of [
+            'Playwright',
+            'Maestro',
+            'local e2e',
+            'deployed e2e',
+            'already exists on the base branch',
+            'plan or tasks file',
+            "covers this story's flows",
+            'A wrap-up task that this diff adds or changes does not count',
+            "An end-to-end test that is the only proof (a schema or migration change's local e2e, a real-dependency constraint) is never deferred",
+            'Unit, component and integration tests are never deferred',
+        ]) {
+            expect(rule, clause).toContain(clause);
+        }
+
+        expect(rule).not.toContain('PR body names');
+        expect(rule).not.toContain('PR body must name');
     });
 });

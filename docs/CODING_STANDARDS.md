@@ -769,17 +769,24 @@ fixture user).
 
 ### 7.1b Cheapest tier first, and the end-to-end wrap-up
 
-- **Unit tests are always written**, for every change.
+This section is the one full statement of the end-to-end timing and deferral rule. `CLAUDE.md`, the GATE judge card and
+the code-quality playbook point here and do not restate it.
+
+- **Unit tests are always written**, for every change. They are the automatic floor of coverage.
 - **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
-  end. Do not run an end-to-end suite when a component or integration test already proves the behaviour.
-- **During development, write and run an end-to-end test (Playwright, Maestro, local e2e) only when no lower tier can
-  prove the behaviour.**
-- **Every other end-to-end flow still has to exist.** Playwright for web and Maestro for mobile stay required for every
-  story. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up PR at the end of
-  the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The deferral counts only when
-  that task already exists on the base branch, in the feature's plan or tasks file, and covers this story's flows. A
-  task the same PR adds does not count. The feature is NOT DONE until the wrap-up PR merges and its flows pass.
+  end. Do not run an end-to-end suite (Playwright, Maestro, local e2e, deployed e2e) when a component or integration test
+  already proves the behaviour.
+- **During development, write and run an end-to-end test only when no lower tier can prove the behaviour**, for example a
+  migration, a real-dependency constraint, or a native device behaviour that a component test cannot show.
+- **Every other end-to-end flow still has to exist**: Playwright for web, Maestro for mobile, and local and deployed e2e
+  where §7.1 requires them. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up
+  PR at the end of the feature.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** GATE sees only the diff, so the
+  deferral counts only when that task already exists on the base branch, in the feature's plan or tasks file, and covers
+  this story's flows. A wrap-up task that this diff adds or changes does not count. The feature is NOT DONE until the
+  wrap-up PR merges and its flows pass.
+- **An end-to-end test that is the only proof (a schema or migration change's local e2e, a real-dependency constraint) is
+  never deferred.**
 - **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.
 
 ### Test File Location

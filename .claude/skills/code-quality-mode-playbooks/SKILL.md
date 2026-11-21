@@ -40,11 +40,8 @@ call.
    worse.
 5. Required test tiers: check the house standard's tier matrix against what the diff touches (UI → component
    tier, and the e2e flows; non-UI → unit + integration; schema → the local e2e of CODING_STANDARDS §7.1a). A
-   missing required tier is major. The one exception is an e2e flow deferred to the feature's wrap-up PR (CLAUDE.md
-   "Cheapest tier first"). You never see the PR body, so the deferral counts only when the wrap-up task already exists
-   on the base branch, in the feature's plan or tasks file, and covers this story's flows. A wrap-up task that this
-   diff adds or changes does not count. An e2e test that is the only proof (a schema or migration change's local
-   e2e, a real-dependency constraint) is never deferred. Unit, component and integration tests are never deferred.
+   missing required tier is major. An e2e flow deferred to the feature's wrap-up PR is judged by the rule of
+   CODING_STANDARDS §7.1b, and you never see the PR body. Unit, component and integration tests are never deferred.
 6. Return the structured result the workflow asks for: `verdict` (`PASS` or `BLOCK`) and `findings` (each with
    `severity` `blocking` or `advisory`, `title`, `detail`, and `file` and `line` when known). The workflow turns it into
    the `GATE` status; there is nothing to record yourself.

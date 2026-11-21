@@ -484,19 +484,13 @@ wrap-up PR. Before writing code, write the failing test in EVERY tier the change
 
 ### Cheapest tier first, and the end-to-end wrap-up (owner rulings 2026-11-21)
 
-- **Unit tests are always written**, for every change. They are the automatic floor of coverage.
-- **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
-  end. Do not run an end-to-end suite (Playwright, Maestro, local e2e) when a component or integration test already
-  proves the behaviour.
-- **During development, write and run an end-to-end test only when no lower tier can prove the behaviour**, for
-  example a migration, a real-dependency constraint, or a native device behaviour that a component test cannot show.
-- **Every other end-to-end flow still has to exist** (Playwright for web, Maestro for mobile, local and deployed e2e
-  where §7.1 requires them). Their job is to prevent regression, so the flows of a feature's stories may land together
-  in ONE wrap-up PR at the end of the feature.
-- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The deferral counts only when
-  that task already exists on the base branch, in the feature's plan or tasks file, and covers this story's flows. A
-  task the same PR adds does not count. The feature is NOT DONE until the wrap-up PR merges and its flows pass.
-- **A story PR still carries its unit tests and its component and integration tests.** Deferring them is a violation.
+- **Unit tests are always written**, for every change.
+- **Prove each behaviour at the cheapest tier that can observe it.** Do not run an end-to-end suite (Playwright,
+  Maestro, local e2e) when a component or integration test already proves it.
+- **During development, write and run an end-to-end test only when no lower tier can prove the behaviour.** Every other
+  end-to-end flow still has to exist, and a feature's flows may land together in ONE wrap-up PR at the end of the feature.
+- **Unit, component and integration tests are never deferred.** What a deferral needs, and what is never deferred, is
+  in `docs/CODING_STANDARDS.md` §7.1b.
 
 ### What a mocked test structurally CANNOT prove — and why the real-dependency tier is not optional
 

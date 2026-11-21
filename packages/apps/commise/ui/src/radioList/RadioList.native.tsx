@@ -6,7 +6,7 @@
  * the native touch floor and is its own bordered card: an 18 dp circle (a 2 dp `lineControl` ring at rest, a 5 dp `action`
  * ring when checked), the label that wraps, then the hint under it. Label and hint draw on the design-system `Text` (roles
  * `cardTitle` and `meta`), so they honour the 2x cap and the iOS leading snap (ADR-0080 §8, react-native#58970), and the
- * circle is offset to centre on the label's first line. A pressed row takes the theme's press wash, as `ChipRow` does.
+ * circle sits centred in a slot one label line tall (`RadioMark`), so it stays beside the first line. A pressed row takes the theme's press wash, as `ChipRow` does.
  * Colours come from the theme at render, so it repaints in the dark scheme. Nothing animates.
  *
  * Controlled with no default: `value` `undefined` checks nothing, and a press reports to `onChange` only.
@@ -15,19 +15,14 @@
  */
 import { Pressable, StyleSheet, View } from 'react-native';
 
-import { scaledTypeSize } from '../text/scaledType.js';
 import { Text } from '../text/Text.native.js';
-import { useTextScale } from '../text/useTextScale.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { RadioListProps } from './props.js';
-import { RadioRowContent } from './RadioRowContent.native.js';
+import { RadioMark, RadioRowContent } from './RadioRowContent.native.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
-
-/** The radio circle's size, dp (`ingredientMatching.md`: 18 px radios). */
-const RADIO_SIZE = 18;
 
 /** The native design-system option list. */
 export function RadioList<Id extends string>({
@@ -39,10 +34,6 @@ export function RadioList<Id extends string>({
 }: RadioListProps<Id>) {
     const { colors } = useTheme();
     const wash = usePressFill();
-    // The circle stays 18 dp and sits on the label's FIRST line at every scale: half of what the label's leading has over it.
-    // The leading is read from the same scaled, snapped metrics the label draws with (`Text`, role `cardTitle`).
-    const textScale = useTextScale();
-    const circleTop = (scaledTypeSize('cardTitle', textScale).lineHeight - RADIO_SIZE) / 2;
 
     return (
         <View collapsable={false} role="radiogroup" aria-label={label} style={styles.group}>
@@ -71,17 +62,7 @@ export function RadioList<Id extends string>({
                     >
                         {/* One top-aligned group the row centres: a lone label line then keeps the circle on it. */}
                         <RadioRowContent>
-                            <View
-                                aria-hidden
-                                importantForAccessibility="no-hide-descendants"
-                                style={[
-                                    styles.radio,
-                                    { marginTop: circleTop },
-                                    checked
-                                        ? { borderWidth: 5, borderColor: colors.action }
-                                        : { borderWidth: 2, borderColor: colors.lineControl },
-                                ]}
-                            />
+                            <RadioMark checked={checked} />
                             <View style={styles.words}>
                                 <Text typeRole="cardTitle" color="$ink">
                                     {option.label}
@@ -111,6 +92,5 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderRadius: nativeTokens.radius.md,
     },
-    radio: { width: RADIO_SIZE, height: RADIO_SIZE, borderRadius: RADIO_SIZE / 2 },
     words: { flex: 1, minWidth: 0 },
 });

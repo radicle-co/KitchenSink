@@ -20,6 +20,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         "The native Button's label (the Text `cardTitle` role coloured by the Button's surface). A part of Button, never placed on its own; the Button card covers it.",
     RadioRowContent:
         "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
+    RadioMark:
+        "The native RadioList row's circle, centred in a slot one label line tall. A part of RadioList, never placed on its own; the RadioList card covers it.",
     DesignSystemProvider:
         'Native-only Tamagui provider the app mounts once. It draws nothing of its own and is not placed by a screen; previews are themed by the `data-theme` attribute.',
     DesignSystemTheme:

@@ -154,37 +154,42 @@ describe('RadioList (native) at a system text scale', () => {
         expect(Number.parseFloat(styleOf('I wrote it myself').fontSize)).toBeCloseTo(14 * 1.786, 2);
     });
 
-    /** The 18 dp radio circle of the one row, narrowed so a missing circle fails here and not as a NaN. */
-    function circleMarginTop(): number {
+    /** The 18 dp radio circle of the one row, and the slot one line of the label tall that holds it. */
+    function markOfTheRow(): { readonly circle: HTMLElement; readonly slot: HTMLElement } {
         const circle = screen.getByRole('radio').querySelector('[aria-hidden="true"]');
 
-        if (!(circle instanceof HTMLElement)) {
+        if (!(circle instanceof HTMLElement) || circle.parentElement === null) {
             throw new Error('radio circle not found');
         }
 
-        return Number.parseFloat(getComputedStyle(circle).marginTop);
+        return { circle, slot: circle.parentElement };
     }
 
     it.each([
-        [1, 1],
-        [2, 11],
-        [3.571, 11],
+        [1, 20],
+        [2, 40],
+        [3.571, 40],
     ] as const)(
-        'at scale %s the 18 dp circle is offset by (leading - 18) / 2 = %s, so it centres on the label’s first line',
-        (textScale, offset) => {
+        'at scale %s the circle sits centred in a slot one label line (%s dp) tall, so it centres on the first line',
+        (textScale, line) => {
             withPlatformOs('android', () => {
                 renderAt(textScale);
 
-                // The leading is capped at 2x, so past the cap the offset stays where it was at 2x.
-                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(20 * Math.min(textScale, 2));
-                expect(circleMarginTop()).toBe(offset);
+                const { circle, slot } = markOfTheRow();
+
+                // The leading is capped at 2x, so past the cap the slot stays as tall as at 2x.
+                expect(Number.parseFloat(styleOf('Written by me').lineHeight)).toBe(line);
+                expect(getComputedStyle(slot).height).toBe(`${line}px`);
+                expect(getComputedStyle(slot).alignItems).toBe('center');
+                expect(getComputedStyle(circle).width).toBe('18px');
+                expect(getComputedStyle(circle).height).toBe('18px');
             });
         },
     );
 
     it('a row with no hint keeps the circle on the label: both sit in one top-aligned group the row centres', () => {
-        // The Pressable centres its content. A lone label line is then centred in the 44 dp row, so a circle that
-        // is only offset from the row top would sit off it. Circle and words share one flex-start group instead.
+        // The Pressable centres its content. A lone label line is then centred in the 44 dp row, so a mark that
+        // is only offset from the row top would sit off it. Mark and words share one flex-start group instead.
         withPlatformOs('android', () => {
             renderWithTamagui(
                 <RadioList
@@ -198,13 +203,12 @@ describe('RadioList (native) at a system text scale', () => {
             );
 
             const radio = screen.getByRole('radio');
-            const circle = radio.querySelector('[aria-hidden="true"]');
+            const { slot } = markOfTheRow();
+            const group = slot.parentElement;
 
-            if (!(circle instanceof HTMLElement) || circle.parentElement === null) {
-                throw new Error('radio circle not found');
+            if (group === null) {
+                throw new Error('radio row group not found');
             }
-
-            const group = circle.parentElement;
 
             expect(radio.children).toHaveLength(1);
             expect(radio.firstElementChild).toBe(group);
@@ -214,13 +218,13 @@ describe('RadioList (native) at a system text scale', () => {
         });
     });
 
-    it('on iOS the offset is read from the snapped leading the label draws with', () => {
+    it('on iOS the slot is as tall as the snapped leading the label draws with', () => {
         withPlatformOs('ios', () => {
             renderAt(2);
 
             const drawnLeading = Number.parseFloat(styleOf('Written by me').lineHeight);
 
-            expect(circleMarginTop()).toBeCloseTo((drawnLeading - 18) / 2, 5);
+            expect(Number.parseFloat(getComputedStyle(markOfTheRow().slot).height)).toBeCloseTo(drawnLeading, 5);
         });
     });
 });

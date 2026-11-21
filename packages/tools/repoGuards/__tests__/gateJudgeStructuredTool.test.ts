@@ -36,7 +36,8 @@ const claudeArgsBlocks = (workflow: string): string[] => {
             return;
         }
 
-        const keyIndent = key[1].length;
+        // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off, so key[1] is typed string but is undefined if the group did not take part.
+        const keyIndent = (key[1] ?? '').length;
         const body: string[] = [];
 
         for (const next of lines.slice(index + 1)) {
@@ -59,7 +60,12 @@ const claudeArgsBlocks = (workflow: string): string[] => {
 const structuredJudgeAgents = (workflow: string): string[] =>
     claudeArgsBlocks(workflow)
         .filter((block) => block.includes('--json-schema'))
-        .flatMap((block) => [...block.matchAll(/--agent[\s=]+([A-Za-z0-9_-]+)/gu)].map((match) => match[1]));
+        .flatMap((block) =>
+            [...block.matchAll(/--agent[\s=]+([A-Za-z0-9_-]+)/gu)].map(
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off, so match[1] is typed string but is undefined if the group did not take part.
+                (match) => match[1] ?? '',
+            ),
+        );
 
 /** Every `claude_args:` line that is not a block scalar, which this guard cannot read and so must not skip. */
 const unreadableClaudeArgs = (workflow: string): string[] =>
@@ -73,7 +79,8 @@ const stepsDisallowingTheTool = (workflow: string): number =>
         .filter((block) => block.includes('--json-schema'))
         .filter((block) =>
             [...block.matchAll(/--disallowedTools[\s=]+("[^"]*"|'[^']*'|\S+)/gu)].some((match) =>
-                match[1].split(/[\s,"']+/u).includes(STRUCTURED_OUTPUT_TOOL),
+                // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- DD19: noUncheckedIndexedAccess is off, so match[1] is typed string but is undefined if the group did not take part.
+                (match[1] ?? '').split(/[\s,"']+/u).includes(STRUCTURED_OUTPUT_TOOL),
             ),
         ).length;
 
@@ -147,9 +154,21 @@ describe('GATE judge card allows the structured output tool', () => {
 
     it('7. each judge step in a workflow is checked, not only the first', () => {
         const workflow = `${judgeStep('good')}\n${judgeStep('bad')}`;
-        const cards: Record<string, string> = { good: cardWith('StructuredOutput'), bad: cardWith('Read') };
+        const cards = new Map([
+            ['good', cardWith('StructuredOutput')],
+            ['bad', cardWith('Read')],
+        ]);
+        const readCard = (agent: string): string => {
+            const card = cards.get(agent);
 
-        expect(agentsMissingTheTool(workflow, (agent) => cards[agent])).toEqual(['bad']);
+            if (card === undefined) {
+                throw new Error(`the fixture has no card for the agent "${agent}"`);
+            }
+
+            return card;
+        };
+
+        expect(agentsMissingTheTool(workflow, readCard)).toEqual(['bad']);
     });
 
     it('8. a judge step whose --disallowedTools names StructuredOutput fails the guard', () => {

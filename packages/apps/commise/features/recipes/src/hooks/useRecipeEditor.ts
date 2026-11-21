@@ -140,7 +140,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { derivedVisibility, draftPublicFactsOf, draftSourceOf } from '../form/sourceLink.js';
+import { derivedVisibility, draftPublicFactsOf } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
@@ -1486,8 +1486,12 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
  * follow-up then finds the server already holding, and the Publish runs again through the gate. @sideEffect
  */
 function publishAsPublic(ctx: EditorContext): void {
-    // ⛔ A recipe copied from a web page can only be private (ADR-0089), and its ask offers no such control: a stray call does nothing.
-    if (ctx.publishBlocked === undefined || draftSourceOf(ctx.core.get().draft).kind === 'link') {
+    // ⛔ A recipe whose Public is refused can only be private (ADR-0089, board P6): the ask offers no such control, so a stray
+    // call does nothing. The same function every Public offer reads.
+    if (
+        ctx.publishBlocked === undefined ||
+        publicRefusalOf(draftPublicFactsOf(ctx.core.get().draft, storedRecipeOf(ctx.core.get().server))) !== 'none'
+    ) {
         return;
     }
 

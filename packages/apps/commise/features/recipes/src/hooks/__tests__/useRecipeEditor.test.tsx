@@ -11,6 +11,7 @@
 import type { ErrorReporter } from '@commise/features-core';
 import { act, renderHook } from '@testing-library/react';
 import {
+    RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
     type RecipeDetail,
@@ -4458,6 +4459,40 @@ describe('the editor says why Public is refused, and never sends it (P6)', () =>
         expect(sent.map((input) => input.visibility ?? RecipeVisibility.PRIVATE)).toEqual(
             sent.map(() => RecipeVisibility.PRIVATE),
         );
+    });
+
+    // Staff review of 65ad26cbe: the blocked sheet's "Publish as public" was a dead control for a refused recipe. The hook
+    // guard is the same one function every Public offer reads, so a stray call does nothing.
+    it.each([
+        ['a "From another person" recipe', { statementKind: 'fromPerson' as const }],
+        ['a book recipe', { sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' as const }],
+    ])('⛔ %s at the slot cap: publishAsPublic does nothing', async (_name, over) => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PRIVATE,
+            ...over,
+        });
+        const { result, port } = mount({ recipe }, undefined, fakePort(), 'slots');
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited' });
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        await settle();
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+
+        act(() => {
+            result.current.publishAsPublic();
+        });
+        await settle();
+
+        expect(result.current.publishBlocked).toEqual({ kind: 'noSlot' });
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+        expect(port.submitExclusive).not.toHaveBeenCalled();
     });
 
     it('⛔ both cards refused (a web link, and no private slot): Publish asks noSlot and sends nothing, Keep as draft keeps the draft', async () => {

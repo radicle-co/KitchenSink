@@ -465,8 +465,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                               : undefined
                     }
                     onKeepDraft={editor.keepAsDraft}
-                    // ⛔ A recipe copied from a web page can only be private (ADR-0089): the ask has no such control.
-                    {...(source.webSource ? { webSource: true } : { onPublishPublic: editor.publishAsPublic })}
+                    // ⛔ A recipe whose Public is refused can only be private (ADR-0089, board P6): the ask has no such control. One
+                    // function (`publicRefusalOf`) decides every Public offer; a web page keeps its own words.
+                    {...(editor.publicRefusal === 'none'
+                        ? { onPublishPublic: editor.publishAsPublic }
+                        : source.webSource
+                          ? { webSource: true }
+                          : { refused: true })}
                 />
             )}
         </>

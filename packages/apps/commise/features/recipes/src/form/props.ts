@@ -119,9 +119,9 @@ export interface RecipeVisibilityFieldProps extends Omit<RecipeFormSectionProps,
     readonly onFreeASlot: () => void;
     /**
      * Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),
-     * or `none`. Absent reads as `none`. The Public card says it in the reason's own line and is refused.
+     * or `none`. REQUIRED, so no host can forget it. The Public card says it in the reason's own line and is refused.
      */
-    readonly publicRefusal?: PublicRefusal;
+    readonly publicRefusal: PublicRefusal;
     /** The passive line under the Public card, when this screen draws it: what was sent is what was shown. */
     readonly confirmLine?: string;
     /**
@@ -204,7 +204,7 @@ export function visibilityFieldOf(input: {
      * line, Private is shown, and no confirm line is drawn. Absent reads as `none`. It stays refused after the cook removes a
      * source the server holds.
      */
-    readonly publicRefusal?: PublicRefusal;
+    readonly publicRefusal: PublicRefusal;
     /** The reason lines (`recipeActionMessages.publicRefusal`), one per reason, said on the refused Public card. */
     readonly refusalLines: PublicRefusalMessages;
     /** The passive line, when this screen shows it: absent where a sheet will ask instead. */
@@ -214,7 +214,7 @@ export function visibilityFieldOf(input: {
     const { standing } = facts;
     // ⛔ DERIVED, NOT WRITTEN (ADR-0089): a recipe that may never be public is Private whatever the cook chose, and the
     // draft's own choice is left alone so taking the source off brings it back. ONE reason decides it (board P6).
-    const publicRefusal = input.publicRefusal ?? 'none';
+    const { publicRefusal } = input;
     const privateOnly = publicRefusal !== 'none';
     const draft = privateOnly ? RecipeVisibility.PRIVATE : input.draft;
     const refused = refusedDraftPrivate(refusal, saved, draft);
@@ -328,7 +328,7 @@ export const visibilityChoice = (
     chosen: RecipeVisibility,
     saved: RecipeVisibility,
     facts: RecipePrivateFacts,
-    publicRefusal: PublicRefusal = 'none',
+    publicRefusal: PublicRefusal,
 ): { readonly visibility: RecipeVisibility } | 'confirmPublic' | undefined => {
     if (chosen === current) {
         return undefined;

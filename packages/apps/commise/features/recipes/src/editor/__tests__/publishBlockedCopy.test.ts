@@ -49,6 +49,27 @@ describe('publishBlockedCopyOf', () => {
         });
     });
 
+    describe('a recipe whose Public is refused for another reason (designer, B6)', () => {
+        it('says it can only be private, offers no public path, and asks for nothing', () => {
+            const copy = publishBlockedCopyOf(50, m, false, FEATURES, false, true);
+
+            expect(copy.body).toBe(
+                'All 50 of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+            );
+            expect(copy.body).not.toMatch(/publish it as public/iu);
+        });
+
+        it('without a slot total, states no number', () => {
+            expect(publishBlockedCopyOf(undefined, m, false, FEATURES, false, true).body).toBe(
+                'All of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+            );
+        });
+
+        it('the web-page words win for a web copy', () => {
+            expect(publishBlockedCopyOf(50, m, false, FEATURES, true, true).body).toContain('copied from a web page');
+        });
+    });
+
     describe('switch on', () => {
         it('adds the Pro line with the feature list', () => {
             const copy = publishBlockedCopyOf(50, m, true, FEATURES);

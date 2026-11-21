@@ -26,9 +26,10 @@ export const PublishBlockedSheet: FC<PublishBlockedSheetProps> = ({
     onKeepDraft,
     onPublishPublic,
     webSource = false,
+    refused = false,
 }) => {
     const { publishBlocked: m } = useMessages(editorMessages);
-    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON, undefined, webSource);
+    const copy = publishBlockedCopyOf(slotTotal, m, SUBSCRIPTION_ENTRY_POINTS_ON, undefined, webSource, refused);
     const { colors } = useTheme();
 
     return (

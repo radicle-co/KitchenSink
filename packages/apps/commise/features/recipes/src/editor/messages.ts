@@ -253,6 +253,10 @@ export interface EditorMessages {
             readonly bodyWebSource: string;
             /** The same, said when the limit is not known. */
             readonly bodyWebSourceNoCount: string;
+            /** The body for a recipe whose Public is refused for any other reason: no public path in it. `{total}` is the limit. */
+            readonly bodyRefused: string;
+            /** The same, said when the limit is not known. */
+            readonly bodyRefusedNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
             readonly upsell: string;
         };
@@ -567,6 +571,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                     'All {total} of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
                 bodyWebSourceNoCount:
                     'All of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+                bodyRefused:
+                    'All {total} of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+                bodyRefusedNoCount:
+                    'All of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
             publishPublic: 'Publish as public',

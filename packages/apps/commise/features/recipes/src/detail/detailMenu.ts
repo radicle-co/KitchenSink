@@ -32,7 +32,7 @@ export interface DetailMenuInput {
      * Whether Make public is offered: `true` only when no refusal reason applies (`publicRefusalOf` is `none`), so the menu
      * never offers what the server refuses. REQUIRED, so no host can forget to decide.
      */
-    readonly mayBePublic: boolean;
+    readonly offersPublic: boolean;
 }
 
 /**
@@ -41,14 +41,14 @@ export interface DetailMenuInput {
  * @param input - The viewer's and the recipe's facts.
  * @returns The entries, in order, and the destructive action.
  */
-export function detailMenuOf({ owner, isPublic, hasMarks, offersPrivate, mayBePublic }: DetailMenuInput): DetailMenu {
+export function detailMenuOf({ owner, isPublic, hasMarks, offersPrivate, offersPublic }: DetailMenuInput): DetailMenu {
     const items: DetailMenuItem[] = [];
 
     if (owner) {
         items.push('versions');
 
         if (!isPublic) {
-            if (mayBePublic) {
+            if (offersPublic) {
                 items.push('makePublic');
             }
         } else if (offersPrivate) {

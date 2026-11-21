@@ -83,7 +83,7 @@ export const RecipeVisibilityField: FC<RecipeVisibilityFieldProps> = ({
         refusal: privateRefusal,
         messages: v,
         refusalLines,
-        ...(publicRefusal === undefined ? {} : { publicRefusal }),
+        publicRefusal,
         ...(confirmText === undefined ? {} : { confirmLine: confirmText }),
     });
 

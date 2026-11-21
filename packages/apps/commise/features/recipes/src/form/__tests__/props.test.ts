@@ -1332,17 +1332,19 @@ describe('visibilityChoice', () => {
         ['no change: public stays public', 'public', 'public', 'public', slots(OPEN), undefined],
         ['no change: private stays private', 'private', 'private', 'private', slots(OPEN), undefined],
     ] as const)('%s', (_label, current, chosen, saved, facts, expected) => {
-        expect(visibilityChoice(current, chosen, saved, facts)).toEqual(expected);
+        expect(visibilityChoice(current, chosen, saved, facts, 'none')).toEqual(expected);
     });
 
     it('REWRITTEN for ADR-0077 section 6: an imported public-web recipe takes the slots path (applies with a slot free, refuses none when unknown)', () => {
         const rule = privateRuleForDraft(RecipeSourceType.IMPORTED_PUBLIC, null);
 
-        expect(visibilityChoice('public', 'private', 'public', { rule, standing: OPEN, state: 'upsell' })).toEqual({
+        expect(
+            visibilityChoice('public', 'private', 'public', { rule, standing: OPEN, state: 'upsell' }, 'none'),
+        ).toEqual({
             visibility: 'private',
         });
         expect(
-            visibilityChoice('public', 'private', 'public', { rule, standing: FULL, state: 'upsell' }),
+            visibilityChoice('public', 'private', 'public', { rule, standing: FULL, state: 'upsell' }, 'none'),
         ).toBeUndefined();
     });
 });
@@ -1358,6 +1360,7 @@ describe('visibilityFieldOf', () => {
         refusal: undefined,
         messages: v,
         refusalLines,
+        publicRefusal: 'none' as const,
     };
     const slots = (
         standing: RecipePrivateFacts['standing'],

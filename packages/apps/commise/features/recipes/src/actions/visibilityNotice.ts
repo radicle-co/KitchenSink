@@ -119,9 +119,11 @@ export function visibilityNoticeOf(
         return say(claimed);
     }
 
-    const text = input.isPublic ? undefined : publicRefusalLineOf(input.standing, messages.publicRefusal);
+    if (input.isPublic || input.standing === 'none') {
+        return undefined;
+    }
 
-    return text === undefined || input.standing === 'none'
-        ? undefined
-        : { kind: 'standing', reason: input.standing, text };
+    const text = publicRefusalLineOf(input.standing, messages.publicRefusal);
+
+    return text === undefined ? undefined : { kind: 'standing', reason: input.standing, text };
 }

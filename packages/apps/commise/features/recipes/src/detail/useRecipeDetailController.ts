@@ -367,7 +367,7 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
         isPublic,
         hasMarks: marks.hasMarks,
         offersPrivate: true,
-        mayBePublic: standing === 'none',
+        offersPublic: standing === 'none',
     });
 
     const menuItem = (item: DetailMenuItem): ActionMenuItem => {

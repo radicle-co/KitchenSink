@@ -35,6 +35,7 @@ import type { RecipeFormValues } from './values.js';
 type StoredRecipe = Pick<
     RecipeDetail,
     | 'status'
+    | 'visibility'
     | 'sourceType'
     | 'sourceKind'
     | 'statementKind'
@@ -177,8 +178,8 @@ export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recip
 }
 
 /**
- * The visibility the draft is SENT with. It is Private whenever Public is refused (`publicRefusalOf` over the draft's facts,
- * {@link draftPublicFactsOf}): a web copy, a book or paid-site recipe, "From another person", a statement this client cannot
+ * The visibility the draft is SENT with. It is Private whenever Public is refused for a recipe that is not public yet
+ * (`publicRefusalOf` over the draft's facts, {@link draftPublicFactsOf}): a web copy, a book or paid-site recipe, "From another person", a statement this client cannot
  * name, a recipe a recorded source holds out of Public ({@link publicHeldOf}). `values.visibility` is left alone: taking the
  * link off a draft-only link brings their choice back.
  *
@@ -190,9 +191,16 @@ export function derivedVisibility(
     values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
     recipe: StoredRecipe | undefined,
 ): RecipeVisibility {
-    return publicRefusalOf(draftPublicFactsOf(values, recipe)) === 'none'
-        ? values.visibility
-        : RecipeVisibility.PRIVATE;
+    // The two arms the editor always had: a pasted link, and a recipe a recorded source holds out of Public.
+    if (draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)) {
+        return RecipeVisibility.PRIVATE;
+    }
+
+    // Every other reason is only the CLIENT'S reading (a newer server's kind it cannot name, a statement), so a Save must not
+    // unpublish a recipe that is already public: the reason applies to what is not public yet.
+    const refused = publicRefusalOf(draftPublicFactsOf(values, recipe)) !== 'none';
+
+    return refused && recipe?.visibility !== RecipeVisibility.PUBLIC ? RecipeVisibility.PRIVATE : values.visibility;
 }
 
 /**

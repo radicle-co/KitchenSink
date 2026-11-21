@@ -862,6 +862,33 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
     });
 
+    it.each([
+        ['a book recipe', { sourceType: 'imported_physical' as const, sourceKind: 'book' as const }],
+        ['a "From another person" recipe', { statementKind: 'fromPerson' as const }],
+    ])(
+        'with every slot used, %s: the ask says it can only be private and offers no Publish as public',
+        async (_name, over) => {
+            mount({
+                seed: {
+                    recipe: makeRecipeDetail({
+                        id: 'rec_1',
+                        status: RecipeStatus.PUBLISHED,
+                        visibility: RecipeVisibility.PRIVATE,
+                        cuisine: 'Italian',
+                        ...over,
+                    }),
+                },
+                publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+            });
+
+            const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+            expect(within(dialog).getByText(/This recipe can only be private/u)).toBeTruthy();
+            expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
+            expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
+        },
+    );
+
     it('without a Source the same ask still offers Publish as public', async () => {
         mount({
             seed: { recipe: neverPublished() },

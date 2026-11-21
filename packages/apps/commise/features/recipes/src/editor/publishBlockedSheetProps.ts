@@ -19,4 +19,6 @@ export interface PublishBlockedSheetProps {
     readonly onPublishPublic?: () => void;
     /** The recipe is a copy of a web page: the words say so (`publishBlockedCopyOf`). Passed with the absent `onPublishPublic`. */
     readonly webSource?: boolean;
+    /** Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`. */
+    readonly refused?: boolean;
 }

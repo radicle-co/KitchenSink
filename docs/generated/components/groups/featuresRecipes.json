@@ -6,11 +6,11 @@
     "coverage": {
         "components": 210,
         "implementations": 355,
-        "props": 2457,
+        "props": 2459,
         "documentedComponents": 210,
         "implementationsWithModuleDoc": 355,
         "implementationsWithComponentDoc": 244,
-        "documentedProps": 1889,
+        "documentedProps": 1891,
         "classifiedComponents": 188,
         "componentsWithPatternTag": 100,
         "crossPlatformComponents": 145
@@ -16279,6 +16279,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
                             "name": "slotTotal",
                             "type": "number | undefined",
                             "typeDetail": null,
@@ -16350,6 +16359,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Whether the sheet is shown; closed, it renders nothing.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
+                        },
+                        {
+                            "name": "refused",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Public is refused for another reason: the words say so. Passed with the absent `onPublishPublic`.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/publishBlockedSheetProps.ts"
                         },
                         {
@@ -23612,9 +23630,9 @@
                                 "\"policy.paidSite\"",
                                 "\"sourceConflict\""
                             ],
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. Absent reads as `none`. The Public card says it in the reason's own line and is refused.",
+                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. REQUIRED, so no host can forget it. The Public card says it in the reason's own line and is refused.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {
@@ -23756,9 +23774,9 @@
                                 "\"policy.paidSite\"",
                                 "\"sourceConflict\""
                             ],
-                            "required": false,
+                            "required": true,
                             "defaultValue": null,
-                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. Absent reads as `none`. The Public card says it in the reason's own line and is refused.",
+                            "description": "Why Public is refused for this draft (`publicRefusalOf` over the draft's facts, the same function the recipe page reads),\nor `none`. REQUIRED, so no host can forget it. The Public card says it in the reason's own line and is refused.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/props.ts"
                         },
                         {

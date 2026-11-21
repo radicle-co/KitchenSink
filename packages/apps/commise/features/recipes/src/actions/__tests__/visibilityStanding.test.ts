@@ -67,6 +67,18 @@ describe('visibilityNoticeOf: a moment line comes before the standing line (E5)'
         });
     });
 
+    // Staff review of 65ad26cbe: base returned nothing for a server refusal on a recipe that is no longer public. Now the
+    // refusal speaks only while public, and what follows is the rest of the order: a failed write, else the standing line.
+    it('a stale server refusal on a private recipe: a failed write is the error moment, else the standing line', () => {
+        const stale = { standing: 'policy.webPage', isPublic: false, serverRefusal: 'final' } as const;
+
+        expect(noticeOf({ ...stale, writeFailed: true })).toEqual({ kind: 'moment', text: copy.error });
+        expect(noticeOf({ ...stale, writeFailed: false })).toMatchObject({
+            kind: 'standing',
+            reason: 'policy.webPage',
+        });
+    });
+
     it('says a refusal the server gave of a Private, as a moment, over a standing reason', () => {
         expect(noticeOf({ standing: 'fromPerson', isPublic: true, serverRefusal: 'final' })).toEqual({
             kind: 'moment',

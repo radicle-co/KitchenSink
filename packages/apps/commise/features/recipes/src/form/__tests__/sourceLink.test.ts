@@ -7,6 +7,7 @@ import {
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
+    UNRECOGNISED_SOURCE_KIND,
     UNRECOGNISED_STATEMENT_KIND,
 } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
@@ -684,16 +685,40 @@ describe('derivedVisibility: sends Private whenever Public is refused (P6, DF-3)
         expect(derivedVisibility(publicDraft(), stored)).toBe(RecipeVisibility.PRIVATE);
     });
 
-    it('a statement this client cannot name is sent Private (fail closed)', () => {
-        expect(derivedVisibility(publicDraft(), makeRecipeDetail({ statementKind: UNRECOGNISED_STATEMENT_KIND }))).toBe(
-            RecipeVisibility.PRIVATE,
-        );
+    it('a statement this client cannot name is sent Private (fail closed) for a recipe that is not public', () => {
+        const stored = makeRecipeDetail({
+            statementKind: UNRECOGNISED_STATEMENT_KIND,
+            visibility: RecipeVisibility.PRIVATE,
+        });
+
+        expect(derivedVisibility(publicDraft(), stored)).toBe(RecipeVisibility.PRIVATE);
     });
 
-    it('a book or paid-site recipe is sent Private', () => {
-        const paid = makeRecipeDetail({ sourceType: RecipeSourceType.IMPORTED_PAID, sourceKind: 'paid_site' });
+    it('a book or paid-site recipe that is not public is sent Private', () => {
+        const paid = makeRecipeDetail({
+            sourceType: RecipeSourceType.IMPORTED_PAID,
+            sourceKind: 'paid_site',
+            visibility: RecipeVisibility.PRIVATE,
+        });
 
         expect(derivedVisibility(publicDraft(), paid)).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    // Staff review of 65ad26cbe: a Save must never unpublish a PUBLIC recipe on a reason that is only the new reading (a newer
+    // server's statement or kind this app cannot name). Base sent Private only for a pasted link or a held recipe.
+    it.each([
+        ['a statement this client cannot name', { statementKind: UNRECOGNISED_STATEMENT_KIND }],
+        ['a source kind this client cannot name', { sourceKind: UNRECOGNISED_SOURCE_KIND }],
+    ] as const)('⛔ a PUBLIC recipe with %s keeps its visibility on Save', (_name, over) => {
+        const stored = makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, ...over });
+
+        expect(derivedVisibility(publicDraft(), stored)).toBe(RecipeVisibility.PUBLIC);
+    });
+
+    it('a PUBLIC recipe with a pasted link is still sent Private (the base arm)', () => {
+        const stored = makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC });
+
+        expect(derivedVisibility(publicDraft({ sourceLink: ALLRECIPES }), stored)).toBe(RecipeVisibility.PRIVATE);
     });
 
     it('the cook’s own recipe keeps the visibility the draft holds', () => {

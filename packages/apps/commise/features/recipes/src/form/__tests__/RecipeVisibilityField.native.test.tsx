@@ -139,7 +139,7 @@ const Harness: FC<HarnessProps> = ({
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
             onConfirmPublic={onConfirmPublic ?? (() => change({ ...values, visibility: 'public' }))}
             onChange={change}
-            {...(publicRefusal === undefined ? {} : { publicRefusal })}
+            publicRefusal={publicRefusal ?? 'none'}
             {...(confirmLine === undefined ? {} : { confirmLine })}
         />
     );
@@ -522,6 +522,7 @@ describe('RecipeVisibilityField (native) - the passive line and the held note (A
             onFreeASlot={() => undefined}
             onConfirmPublic={() => undefined}
             onChange={() => undefined}
+            publicRefusal="none"
             {...extra}
         />
     );
@@ -562,6 +563,7 @@ describe('RecipeVisibilityField (native) - an unavailable Public card and the fo
             onFreeASlot={() => undefined}
             onConfirmPublic={() => undefined}
             onChange={() => undefined}
+            publicRefusal="none"
             {...extra}
         />
     );

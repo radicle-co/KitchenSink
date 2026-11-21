@@ -27,6 +27,8 @@ export interface PublishBlockedCopy {
  * @param premiumFeatures - What Premium adds, for the upsell line (only read while the switch is on).
  * @param webSource - The recipe is a copy of a web page (ADR-0089): it can only be private, so the words offer no way to
  *   publish it as public and none that removes the source.
+ * @param refused - Public is refused for another reason (a book, a paid site, another person, a kind this app cannot name): the
+ *   words offer no public path either. `webSource` wins when both are set.
  */
 export function publishBlockedCopyOf(
     slotTotal: number | undefined,
@@ -34,11 +36,14 @@ export function publishBlockedCopyOf(
     sellsPro: boolean,
     premiumFeatures = '',
     webSource = false,
+    refused = false,
 ): PublishBlockedCopy {
     const { noSlot } = messages;
     const [counted, uncounted] = webSource
         ? [noSlot.bodyWebSource, noSlot.bodyWebSourceNoCount]
-        : [noSlot.body, noSlot.bodyNoCount];
+        : refused
+          ? [noSlot.bodyRefused, noSlot.bodyRefusedNoCount]
+          : [noSlot.body, noSlot.bodyNoCount];
 
     return {
         title: noSlot.title,

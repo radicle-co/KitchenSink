@@ -498,7 +498,7 @@ function liveGroupLeader(): ChildProcess {
 }
 
 /** The boot the script records: the kernel's boot id, as `iosBuildJob.sh` writes it. */
-const bootOf = (): string => readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').replaceAll(/[\s]/gu, '_');
+const bootOf = (): string => readFileSync('/proc/sys/kernel/random/boot_id', 'utf8').replaceAll(/\s/gu, '_');
 
 const AGES = { old: 3 * 24 * 3600, fresh: 0 } as const;
 
@@ -546,7 +546,7 @@ describe('iosBuildJob.sh: a build group that outlived its wrapper (stale holder)
         mkdirSync(buildRoot(world), { recursive: true });
         writeFileSync(
             path.join(buildRoot(world), 'build.owner'),
-            `job=old pid=1 pgid=${reused.pid ?? 0} since=then lstart=Mon Jan  1 00:00:00 2001\n`,
+            `job=old pid=1 pgid=${String(reused.pid ?? 0)} since=then lstart=Mon Jan  1 00:00:00 2001\n`,
         );
         upload(world, 'jobB', 'keyB');
         const b = startJob(world, 'jobB', 'keyB');
@@ -720,8 +720,8 @@ describe('iosBuildJob.sh: pruning', () => {
 
         const finished = make('oldFinished', { 'build.rc': '0\n' }, AGES.old);
         const lost = make('oldLost', { wrapper: `999999 ${bootOf()}\n` }, AGES.old);
-        const rebooted = make('oldRebooted', { wrapper: `${alivePid} otherboot\n` }, AGES.old);
-        const running = make('oldRunning', { wrapper: `${alivePid} ${bootOf()}\n` }, AGES.old);
+        const rebooted = make('oldRebooted', { wrapper: `${String(alivePid)} otherboot\n` }, AGES.old);
+        const running = make('oldRunning', { wrapper: `${String(alivePid)} ${bootOf()}\n` }, AGES.old);
         const recent = make('recent', { 'build.rc': '0\n' }, AGES.fresh);
         const staging = path.join(world.home, 'ksIos', 'apps', 'ios', '.staging.oldJob');
 

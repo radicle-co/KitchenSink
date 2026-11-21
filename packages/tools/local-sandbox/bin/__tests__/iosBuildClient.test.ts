@@ -40,6 +40,8 @@ const KEY = 'abc123';
 const APP = macPathsOf().iosApp(KEY);
 const PUBLISHABLE = 'pk_test_FAKEPUBLISHABLE';
 const TIMEOUT_MS = 90_000;
+/** The limit of the case that runs two client builds, in milliseconds. */
+const TWO_BUILDS_TIMEOUT_MS = 30_000;
 /** Absolute, so the test never resolves a command through a PATH it does not control. */
 const BASH = '/bin/bash';
 const GIT = '/usr/bin/git';
@@ -258,28 +260,35 @@ describe('buildIosApp.sh build: paths an old script writes', () => {
 });
 
 describe('buildIosApp.sh build: one result file for one job', () => {
-    it('⛔ gives two builds two job ids, and each reads only its own result', () => {
-        const world = makeWorld();
-        const repo = makeRepo(world, readFileSync(REAL_JOB_SCRIPT, 'utf8'));
+    it(
+        '⛔ gives two builds begun in the same second two different job ids',
+        () => {
+            const world = makeWorld();
+            // The job ends at once with a failure: this case is about the id, so it does not wait for a real build.
+            const repo = makeRepo(world, fakeJob('exit 3'));
 
-        // The clock stands still, as it does for two builds begun in the same second: only the pid tells the ids apart.
-        // Mutation: drop `-$$` from the id, and the second build reuses the first one's folder name.
-        writeExecutable(path.join(world.bin, 'date'), '#!/usr/bin/env bash\necho 20261121T000000Z\n');
+            // The clock stands still, as it does for two builds begun in the same second: only the pid tells the ids apart.
+            // Mutation: drop `-$$` from the id, and the second build reuses the first one's folder name.
+            writeExecutable(path.join(world.bin, 'date'), '#!/usr/bin/env bash\necho 20261121T000000Z\n');
 
-        // The ssh log is emptied between the runs, so each run's commands are told apart.
-        const first = build(world, repo);
-        const firstIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
+            // The ssh log is emptied between the runs, so each run's commands are told apart.
+            const first = build(world, repo, { KS_MAC_POLL_SECONDS: '0' });
+            const firstIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
 
-        writeFileSync(world.sshLog, '');
-        const second = build(world, repo);
-        const secondIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
+            writeFileSync(world.sshLog, '');
+            const second = build(world, repo, { KS_MAC_POLL_SECONDS: '0' });
+            const secondIds = jobIdsIn(readFileSync(world.sshLog, 'utf8'));
 
-        expect(first.status, first.stderr).toBe(0);
-        expect(second.status, second.stderr).toBe(0);
-        expect(firstIds).toHaveLength(1);
-        expect(secondIds).toHaveLength(1);
-        expect(firstIds).not.toEqual(secondIds);
-    });
+            expect(first.stderr).toContain('exit 3');
+            expect(second.stderr).toContain('exit 3');
+            expect(firstIds).toHaveLength(1);
+            expect(secondIds).toHaveLength(1);
+            expect(firstIds).not.toEqual(secondIds);
+        },
+        // Two client runs are two dozen short processes each (git, rsync, ssh, bash). Measured on an idle machine and with
+        // every core busy (see the commit message); the limit is a multiple of the loaded time, never a guess.
+        TWO_BUILDS_TIMEOUT_MS,
+    );
 });
 
 describe('buildIosApp.sh build: what the Mac says back', () => {

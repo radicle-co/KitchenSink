@@ -58,7 +58,9 @@ export interface StoreReviewRecord {
 
 /** The key's parsed map, or why there is none: `absent` (no key) or `unreadable` (stored, not a JSON object). */
 type RawMap =
-    { readonly kind: 'map'; readonly map: Record<string, unknown> } | { readonly kind: 'absent' | 'unreadable' };
+    | { readonly kind: 'map'; readonly map: Record<string, unknown> }
+    | { readonly kind: 'absent' }
+    | { readonly kind: 'unreadable' };
 
 function parseMap(raw: string | null): RawMap {
     if (raw === null) {
@@ -103,7 +105,7 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
             return map.kind === 'absent' ? { finishes: 0 } : 'bad';
         }
 
-        if (!(userId in map.map)) {
+        if (!Object.hasOwn(map.map, userId)) {
             return { finishes: 0 };
         }
 
@@ -197,7 +199,20 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
                 await exclusive(LOCK_NAME, async () => {
                     const loaded = await load();
 
-                    if (loaded === undefined || loaded.kind !== 'map' || !(userId in loaded.map)) {
+                    if (loaded === undefined || loaded.kind === 'absent') {
+                        return;
+                    }
+
+                    // A key that is not a readable map can be a cut-off map that still holds this cook's id. It holds
+                    // nothing anyone can read, and the next finish replaces it anyway, so it goes with the entry.
+                    if (loaded.kind === 'unreadable') {
+                        await port.remove(STORE_REVIEW_KEY);
+                        reportedBad.delete(userId);
+
+                        return;
+                    }
+
+                    if (!Object.hasOwn(loaded.map, userId)) {
                         return;
                     }
 

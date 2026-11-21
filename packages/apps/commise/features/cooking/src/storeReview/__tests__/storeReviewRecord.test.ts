@@ -145,6 +145,28 @@ describe('the store-review record: counting a finish', () => {
     });
 });
 
+describe('the store-review record: ids that are names on every object', () => {
+    it.each(['constructor', 'toString', '__proto__'])(
+        'reads %s as a cook with no entry, and counts a finish as an own entry',
+        async (id) => {
+            const { record, device } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({}) });
+
+            expect(await record.read(id)).toEqual({ finishes: 0 });
+            expect(await record.recordFinish(id)).toEqual({ finishes: 1 });
+            expect(Object.hasOwn(JSON.parse(device.data.get(STORE_REVIEW_KEY) ?? '{}'), id)).toBe(true);
+        },
+    );
+
+    it('does not clear a cook whose id is only a name on every object', async () => {
+        const { record, device } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { finishes: 1 } }) });
+
+        await record.clear('toString');
+
+        expect(device.calls.write).toBe(0);
+        expect(device.calls.remove).toBe(0);
+    });
+});
+
 describe('the store-review record: noting a request', () => {
     it('sets the last request instant and keeps the finishes', async () => {
         const { record, stored } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { finishes: 4 } }) });
@@ -189,6 +211,14 @@ describe('the store-review record: clearing a cook', () => {
         await record.clear('user_a');
 
         expect(stored()).toEqual({ user_b: { finishes: 1 } });
+    });
+
+    it('⛔ removes a key that is not a readable map, so a cut-off map that still holds the cook`s id does not stay', async () => {
+        const { record, device } = setup({ [STORE_REVIEW_KEY]: '{"user_a":{"finishes":' });
+
+        await record.clear('user_a');
+
+        expect(device.data.has(STORE_REVIEW_KEY)).toBe(false);
     });
 
     it('writes nothing when there is no entry, no key, or no cook', async () => {

@@ -27,7 +27,7 @@ import {
 } from '@kitchensink/recipe-core';
 import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
 
-import { publicRefusalOf, type PublicRefusalFacts } from '../actions/publicRefusal.js';
+import { publicRefusalOf, type PublicRefusal, type PublicRefusalFacts } from '../actions/publicRefusal.js';
 import { privateRuleForDraft } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from './values.js';
 
@@ -178,10 +178,31 @@ export function publicHeldOf(values: Pick<RecipeFormValues, 'sourceLink'>, recip
 }
 
 /**
- * The visibility the draft is SENT with. It is Private whenever Public is refused for a recipe that is not public yet
- * (`publicRefusalOf` over the draft's facts, {@link draftPublicFactsOf}): a web copy, a book or paid-site recipe, "From another person", a statement this client cannot
- * name, a recipe a recorded source holds out of Public ({@link publicHeldOf}). `values.visibility` is left alone: taking the
- * link off a draft-only link brings their choice back.
+ * The reason Public is refused that is IN FORCE for this draft: the ONE rule the field, the choice, the publish guard and the
+ * send all read, so none of them can disagree about a recipe that is already public.
+ *
+ * Two arms are the editor's own and always apply: a pasted link, and a recipe a recorded source holds out of Public
+ * ({@link publicHeldOf}). Every other reason is only the CLIENT'S reading of stored facts (a newer server's kind it cannot name,
+ * a statement), so it applies to a recipe that is not public yet and never to one that already is: a Save must not unpublish it,
+ * and the screen must not show it as Private. The server stays the authority for such a recipe.
+ *
+ * @param values - The draft.
+ * @param recipe - The server's recipe, or `undefined` before the first save.
+ * @returns The reason, or `none`. Pure.
+ */
+export function publicRefusalInForce(
+    values: Pick<RecipeFormValues, 'sourceLink'>,
+    recipe: StoredRecipe | undefined,
+): PublicRefusal {
+    const reason = publicRefusalOf(draftPublicFactsOf(values, recipe));
+    const editorsOwn = draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe);
+
+    return editorsOwn || recipe?.visibility !== RecipeVisibility.PUBLIC ? reason : 'none';
+}
+
+/**
+ * The visibility the draft is SENT with: Private whenever a reason is in force ({@link publicRefusalInForce}), else the draft's
+ * own choice. `values.visibility` is left alone: taking the link off a draft-only link brings their choice back.
  *
  * @param values - The draft.
  * @param recipe - The server's recipe, or `undefined` before the first save.
@@ -191,16 +212,7 @@ export function derivedVisibility(
     values: Pick<RecipeFormValues, 'sourceLink' | 'visibility'>,
     recipe: StoredRecipe | undefined,
 ): RecipeVisibility {
-    // The two arms the editor always had: a pasted link, and a recipe a recorded source holds out of Public.
-    if (draftSourceOf(values).kind === 'link' || publicHeldOf(values, recipe)) {
-        return RecipeVisibility.PRIVATE;
-    }
-
-    // Every other reason is only the CLIENT'S reading (a newer server's kind it cannot name, a statement), so a Save must not
-    // unpublish a recipe that is already public: the reason applies to what is not public yet.
-    const refused = publicRefusalOf(draftPublicFactsOf(values, recipe)) !== 'none';
-
-    return refused && recipe?.visibility !== RecipeVisibility.PUBLIC ? RecipeVisibility.PRIVATE : values.visibility;
+    return publicRefusalInForce(values, recipe) === 'none' ? values.visibility : RecipeVisibility.PRIVATE;
 }
 
 /**

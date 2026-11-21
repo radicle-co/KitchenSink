@@ -17,6 +17,7 @@ import { recipeActionMessages } from '../../actions/messages.js';
 import { publicRefusalLineOf, publicRefusalOf } from '../../actions/publicRefusal.js';
 import {
     derivedVisibility,
+    publicRefusalInForce,
     draftPrivateRule,
     draftPublicFactsOf,
     draftSourceOf,
@@ -668,6 +669,34 @@ describe('AE7: the editor and the recipe page give one reason and one line over 
         expect(editor).toBe(page);
         expect(publicRefusalLineOf(editor, lines)).toBe(publicRefusalLineOf(page, lines));
         expect(publicRefusalLineOf(editor, lines)).toBeTruthy();
+    });
+});
+
+// Staff review of 57c15425c: ONE rule says which reason is in force for the draft, so the field, the choice, the publish guard
+// and the send cannot disagree about a recipe that is already public.
+describe('publicRefusalInForce: the reason that applies to this draft', () => {
+    const stored = (over = {}) => makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, ...over });
+
+    it.each([
+        ['a statement this client cannot name', { statementKind: UNRECOGNISED_STATEMENT_KIND }],
+        ['a source kind this client cannot name', { sourceKind: UNRECOGNISED_SOURCE_KIND }],
+    ] as const)('⛔ none for a PUBLIC recipe with %s: the client does not know better than the server', (_n, over) => {
+        expect(publicRefusalInForce(makeRecipeFormValues(), stored(over))).toBe('none');
+    });
+
+    it('is the web-page reason for a PUBLIC recipe once a link is pasted (the base arm)', () => {
+        expect(publicRefusalInForce(withLink(ALLRECIPES), stored())).toBe('policy.webPage');
+    });
+
+    it('is the held reason for a PUBLIC recipe the server holds (the base arm)', () => {
+        expect(publicRefusalInForce(makeRecipeFormValues(), stored({ publicNeedsCheck: true }))).toBe('sourceConflict');
+    });
+
+    it('is the raw reason for a recipe that is not public', () => {
+        const person = stored({ statementKind: 'fromPerson', visibility: RecipeVisibility.PRIVATE });
+
+        expect(publicRefusalInForce(makeRecipeFormValues(), person)).toBe('fromPerson');
+        expect(publicRefusalInForce(makeRecipeFormValues(), undefined)).toBe('none');
     });
 });
 

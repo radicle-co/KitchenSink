@@ -14,6 +14,7 @@ import {
     RecipeSourceType,
     RecipeStatus,
     RecipeVisibility,
+    UNRECOGNISED_STATEMENT_KIND,
     type RecipeDetail,
     type RecipeSnapshot,
     type VersionConflictSide,
@@ -4459,6 +4460,50 @@ describe('the editor says why Public is refused, and never sends it (P6)', () =>
         expect(sent.map((input) => input.visibility ?? RecipeVisibility.PRIVATE)).toEqual(
             sent.map(() => RecipeVisibility.PRIVATE),
         );
+    });
+
+    // Staff review of 57c15425c: a PUBLIC recipe of a kind this app cannot name is neither unpublished nor shown as Private.
+    it('⛔ a stored PUBLIC recipe with an unrecognised statement: no reason, Public stays selected, Save sends no visibility write', async () => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            statementKind: UNRECOGNISED_STATEMENT_KIND,
+        });
+        const { result, port } = mount({ recipe });
+
+        expect(result.current.publicRefusal).toBe('none');
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PUBLIC);
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, title: 'Edited' });
+        });
+        act(() => {
+            result.current.saveChanges('');
+        });
+        await settle();
+
+        const sent = port.submitted.map((entry) => (entry.payload as { input: { visibility?: string } }).input);
+
+        expect(sent.length).toBeGreaterThan(0);
+        expect(sent.map((input) => input.visibility)).not.toContain(RecipeVisibility.PRIVATE);
+    });
+
+    it('a stored PUBLIC recipe with a pasted link still shows the web-page reason', () => {
+        const recipe = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+        });
+        const { result } = mount({ recipe });
+
+        act(() => {
+            result.current.setValues({ ...result.current.values, sourceLink: ALLRECIPES });
+        });
+
+        expect(result.current.publicRefusal).toBe('policy.webPage');
     });
 
     // Staff review of 65ad26cbe: the blocked sheet's "Publish as public" was a dead control for a refused recipe. The hook

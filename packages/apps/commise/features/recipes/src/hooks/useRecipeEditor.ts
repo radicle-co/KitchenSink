@@ -101,7 +101,7 @@ import {
     type RecipeLifecycle,
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
-import { publicRefusalOf, type PublicRefusal } from '../actions/publicRefusal.js';
+import type { PublicRefusal } from '../actions/publicRefusal.js';
 import { publicWordingOf, type StatementWrite } from '../actions/sourceStatement.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
 import { createStatementStore, type StatementStore } from '../editor/statementStore.js';
@@ -140,7 +140,7 @@ import { VisibilityNotHeldError } from '../editor/visibilityNotHeldError.js';
 import { createLaneStore, isSettingVisibility, type LaneStore, type OutstandingWrite } from '../editor/writeLane.js';
 import type { DraftAction } from '../form/draftAction.js';
 import { isStoredLine, lineKeyAt, persistedLineKeysOf, type IngredientLineKey } from '../form/lineKey.js';
-import { derivedVisibility, draftPublicFactsOf } from '../form/sourceLink.js';
+import { derivedVisibility, publicRefusalInForce } from '../form/sourceLink.js';
 import { meetsDraftFloor, validateRecipeForm } from '../form/validate.js';
 import { defaultRecipeFormValues, recipeFormValuesEqual, type RecipeFormValues } from '../form/values.js';
 import { toRecipeFormValues } from '../form/wire.js';
@@ -1490,7 +1490,7 @@ function publishAsPublic(ctx: EditorContext): void {
     // call does nothing. The same function every Public offer reads.
     if (
         ctx.publishBlocked === undefined ||
-        publicRefusalOf(draftPublicFactsOf(ctx.core.get().draft, storedRecipeOf(ctx.core.get().server))) !== 'none'
+        publicRefusalInForce(ctx.core.get().draft, storedRecipeOf(ctx.core.get().server)) !== 'none'
     ) {
         return;
     }
@@ -2170,7 +2170,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         statementAsk: statementState.asking,
         paidSiteStated: paidSiteCitationOf(statementState.answer),
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
-        publicRefusal: publicRefusalOf(draftPublicFactsOf(core.draft, storedRecipeOf(core.server))),
+        publicRefusal: publicRefusalInForce(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,
         lifecycle: view.lifecycle,
         recipeId: view.serverId,

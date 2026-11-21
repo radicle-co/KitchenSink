@@ -40,6 +40,7 @@ import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroL
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import { processGroup, stopTargets } from '../src/maestroLanes/stopGroups.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { BASE_ENVIRONMENT_SCRIPT } from '../src/maestroLanes/baseEnvironmentScript.js';
@@ -137,14 +138,6 @@ function spawnDetached(
     return { pid: child.pid ?? -1 };
 }
 
-function killGroup(pid: number): void {
-    try {
-        process.kill(-pid, 'SIGTERM');
-    } catch {
-        // Already gone.
-    }
-}
-
 /**
  * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
  * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
@@ -163,7 +156,9 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings, i
     const commands: CommandPort = {
         run: (command, args, options) => run(command, args, { env: options?.env ?? env, cwd: options?.cwd }),
         spawnDetached: (command, args, log) => spawnDetached(command, args, log, env),
-        killGroup,
+        killGroup: (pid) => {
+            processGroup(pid).stop('SIGTERM');
+        },
         sleep: async (ms) => {
             await delay(ms);
         },
@@ -226,6 +221,7 @@ function serviceSpecs(root: string, settings: LocalSettings, env: Env): readonly
 async function startService(spec: ServiceSpec, env: Env, root: string): Promise<RunningService> {
     const log = path.join(STATE_DIR, `service.${spec.name}.log`);
     const { pid } = spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root);
+    const group = processGroup(pid);
     const consumer = spec.name !== 'parseWorker';
 
     for (let waited = 0; waited < 60; waited += 1) {
@@ -239,23 +235,13 @@ async function startService(spec: ServiceSpec, env: Env, root: string): Promise<
             return {
                 pid,
                 stop: async () => {
-                    killGroup(pid);
-
-                    for (let tries = 0; tries < 10 && pidIsAlive(pid); tries += 1) {
-                        await delay(1_000);
-                    }
-
-                    try {
-                        process.kill(-pid, 'SIGKILL');
-                    } catch {
-                        // Gone.
-                    }
+                    await stopTargets([group]);
                 },
             };
         }
     }
 
-    killGroup(pid);
+    group.stop('SIGTERM');
     throw new Error(`maestro:lanes: ${spec.name} was not ready in 60 s - log: ${log}`);
 }
 

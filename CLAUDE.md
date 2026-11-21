@@ -469,7 +469,8 @@ they check what the code does, not what the spec required.
 
 The most common way this rule is broken is not skipping tests — it is writing a unit test first, going
 green, and calling that TDD while every other required tier is never written at all. **The tier matrix below
-is part of the red step.** Before writing code, write the failing test in EVERY tier the change touches:
+is part of the red step**, except for the end-to-end flows that "Cheapest tier first" below lets land in the feature's
+wrap-up PR. Before writing code, write the failing test in EVERY tier the change touches:
 
 - **UI code**: **EVERY** path/state — loading, empty, populated, error, gated, disabled, every branch, **NOT
   just the happy path** — MUST have a **vitest component test** (React Testing Library). **EVERY**
@@ -480,6 +481,21 @@ is part of the red step.** Before writing code, write the failing test in EVERY 
 - **Services** (deployable HTTP APIs): additionally **e2e tests AND k6** load/performance tests.
 - **Schema/migration changes**: a LOCAL e2e test (`docs/CODING_STANDARDS.md` §7.1a) that asserts the migrated
   schema, against a real database. A unit test cannot observe a migration that did not apply.
+
+### Cheapest tier first, and the end-to-end wrap-up (owner rulings 2026-11-21)
+
+- **Unit tests are always written**, for every change. They are the automatic floor of coverage.
+- **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
+  end. Do not run an end-to-end suite (Playwright, Maestro, local e2e) when a component or integration test already
+  proves the behaviour.
+- **During development, write and run an end-to-end test only when no lower tier can prove the behaviour**, for
+  example a migration, a real-dependency constraint, or a native device behaviour that a component test cannot show.
+- **Every other end-to-end flow still has to exist** (Playwright for web, Maestro for mobile, local and deployed e2e
+  where §7.1 requires them). Their job is to prevent regression, so the flows of a feature's stories may land together
+  in ONE wrap-up PR at the end of the feature.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** The feature is NOT DONE until
+  the wrap-up PR merges and its flows pass.
+- **A story PR still carries its unit tests and its component and integration tests.** Deferring them is a violation.
 
 ### What a mocked test structurally CANNOT prove — and why the real-dependency tier is not optional
 
@@ -526,7 +542,8 @@ Owner law, 2026-11-06. It replaces the ruling of 2026-11-02. Four rules.
 "Add tests later", "the happy path is enough", "it's a small change", "the tests can't run here", and "unit
 tests cover it" are all **VIOLATIONS**. Every required tier is **WRITTEN**, and it runs where
 its tier runs: unit and integration in **CI**, LOCAL e2e on a developer's machine, DEPLOYED e2e against a deployed
-target. Never skipped, never deferred. Report honestly which tiers ran and
+target. Never skipped. The only deferral is the one above: a story's end-to-end flows may land in the feature's
+wrap-up PR, which the story PR names. Report honestly which tiers ran and
 which did not; a green unit suite reported as "verified" when the integration tier was never written is a
 false status, and false status is worse than a known gap.
 

@@ -176,6 +176,9 @@ describe('the staff-code-quality card, GATE mode', () => {
         expect(bullet).toContain('CODING_STANDARDS §7.1b');
         expect(bullet).toContain('A missing unit, component or integration tier is still a major finding');
         expect(bullet).toContain('CODING_STANDARDS §7.1a');
+        expect(bullet).toContain(
+            "If the diff changes CODING_STANDARDS §7.1b, judge the deferral by the base text, which the diff's removed lines show, and file any loosening of §7.1b as a major finding.",
+        );
     });
 
     it('13. §7.1b is the one full statement of the deferral rule', () => {

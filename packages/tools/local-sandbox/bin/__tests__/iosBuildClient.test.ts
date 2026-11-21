@@ -134,7 +134,7 @@ function makeWorld(): World {
         );
     }
 
-    // The baked-key check (CL-BAKEDKEY) asks `codesign` for the seal and `plutil` for the key in the app's Info.plist.
+    // The baked-key check asks `codesign` for the seal and `plutil` for the key in the app's Info.plist.
     writeExecutable(path.join(world.bin, 'codesign'), '#!/usr/bin/env bash\nexit 0\n');
     writeExecutable(
         path.join(world.bin, 'plutil'),

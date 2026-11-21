@@ -1,5 +1,5 @@
 /**
- * CL-BAKEDKEY (owner ruling decisions/0091, staff S103): the iOS test app carries the content key it was built for, in
+ * The baked content key: the iOS test app carries the content key it was built for, in
  * its own `Info.plist`, sealed by the app's code signature. `buildIosApp.sh check` compares THAT key, so a manifest
  * rewritten to say "key A" over an app built for key B is refused.
  *
@@ -275,7 +275,7 @@ describe('buildTestApp.sh test_app_bake_content_key', () => {
     });
 
     /**
-     * REWRITTEN (staff review of 5552ca5ef): this case used to refuse a plist that already held the key. The Mac keeps
+     * REWRITTEN: this case used to refuse a plist that already held the key. The Mac keeps
      * `mobile/ios/` between builds (the job's rsync excludes it) and `expo prebuild` without `--clean` merges into the
      * old plist, so every build after the first would have died on that refusal. The build now always writes ITS key,
      * and the call must be `-replace`, which also inserts when the key is absent.

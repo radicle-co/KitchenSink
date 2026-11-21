@@ -83,7 +83,8 @@ function parseMap(raw: string | null): RawMap {
  *
  * @param deps - The storage port, the exclusion, the clock and the reporter.
  * @returns The record. Not pure: it reads and writes the port and reports through `report`.
- * @sideEffect Reads and writes the device key; reports a bad entry once per cook while it stays bad.
+ * @sideEffect Reads and writes the device key; reports a bad entry once per cook per launch while it stays bad (the record
+ * keeps the set in memory, so a new launch reports it again), and reports a clear that had no cook id.
  */
 export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreReviewRecord {
     const { port, exclusive, now, report } = deps;
@@ -192,6 +193,12 @@ export function createStoreReviewRecord(deps: StoreReviewRecordDeps): StoreRevie
             ),
         clear: async (userId) => {
             if (userId === undefined) {
+                // A close or an erase with no cook to clear: nothing to remove, and a missing id is worth knowing about.
+                report(new Error('A store-review clear had no cook id.'), {
+                    source: 'storeReviewRecord',
+                    step: 'clear',
+                });
+
                 return;
             }
 

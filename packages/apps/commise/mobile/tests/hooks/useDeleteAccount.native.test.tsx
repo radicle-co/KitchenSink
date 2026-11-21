@@ -8,7 +8,7 @@
  */
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
-import type { ReactElement } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const { order, deleteMe, signOutAndVerify, clear, auth } = vi.hoisted(() => {
@@ -32,10 +32,10 @@ const { useDeleteAccount } = await import('../../src/hooks/useDeleteAccount.js')
 
 function closeAccount() {
     const client = new QueryClient({ defaultOptions: { mutations: { retry: false } } });
-    const wrapper = ({ children }: { readonly children: ReactElement }) => (
+    const wrapper = ({ children }: { readonly children: ReactNode }) => (
         <QueryClientProvider client={client}>{children}</QueryClientProvider>
     );
-    const view = renderHook(() => useDeleteAccount(), { wrapper: wrapper as never });
+    const view = renderHook(() => useDeleteAccount(), { wrapper });
 
     return { ...view, run: () => act(async () => view.result.current.mutateAsync().catch(() => undefined)) };
 }

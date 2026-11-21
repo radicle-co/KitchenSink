@@ -68,7 +68,7 @@ describe('the store-review record over one device storage', () => {
         expect(await launch(device, REQUEST).record.read('user_b')).toEqual({ finishes: 1 });
     });
 
-    it('heals a corrupt entry across launches, reporting it once, and leaves the other cook`s entries as stored', async () => {
+    it('heals a corrupt entry, reporting it once in the launch, and leaves the other cook`s entries as stored', async () => {
         const device = makeMemoryKeptPort({
             [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { finishes: 'x' }, user_b: { finishes: 7 }, user_c: null }),
         });
@@ -83,5 +83,39 @@ describe('the store-review record over one device storage', () => {
             user_b: { finishes: 7 },
             user_c: null,
         });
+    });
+    it('reports a corrupt entry again in the next launch when nothing healed it, once per launch', async () => {
+        const device = makeMemoryKeptPort({ [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { finishes: 'x' } }) });
+        const first = launch(device, REQUEST);
+        const second = launch(device, REQUEST);
+
+        await first.record.read('user_a');
+        await first.record.read('user_a');
+        await second.record.read('user_a');
+
+        expect(first.report).toHaveBeenCalledTimes(1);
+        expect(second.report).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the instant of a request through a later finish, across launches', async () => {
+        const device = makeMemoryKeptPort();
+
+        await launch(device, REQUEST).record.recordFinish('user_a');
+        await launch(device, REQUEST).record.recordRequest('user_a');
+        await launch(device, THIRTY_DAYS_LATER).record.recordFinish('user_a');
+
+        expect(await launch(device, THIRTY_DAYS_LATER).record.read('user_a')).toEqual({
+            finishes: 2,
+            lastRequestAt: REQUEST,
+        });
+    });
+
+    it('clears a cook whose key was cut off mid-write, so the cut-off text does not stay for the next launch', async () => {
+        const device = makeMemoryKeptPort({ [STORE_REVIEW_KEY]: '{"user_a":{"finishes":' });
+
+        await launch(device, REQUEST).record.clear('user_a');
+
+        expect(device.data.has(STORE_REVIEW_KEY)).toBe(false);
+        expect(await launch(device, REQUEST).record.read('user_a')).toEqual({ finishes: 0 });
     });
 });

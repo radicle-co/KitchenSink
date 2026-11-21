@@ -13,15 +13,16 @@ const NOW = '2026-11-20T10:00:00.000Z';
 function setup(initial: Record<string, string> = {}) {
     const device = makeMemoryKeptPort(initial);
     const report = vi.fn();
+    const clock = { value: NOW };
     const record = createStoreReviewRecord({
         port: device.port,
         exclusive: makeSerialRunner(),
-        now: () => NOW,
+        now: () => clock.value,
         report,
     });
     const stored = (): unknown => JSON.parse(device.data.get(STORE_REVIEW_KEY) ?? 'null');
 
-    return { device, report, record, stored };
+    return { device, report, record, stored, clock };
 }
 
 describe('the store-review record: reading', () => {
@@ -175,10 +176,71 @@ describe('the store-review record: noting a request', () => {
         expect(stored()).toEqual({ user_a: { finishes: 4, lastRequestAt: NOW } });
     });
 
+    it('⛔ moves the last request instant to the latest ask, not the first', async () => {
+        const { record, clock } = setup();
+
+        await record.recordRequest('user_a');
+        clock.value = '2026-12-01T00:00:00.000Z';
+        await record.recordRequest('user_a');
+
+        // Mutation: keep the first instant (`current.lastRequestAt ?? now()`), and the cooldown never restarts.
+        expect(await record.read('user_a')).toEqual({ finishes: 0, lastRequestAt: '2026-12-01T00:00:00.000Z' });
+    });
+
     it('heals a bad entry as just asked, never as never asked', async () => {
         const { record } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { lastRequestAt: 3 } }) });
 
         expect(await record.recordRequest('user_a')).toEqual({ finishes: 1, lastRequestAt: NOW });
+    });
+});
+
+describe('the store-review record: a bad entry is reported again after it was dealt with', () => {
+    const BAD = JSON.stringify({ user_a: { finishes: 'many' } });
+
+    it('⛔ reports a bad entry once, and again when it goes bad after a finish healed it', async () => {
+        const { record, report, device } = setup({ [STORE_REVIEW_KEY]: BAD });
+
+        await record.read('user_a');
+        await record.read('user_a');
+        expect(report).toHaveBeenCalledTimes(1);
+        await record.recordFinish('user_a');
+        device.data.set(STORE_REVIEW_KEY, BAD);
+        await record.read('user_a');
+
+        // Mutation: never forget a reported cook after a write, and the second bad entry is never reported.
+        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
+            2,
+        );
+    });
+
+    it.each([
+        ['another cook stays', { user_a: { finishes: 'many' }, user_b: { finishes: 1 } }],
+        ['the cook is the last entry', { user_a: { finishes: 'many' } }],
+    ])('⛔ reports a bad entry again when it goes bad after a clear removed it (%s)', async (_name, seed) => {
+        const { record, report, device } = setup({ [STORE_REVIEW_KEY]: JSON.stringify(seed) });
+
+        await record.read('user_a');
+        await record.clear('user_a');
+        device.data.set(STORE_REVIEW_KEY, BAD);
+        await record.read('user_a');
+
+        // Mutation: never forget a reported cook after a clear.
+        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
+            2,
+        );
+    });
+
+    it('⛔ reports again after a clear removed a key that was not a readable map', async () => {
+        const { record, report, device } = setup({ [STORE_REVIEW_KEY]: '{"user_a":' });
+
+        await record.read('user_a');
+        await record.clear('user_a');
+        device.data.set(STORE_REVIEW_KEY, '{"user_a":');
+        await record.read('user_a');
+
+        expect(report.mock.calls.filter(([, context]) => (context as { step: string }).step === 'parse')).toHaveLength(
+            2,
+        );
     });
 });
 
@@ -221,14 +283,36 @@ describe('the store-review record: clearing a cook', () => {
         expect(device.data.has(STORE_REVIEW_KEY)).toBe(false);
     });
 
-    it('writes nothing when there is no entry, no key, or no cook', async () => {
+    it('writes nothing when there is no entry or no key', async () => {
         const { record, device } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({ user_b: { finishes: 1 } }) });
 
         await record.clear('user_a');
+
+        expect(device.calls.write).toBe(0);
+        expect(device.calls.remove).toBe(0);
+        expect(await setup().record.clear('user_a')).toBeUndefined();
+    });
+
+    it('with no cook id, writes nothing and reports once, with no user content', async () => {
+        const { record, device, report } = setup({ [STORE_REVIEW_KEY]: JSON.stringify({ user_b: { finishes: 1 } }) });
+
         await record.clear(undefined);
 
         expect(device.calls.write).toBe(0);
         expect(device.calls.remove).toBe(0);
+        expect(report).toHaveBeenCalledTimes(1);
+        expect(JSON.stringify(report.mock.calls)).not.toContain('user_b');
+    });
+
+    it('⛔ holds the same lock as a finish, so a clear and another cook`s finish begun together both land', async () => {
+        const { record, stored } = setup({
+            [STORE_REVIEW_KEY]: JSON.stringify({ user_a: { finishes: 3 }, user_b: { finishes: 1 } }),
+        });
+
+        await Promise.all([record.clear('user_a'), record.recordFinish('user_b')]);
+
+        // Mutation: clear under another lock name, and one write overwrites the other, bringing the cook back or losing the count.
+        expect(stored()).toEqual({ user_b: { finishes: 2 } });
     });
 
     it('never rejects: a storage that cannot be read or written is reported, so a close is not stranded', async () => {

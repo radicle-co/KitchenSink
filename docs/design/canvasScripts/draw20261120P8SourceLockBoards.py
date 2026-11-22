@@ -19,8 +19,7 @@ Each new board is built from the P3 board at the same size (its head, shell and 
 only the children of the `.p3` container and adds its own rules (`.p8`). Heights (board -> px) come from
 draw20261120P8SourceLockBoardsHeights.json, measured by a render; with no such file every board is drawn at its floor.
 
-Copy and states: brainstorms/2026-11-20-everyAnswerSourceLock-parts/designer.md and
-decisions/everyAnswerSourceLock-designer.md (Solar Squad), board P8.
+Board P8 of the every-answer source lock design.
 
 Run once from the repository root on its parent commit fe0cc7af6 (branch docs/p8SourceLockBoards, stacked on #413):
 python3 docs/design/canvasScripts/draw20261120P8SourceLockBoards.py

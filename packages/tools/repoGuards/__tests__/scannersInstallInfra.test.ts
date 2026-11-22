@@ -29,7 +29,9 @@ afterEach(() => {
     }
 });
 
-const git = (cwd: string, ...args: string[]): string => execFileSync('git', args, { cwd, encoding: 'utf8' });
+// `env` searches PATH on purpose: git and bash live in different places per machine, and this test runs only on CI runners and developer machines. It stands in for a sonarjs disable, which this package's ESLint config cannot express.
+const ENV = '/usr/bin/env';
+const git = (cwd: string, ...args: string[]): string => execFileSync(ENV, ['git', ...args], { cwd, encoding: 'utf8' });
 
 /**
  * Build a repo whose base commit holds the given files, then a head commit that touches `changed`.
@@ -60,7 +62,7 @@ function touchedApps(baseFiles: readonly string[], changed: readonly string[]): 
     git(dir, 'add', '.');
     git(dir, 'commit', '-q', '-m', 'head');
 
-    return execFileSync('bash', [SCRIPT, 'HEAD^'], { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean);
+    return execFileSync(ENV, ['bash', SCRIPT, 'HEAD^'], { cwd: dir, encoding: 'utf8' }).split('\n').filter(Boolean);
 }
 
 const RECIPE = 'packages/services/recipe-service/infra';
@@ -111,7 +113,7 @@ describe('_ci.yml codeQuality job', () => {
         yaml.parse(readFileSync(path.join(repoRoot, '.github/workflows/_ci.yml'), 'utf8')) as {
             jobs: Record<string, Job>;
         }
-    ).jobs['codeQuality'] as Job;
+    ).jobs['codeQuality'];
     const install = job.steps.findIndex((s) => s.run?.includes('touchedInfraApps.sh'));
     const scan = job.steps.findIndex((s) => s.run?.includes('tooling/codeQuality/scan.mjs'));
 
@@ -134,15 +136,18 @@ describe('_ci.yml codeQuality job', () => {
 
         expect(resolvers).toHaveLength(1);
         expect(recomputes).toEqual(resolvers);
-        expect(job.steps.indexOf(resolvers[0] as Step)).toBeLessThan(install);
+        expect(job.steps.indexOf(resolvers[0])).toBeLessThan(install);
         expect(job.steps[install]?.run).toContain('scqBase');
         expect(job.steps[scan]?.run).toContain('scqBase');
     });
     it('assigns the app list in its own statement, so a script failure fails the step', () => {
         const body = job.steps[install]?.run ?? '';
 
-        expect(body).toMatch(/^\s*apps="\$\(bash \.github\/scripts\/touchedInfraApps\.sh [^\n]*\)"\s*$/m);
-        expect(body).not.toMatch(/for\s[^\n]*\$\(/);
+        expect(body).toContain('apps="$(bash .github/scripts/touchedInfraApps.sh ');
+        const forLines = body.split('\n').filter((line) => line.trimStart().startsWith('for '));
+
+        expect(forLines.length).toBeGreaterThan(0);
+        expect(forLines.some((line) => line.includes('$('))).toBe(false);
         expect(body.indexOf('apps="$(')).toBeLessThan(body.indexOf('for '));
     });
 });

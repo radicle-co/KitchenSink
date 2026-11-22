@@ -10,12 +10,13 @@
  * at the largest text, screen-reader focus on Done's title, and the rule that the focus-line face and the large-title
  * face never share a screen.
  */
+import { CookMarksProvider } from '@commise/features-recipes/cook';
 import { nativeTokens } from '@commise/ui/native';
 import { render } from '@commise/ui/testing/tamagui';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ComponentProps } from 'react';
+import type { ComponentProps, FC, ReactNode } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -75,6 +76,11 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+// The ingredients list reads the cook marks the app root provides, so every render here sits in the same provider.
+const Marks: FC<{ readonly children: ReactNode }> = ({ children }) => (
+    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
+);
+
 const TITLE = 'Weeknight roast';
 
 /** Six steps with text and one blank one: a blank step is not a step for the cook, so it is not counted. */
@@ -97,7 +103,7 @@ const ready = (over: Partial<Extract<CookingScreenRead, { kind: 'ready' }>> = {}
 
 function setup(read: CookingScreenRead = ready()) {
     const props: CookingScreenProps = { read, onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
-    const view = render(<CookingScreen {...props} />);
+    const view = render(<CookingScreen {...props} />, { wrapper: Marks });
 
     return { ...props, ...view };
 }

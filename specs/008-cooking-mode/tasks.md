@@ -36,7 +36,7 @@ T-000 (scaffold both packages) ─→ everything
   │          │          ├─→ T-008
   │          │          ├─→ T-013 ─→ T-021 (integration)
   │          │          ├─→ T-014
-  │          │          ├─→ T-015   (FR-032a)
+  │          │          ├─→ T-015   (FR-032a) ─→ T-015a (screen wiring; also needs T-016)
   │          │          └─→ T-016   (FR-034a)
   │          │
   │          └─→ T-003 ─┬─→ T-009
@@ -210,6 +210,18 @@ they cover; the arrows above show coverage order, not "wait until implemented".
     - **Depends on**: T-002, T-000
     - **Implements**: **FR-032a**
     - **Acceptance**: Pure `props → JSX` (checked ids in, `onToggle` out — no fetching, no mutation). Panel opens and dismisses without leaving the current step; checked state survives step navigation and session resume (FR-032a) and **never** writes to the stored recipe — a test asserts no recipe mutation call is issued. Ingredients read from `@kitchensink/recipe-core`; check state accessible via `getByRole('checkbox')` with non-color cues (NFR-003, NFR-004).
+
+- [ ] **T-015a** [P3] [US-008, US-009] Wire the ingredient parts into the cooking screen, web and native — the screen that mounts `CookingTopBar`
+    - **Depends on**: T-015, T-016
+    - **Implements**: **FR-032a**, **FR-034a**
+    - **Scope**: the screen passes `ingredients` to the top bar, and mounts the scale note (`CookingScaleNote`) and the two-column layout (`CookingTwoColumnLayout`). Each part is already built on web and native; this task mounts them.
+    - **Tests, written first and watched red**:
+        - Vitest, web and native, one case per state: the recipe has ingredients and the layout is the narrow one (the top bar shows the Ingredients button); the layout has the ingredient column (no Ingredients button, because the column shows the list); the recipe has no ingredients (no Ingredients button and no column).
+        - Vitest, native: the top bar's Ingredients button has an accessibility label, and the test reads the button by that label.
+        - Vitest, web: the cooking screen sets up the width container that the top bar's narrow rule reads. The test fails when the container is removed.
+        - Playwright, web: open Cooking Mode on a recipe with ingredients, select the Ingredients button, see the ingredient sheet, close it, and the same step is still shown.
+        - Maestro, native: the same story as the Playwright flow.
+    - **Acceptance**: spec.md US-008 scenario 6 and FR-032a hold on the mounted screen (open and dismiss without leaving the step). FR-034a's note shows while the servings differ from the recipe's own, and its control opens the ingredient list.
 
 ---
 

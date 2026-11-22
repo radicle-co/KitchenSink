@@ -116,6 +116,49 @@ describe('CookingFrame', () => {
         expect(screen.queryByRole('button', { name: 'Next step' })).toBeNull();
     });
 
+    describe('the ingredients column', () => {
+        const withColumn = () =>
+            render(
+                <CookingFrame
+                    topBar={<button type="button">Exit</button>}
+                    body={<p>Body</p>}
+                    foot={{ actions: <button type="button">Next step</button> }}
+                    column={<p>Ingredients column</p>}
+                    busy={false}
+                />,
+            );
+
+        it('puts the column beside the whole step stack, which keeps the 680 cap, not the surface', () => {
+            withColumn();
+
+            const main = screen.getByRole('main');
+            const column = screen.getByText('Ingredients column');
+            const exit = screen.getByRole('button', { name: 'Exit' });
+            const capped = htmlElementOf(exit.closest(`[class~="${COOKING_COLUMN.webClassName}"]`));
+
+            expect(main.contains(column)).toBe(true);
+            expect(capped.contains(column)).toBe(false);
+            expect(capped.contains(screen.getByRole('button', { name: 'Next step' }))).toBe(true);
+            // The surface's own column is gone, or the two columns could never be wider than 680 together.
+            expect(htmlElementOf(main.firstElementChild).className).not.toContain(COOKING_COLUMN.webClassName);
+        });
+
+        it('draws the column before the top bar, and the top bar and foot inside the step column', () => {
+            withColumn();
+
+            const column = screen.getByText('Ingredients column');
+            const exit = screen.getByRole('button', { name: 'Exit' });
+
+            expect(column.compareDocumentPosition(exit) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        });
+
+        it('draws no column slot when none is given', () => {
+            frame(false);
+
+            expect(screen.queryByText('Ingredients column')).toBeNull();
+        });
+    });
+
     describe('the notice slot', () => {
         const slotted = () =>
             render(

@@ -17,9 +17,8 @@ import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { FLOW_ROOT, REPO_ROOT, isRecord, parseFlow } from './maestroFlowYaml.js';
+import { FLOW_ROOT, REPO_ROOT, committedFlowFiles, isRecord, parseFlow } from './maestroFlowYaml.js';
 
-const FLOW_DIR = join(REPO_ROOT, FLOW_ROOT, 'cooking');
 const MESSAGES = join(REPO_ROOT, 'packages/apps/commise/features/cooking/src/messages.ts');
 
 /** The English `<group>.<key>` template of messages.ts, with its `\\uXXXX` escapes turned into characters. */
@@ -61,10 +60,21 @@ function* texts(value: unknown): Generator<string> {
 }
 
 /** The step and line labels a flow names, in file order, however its selector is written. */
-const labelSelectors = (flow: string): string[] =>
-    parseFlow(flow, readFileSync(join(FLOW_DIR, flow), 'utf8'))
+const labelSelectors = (file: string): string[] =>
+    parseFlow(file, readFileSync(join(REPO_ROOT, file), 'utf8'))
         .flatMap((document) => [...texts(document)])
         .filter((text) => /^(?:Step|Line)[ .\u00a0]\d+ of \d+$/u.test(text));
+
+/** How many step and line labels each flow that names any asserts, so a deleted assert turns the guard red. */
+const LABEL_COUNTS: Readonly<Record<string, number>> = {
+    'cooking/common/openCookingRecipe.yaml': 1,
+    'cooking/cookingIngredients.yaml': 2,
+    'cooking/cookingModeFlow.yaml': 9,
+    'cooking/cookingSystemBack.yaml': 2,
+};
+
+const FLOWS = committedFlowFiles();
+const relative = (file: string): string => file.slice(`${FLOW_ROOT}/`.length);
 
 /** Maestro matches the whole text of an element against the selector as a regex. */
 const matchesWholeText = (selector: string, text: string): boolean => new RegExp(`^(?:${selector})$`, 'u').test(text);
@@ -77,18 +87,27 @@ describe.each(Object.entries(LABELS))('the %s label this guard reads from messag
     });
 });
 
-describe.each([
-    { flow: 'cookingIngredients.yaml', count: 2 },
-    { flow: 'cookingModeFlow.yaml', count: 9 },
-])('$flow reads the step and line labels', ({ flow, count }) => {
+describe('every committed flow reads the step and line labels', () => {
     it('never with the space typed out, plain or no-break: the copy is cooking top.place and step.lineOf', () => {
-        const typed = labelSelectors(flow).filter((selector) => /^(?:Step|Line)[ \u00a0]/u.test(selector));
+        const typed = FLOWS.flatMap((file) =>
+            labelSelectors(file)
+                .filter((selector) => /^(?:Step|Line)[ \u00a0]/u.test(selector))
+                .map((selector) => `${relative(file)}: ${selector}`),
+        );
 
         expect(typed).toEqual([]);
     });
 
-    it('with a selector that matches the real label, at each of the points the flow checks one', () => {
-        const labels = labelSelectors(flow);
+    it('and the flows that name a label are the ones this guard counts', () => {
+        const labelled = FLOWS.filter((file) => labelSelectors(file).length > 0).map(relative);
+
+        expect(labelled.toSorted((a, b) => a.localeCompare(b))).toEqual(Object.keys(LABEL_COUNTS));
+    });
+});
+
+describe.each(Object.entries(LABEL_COUNTS))('%s', (flow, count) => {
+    it('asserts every label it names with a selector that matches the real label', () => {
+        const labels = labelSelectors(`${FLOW_ROOT}/${flow}`);
         const matches = labels.map((selector) => {
             const parts = /^(Step|Line)\.(\d+) of (\d+)$/u.exec(selector);
             const kind = parts?.[1] === 'Step' || parts?.[1] === 'Line' ? parts[1] : undefined;

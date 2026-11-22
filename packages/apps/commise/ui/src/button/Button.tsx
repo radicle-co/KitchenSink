@@ -68,7 +68,11 @@ export const Button: FC<ButtonProps> = (props) => {
     const glyph =
         busy || icon !== undefined ? (
             <span aria-hidden="true" className={`inline-flex shrink-0 items-center ${glyphClass}`.trimEnd()}>
-                {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
+                {busy || icon === undefined ? (
+                    <Spinner className="animate-spin" />
+                ) : (
+                    <Icon name={icon} size={20} scaleWith="cardTitle" />
+                )}
             </span>
         ) : null;
 

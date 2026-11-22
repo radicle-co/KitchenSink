@@ -36,7 +36,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     onClick={props.onPress}
                     className={chipClass(props.selected)}
                 >
-                    {props.selected ? <Icon name="check" size={16} /> : null}
+                    {props.selected ? <Icon name="check" size={16} scaleWith="caption" /> : null}
                     <span className={CHIP_LABEL_CLASS}>{visible}</span>
                     {props.count === undefined ? null : (
                         <>
@@ -57,7 +57,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     className={chipClass(false)}
                 >
                     <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(props.label)}</span>
-                    <Icon name="x" size={16} />
+                    <Icon name="x" size={16} scaleWith="caption" />
                 </button>
             );
     }

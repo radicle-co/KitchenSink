@@ -413,3 +413,33 @@ describe('Chip (native) — the label colour follows the theme', () => {
         expect(resolvedColour(screen.getByText('Under 30 min'), 'color')).toBe(rgb(expected));
     });
 });
+
+/** D6 (native): a chip's glyph is its 16 pt times the caption role's growth under the system text scale, to the cap. */
+describe('Chip (native) glyph follows its label', () => {
+    const sizesAt = (scale: number): string[] => {
+        const { container, unmount } = renderWithTamagui(
+            <>
+                <Chip kind="filter" label="Vegan" selected onPress={vi.fn()} />
+                <Chip kind="input" label="Nuts" removeLabel="Remove Nuts" onRemove={vi.fn()} />
+            </>,
+            'light',
+            scale,
+        );
+        const sizes = [...container.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')].map(
+            (glyph) => glyph.dataset['iconSize'] ?? '',
+        );
+
+        unmount();
+
+        return sizes;
+    };
+
+    it('is the 16 it was at 1x', () => {
+        expect(sizesAt(1)).toEqual(['16', '16']);
+    });
+
+    it('grows with the label and stops at the cap: 24 at 1.5x, 32 at 3x', () => {
+        expect(sizesAt(1.5)).toEqual(['24', '24']);
+        expect(sizesAt(3)).toEqual(['32', '32']);
+    });
+});

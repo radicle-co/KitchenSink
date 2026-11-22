@@ -37,7 +37,7 @@ import type { ChipOption, ChipRowOverflow, ChipRowProps, ChoiceRowProps } from '
 /** An option's face: the check while chosen, then its label. */
 const OptionFace: FC<{ readonly option: ChipOption; readonly chosen: boolean }> = ({ option, chosen }) => (
     <>
-        {chosen ? <Icon name="check" size={16} /> : null}
+        {chosen ? <Icon name="check" size={16} scaleWith="caption" /> : null}
         <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(option.label)}</span>
     </>
 );

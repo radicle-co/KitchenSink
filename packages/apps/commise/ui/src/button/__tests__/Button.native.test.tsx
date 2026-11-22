@@ -703,3 +703,30 @@ describe('Button (native) — expanded', () => {
         expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
     });
 });
+
+/**
+ * D6 (native): a labelled button's glyph is its 20 pt times the label role's growth under the system text scale, never
+ * past the role's cap (cardTitle stops at 2x). An icon-only control does not exist here: this Button always has a label.
+ */
+describe('Button (native) glyph follows its label', () => {
+    const glyphSizeAt = (scale: number): string | undefined => {
+        const { container, unmount } = renderWithTamagui(<Button icon="plus">Add</Button>, 'light', scale);
+        const size = container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconSize'];
+
+        unmount();
+
+        return size;
+    };
+
+    it('is the 20 it was at 1x', () => {
+        expect(glyphSizeAt(1)).toBe('20');
+    });
+
+    it('grows with the label: 30 at 1.5x text', () => {
+        expect(glyphSizeAt(1.5)).toBe('30');
+    });
+
+    it('stops at the label role cap: 40 at 3x text', () => {
+        expect(glyphSizeAt(3)).toBe('40');
+    });
+});

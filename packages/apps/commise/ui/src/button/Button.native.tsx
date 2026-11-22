@@ -121,7 +121,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 {busy || icon === undefined ? (
                     <ActivityIndicator color={theme.colors[glyphRole]} />
                 ) : (
-                    <Icon name={icon} size={20} tone={glyphRole} />
+                    <Icon name={icon} size={20} tone={glyphRole} scaleWith="cardTitle" />
                 )}
             </View>
         ) : null;

@@ -1,7 +1,6 @@
 /**
- * The web icon button: one glyph in a 44 px target, named by the caller. Mutation lens: drop the name and the role
- * row fails; let the target grow with the text and the fixed-class row fails; let the glyph grow and the fixed-glyph
- * row
+ * The web icon button: one glyph in a 44 px target, named by the caller. Mutation lens: drop the name and the role row
+ * fails; let the target grow with the text and the fixed-class row fails; let the glyph grow and the fixed-glyph row
  * fails; drop the press handler and the press row fails.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -39,11 +38,13 @@ describe('IconButton (web)', () => {
 
     it('draws a 24 glyph that stays 24 whatever the text size', () => {
         render(<IconButton icon="play" accessibilityLabel="Resume" onPress={vi.fn()} />);
-        const svg = screen.getByRole('button', { name: 'Resume' }).querySelector('svg') as SVGSVGElement;
+        const svg = screen.getByRole('button', { name: 'Resume' }).querySelector<SVGSVGElement>('svg');
 
-        expect(svg.getAttribute('width')).toBe('24');
-        expect(svg.getAttribute('height')).toBe('24');
-        expect(svg.style.width).toBe('');
+        expect(svg).not.toBeNull();
+
+        expect(svg?.getAttribute('width')).toBe('24');
+        expect(svg?.getAttribute('height')).toBe('24');
+        expect(svg?.style.width).toBe('');
     });
 
     it('is a button of type button, so it never submits a form', () => {

@@ -1,8 +1,7 @@
 /**
  * @module @commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the
  * caller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an
- * icon-only
- * control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the
+ * icon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the
  * neutral press row.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.

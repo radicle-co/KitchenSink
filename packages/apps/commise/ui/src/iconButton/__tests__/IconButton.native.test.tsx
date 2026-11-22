@@ -22,6 +22,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+import { present } from '../../testing/present.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { IconButton } from '../IconButton.native.js';
 
@@ -30,7 +31,8 @@ afterEach(() => {
     platform.os = undefined;
 });
 
-const glyph = (): HTMLElement => document.querySelector('[data-commise-stub="icon"]') as HTMLElement;
+const glyph = (): HTMLElement =>
+    present(document.querySelector<HTMLElement>('[data-commise-stub="icon"]'), 'the glyph');
 
 describe('IconButton (native)', () => {
     it('is a button named by the caller that reports a press once', () => {
@@ -56,7 +58,9 @@ describe('IconButton (native)', () => {
 
     it.each([1, 2])('keeps its 44 target at text scale %s on iOS', (scale) => {
         renderWithTamagui(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />, 'light', scale);
-        const frame = getComputedStyle(screen.getByRole('button', { name: 'Cancel' }).firstElementChild as HTMLElement);
+        const frame = getComputedStyle(
+            present(screen.getByRole('button', { name: 'Cancel' }).firstElementChild, 'the frame'),
+        );
 
         expect(frame.width).toBe('44px');
         expect(frame.height).toBe('44px');
@@ -65,7 +69,9 @@ describe('IconButton (native)', () => {
     it('is a 48 dp frame on Android, with the 44 circle inside it and no hit slop', () => {
         platform.os = 'android';
         renderWithTamagui(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />, 'light');
-        const frame = getComputedStyle(screen.getByRole('button', { name: 'Cancel' }).firstElementChild as HTMLElement);
+        const frame = getComputedStyle(
+            present(screen.getByRole('button', { name: 'Cancel' }).firstElementChild, 'the frame'),
+        );
 
         expect(frame.width).toBe('48px');
         expect(frame.height).toBe('48px');

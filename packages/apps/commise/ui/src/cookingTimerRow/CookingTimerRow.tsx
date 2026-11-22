@@ -1,8 +1,7 @@
 /**
  * @module @commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the
  * row's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else: a
- * running
- * timer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.
+ * running timer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.
  *
  * The frame has no role and no name of its own, and it is not a live region: the controls and the body name themselves.
  *

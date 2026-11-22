@@ -1,10 +1,8 @@
 /**
  * @module @commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the
- * touch
- * floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a `hitSlop`, so a
- * device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text: an
- * icon-only
- * control keeps its pixel size. Styled with Tamagui only (ADR-0080).
+ * touch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a
+ * `hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow
+ * with the text: an icon-only control keeps its pixel size. Styled with Tamagui only (ADR-0080).
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *

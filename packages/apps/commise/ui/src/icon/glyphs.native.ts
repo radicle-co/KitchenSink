@@ -128,7 +128,7 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     layoutGrid: LayoutGridGlyph,
     cookingPot: CookingPotGlyph,
     listChecks: ListChecksGlyph,
-    // The timer row: stop a running timer, and resume a paused one.
+    // The timer row: pause a running timer, and resume a paused one.
     pause: PauseGlyph,
     play: PlayGlyph,
 };

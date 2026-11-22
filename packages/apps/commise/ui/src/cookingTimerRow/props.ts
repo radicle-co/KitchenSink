@@ -1,11 +1,9 @@
 /**
  * @module @commise/ui/cooking-timer-row — the shared contract of the cooking timer row: one frame leaf that holds a
- * body
- * and the row's actions, and one summary part for the body. Every string comes from the caller, already localised.
+ * body and the row's actions, and one summary part for the body. Every string comes from the caller, already localised.
  *
  * The frame owns the actions and the layout; the body is a slot. S3a puts a {@link CookingTimerSummaryProps} summary in
- * it;
- * a later row that opens another recipe puts a pressable part there instead, composed of the same summary.
+ * it; a later row that opens another recipe puts a pressable part there instead, composed of the same summary.
  */
 import type { ReactNode } from 'react';
 

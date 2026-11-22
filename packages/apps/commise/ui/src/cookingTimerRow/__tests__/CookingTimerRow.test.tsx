@@ -3,7 +3,7 @@
  * that draws the wrong glyph fails the glyph rows; an action wired to the wrong callback fails the press rows; a live
  * region on the row fails the live-region row; a time that may wrap fails the fit row.
  */
-import { afterEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, describe, expect, expectTypeOf, it, vi, type Mock } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 
@@ -89,12 +89,9 @@ describe('CookingTimerRow (web), per state', () => {
         expect(a.stop).toHaveBeenCalledTimes(1);
     });
 
-    it('cannot be written with a Cancel on a done row', () => {
-        type Done = Extract<CookingTimerRowState, { kind: 'done' }>;
-
-        const done: Done = { kind: 'done', stop: { label: 'Stop', onPress: vi.fn() } };
-
-        expect('cancel' in done).toBe(false);
+    it('has no Cancel on a done row, in its type', () => {
+        // Checked by `tsc`: adding `cancel` to the done member makes this line a type error.
+        expectTypeOf<Extract<CookingTimerRowState, { kind: 'done' }>>().not.toHaveProperty('cancel');
     });
 });
 
@@ -170,13 +167,15 @@ describe('CookingTimerSummary (web)', () => {
     it('draws a timer glyph in a box that the web hide rule shrinks to nothing above 1.3x text', () => {
         const a = actions();
         const { container } = render(rowOf({ kind: 'done', stop: { label: 'Stop', onPress: a.stop } }));
-        const box = container.querySelector('svg.lucide-timer')?.parentElement as HTMLElement;
+        const box = container.querySelector('svg.lucide-timer')?.parentElement;
+
+        expect(box).toBeInstanceOf(HTMLElement);
 
         const reference = document.createElement('span');
         reference.style.width = leadingGlyphWebStyle().width;
 
-        expect(box.style.width).not.toBe('');
-        expect(box.style.width).toBe(reference.style.width);
-        expect(box.style.overflow).toBe('hidden');
+        expect(box?.style.width).not.toBe('');
+        expect(box?.style.width).toBe(reference.style.width);
+        expect(box?.style.overflow).toBe('hidden');
     });
 });

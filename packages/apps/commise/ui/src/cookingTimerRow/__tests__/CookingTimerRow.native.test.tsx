@@ -1,10 +1,8 @@
 /**
  * The native cooking timer row: the frame, its three states and the summary part. Mutation lens: a wrong glyph per
- * state
- * fails the glyph rows; a row that is itself one accessible element hides its buttons from a screen reader and fails
- * the
- * container row; a glyph that stays above 1.3x text fails the hide rows; two 48 dp frames that overlap fail the gap
- * row.
+ * state fails the glyph rows; a row that is itself one accessible element hides its buttons from a screen reader and
+ * fails the container row; a glyph that stays above 1.3x text fails the hide rows; two 48 dp frames that overlap fail
+ * the gap row.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
@@ -25,6 +23,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
+import { present } from '../../testing/present.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { CookingTimerRow } from '../CookingTimerRow.native.js';
 import { CookingTimerSummary } from '../CookingTimerSummary.native.js';
@@ -51,7 +50,7 @@ const running = (pause = vi.fn(), cancel = vi.fn()): CookingTimerRowState => ({
 });
 
 function glyphNames(button: HTMLElement): string | undefined {
-    return (button.querySelector('[data-commise-stub="icon"]') as HTMLElement | null)?.dataset['iconName'];
+    return button.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName'];
 }
 
 describe('CookingTimerRow (native), per state', () => {
@@ -123,10 +122,10 @@ describe('CookingTimerRow (native), the frame', () => {
         const widths = (): number[] =>
             screen
                 .getAllByRole('button')
-                .map((b) => parseFloat(getComputedStyle(b.firstElementChild as HTMLElement).width));
+                .map((b) => parseFloat(getComputedStyle(present(b.firstElementChild, 'the frame')).width));
 
         const gap = (container: HTMLElement): string =>
-            resolvedStyle(container.querySelector('[name="CookingTimerRow"]') as Element, 'gap');
+            resolvedStyle(present(container.querySelector('[name="CookingTimerRow"]'), 'the row'), 'gap');
 
         const ios = renderWithTamagui(<CookingTimerRow state={running()} body={summary} />, 'light');
         expect(widths()).toEqual([44, 44]);

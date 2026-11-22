@@ -116,9 +116,8 @@ describe('the glyph Registry', () => {
         expect(webGlyphName('listChecks')).not.toBe(webGlyphName('list'));
     });
 
-    // Stop-a-timer and resume-a-timer: each draws its own Lucide glyph on both platforms, and neither points a
-    // direction
-    // (the play triangle points right but means "resume", so it keeps its drawing like the timer does).
+    // Pause-a-timer and resume-a-timer: each draws its own Lucide glyph on both platforms, and neither points a
+    // direction (the play triangle points right but means "resume", so it keeps its drawing like the timer does).
     it('draws pause and play as the Lucide pause and play on web and on native, and mirrors neither', () => {
         expect(webGlyphName('pause')).toBe('pause');
         expect(webGlyphName('play')).toBe('play');

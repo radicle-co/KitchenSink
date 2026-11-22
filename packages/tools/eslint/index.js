@@ -215,6 +215,9 @@ const PACKAGE_INTERNALS_PATTERN = {
         // `recipe-workers` consumes from. Its own entry point for the reason `database-name` is - both CDK apps
         // derive from it, and two copies of "which queue is the parse queue" is the drift it exists to prevent.
         '!@kitchensink/*/queue-names',
+        // `source-event-names` (ADR-0100): the namespace and metric the source correction alarm watches. One declaration read by the
+        // service that emits the metric and by the CDK stack that alarms on it.
+        '!@kitchensink/*/source-event-names',
         // `recipe-core` publishes three modules as their own entry points,
         // deliberately kept OFF its barrel: `scaling` (display-only serving
         // scaling), `external-url` (the outbound-link trust boundary) and

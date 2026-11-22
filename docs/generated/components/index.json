@@ -23,11 +23,11 @@
             "coverage": {
                 "components": 97,
                 "implementations": 154,
-                "props": 1222,
+                "props": 1224,
                 "documentedComponents": 97,
                 "implementationsWithModuleDoc": 154,
                 "implementationsWithComponentDoc": 140,
-                "documentedProps": 1030,
+                "documentedProps": 1032,
                 "classifiedComponents": 90,
                 "componentsWithPatternTag": 97,
                 "crossPlatformComponents": 57

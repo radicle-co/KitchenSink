@@ -1,12 +1,13 @@
 /**
  * @module Button.card — the design-system card of the Button: one of each tier, plus the busy state, on both
- * platforms. The web column lays them in a row, the native column in a stack (`context.stack`).
+ * platforms, and the secondary's steel glyph (`glyphTone="action"`) at rest, disabled and busy beside the default
+ * secondary. The web column lays them in a row, the native column in a stack (`context.stack`).
  */
 import { defineCard } from '../../../../src/cards/defineCard.js';
 
 export default defineCard({
     group: 'Actions',
-    height: 340,
+    height: 580,
     platforms: 'both',
     uses: ['Button'],
     render: ({ Button }, { stack }) => (
@@ -23,6 +24,18 @@ export default defineCard({
             </Button>
             <Button variant="primary" busy icon="plus">
                 Saving
+            </Button>
+            <Button variant="secondary" icon="chevronRight">
+                Next step
+            </Button>
+            <Button variant="secondary" icon="chevronRight" glyphTone="action">
+                Next step
+            </Button>
+            <Button variant="secondary" icon="chevronRight" glyphTone="action" disabled>
+                Next step
+            </Button>
+            <Button variant="secondary" icon="chevronRight" glyphTone="action" busy>
+                Next step
             </Button>
         </div>
     ),

@@ -20,6 +20,7 @@ import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../.
 import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 import { recipeMessages } from '../../messages.js';
 import { resetServingScale } from '../servingScale.js';
+import { PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME } from '../pinnedOverlayLimit.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 
 const { detail } = recipeMessages.en;
@@ -263,6 +264,53 @@ describe('the pinned ingredients bar (web)', () => {
 
             return screen.getByRole('dialog', { name: 'Ingredients for 4' });
         };
+
+        // D75: the bar and the open panel share one frame capped at half the window. jsdom lays nothing out, so the
+        // classes are read here and the geometry is Playwright's (`recipeDetailPinnedIngredients.spec.ts`).
+        it('shares one frame capped at half the window, the panel scrolling inside what the bar leaves', () => {
+            const frame = open();
+            const panel = frame.lastElementChild;
+            const frameClasses = frame.className.split(' ');
+            const panelClasses = panel?.className.split(' ') ?? [];
+
+            expect(frameClasses).toContain(PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME);
+            expect(frameClasses).toContain('flex');
+            expect(frameClasses).toContain('flex-col');
+            expect(panelClasses).toContain('min-h-0');
+            expect(panelClasses).toContain('overflow-y-auto');
+            // The panel is a flex child of the frame, not placed by a guessed offset, and carries no cap of its own.
+            expect(panelClasses).not.toContain('absolute');
+            expect(panelClasses.some((name) => name.startsWith('max-h-'))).toBe(false);
+            expect(panelClasses.some((name) => name.startsWith('top-'))).toBe(false);
+        });
+
+        it('keeps the bar copy at its own height, so the panel gives way before the bar does', () => {
+            open();
+
+            expect(screen.getByRole('button', { name: barName('Hide') }).className.split(' ')).toContain('shrink-0');
+        });
+
+        // CL-380 designer finding: at large text the trigger beneath the open bar copy can be taller, and its lower
+        // lines peeked out between the copy and the panel. While the list is open only the copy shows.
+        it('draws the trigger transparent while the list is open, and opaque again when it closes', () => {
+            const frame = open();
+
+            const trigger = (): HTMLElement => {
+                const found = document.querySelector<HTMLElement>('button[aria-haspopup="dialog"]');
+
+                if (found === null) {
+                    throw new Error('The page drew no pinned bar trigger.');
+                }
+
+                return found;
+            };
+
+            expect(trigger().className.split(' ')).toContain('opacity-0');
+
+            fireEvent.click(within(frame).getByRole('button', { name: barName('Hide') }));
+
+            expect(trigger().className.split(' ')).not.toContain('opacity-0');
+        });
 
         it('opens as a dialog named for the servings, the bar now reading Hide', () => {
             open();

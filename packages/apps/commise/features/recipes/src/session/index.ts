@@ -12,6 +12,8 @@ export type { RecipeServicesTreeProps } from './RecipeServicesTree.js';
 export { keptTimerSchema } from './kept/keptRecord.js';
 export { endsCookSession } from './endsCookSession.js';
 export { createKeptSessionStore } from './kept/keptSessionStore.js';
+export { activeTimerOf } from './kept/keptTimerAdapter.js';
+export type { KeptCommand, KeptOutcome } from './kept/keptCommands.js';
 export type { KeptSessionStore, KeptSessionStoreDeps, KeptSnapshot } from './kept/keptSessionStore.js';
 export { ingredientTickKeysSchema } from '../common/ingredientTickKey.js';
 export type { IngredientTickKey } from '../common/ingredientTickKey.js';

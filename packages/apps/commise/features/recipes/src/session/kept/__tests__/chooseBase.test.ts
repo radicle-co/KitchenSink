@@ -9,7 +9,7 @@ import { chooseBase, replay } from '../chooseBase.js';
 import { EMPTY_KEPT_DOCUMENT } from '../keptRecord.js';
 import type { ParsedKept } from '../keptRecord.js';
 
-import { iso, makeDoc, makePage, T0 } from '../__fixtures__/keptFixtures.js';
+import { HOUR, iso, makeDoc, makePage, T0 } from '../__fixtures__/keptFixtures.js';
 import { TICK } from '../../../detail/__fixtures__/tickKeys.js';
 import type { IngredientTickKey } from '../../../common/ingredientTickKey.js';
 
@@ -112,5 +112,20 @@ describe('replay', () => {
         const replayed = replay(makeDoc(), [tick, { ...tick, command: { ...tick.command, line: TICK.oil } }]);
 
         expect(replayed.entries['r1']).toMatchObject({ ticks: [TICK.salt, TICK.oil] });
+    });
+
+    /**
+     * Each unsaved command keeps the instant the cook made it. Two commands on two
+     * recipes at two instants fail a replay that stamps every entry with the last command's instant, which a replay
+     * of one command cannot show.
+     */
+    it('stamps each entry with the instant of its own command, not the last one', () => {
+        const first = { ...tick, command: { ...tick.command, recipeId: 'r1' }, at: iso(T0) };
+        const second = { ...tick, command: { ...tick.command, recipeId: 'r2' }, at: iso(T0 + HOUR) };
+
+        const replayed = replay(makeDoc(), [first, second]);
+
+        expect(replayed.entries['r1']).toMatchObject({ lastTouch: iso(T0) });
+        expect(replayed.entries['r2']).toMatchObject({ lastTouch: iso(T0 + HOUR) });
     });
 });

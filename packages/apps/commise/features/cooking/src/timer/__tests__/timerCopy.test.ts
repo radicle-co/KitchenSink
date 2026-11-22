@@ -23,17 +23,67 @@ const HOUR = 60 * MIN;
 
 // Designer (ordinal ruling, 2026-11-20): the ordinal goes with the step ("Simmer · step 2 (2)"), and S3a holds one timer, so
 // the label never carries it. S6 adds the key on the step side with its first reader.
+// A typed name wins; else a timer a step line OFFERED reads that line's label, by the index it stored (P63: not the
+// first label of the step); else "Step {n}". The origin is the signal, never the duration or the absence of a typed
+// name, so the name survives "+ time" and a reload.
 describe('timerLabel', () => {
-    it('says typed text as typed', () => {
-        expect(timerLabel({ label: { kind: 'typed', text: 'Rice' } }, 3, en.timer)).toBe('Rice');
+    const step = { number: 3, lines: ['Preheat the oven.', 'Roast for 1 hour 30 minutes.'] } as const;
+    const twoTimed = { number: 3, lines: ['Roast 20 minutes.', 'Rest 10 minutes.'] } as const;
+    const stepN = fillTemplate(en.timer.stepLabel, { n: 3 });
+    const typed = { kind: 'typed', text: 'Rice' } as const;
+    const offer = (lineIndex: number | null) => ({ kind: 'offer', lineIndex }) as const;
+
+    it('says typed text as typed, whatever the origin', () => {
+        expect(timerLabel({ label: typed, origin: offer(null) }, step, en.timer)).toBe('Rice');
+        expect(timerLabel({ label: typed, origin: offer(1) }, step, en.timer)).toBe('Rice');
+        expect(timerLabel({ label: typed, origin: { kind: 'added' } }, step, en.timer)).toBe('Rice');
     });
 
-    it('says the line label as read', () => {
-        expect(timerLabel({ label: { kind: 'line', text: 'Roast' } }, 3, en.timer)).toBe('Roast');
+    it('an offered timer reads the label of the line that offered it', () => {
+        expect(timerLabel({ label: undefined, origin: offer(1) }, step, en.timer)).toBe('Roast');
     });
 
-    it('says "Step n" with no label', () => {
-        expect(timerLabel({ label: undefined }, 3, en.timer)).toBe(fillTemplate(en.timer.stepLabel, { n: 3 }));
+    // Oracle row 1: it still reads "Roast" after "+ 10 min": the length changed, the origin did not.
+    it('an offered timer keeps the line label when its length changed (+ 10 min)', () => {
+        const lengthened = { label: undefined, origin: offer(1), durationMs: 100 * MIN } as const;
+
+        // A timer, not a literal: the label reads no length, which `Pick` keeps out of the signature.
+        expect(timerLabel(lengthened, step, en.timer)).toBe('Roast');
+    });
+
+    // Oracle row 2: an unnamed timer the cook added reads "Step 3", even at the length the step offered.
+    it('an added unnamed timer reads "Step n", even at the length of the offer', () => {
+        const offerLength = { label: undefined, origin: { kind: 'added' }, durationMs: 90 * MIN } as const;
+        const shorter = { label: undefined, origin: { kind: 'added' }, durationMs: 5 * MIN } as const;
+
+        expect(timerLabel(offerLength, step, en.timer)).toBe(stepN);
+        expect(timerLabel(shorter, step, en.timer)).toBe(stepN);
+    });
+
+    // Oracle row 3: a step with two timed lines. Each offer reads its own line, so "Rest" never rings as "Roast".
+    it('on a step with two timed lines, each offer reads its own line', () => {
+        expect(timerLabel({ label: undefined, origin: offer(0) }, twoTimed, en.timer)).toBe('Roast');
+        expect(timerLabel({ label: undefined, origin: offer(1) }, twoTimed, en.timer)).toBe('Rest');
+    });
+
+    // Oracle row 4: after the step's text was edited the line is not known, so the timer reads "Step 3" and does not
+    // fall back to the first label of the step.
+    it('an offer whose line is not known reads "Step n", not the first label of the step', () => {
+        expect(timerLabel({ label: undefined, origin: offer(null) }, twoTimed, en.timer)).toBe(stepN);
+    });
+
+    it('an offer whose index is out of range reads "Step n"', () => {
+        expect(timerLabel({ label: undefined, origin: offer(2) }, twoTimed, en.timer)).toBe(stepN);
+        expect(timerLabel({ label: undefined, origin: offer(0) }, { number: 3, lines: [] }, en.timer)).toBe(stepN);
+    });
+
+    it('an offered timer whose line gives no label reads "Step n"', () => {
+        expect(timerLabel({ label: undefined, origin: offer(0) }, { number: 3, lines: ['Stir.'] }, en.timer)).toBe(
+            stepN,
+        );
+        expect(timerLabel({ label: undefined, origin: offer(0) }, { number: 3, lines: ['5 minutes.'] }, en.timer)).toBe(
+            stepN,
+        );
     });
 
     it('holds no ordinal key', () => {

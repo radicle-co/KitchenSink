@@ -10,6 +10,7 @@
  * - no decision while the viewer is unknown.
  */
 import { LocaleProvider } from '@commise/i18n/react';
+import { CookMarksProvider } from '@commise/features-recipes/cook';
 import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -28,6 +29,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { CookingRoute } from '@/app/[locale]/recipes/[id]/cook/CookingRoute';
 
 import { makeRecipeDetail } from '../recipes/__fixtures__/recipeFixtures';
+
+/** The route under the cook marks provider the app root mounts: the cooking screen reads the cook's ticks. */
+function CookingRouteWithMarks(): ReactNode {
+    return (
+        <CookMarksProvider subject="user_test">
+            <CookingRoute id="rec_1" />
+        </CookMarksProvider>
+    );
+}
 
 const { useAuthMock, useUserProfileMock, replaceMock, pushMock } = vi.hoisted(() => ({
     useAuthMock: vi.fn(),
@@ -80,7 +90,7 @@ describe('CookingRoute: a failed server prefetch falls through to the browser re
             <LocaleProvider locale="en">
                 <QueryClientProvider client={queryClient}>
                     <RecipeServiceProvider client={client}>
-                        <CookingRoute id="rec_1" />
+                        <CookingRouteWithMarks />
                     </RecipeServiceProvider>
                 </QueryClientProvider>
             </LocaleProvider>
@@ -149,7 +159,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         const read = vi
             .spyOn(client, 'getRecipeById')
             .mockResolvedValue(makeRecipeDetail({ id: 'rec_1', ownerId: OWNER_ID, ...recipe }));
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+        renderWithRecipeClient(<CookingRouteWithMarks />, client);
 
         return read;
     }
@@ -209,7 +219,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
             <LocaleProvider locale="en">
                 <QueryClientProvider client={queryClient}>
                     <RecipeServiceProvider client={client}>
-                        <CookingRoute id="rec_1" />
+                        <CookingRouteWithMarks />
                     </RecipeServiceProvider>
                 </QueryClientProvider>
             </LocaleProvider>
@@ -239,7 +249,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
     it('shows a 404 as S32, with Go to Home', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError('Recipe not found'));
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+        renderWithRecipeClient(<CookingRouteWithMarks />, client);
 
         expect(await screen.findByText('This recipe isn’t available any more')).toBeInTheDocument();
         await userEvent.setup().click(screen.getByRole('button', { name: 'Go to Home' }));
@@ -249,7 +259,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
     it('shows another failure as S29, whose Try again reads again', async () => {
         const client = createFakeRecipeServiceClient();
         const read = vi.spyOn(client, 'getRecipeById').mockRejectedValue(new Error('network down'));
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client);
+        renderWithRecipeClient(<CookingRouteWithMarks />, client);
 
         expect(await screen.findByText('We couldn’t open this recipe')).toBeInTheDocument();
         read.mockResolvedValue(
@@ -291,7 +301,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         const client = createFakeRecipeServiceClient();
         const read = vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
         const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-        const view = renderWithRecipeClient(<CookingRoute id="rec_1" />, client, { queryClient });
+        const view = renderWithRecipeClient(<CookingRouteWithMarks />, client, { queryClient });
         await screen.findByText(stepOf(1, 4));
         await user.click(nextStep());
         await user.click(nextStep());
@@ -375,7 +385,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         const { rerender } = await cookingOnStepThree();
         useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
 
-        rerender(<CookingRoute id="rec_1" />);
+        rerender(<CookingRouteWithMarks />);
 
         expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
     });
@@ -387,7 +397,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         const { rerender } = await cookingOnStepThree();
         useUserProfileMock.mockReturnValue({ status: 'success', isLoading: false, data: { user: { id: 'usr_2' } } });
 
-        rerender(<CookingRoute id="rec_1" />);
+        rerender(<CookingRouteWithMarks />);
 
         expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
     });
@@ -399,7 +409,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         const { rerender } = await cookingOnStepThree();
         useAuthMock.mockReturnValue({ sessionClaims: { external_id: OWNER_ID } });
 
-        rerender(<CookingRoute id="rec_1" />);
+        rerender(<CookingRouteWithMarks />);
 
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
     });
@@ -436,7 +446,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
 
         cleanup();
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client, { queryClient });
+        renderWithRecipeClient(<CookingRouteWithMarks />, client, { queryClient });
 
         expect(await screen.findByText(copy)).toBeInTheDocument();
         expect(screen.queryByText(stepOf(1, 4))).not.toBeInTheDocument();
@@ -454,7 +464,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         expect(screen.getByText(stepOf(3, 4))).toBeInTheDocument();
 
         cleanup();
-        renderWithRecipeClient(<CookingRoute id="rec_1" />, client, { queryClient });
+        renderWithRecipeClient(<CookingRouteWithMarks />, client, { queryClient });
 
         expect(await screen.findByText(stepOf(1, 4))).toBeInTheDocument();
         expect(screen.queryByText('We couldn’t open this recipe')).not.toBeInTheDocument();
@@ -481,7 +491,7 @@ describe('CookingRoute: the offline notice', () => {
             <LocaleProvider locale="en">
                 <QueryClientProvider client={queryClient}>
                     <RecipeServiceProvider client={client}>
-                        <CookingRoute id="rec_1" />
+                        <CookingRouteWithMarks />
                     </RecipeServiceProvider>
                 </QueryClientProvider>
             </LocaleProvider>

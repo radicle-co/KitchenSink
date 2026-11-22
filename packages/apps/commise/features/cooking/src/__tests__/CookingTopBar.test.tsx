@@ -3,7 +3,7 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 import { CookingTopBar } from '../CookingTopBar.js';
-import { NARROW_ROW } from '../cookingLayout.js';
+import { NARROW_ROW, TWO_COLUMN } from '../cookingLayout.js';
 
 /** The top bar: Exit, then the place as plain text. On Done there is no place, only Exit. */
 describe('CookingTopBar', () => {
@@ -77,7 +77,8 @@ describe('CookingTopBar', () => {
 
             expect(screen.getAllByRole('button')).toHaveLength(2);
             expect(button.className).toContain(buttonSurfaceClass('quiet'));
-            // The visible label stays, so the button is never a glyph alone (WCAG 2.5.3 label in name).
+            // The accessible name contains the visible label, so the button is never a glyph alone (WCAG 2.5.3, label
+            // in name).
             expect(button.textContent).toContain('Ingredients');
             expect(button.querySelector('svg')?.getAttribute('class')).toContain('list-checks');
 
@@ -96,7 +97,9 @@ describe('CookingTopBar', () => {
             expect(exitButton.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
             expect(button.compareDocumentPosition(place) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
             // The house Button takes no class, so a wrapper carries the order and the alignment.
-            expect(button.closest('div')?.className).toBe(NARROW_ROW.ingredientsWebClassName);
+            expect(button.closest('div')?.className).toBe(
+                `${NARROW_ROW.ingredientsWebClassName} ${TWO_COLUMN.narrowOnlyWebClassName}`,
+            );
         });
 
         it('draws Exit and Ingredients where there is no place (Done)', () => {

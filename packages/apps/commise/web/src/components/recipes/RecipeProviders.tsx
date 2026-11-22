@@ -146,7 +146,9 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                     >
                         {/* S3a.U3: the cook's timers outlive every route and end with the cook, so they are mounted
                             here, above every screen, and fed the same raw `userId` as the device session scope. */}
-                        <TimerProvider subject={userId}>{children}</TimerProvider>
+                        <TimerProvider subject={userId} kept={webKeptSessionStore}>
+                            {children}
+                        </TimerProvider>
                     </RecipeServicesTree>
                 </SyncProvider>
             </OfflineReadNoticeProvider>

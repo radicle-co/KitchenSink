@@ -6,11 +6,11 @@
     "coverage": {
         "components": 19,
         "implementations": 35,
-        "props": 128,
+        "props": 131,
         "documentedComponents": 19,
         "implementationsWithModuleDoc": 35,
         "implementationsWithComponentDoc": 35,
-        "documentedProps": 117,
+        "documentedProps": 120,
         "classifiedComponents": 19,
         "componentsWithPatternTag": 9,
         "crossPlatformComponents": 17
@@ -272,7 +272,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
+                    "moduleDoc": "CookingFrame — the web cooking surface: full screen, outside AppShell, because cooking is a\nfocused task.\n\nOne centred column at every band: the top bar pinned at the top, the foot pinned at the bottom (the\nNext preview above the actions), and only the body between them scrolls, so a focus line taller than the screen at\nthe largest text never pushes the place or Back / Next away. The foot keeps a gap above it, so a line cut off at the\nbottom of the body reads as more to scroll. The surface is a size container, for the under-360 width rules and the\nshort-screen height rule, and is busy while the recipe loads.\n\nGiven a `column`, the frame sets it beside the whole stack (notice, top bar, body and foot) in\n`CookingTwoColumnLayout`,\nand the stack keeps its own 680 cap there. Without one it is the one centred column above.\n\nThe route's offline notice (`CookingNoticeSlot`) is the first thing in the centred column, above the top bar and\nstarting where it starts.\n\nPresentational: props → JSX, plus the notice slot it reads from context.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -300,6 +300,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "`aria-busy` on the surface while the recipe loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The ingredients column. The frame sets it beside the whole step stack (the notice, top bar, body and foot),\nwhich keeps its own width cap. Web passes it at every width and CSS hides it below L2, native passes it only at\nL2 and L3. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -333,7 +342,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFrame — the native cooking surface: the screen's main landmark, busy while the recipe loads.\nOne centred column at most 680 wide holds the top bar pinned at the top, the foot pinned at the bottom (the Next preview\nabove the actions), and only the body between them scrolling, so a focus line taller than the screen at the largest text\nnever pushes the place, Back or Next away. The frame owns the foot's layout, so the spacing between the preview and the\nactions lives here, once. The body swipe's responder wraps the whole scrolling area, not the body's content, so the\nempty space below a short step takes a swipe too, while the top bar and the foot stay outside it.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingFrame — the native cooking surface: the screen's main landmark, busy while the recipe loads.\nOne centred column at most 680 wide holds the top bar pinned at the top, the foot pinned at the bottom (the Next preview\nabove the actions), and only the body between them scrolling, so a focus line taller than the screen at the largest text\nnever pushes the place, Back or Next away. The frame owns the foot's layout, so the spacing between the preview and the\nactions lives here, once. The body swipe's responder wraps the whole scrolling area, not the body's content, so the\nempty space below a short step takes a swipe too, while the top bar and the foot stay outside it.\n\nGiven a `column`, the frame sets it beside the whole stack in `CookingTwoColumnLayout`, and the stack keeps its own\n680 cap there.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -370,6 +379,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "`aria-busy` on the surface while the recipe loads.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "column",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The ingredients column. The frame sets it beside the whole step stack (the notice, top bar, body and foot),\nwhich keeps its own width cap. Web passes it at every width and CSS hides it below L2, native passes it only at\nL2 and L3. Absent: one centred column.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1686,7 +1704,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in\nview.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1742,7 +1760,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: at L2 and L3, where the column is in view, and on a recipe with no ingredients.",
+                            "description": "Ingredients: a quiet button with the `listChecks` glyph and its visible label, never an icon alone. Absent where\nthere is nothing to open: on a recipe with no ingredients, and (native) at L2 and L3, where the column is in\nview.\nWeb draws it always and hides it from the two-column band in CSS (`TWO_COLUMN.narrowOnlyWebClassName`).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -1795,7 +1813,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingTwoColumnLayout.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no band: the screen picks it by band.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingTwoColumnLayout — the web two-column layout at L2 and L3: the ingredients column in a slot of\n`INGREDIENTS_COLUMN` width on the left that scrolls on its own, and the step column in the rest, at most\n`COOKING_COLUMN` wide and centred in it, as a flex column that may shrink, so a step body fills its height and keeps\nits footer pinned. The slot is on the canvas with no divider, and its content is inset 16 on every side inside the\nscroll, so the scroll bar stays at the slot edge. It holds no state and reads no script band: the slot is hidden\nunder the two-column band by `TWO_COLUMN.columnWebClassName`, so the\nstep column alone is left, centred, as the one column.\nThe native twin is `CookingTwoColumnLayout.native.tsx`, on the same props.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -1923,11 +1941,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -1993,11 +2011,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2082,11 +2100,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2152,11 +2170,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2245,11 +2263,11 @@
                         },
                         {
                             "name": "onClear",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
-                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it.",
+                            "description": "Clear every tick. The caller owns the Undo that the command returns, so the list never sees it. Absent: no Clear\nticks button is drawn, because Clear ticks never ships without its Undo path (owner-facing rule P60).",
                             "declaredIn": "packages/apps/commise/features/cooking/src/ingredients/cookingIngredientsListProps.ts"
                         },
                         {
@@ -2473,7 +2491,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - The cook and the subtree."
+                            "text": "props - The cook, the kept store and the subtree."
                         },
                         {
                             "name": "returns",
@@ -2487,6 +2505,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "kept",
+                            "type": "KeptSessionStore",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The device's kept session store: the record every timer change is written through to.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx"
+                        },
                         {
                             "name": "subject",
                             "type": "string | null | undefined",

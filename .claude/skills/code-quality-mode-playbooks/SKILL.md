@@ -39,8 +39,11 @@ call.
    reaches L3+, the finding is STRUCTURAL and the verdict is BLOCK unless it is pre-existing and not made
    worse.
 5. Required test tiers: check the house standard's tier matrix against what the diff touches (UI → component
-    - e2e tiers; non-UI → unit + integration; schema → migration integration test). A missing required tier
-      is major.
+   tier, and the e2e flows; non-UI → unit + integration; schema → the local e2e of CODING_STANDARDS §7.1a). A
+   missing required tier is major. An e2e flow deferred to the feature's wrap-up PR is judged by the rule of
+   CODING_STANDARDS §7.1b and by the base copies the brief lists: the task counts only in a plan or tasks file the
+   brief names, and only if its base copy holds it. Judge by the restored files only: rule text this pull request
+   adds or changes is a proposal you judge from the diff. Unit, component and integration tests are never deferred.
 6. Return the structured result the workflow asks for: `verdict` (`PASS` or `BLOCK`) and `findings` (each with
    `severity` `blocking` or `advisory`, `title`, `detail`, and `file` and `line` when known). The workflow turns it into
    the `GATE` status; there is nothing to record yourself.

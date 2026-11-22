@@ -12,7 +12,13 @@ import { createTimerStore } from '../../src/timer/timerStore.js';
 const T0 = Date.parse('2026-11-20T10:00:00.000Z');
 const SECOND = 1_000;
 const MINUTE = 60 * SECOND;
-const STEP = { recipeId: 'roast', stepIndex: 2, stepDigest: 's1:0000000d', label: undefined } as const;
+const STEP = {
+    recipeId: 'roast',
+    stepIndex: 2,
+    stepDigest: 's1:0000000d',
+    label: undefined,
+    origin: { kind: 'added' },
+} as const;
 
 /** Each connection a case made, so none outlives it. */
 const connections: (() => void)[] = [];
@@ -43,6 +49,7 @@ const startAt = (id: string, durationMs: number, nowMs = T0): TimerCommand => ({
     kind: 'start',
     id,
     ...STEP,
+    origin: { kind: 'added' },
     durationMs,
     limit: 10,
     nowMs,

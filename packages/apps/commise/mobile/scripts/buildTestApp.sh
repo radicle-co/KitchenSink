@@ -419,6 +419,27 @@ test_app_build_android() {
     echo "built dist-testApp/android/app.apk (content key ${TEST_APP_CONTENT_KEY})"
 }
 
+# test_app_bake_content_key <ios folder>
+#
+# Writes THIS build's TEST_APP_CONTENT_KEY into the one app Info.plist under <ios folder> as KSTestAppContentKey, so a
+# rewritten manifest over an older app cannot pass the check. `-replace` also inserts when the key is absent: the Mac
+# keeps `ios/` between builds, so a key an earlier build left must be overwritten, never refused. It runs BEFORE
+# `xcodebuild`, so the key is inside the bundle the ad-hoc signature seals; a key written after the compile would need
+# a re-sign and the seal would prove nothing. `buildIosApp.sh check` compares this baked key, not the manifest's. The
+# limit: anyone can re-sign ad hoc, so this stops a careless copy or edit, not a deliberate forgery.
+test_app_bake_content_key() {
+    local ios_dir="${1:-}" plist plists=() found
+    test_app_require_env TEST_APP_CONTENT_KEY
+    while IFS= read -r found; do
+        plists+=("$found")
+    done < <(find "$ios_dir" -mindepth 2 -maxdepth 2 -name Info.plist -not -path "$ios_dir/Pods/*" | sort)
+    if [ "${#plists[@]}" -ne 1 ]; then
+        test_app_die "expected exactly one app Info.plist under ${ios_dir} (outside Pods), found ${#plists[@]}"
+    fi
+    plist="${plists[0]}"
+    plutil -replace KSTestAppContentKey -string "$TEST_APP_CONTENT_KEY" "$plist"
+}
+
 test_app_build_ios() {
     test_app_prepare_build ios
     cd "$TEST_APP_MOBILE_DIR"
@@ -426,6 +447,7 @@ test_app_build_ios() {
     local scratch="${RUNNER_TEMP:-${TMPDIR:-/tmp}}"
 
     npx expo prebuild --platform ios --no-install
+    test_app_bake_content_key "$PWD/ios"
     cd ios
 
     # ⛔ INSTALL PODS SEPARATELY, AND RETRY — the iOS twin of the Gradle-configure retry. The pod downloads (the CocoaPods

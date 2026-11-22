@@ -1,7 +1,8 @@
 /**
  * @module cookingScaleNoteProps — the props of the scale note, on web and native: the sentence that says the steps give
- * amounts for another serving count, and the one button that opens the ingredients. The screen decides, per
- * `layoutBand`, whether there is something to open: `onOpen` is absent when there is not, and then no button is drawn.
+ * amounts for another serving count, and the one button that opens the ingredients. Native leaves `onOpen` out
+ * at two columns, where there is nothing to open, and then no button is drawn. Web always passes `onOpen` and CSS
+ * hides the button at two columns.
  */
 
 /** What `CookingScaleNote` (web and native) is given. */

@@ -1,8 +1,8 @@
 /**
- * The v1 record is a one-way door (ADR 0094 section 2), so its bytes are frozen here by a literal written by hand. A
- * rename that the writer and the reader share would pass a round trip, and only this test catches it. A second test
- * classifies every timer field by where its value comes from (ADR-0094 section 2), so a new field fails until someone
- * decides.
+ * The v2 record is a one-way door (ADR 0094 section 2, ADR 0099 for v2), so its bytes are frozen here by a literal
+ * written by hand. A rename that the writer and the reader share would pass a round trip, and only this test catches
+ * it. A second test classifies every timer field by where its value comes from (ADR-0094 section 2), so a new field
+ * fails until someone decides.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -20,25 +20,25 @@ import { keptTimerSchema, parseKeptDocument, serializeKeptDocument, type KeptDoc
 import { tickKeyOf } from '../../../detail/__fixtures__/tickKeys.js';
 import { makeEnded, makePaused, makeTimer, timerId } from '../__fixtures__/keptFixtures.js';
 
-const GOLDEN_V1 =
-    '{"v":1,"rev":7,"entries":{"r1":{"kind":"cooking","step":{"index":2,"digest":"s1:0000000c"},' +
+const GOLDEN_V2 =
+    '{"v":2,"rev":7,"entries":{"r1":{"kind":"cooking","step":{"index":2,"digest":"s1:0000000c"},' +
     '"marks":[{"index":0,"digest":"s1:0000000a"}],"lineTicks":[{"stepIndex":1,"stepDigest":"s1:0000000b","lineIndex":3}],' +
     '"ticks":["l1:00000002#0"],"servings":4,"lastTouch":"2026-06-01T12:00:00.123Z"},' +
     '"r2":{"kind":"page","ticks":["l1:00000003#0"],"lastTouch":"2026-06-01T12:00:00.000Z"}},' +
     '"timers":[' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0001","recipeId":"r1","stepIndex":2,"stepDigest":"s1:0000000c",' +
-    '"ordinal":1,"run":1,"durationMs":5400000,"state":"running","endsAt":"2026-06-01T13:30:00.250Z"},' +
+    '"ordinal":1,"run":1,"durationMs":5400000,"origin":{"kind":"offer","lineIndex":1},"state":"running","endsAt":"2026-06-01T13:30:00.250Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0002","recipeId":"r1","stepIndex":2,"stepDigest":"s1:0000000c",' +
-    '"ordinal":2,"run":3,"durationMs":600000,"state":"paused","remainingMs":123456,' +
+    '"ordinal":2,"run":3,"durationMs":600000,"origin":{"kind":"added"},"state":"paused","remainingMs":123456,' +
     '"pausedAt":"2026-06-01T12:05:00.500Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0003","recipeId":"r2","stepIndex":0,"stepDigest":"s1:0000000a",' +
-    '"ordinal":1,"run":2,"durationMs":5000,"state":"ringing","endedAt":"2026-06-01T12:00:05.001Z"},' +
+    '"ordinal":1,"run":2,"durationMs":5000,"origin":{"kind":"offer","lineIndex":null},"state":"ringing","endedAt":"2026-06-01T12:00:05.001Z"},' +
     '{"id":"01890a5d-ac96-774b-8cb9-b22e1d4a0004","recipeId":"r2","stepIndex":1,"stepDigest":"s1:0000000b",' +
-    '"ordinal":2,"run":1,"durationMs":86400000,"state":"endedAway","endedAt":"2026-06-02T12:00:00.000Z",' +
+    '"ordinal":2,"run":1,"durationMs":86400000,"origin":{"kind":"added"},"state":"endedAway","endedAt":"2026-06-02T12:00:00.000Z",' +
     '"announcedAt":"2026-06-02T12:30:00.999Z"}]}';
 
-const EXPECTED_V1: KeptDocument = {
-    v: 1,
+const EXPECTED_V2: KeptDocument = {
+    v: 2,
     rev: 7,
     entries: {
         r1: {
@@ -61,6 +61,7 @@ const EXPECTED_V1: KeptDocument = {
             ordinal: 1,
             run: 1,
             durationMs: 5_400_000,
+            origin: { kind: 'offer', lineIndex: 1 },
             state: 'running',
             endsAt: '2026-06-01T13:30:00.250Z',
         },
@@ -72,6 +73,7 @@ const EXPECTED_V1: KeptDocument = {
             ordinal: 2,
             run: 3,
             durationMs: 600_000,
+            origin: { kind: 'added' },
             state: 'paused',
             remainingMs: 123_456,
             pausedAt: '2026-06-01T12:05:00.500Z',
@@ -84,6 +86,7 @@ const EXPECTED_V1: KeptDocument = {
             ordinal: 1,
             run: 2,
             durationMs: 5_000,
+            origin: { kind: 'offer', lineIndex: null },
             state: 'ringing',
             endedAt: '2026-06-01T12:00:05.001Z',
         },
@@ -95,6 +98,7 @@ const EXPECTED_V1: KeptDocument = {
             ordinal: 2,
             run: 1,
             durationMs: 86_400_000,
+            origin: { kind: 'added' },
             state: 'endedAway',
             endedAt: '2026-06-02T12:00:00.000Z',
             announcedAt: '2026-06-02T12:30:00.999Z',
@@ -102,18 +106,28 @@ const EXPECTED_V1: KeptDocument = {
     ],
 };
 
-describe('the v1 kept record, frozen', () => {
+describe('the v2 kept record, frozen', () => {
     it('reads the hand-written literal as the expected document, with nothing dropped', () => {
-        expect(parseKeptDocument(GOLDEN_V1)).toEqual({ kind: 'ok', doc: EXPECTED_V1, droppedTimerIds: [] });
+        expect(parseKeptDocument(GOLDEN_V2)).toEqual({ kind: 'ok', doc: EXPECTED_V2, droppedTimerIds: [] });
     });
 
     it('writes the expected document as the literal, byte for byte (field names and order)', () => {
-        expect(serializeKeptDocument(EXPECTED_V1)).toBe(GOLDEN_V1);
+        expect(serializeKeptDocument(EXPECTED_V2)).toBe(GOLDEN_V2);
     });
 });
 
 /** Where a stored timer field gets its value (ADR-0094 section 2): the reducer, the record alone, or nowhere. */
-const COMMON = ['id', 'recipeId', 'stepIndex', 'stepDigest', 'ordinal', 'run', 'durationMs', 'state'] as const;
+const COMMON = [
+    'id',
+    'recipeId',
+    'stepIndex',
+    'stepDigest',
+    'ordinal',
+    'run',
+    'durationMs',
+    'origin',
+    'state',
+] as const;
 
 const FIELD_SOURCES = {
     running: { reducer: [...COMMON, 'endsAt'], recordOnly: [] },
@@ -131,7 +145,7 @@ const NOT_STORED = ['label', 'undo'] as const;
 /** The four states of a timer, in the order the record lists them. */
 const STATES = ['running', 'paused', 'ringing', 'endedAway'] as const;
 
-/** Where one reducer field lands in the v1 record: stored (`kind` is stored as `state`), or held only in memory. */
+/** Where one reducer field lands in the v2 record: stored (`kind` is stored as `state`), or held only in memory. */
 type FieldHome = 'stored' | 'notStored';
 
 const BASE_HOMES = {
@@ -142,6 +156,7 @@ const BASE_HOMES = {
     stepDigest: 'stored',
     ordinal: 'stored',
     durationMs: 'stored',
+    origin: 'stored',
     label: 'notStored',
 } as const satisfies Record<keyof TimerBase, FieldHome>;
 
@@ -156,7 +171,7 @@ const REDUCER_HOMES = {
     endedAway: { ...BASE_HOMES, kind: 'stored', endedAt: 'stored' } satisfies Record<keyof EndedAwayTimer, FieldHome>,
 } satisfies Record<ActiveTimer['kind'], Readonly<Record<string, FieldHome>>>;
 
-describe('every v1 timer field has a classified source', () => {
+describe('every v2 timer field has a classified source', () => {
     const everyField = {
         running: makeTimer(),
         paused: makePaused(),

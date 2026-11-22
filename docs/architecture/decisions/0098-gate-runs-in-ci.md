@@ -33,8 +33,11 @@ inside an agent session costs that session's budget and cannot be required by th
 4. **The GATE is a separate workflow** (`gate.yml`) that posts the commit status `GATE`. A draft PR gets `pending`. A
    ready PR waits for the scanner job on the same commit, downloads its `scq-<sha>` artifact and runs the
    `staff-code-quality` agent in GATE mode, which reads that evidence and runs no scanner.
-5. **The judge comes from the base branch.** `.claude/` is replaced by the base's copy before the agent runs, so a PR
-   that edits the agent, a skill or the settings hooks cannot grade itself or run code with the token in reach. A base
+5. **The judge comes from the base branch.** `.claude/` and the standards the card cites (`docs/CODING_STANDARDS.md`,
+   `docs/engineering/`, `docs/architecture/`, `docs/adr/` and `adr/`) are replaced by the base's copy before the agent
+   runs, so a PR that edits the agent, a skill, the settings hooks or a rule cannot grade itself or run code with the
+   token in reach. The brief also lists the merge-base copy of each plan or tasks file the PR changes, so the judge can
+   tell a wrap-up task from base from one the PR adds. A base
    with no judge posts `failure`.
 6. **It fails closed.** A step error, a timeout, a missing or malformed structured output, a `BLOCK` verdict or any
    blocking finding posts `failure`. Fork PRs are refused, because the secret is withheld from them. One shape gets a

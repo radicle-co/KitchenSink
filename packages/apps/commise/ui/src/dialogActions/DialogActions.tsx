@@ -8,6 +8,10 @@
  * put it in a `flex-col` parent with the default stretch, as both `ConfirmDialog` and `VersionPreviewModal` do. Never
  * put it inside a row or an `items-center` column, where it would collapse to nothing.
  *
+ * The wrapper carries `data-dialog-actions`, the marker a `Sheet`'s scroll region reads through `:has()` to reserve its
+ * scrollbar gutter, so a scrollbar that comes and goes never changes this box's width (KTD8). `shares="equal"` gives each
+ * direct child an equal share from the threshold, by child variants on the row, so nothing is wrapped.
+ *
  * The buttons are direct children of the row, in source order (dismiss first, main action last), so the DOM and
  * focus order never change with the layout. A design-system `Button` passes `width="fill"`; a Radix slot wears
  * `dialogActionSlotClass` (from `dialogActionsClass.ts`) for the same threshold.
@@ -20,8 +24,8 @@ import type { FC } from 'react';
 import { dialogActionsRowClass } from './dialogActionsClass.js';
 import type { DialogActionsProps } from './props.js';
 
-export const DialogActions: FC<DialogActionsProps> = ({ sideBySideFrom, children }) => (
-    <div className="@container/dialog w-full">
-        <div className={dialogActionsRowClass(sideBySideFrom)}>{children}</div>
+export const DialogActions: FC<DialogActionsProps> = ({ sideBySideFrom, shares = 'content', children }) => (
+    <div className="@container/dialog w-full" data-dialog-actions="">
+        <div className={dialogActionsRowClass(sideBySideFrom, shares)}>{children}</div>
     </div>
 );

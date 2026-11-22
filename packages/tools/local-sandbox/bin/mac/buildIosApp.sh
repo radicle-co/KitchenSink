@@ -73,6 +73,24 @@ app_folder() {
     printf '%s' "$folder"
 }
 
+# The Info.plist key buildTestApp.sh bakes the content key under (test_app_bake_content_key).
+BAKED_KEY_NAME=KSTestAppContentKey
+
+# The script the Mac runs to read the baked key: exactly one .app, a verifying signature, then the key. It answers on
+# stdout (`BAKED:<key>` or `FAIL:<reason>`) and always exits 0, so a refusal is told apart from a lost ssh link.
+baked_key_probe() {
+    printf "app='%s'; key_name='%s'; export PATH='%s'\n" "$1" "$BAKED_KEY_NAME" "$MAC_PATH"
+    cat <<'PROBE'
+cd "$HOME/$app" 2>/dev/null || { echo FAIL:folder; exit 0; }
+bundles="$(find . -maxdepth 1 -name '*.app' -type d)"
+[ -n "$bundles" ] || { echo FAIL:noapp; exit 0; }
+[ "$(printf '%s\n' "$bundles" | wc -l | tr -d ' ')" = 1 ] || { echo FAIL:manyapps; exit 0; }
+codesign --verify --strict "$bundles" >/dev/null 2>&1 || { echo FAIL:seal; exit 0; }
+baked="$(plutil -extract "$key_name" raw -o - "$bundles/Info.plist" 2>/dev/null)" || { echo FAIL:nokey; exit 0; }
+echo "BAKED:$baked"
+PROBE
+}
+
 command_name="${1:-}"
 case "$command_name" in
     content-key)
@@ -94,6 +112,21 @@ case "$command_name" in
             EXPECT_XCODE_VERSION="$(mac "DEVELOPER_DIR=$MAC_DEVELOPER_DIR xcodebuild -version" | tr '\n' ' ' | sed 's/ *$//')" \
             bash "$BUILD_SCRIPT" verify-manifest "$manifest" ios ||
             die "the app on the Mac for key $key does not match this tree. Rebuild: buildIosApp.sh build $key $app"
+        # The manifest is a plain file anyone can rewrite. The key the build baked into the app's own Info.plist is
+        # sealed by the app's code signature, so a rewritten manifest over another build's app is refused here. The
+        # limit: anyone can re-sign an app ad hoc, so this stops a careless copy or edit, not a deliberate forgery.
+        rebuild="Rebuild: buildIosApp.sh build $key $app"
+        result="$(mac "$(baked_key_probe "$app")")" || die "could not read the app on the Mac for key $key"
+        case "$result" in
+            "BAKED:$key") ;;
+            BAKED:*) die "the app on the Mac was baked for key ${result#BAKED:}, not $key. $rebuild" ;;
+            FAIL:folder) die "no app folder $app on the Mac. $rebuild" ;;
+            FAIL:noapp) die "the app folder $app holds no .app. $rebuild" ;;
+            FAIL:manyapps) die "the app folder $app holds more than one .app. $rebuild" ;;
+            FAIL:seal) die "the app's code signature does not verify (edited after the build). $rebuild" ;;
+            FAIL:nokey) die "the app has no $BAKED_KEY_NAME in its Info.plist (built before the bake). $rebuild" ;;
+            *) die "unexpected answer from the Mac: $result" ;;
+        esac
         echo "$app is current"
         ;;
     build)

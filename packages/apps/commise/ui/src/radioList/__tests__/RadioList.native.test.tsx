@@ -8,7 +8,7 @@ import type { RadioListOption, RadioListProps } from '../props.js';
 import { dimmedOpacity } from '../../tokens/scale.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
-import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * RadioList (native) — a `radiogroup` of whole-row `radio`s with `aria-checked`, rendered through react-native-web:
@@ -215,6 +215,39 @@ describe('RadioList (native) at a system text scale', () => {
             expect(group.contains(screen.getByText('Publish privately'))).toBe(true);
             expect(getComputedStyle(group).alignItems).toBe('flex-start');
             expect(getComputedStyle(radio).alignItems).toBe('center');
+        });
+    });
+
+    // qse (PR #414): the group and the words take the row's width so a long label wraps instead of running past the card.
+    it('the group takes the row width and the words take what the mark leaves, so a long label wraps', () => {
+        withPlatformOs('android', () => {
+            renderAt(1);
+
+            const group = markOfTheRow().slot.parentElement;
+            const words = screen.getByText('Written by me').parentElement;
+
+            if (group === null || words === null) {
+                throw new Error('radio row group not found');
+            }
+
+            expect(resolvedStyle(group, 'flexGrow')).toBe('1');
+            expect(resolvedStyle(words, 'flexGrow')).toBe('1');
+        });
+    });
+
+    // qse (PR #414): the checked mark is told from the unchecked one by its ring alone (a 5 dp ring against a 2 dp one).
+    it('draws a 2 dp ring unchecked and a 5 dp ring checked', () => {
+        withPlatformOs('android', () => {
+            const list = (value: string | undefined) => (
+                <RadioList label="Where" options={[{ id: 'a', label: 'One' }]} value={value} onChange={vi.fn()} />
+            );
+
+            renderWithTamagui(list(undefined), 'light', 1);
+            expect(getComputedStyle(markOfTheRow().circle).borderTopWidth).toBe('2px');
+            cleanup();
+
+            renderWithTamagui(list('a'), 'light', 1);
+            expect(getComputedStyle(markOfTheRow().circle).borderTopWidth).toBe('5px');
         });
     });
 

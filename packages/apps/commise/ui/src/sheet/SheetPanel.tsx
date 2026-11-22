@@ -20,7 +20,7 @@
  * @pattern Template Method — the fixed chrome, with host-supplied steps (heading, controls, children, footer)
  */
 import * as Dialog from '@radix-ui/react-dialog';
-import type { FC, ReactNode } from 'react';
+import type { CSSProperties, FC, ReactNode } from 'react';
 
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetToolbar } from './props.js';
@@ -41,6 +41,11 @@ export interface SheetPanelProps {
     readonly toolbar?: SheetToolbar;
     readonly footer?: ReactNode;
     readonly children: ReactNode;
+    /**
+     * The snackbar's place, drawn last inside the panel so it comes after the footer in the focus order. The panel
+     * tells it how tall the pinned footer is (`--sheet-footer-inset`), so the snackbar sits 16 above the footer.
+     */
+    readonly outlet?: ReactNode;
     /** Whether an on-screen keyboard is open (`useVisualViewportKeyboard`). */
     readonly keyboardOpen: boolean;
     readonly onClose: () => void;
@@ -53,6 +58,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
     toolbar,
     footer,
     children,
+    outlet,
     keyboardOpen,
     onClose,
 }) => {
@@ -62,7 +68,15 @@ export const SheetPanel: FC<SheetPanelProps> = ({
     const footerShown = footer !== undefined && !collapsed;
 
     return (
-        <div ref={frameRef} className="flex min-h-0 flex-1 flex-col">
+        <div
+            ref={frameRef}
+            className="flex min-h-0 flex-1 flex-col"
+            style={
+                footerShown && !unpinned
+                    ? ({ '--sheet-footer-inset': `${footerHeight}px` } as CSSProperties)
+                    : undefined
+            }
+        >
             <div ref={topRef} className="flex items-start gap-2 pl-6 pr-2 pt-2">
                 <div className="min-w-0 flex-1 pt-3">
                     <Dialog.Title
@@ -106,6 +120,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                     </div>
                 )}
             </div>
+            {outlet}
         </div>
     );
 };

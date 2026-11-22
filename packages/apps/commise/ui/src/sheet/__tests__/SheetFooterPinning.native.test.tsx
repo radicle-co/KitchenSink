@@ -10,12 +10,13 @@
  *
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize } from '../../testing/resizeObserver.js';
 import { act, cleanup, screen } from '@testing-library/react';
-import { createElement, type ComponentProps, type JSX } from 'react';
-import { Text, type ScrollView as ScrollViewType } from 'react-native';
+import { createElement, useEffect, type ComponentProps, type FC, type JSX } from 'react';
+import { Text, TextInput, type ScrollView as ScrollViewType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { DialogActions } from '../../dialogActions/DialogActions.native.js';
 import { touchFloor } from '../../layout/touchFloor.native.js';
 import { render, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import type { SheetProps } from '../props.js';
@@ -145,10 +146,7 @@ function layOut(heights: { readonly sheet: number; readonly topBlock: number; re
 /** Fire the observer for every node it watches, then let react-native-web's deferred measurement run. */
 function reportLayout(): void {
     act(() => {
-        observer.callback?.(
-            [...observer.observed].map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize();
     });
     act(() => {
         vi.runOnlyPendingTimers();
@@ -286,5 +284,158 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
         renderSheet({ toolbar: { heading: <Text>Search 40 options</Text>, controls: <Text>Search</Text> } });
 
         expect(screen.queryByRole('button', { name: 'Done' })).toBeNull();
+    });
+});
+
+/**
+ * A footer that holds `DialogActions` changes height with its form (stacked tall, row short), and the move between the
+ * two parents remounts it (staff D3). `pinnedFooter.ts`'s no-flip-back argument needs a footer of one height across the
+ * move, so without the width memento (staff D5) a remounted footer starts stacked again and the pin alternates.
+ */
+describe('Sheet (native) — a DialogActions footer across the I7 move', () => {
+    const STACKED_FOOTER = 320;
+    const ROW_FOOTER = 150;
+    // Frame 800 and top 100: a row footer (250) pins, a stacked one (420) unpins, and a row box of 720 fits a row.
+    const FRAME = 800;
+    const TOP = 100;
+    const ACTIONS_WIDTH = 720;
+
+    const actionsRow = (): HTMLElement => screen.getByRole('button', { name: 'Keep' }).parentElement as HTMLElement;
+    const isRow = (): boolean => getComputedStyle(actionsRow()).flexDirection === 'row';
+    const inScroll = (): boolean => scrollRegion().contains(screen.getByRole('button', { name: 'Keep' }));
+
+    /** One layout round: every node reports the height of the form it rendered. Returns the form it started in. */
+    function round(): { readonly startedAsRow: boolean; readonly unpinned: boolean } {
+        const startedAsRow = isRow();
+        const footerView = actionsRow().parentElement as HTMLElement;
+
+        for (const [node, size] of [
+            [dialog(), FRAME],
+            [topBlock(), TOP],
+            [footerView, startedAsRow ? ROW_FOOTER : STACKED_FOOTER],
+        ] as const) {
+            Object.defineProperty(node, 'offsetHeight', { value: size, configurable: true });
+        }
+
+        Object.defineProperty(actionsRow(), 'offsetWidth', { value: ACTIONS_WIDTH, configurable: true });
+        reportLayout();
+
+        return { startedAsRow, unpinned: inScroll() };
+    }
+
+    const renderActionsSheet = (): void => {
+        renderSheet({
+            footer: (
+                <DialogActions sideBySideFrom={400}>
+                    <Text accessibilityRole="button">Keep</Text>
+                    <Text accessibilityRole="button">Do it</Text>
+                </DialogActions>
+            ),
+        });
+    };
+
+    it('settles: the footer moves once, then stays pinned and is a row on its first render after every move', () => {
+        renderActionsSheet();
+
+        const rounds = Array.from({ length: 6 }, () => round());
+
+        // The first round's stacked footer (320) passes half the frame, so the footer DOES move into the scroll region;
+        // the seeded row (150) then moves it back and it stays. A version where nothing ever moves fails the first line.
+        expect(rounds[0]?.unpinned).toBe(true);
+        expect(rounds.slice(2).every((entry) => !entry.unpinned && entry.startedAsRow)).toBe(true);
+    });
+
+    it('does not seed a DialogActions in the body from the footer’s memento', () => {
+        const actions = (names: readonly [string, string], key: string): JSX.Element => (
+            <DialogActions key={key} sideBySideFrom={400}>
+                <Text accessibilityRole="button">{names[0]}</Text>
+                <Text accessibilityRole="button">{names[1]}</Text>
+            </DialogActions>
+        );
+        const sheet = (bodyKey: string): JSX.Element => (
+            <Sheet
+                open
+                onOpenChange={vi.fn()}
+                title="Filter recipes"
+                closeLabel="Close filters"
+                size="content"
+                footer={actions(['Keep', 'Do it'], 'footer')}
+            >
+                {actions(['Body keep', 'Body do it'], bodyKey)}
+            </Sheet>
+        );
+        const { rerender } = render(sheet('first'));
+
+        // The footer's actions measure 720 and the frame remembers it.
+        Object.defineProperty(actionsRow(), 'offsetWidth', { value: ACTIONS_WIDTH, configurable: true });
+        reportLayout();
+        expect(isRow()).toBe(true);
+
+        // A body instance that mounts now starts stacked: the memento wraps the footer only.
+        act(() => {
+            rerender(sheet('second'));
+        });
+        const bodyRow = screen.getByRole('button', { name: 'Body keep' }).parentElement as HTMLElement;
+
+        expect(getComputedStyle(bodyRow).flexDirection).toBe('column-reverse');
+    });
+});
+
+/** Counts how often the field MOUNTS, so a move that remounts it is seen (qse C-3: a counter, never a ref). */
+const fieldMounts = { count: 0 };
+
+const CountedField: FC = () => {
+    useEffect(() => {
+        fieldMounts.count += 1;
+    }, []);
+
+    return <TextInput accessibilityLabel="Quantity" />;
+};
+
+/**
+ * AE16 (plan largeTextSheet): the footer moves into the scroll region while a body field has focus. The field is the same
+ * instance and keeps focus, and the footer does not move back.
+ */
+describe('Sheet (native) — a focused body field while the footer moves (AE16)', () => {
+    it('keeps the same field instance and its focus, and the footer does not move back', () => {
+        fieldMounts.count = 0;
+        renderSheet();
+        // `renderSheet` ignores `children`, so this sheet renders its own body.
+        cleanup();
+        render(
+            <Sheet
+                open
+                onOpenChange={vi.fn()}
+                title="Filter recipes"
+                closeLabel="Close filters"
+                size="content"
+                footer={<Text accessibilityRole="button">Done</Text>}
+            >
+                <CountedField />
+            </Sheet>,
+        );
+
+        // Just under half of 300: 64 + 80 = 144 <= 150, so the footer is pinned.
+        layOut({ sheet: 300, topBlock: 64, footer: 80 });
+        expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(false);
+
+        const field = screen.getByLabelText('Quantity');
+
+        act(() => {
+            field.focus();
+        });
+        expect(document.activeElement).toBe(field);
+
+        // The keyboard shrinks the sheet: 144 > 120, so the footer moves into the scroll region.
+        layOut({ sheet: 240, topBlock: 64, footer: 80 });
+        expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
+        expect(fieldMounts.count).toBe(1);
+        expect(screen.getByLabelText('Quantity')).toBe(field);
+        expect(document.activeElement).toBe(field);
+
+        // The moved footer reports the same height from its new place: it stays where it was put.
+        layOut({ sheet: 240, topBlock: 64, footer: 80 });
+        expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);
+        expect(document.activeElement).toBe(field);
     });
 });

@@ -377,3 +377,33 @@ describe('SourceStatementSheet — paid website', () => {
         expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
     });
 });
+
+/**
+ * The footer's two actions are the house `DialogActions` (#391): stacked main-on-top below 400 px of the row's own width,
+ * equal shares from it, tree order dismiss then confirm. The container query is the stylesheet's; jsdom pins the classes.
+ */
+describe('SourceStatementSheet (web) — the footer actions', () => {
+    it.each([
+        ['editor', 'Keep as draft', 'Publish'],
+        ['recipePage', 'Cancel', 'Make public'],
+    ] as const)('lays the %s pair out as DialogActions 400 with equal shares', (surface, dismiss, confirm) => {
+        renderSheet({ surface });
+
+        const row = screen.getByRole('button', { name: dismiss }).closest('[data-dialog-actions]')
+            ?.firstElementChild as HTMLElement;
+        const classes = (row.getAttribute('class') ?? '').split(/\s+/u);
+
+        expect(classes).toEqual(
+            expect.arrayContaining([
+                'flex-col-reverse',
+                '@[25rem]/dialog:flex-row',
+                '@[25rem]/dialog:*:flex-1',
+                '@[25rem]/dialog:*:min-w-0',
+            ]),
+        );
+        expect([...row.querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            dismiss,
+            confirm,
+        ]);
+    });
+});

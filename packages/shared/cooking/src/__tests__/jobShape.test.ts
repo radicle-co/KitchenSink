@@ -199,3 +199,26 @@ describe('jobShapeOf, step numbers', () => {
         ]);
     });
 });
+
+describe('jobShapeOf, a time that repeats is not an exact wait (P56)', () => {
+    it('is partial, not about, when a counted wait repeats: the step takes at least twice that long', () => {
+        const steps = [step(1, 'Chill for 30 minutes.'), step(2, 'Fry 10 minutes each side.')];
+
+        expect(jobShapeOf({ prepTimeMinutes: 10, steps }).total).toEqual({ kind: 'partial', seconds: 3_000 });
+    });
+
+    it('counts the repeat wait once, at its low end, and still lists it in its row', () => {
+        const shape = jobShapeOf({ prepTimeMinutes: 10, steps: [step(1, 'Fry 3 minutes per side.')] });
+
+        expect(shape.total).toEqual({ kind: 'partial', seconds: 900 });
+        expect(shape.rows).toEqual([
+            { kind: 'wait', stepNumber: 1, waits: [{ seconds: 180, offers: true, perRepeat: true }] },
+        ]);
+    });
+
+    it('stays about when no wait repeats (mutant: partial for every wait)', () => {
+        const steps = [step(1, 'Chill for 30 minutes.'), step(2, 'Roast 10 minutes.')];
+
+        expect(jobShapeOf({ prepTimeMinutes: 10, steps }).total).toEqual({ kind: 'about', seconds: 3_000 });
+    });
+});

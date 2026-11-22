@@ -18,6 +18,12 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         'Artifact-only native component: the native ScrollHost with plain children, for canvas markup that cannot pass a render-prop child. It is a board device and not a product component, and the product component it wraps (ScrollHost) has the card.',
     ButtonLabel:
         "The native Button's label (the Text `cardTitle` role coloured by the Button's surface). A part of Button, never placed on its own; the Button card covers it.",
+    RadioRowContent:
+        "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
+    RadioMark:
+        "The native RadioList row's circle, centred in a slot one label line tall. A part of RadioList, never placed on its own; the RadioList card covers it.",
+    EqualShare:
+        "The native DialogActions' equal-share wrapper (one child grows to an equal share of a row when `shares` is `equal`). A part of DialogActions, never placed on its own; the DialogActions card covers it.",
     DesignSystemProvider:
         'Native-only Tamagui provider the app mounts once. It draws nothing of its own and is not placed by a screen; previews are themed by the `data-theme` attribute.',
     DesignSystemTheme:
@@ -45,6 +51,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         "The scroll hint's chevron, a part of HorizontalScroller on native that Tamagui cannot draw yet. The HorizontalScroller card covers it.",
     ScrollFade:
         "The scroll hint's gradient fade, a part of HorizontalScroller on native that Tamagui cannot draw yet. The HorizontalScroller card covers it.",
+    SnackbarOutlet:
+        "Native-only slot inside a sheet's or dialog's window where the snackbar draws while that window is open. It has no look of its own, since it places the snackbar the SnackbarHost card covers.",
     SheetEngine:
         "Native-only engine of the Sheet (Tamagui's Sheet inside the host's window). Screens place Sheet, which the Sheet card covers.",
     Text: "Native-only text primitive with no web sibling: web sets type with Tailwind's role utilities. A screen names a type role, and the roles are defined in `typography.ts`.",

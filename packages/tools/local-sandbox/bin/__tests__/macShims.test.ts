@@ -409,6 +409,7 @@ describe('buildIosApp.sh check', () => {
             file,
             `#!/usr/bin/env bash\ncmd="\${@: -1}"\ncase "$cmd" in\n` +
                 `  cat\\ ksIos/apps/*) cat "${served}" ;;\n` +
+                `  *codesign*) printf 'BAKED:${KEY}\\n' ;;\n` +
                 `  *xcodebuild*) printf 'Xcode 27.2\\nBuild version 27B52\\n' ;;\n  *) exit 9 ;;\nesac\n`,
         );
         chmodSync(file, 0o755);
@@ -465,6 +466,7 @@ describe('buildIosApp.sh check', () => {
             file,
             `#!/usr/bin/env bash\ncmd="\${@: -1}"\necho "$cmd" >> "${seen}"\ncase "$cmd" in\n` +
                 `  cat\\ elsewhere/*) cat "${path.join(sandbox.root, 'served.manifest')}" ;;\n` +
+                `  *codesign*) printf 'BAKED:${KEY}\\n' ;;\n` +
                 `  *xcodebuild*) printf 'Xcode 27.2\\nBuild version 27B52\\n' ;;\n  *) exit 9 ;;\nesac\n`,
         );
         chmodSync(file, 0o755);

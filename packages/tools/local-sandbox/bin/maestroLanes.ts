@@ -40,6 +40,8 @@ import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroL
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
+import { processGroup } from '../src/maestroLanes/stopGroups.js';
+import { startService } from '../src/maestroLanes/serviceProcess.js';
 import { CONSUMER_PLAN_RELATIVE, readConsumerPlan } from '../src/queueConsumers.js';
 import { parseLocalSettings, type LocalSettings } from '../src/maestroLanes/localSettings.js';
 import { BASE_ENVIRONMENT_SCRIPT } from '../src/maestroLanes/baseEnvironmentScript.js';
@@ -137,14 +139,6 @@ function spawnDetached(
     return { pid: child.pid ?? -1 };
 }
 
-function killGroup(pid: number): void {
-    try {
-        process.kill(-pid, 'SIGTERM');
-    } catch {
-        // Already gone.
-    }
-}
-
 /**
  * The adapter for a platform. iOS and the Mac's Android refuse to build without `LOCAL_MAESTRO_IOS_HOST` (the variable's name
  * is kept for now: it names the Mac). Android runs on the Mac unless `LOCAL_MAESTRO_ANDROID_ON=wsl`.
@@ -163,7 +157,9 @@ function adapterFor(platform: LanePlatform, env: Env, settings: LocalSettings, i
     const commands: CommandPort = {
         run: (command, args, options) => run(command, args, { env: options?.env ?? env, cwd: options?.cwd }),
         spawnDetached: (command, args, log) => spawnDetached(command, args, log, env),
-        killGroup,
+        killGroup: (pid) => {
+            processGroup(pid).stop('SIGTERM');
+        },
         sleep: async (ms) => {
             await delay(ms);
         },
@@ -222,42 +218,15 @@ function serviceSpecs(root: string, settings: LocalSettings, env: Env): readonly
     ];
 }
 
-/** Start one service and wait until it is ready: a consumer prints `draining`, the worker is alive after 8 s. */
-async function startService(spec: ServiceSpec, env: Env, root: string): Promise<RunningService> {
+/** Start one service in its own group and wait until it is ready. */
+const startServiceFor = (spec: ServiceSpec, env: Env, root: string): Promise<RunningService> => {
     const log = path.join(STATE_DIR, `service.${spec.name}.log`);
-    const { pid } = spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root);
-    const consumer = spec.name !== 'parseWorker';
 
-    for (let waited = 0; waited < 60; waited += 1) {
-        await delay(1_000);
-
-        if (!pidIsAlive(pid)) {
-            throw new Error(`maestro:lanes: ${spec.name} exited - log: ${log}`);
-        }
-
-        if (consumer ? readFileSync(log, 'utf8').includes('draining') : waited >= 8) {
-            return {
-                pid,
-                stop: async () => {
-                    killGroup(pid);
-
-                    for (let tries = 0; tries < 10 && pidIsAlive(pid); tries += 1) {
-                        await delay(1_000);
-                    }
-
-                    try {
-                        process.kill(-pid, 'SIGKILL');
-                    } catch {
-                        // Gone.
-                    }
-                },
-            };
-        }
-    }
-
-    killGroup(pid);
-    throw new Error(`maestro:lanes: ${spec.name} was not ready in 60 s - log: ${log}`);
-}
+    return startService(spec, {
+        log,
+        spawn: () => spawnDetached(spec.command, spec.args, log, { ...env, ...spec.env }, root),
+    });
+};
 
 const laneEnvFor = (base: Env, lane: LaneSpec): Env => ({
     ...base,
@@ -276,6 +245,19 @@ async function tool(env: Env, what: string, args: readonly string[]): Promise<st
     }
 
     return outcome.stdout;
+}
+
+/**
+ * One selector row, `flow|reason`, as a line a person reads: `flow (reason)`. Only the first `|` separates; a reason
+ * may carry another. A row with no reason is the flow alone.
+ *
+ * @param row - A `needs-sandbox` or `prerequisite-not-run` row from the selector.
+ * @returns The row as `flow (reason)`.
+ */
+function rowNote(row: string): string {
+    const bar = row.indexOf('|');
+
+    return bar === -1 ? row : `${row.slice(0, bar)} (${row.slice(bar + 1)})`;
 }
 
 /** What the runner selects for this platform's lanes, after its platform and local filters. */
@@ -298,7 +280,8 @@ async function selectFlows(base: Env, platform: LanePlatform, selector: string) 
         flows: values('flow'),
         owed: values('needs-sandbox').map((row) => row.split('|')[0] ?? ''),
         notes: [
-            ...values('needs-sandbox').map((row) => `not run locally: needs sandbox - ${row.replace('|', ' (')})`),
+            ...values('needs-sandbox').map((row) => `not run locally: needs sandbox - ${rowNote(row)}`),
+            ...values('prerequisite-not-run').map((row) => `prerequisite not run locally: ${rowNote(row)}`),
             ...values('excluded').map((flow) => `excluded on ${platform}: ${flow}`),
         ],
     };
@@ -387,7 +370,7 @@ async function startServices(base: Env, settings: LocalSettings) {
                 return `its queue ${spec.queueUrl} is not in LocalStack (${error instanceof Error ? error.name : String(error)})`;
             }
         },
-        start: (spec) => startService(spec, base, root),
+        start: (spec) => startServiceFor(spec, base, root),
         resetPool: async (lane) => {
             await tool(laneEnvFor(base, lane), `the pool reset of lane ${lane.platform}-${lane.index}`, [
                 'packages/tools/e2e-seed/src/resetPool.ts',

@@ -11,7 +11,7 @@
  * jsdom has, so the test records the observer and reports a layout through it (`BottomChromeFrame.native.test.tsx`'s
  * method). The observer stub is installed before any import, because react-native-web creates its one observer lazily.
  */
-import { resizeObserver as observer } from '../../testing/resizeObserver.js';
+import { reportResize, resizeObserver as observer } from '../../testing/resizeObserver.js';
 import { act, cleanup, screen } from '@testing-library/react';
 import { render } from '../../testing/tamaguiTesting.native.js';
 import type { FC } from 'react';
@@ -53,10 +53,7 @@ async function layOut(place: (node: Element) => { readonly top: number; readonly
     }
 
     await act(async () => {
-        observer.callback?.(
-            nodes.map((target) => ({ target }) as unknown as ResizeObserverEntry),
-            {} as ResizeObserver,
-        );
+        reportResize(nodes);
         // react-native-web measures on the next task.
         await new Promise((resolve) => setTimeout(resolve, 0));
     });

@@ -4,34 +4,35 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { oneIn } from '../__fixtures__/oneIn.js';
 import { MIN_TIMER_MS } from '../timer.js';
-import { durationParts, elapsedParts, offerSecondsOf, readDuration } from '../duration.js';
+import { durationParts, elapsedParts, offerSecondsOf, readDuration, type HmsParts } from '../duration.js';
 
 describe('readDuration', () => {
     it.each([
-        ['Roast for 1 h 30', 5_400],
-        ['Roast for 1 h 30 min', 5_400],
-        ['Rest for 1 hour 5 minutes', 3_900],
-        ['Rest for 1 hour and 5 minutes', 3_900],
-        ['Rest 1 hr, 5 mins', 3_900],
-        ['Stir for 30 sec', 30],
-        ['Stir for 30 seconds', 30],
-        ['Stir for 1 second', 1],
-        ['Bake 1½ hours', 5_400],
-        ['Bake 1.5 hours', 5_400],
-        ['Bake 1 ½ hours', 5_400],
-        ['Bake ½ hour', 1_800],
-        ['Bake for 2 hours', 7_200],
-        ['A 10-minute rest', 600],
-        ['Chill for 45 min.', 2_700],
-        ['Chill for 45 MIN', 2_700],
-        ['Bake 1/2 hour', 1_800],
-        ['Bake 1/4 hour', 900],
-        ['Bake 1 1/2 hours', 5_400],
-        ['Bake 2 1/4 hours', 8_100],
-        ['Boil 10 minutes 30', 600],
-    ])('%s gives one duration of %i s', (line, seconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+        ['Roast for 1 h 30', '1 h 30', 5_400],
+        ['Roast for 1 h 30 min', '1 h 30 min', 5_400],
+        ['Rest for 1 hour 5 minutes', '1 hour 5 minutes', 3_900],
+        ['Rest for 1 hour and 5 minutes', '1 hour and 5 minutes', 3_900],
+        ['Rest 1 hr, 5 mins', '1 hr, 5 mins', 3_900],
+        ['Stir for 30 sec', '30 sec', 30],
+        ['Stir for 30 seconds', '30 seconds', 30],
+        ['Stir for 1 second', '1 second', 1],
+        ['Bake 1½ hours', '1½ hours', 5_400],
+        ['Bake 1.5 hours', '1.5 hours', 5_400],
+        ['Bake 1 ½ hours', '1 ½ hours', 5_400],
+        ['Bake ½ hour', '½ hour', 1_800],
+        ['Bake for 2 hours', '2 hours', 7_200],
+        ['A 10-minute rest', '10-minute', 600],
+        ['Chill for 45 min.', '45 min', 2_700],
+        ['Chill for 45 MIN', '45 MIN', 2_700],
+        ['Bake 1/2 hour', '1/2 hour', 1_800],
+        ['Bake 1/4 hour', '1/4 hour', 900],
+        ['Bake 1 1/2 hours', '1 1/2 hours', 5_400],
+        ['Bake 2 1/4 hours', '2 1/4 hours', 8_100],
+        ['Boil 10 minutes 30', '10 minutes 30', 600],
+    ])('%s gives one duration of %i s', (line, text, seconds) => {
+        expect(readDuration(line)).toEqual(oneIn(line, text, seconds));
     });
 
     it.each(['bake 10 minutes then rest 5 minutes', 'Boil for 10 minutes, then simmer for 20 minutes'])(
@@ -53,9 +54,9 @@ describe('readDuration', () => {
     });
 
     it('does not read a bare number after an hour as minutes when it is something else', () => {
-        expect(readDuration('Roast 1 hour 350 degrees')).toEqual({ kind: 'one', seconds: 3_600 });
-        expect(readDuration('Roast 1 hour 30 degrees')).toEqual({ kind: 'one', seconds: 3_600 });
-        expect(readDuration('Roast 1 hour 30%')).toEqual({ kind: 'one', seconds: 3_600 });
+        expect(readDuration('Roast 1 hour 350 degrees')).toEqual(oneIn('Roast 1 hour 350 degrees', '1 hour', 3_600));
+        expect(readDuration('Roast 1 hour 30 degrees')).toEqual(oneIn('Roast 1 hour 30 degrees', '1 hour', 3_600));
+        expect(readDuration('Roast 1 hour 30%')).toEqual(oneIn('Roast 1 hour 30%', '1 hour', 3_600));
     });
 });
 
@@ -74,36 +75,94 @@ describe('readDuration: a time that is a rate per weight or per piece is no wait
     });
 
     it.each([
-        ['Bake 20 minutes. Serve per person.', 1_200],
-        ['Bake 20 minutes, then serve', 1_200],
-        ['Bake 20 minutes and a pound of potatoes', 1_200],
-        ['Bake 20 minutes perfectly', 1_200],
-        ['Bake 20 minutes to a crisp', 1_200],
-        ['Roast per pound: 20 minutes', 1_200],
-    ])('%s still gives %i s', (line, seconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+        ['Bake 20 minutes. Serve per person.', '20 minutes', 1_200],
+        ['Bake 20 minutes, then serve', '20 minutes', 1_200],
+        ['Bake 20 minutes and a pound of potatoes', '20 minutes', 1_200],
+        ['Bake 20 minutes perfectly', '20 minutes', 1_200],
+        ['Bake 20 minutes to a crisp', '20 minutes', 1_200],
+        ['Roast per pound: 20 minutes', '20 minutes', 1_200],
+    ])('%s still gives %i s', (line, text, seconds) => {
+        expect(readDuration(line)).toEqual(oneIn(line, text, seconds));
+    });
+});
+
+describe('readDuration: a repeat rate offers the time, because the time is the real wait for each repeat (P56)', () => {
+    it.each([
+        ['Fry 3 minutes per side', '3 minutes', 180],
+        ['Fry 3 minutes per side.', '3 minutes', 180],
+        ['Fry 3 minutes each side', '3 minutes', 180],
+        ['Bake 12 minutes per batch', '12 minutes', 720],
+        ['Bake 12 minutes each batch.', '12 minutes', 720],
+        ['Fry 3 MINUTES PER SIDE', '3 MINUTES', 180],
+        ['Fry 2 MINUTES PER SIDE', '2 MINUTES', 120],
+        ['Fry 3 minutes per   side', '3 minutes', 180],
+        ['Fry 3 minutes per side of the steak', '3 minutes', 180],
+        ['Fry 3 minutes per-side', '3 minutes', 180],
+        ['Fry 3 minutes each-side.', '3 minutes', 180],
+        ['Bake 12 minutes per-batch', '12 minutes', 720],
+        ['Bake 12 minutes each-batch', '12 minutes', 720],
+    ])('%s gives %i s, marked as a time that repeats', (line, text, seconds) => {
+        expect(readDuration(line)).toStrictEqual({ ...oneIn(line, text, seconds), perRepeat: true });
+        expect(offerSecondsOf({ line })).toBe(seconds);
+    });
+
+    it('keeps the high end of a range and marks it too', () => {
+        expect(readDuration('Fry 3 to 4 minutes per side')).toStrictEqual({
+            ...oneIn('Fry 3 to 4 minutes per side', '3 to 4 minutes', 180, 240),
+            perRepeat: true,
+        });
+    });
+
+    it('marks no other reading: a plain time and a time before the repeat words carry no mark', () => {
+        expect(readDuration('Bake 20 minutes, then fry per side')).toStrictEqual(
+            oneIn('Bake 20 minutes, then fry per side', '20 minutes', 1_200),
+        );
+        expect(readDuration('Fry per side 3 minutes')).toStrictEqual(oneIn('Fry per side 3 minutes', '3 minutes', 180));
+    });
+
+    it.each([
+        'Microwave 1 minute per potato',
+        'Rest 10 minutes per pound',
+        'Roast 20 minutes to the pound',
+        'Bake 20 minutes to the boil',
+        'Fry 3 minutes per sidecar',
+        'Bake 12 minutes per batches',
+        'Fry 3 minutes per batchwork',
+        'Fry 3 minutes per',
+        'Fry 3 minutes per other side',
+        'Rest the steak 10 minutes to the side',
+        'Fry 3 minutes per-sidecar',
+        'Microwave 1 minute per-potato',
+        'Roast 20 minutes to-the-pound',
+        'Roast 20 minutes per pound per side',
+    ])('%s still gives none: only the listed repeat words offer the time', (line) => {
+        expect(readDuration(line)).toEqual({ kind: 'none' });
+    });
+
+    it('still reads many when a repeat rate sits beside another time', () => {
+        expect(readDuration('Sear 1 minute per side, 2 minutes in all.')).toEqual({ kind: 'many' });
     });
 });
 
 describe('readDuration rounds a fractional length to whole seconds, half up', () => {
     it.each([
-        ['Whisk 1/8 minute', 8],
-        ['Whisk 3/8 minute', 23],
-        ['Whisk 1.5 minutes', 90],
-    ])('%s gives %i s', (line, seconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+        ['Whisk 1/8 minute', '1/8 minute', 8],
+        ['Whisk 3/8 minute', '3/8 minute', 23],
+        ['Whisk 1.5 minutes', '1.5 minutes', 90],
+    ])('%s gives %i s', (line, text, seconds) => {
+        expect(readDuration(line)).toEqual(oneIn(line, text, seconds));
     });
 });
 
 describe('readDuration reads the number a cook wrote, or nothing', () => {
     it.each([
-        ['Bake 1-1/2 hours', 5_400],
-        ['Bake 1 and 1/2 hours', 5_400],
-        ['Bake 2-1/2 hours', 9_000],
-        ['Bake .5 hours', 1_800],
-        ['Bake 1,5 hours', 5_400],
-    ])('%s gives %i s', (line, seconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds });
+        ['Bake 1-1/2 hours', '1-1/2 hours', 5_400],
+        ['Bake 1 and 1/2 hours', '1 and 1/2 hours', 5_400],
+        ['Bake 2-1/2 hours', '2-1/2 hours', 9_000],
+        ['Bake .5 hours', '.5 hours', 1_800],
+        ['Bake 1,5 hours', '1,5 hours', 5_400],
+    ])('%s gives %i s', (line, text, seconds) => {
+        expect(readDuration(line)).toEqual(oneIn(line, text, seconds));
     });
 
     it.each(['Bake 1/0 hours', 'Bake 0 minutes', 'Bake 1 hour 1/0 minutes'])(
@@ -145,7 +204,9 @@ describe('readDuration reads the number a cook wrote, or nothing', () => {
     });
 
     it('does not over-reach: a unit like cm next to a span is not time', () => {
-        expect(readDuration('Cut into 2 cm pieces, then bake 5 minutes')).toEqual({ kind: 'one', seconds: 300 });
+        const line = 'Cut into 2 cm pieces, then bake 5 minutes';
+
+        expect(readDuration(line)).toEqual(oneIn(line, '5 minutes', 300));
     });
 
     it('reads two amounts of the same unit as many', () => {
@@ -181,7 +242,9 @@ describe('readDuration finishes fast on hostile text (public recipes run on othe
 
         expect(line.length).toBeGreaterThan(2_000);
         expect(readDuration(line)).toEqual({ kind: 'none' });
-        expect(readDuration(`${'x'.repeat(1_900)} 10 minutes`)).toEqual({ kind: 'one', seconds: 600 });
+        expect(readDuration(`${'x'.repeat(1_900)} 10 minutes`)).toEqual(
+            oneIn(`${'x'.repeat(1_900)} 10 minutes`, '10 minutes', 600),
+        );
     });
 });
 
@@ -218,6 +281,13 @@ describe('offerSecondsOf', () => {
 });
 
 describe('durationParts', () => {
+    // S3a.U3 C1 item 7: the type is HmsParts, because `@commise/ui` already exports a different `DurationParts`.
+    it('gives the three parts as an HmsParts', () => {
+        const parts: HmsParts = durationParts(3_905);
+
+        expect(parts).toEqual({ hours: 1, minutes: 5, seconds: 5 });
+    });
+
     it.each([
         [5_400, { hours: 1, minutes: 30, seconds: 0 }],
         [30, { hours: 0, minutes: 0, seconds: 30 }],
@@ -249,20 +319,20 @@ describe('elapsedParts: whole minutes since the end, floored and never rounded',
 
 describe('readDuration gives the high end of a digit range', () => {
     it.each([
-        ['Simmer 20 to 25 minutes', 1_200, 1_500],
-        ['Simmer 20-25 min', 1_200, 1_500],
-        ['Simmer 20–25 minutes', 1_200, 1_500],
-        ['Simmer for 20 or 25 minutes', 1_200, 1_500],
-        ['Bake between 20 and 25 minutes', 1_200, 1_500],
-        ['Bake 20‐25 minutes', 1_200, 1_500],
-        ['Bake 20‑25 minutes', 1_200, 1_500],
-        ['Bake 20‒25 minutes', 1_200, 1_500],
-        ['Bake 20―25 minutes', 1_200, 1_500],
-        ['Bake 20—25 minutes', 1_200, 1_500],
-        ['Bake 1-2 hours', 3_600, 7_200],
-        ['Bake 1 to 1½ hours', 3_600, 5_400],
-    ])('%s gives %i s up to %i s', (line, seconds, highSeconds) => {
-        expect(readDuration(line)).toEqual({ kind: 'one', seconds, highSeconds });
+        ['Simmer 20 to 25 minutes', '20 to 25 minutes', 1_200, 1_500],
+        ['Simmer 20-25 min', '20-25 min', 1_200, 1_500],
+        ['Simmer 20–25 minutes', '20–25 minutes', 1_200, 1_500],
+        ['Simmer for 20 or 25 minutes', '20 or 25 minutes', 1_200, 1_500],
+        ['Bake between 20 and 25 minutes', '20 and 25 minutes', 1_200, 1_500],
+        ['Bake 20‐25 minutes', '20‐25 minutes', 1_200, 1_500],
+        ['Bake 20‑25 minutes', '20‑25 minutes', 1_200, 1_500],
+        ['Bake 20‒25 minutes', '20‒25 minutes', 1_200, 1_500],
+        ['Bake 20―25 minutes', '20―25 minutes', 1_200, 1_500],
+        ['Bake 20—25 minutes', '20—25 minutes', 1_200, 1_500],
+        ['Bake 1-2 hours', '1-2 hours', 3_600, 7_200],
+        ['Bake 1 to 1½ hours', '1 to 1½ hours', 3_600, 5_400],
+    ])('%s gives %i s up to %i s', (line, text, seconds, highSeconds) => {
+        expect(readDuration(line)).toEqual(oneIn(line, text, seconds, highSeconds));
     });
 
     it.each(['Rest for 1 hour 5 minutes', 'Roast for 1 h 30', 'Bake 1½ hours', 'Stir for 30 sec'])(
@@ -273,10 +343,10 @@ describe('readDuration gives the high end of a digit range', () => {
     );
 
     it.each([
-        ['Bake 25 to 20 minutes', 1_500],
-        ['Bake 20 to 20 minutes', 1_200],
-    ])('%s reads its low end alone: a reversed or equal range is never swapped', (line, seconds) => {
-        expect(readDuration(line)).toStrictEqual({ kind: 'one', seconds });
+        ['Bake 25 to 20 minutes', '25 to 20 minutes', 1_500],
+        ['Bake 20 to 20 minutes', '20 to 20 minutes', 1_200],
+    ])('%s reads its low end alone: a reversed or equal range is never swapped', (line, text, seconds) => {
+        expect(readDuration(line)).toStrictEqual(oneIn(line, text, seconds));
     });
 
     it('carries no high end on a range joined to another amount', () => {

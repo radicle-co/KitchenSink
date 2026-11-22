@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 30,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 104,
+        "platform-singleton": 109,
         "ref-api": 22,
         "unclassified-layer": 96,
-        "undocumented-prop": 229
+        "undocumented-prop": 234
     },
     "findings": [
         {
@@ -323,6 +323,72 @@
             "sourcePath": "packages/apps/commise/ui/src/dialogActions/DialogActions.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/dialogActions/EqualShare",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/EqualShare.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/dialogActions/EqualShare",
+            "sourcePath": "packages/apps/commise/ui/src/dialogActions/EqualShare.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
+            ]
         },
         {
             "rule": "missing-component-doc",
@@ -802,6 +868,92 @@
             ]
         },
         {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/radioList/RadioMark",
+            "sourcePath": "packages/apps/commise/ui/src/radioList/RadioRowContent.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/radioList/RadioMark",
+            "sourcePath": "packages/apps/commise/ui/src/radioList/RadioRowContent.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "checked"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/radioList/RadioRowContent",
+            "sourcePath": "packages/apps/commise/ui/src/radioList/RadioRowContent.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/radioList/RadioRowContent",
+            "sourcePath": "packages/apps/commise/ui/src/radioList/RadioRowContent.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
+            ]
+        },
+        {
             "rule": "unclassified-layer",
             "severity": "gap",
             "component": "designSystem/recipeCover/RecipeCover",
@@ -1019,6 +1171,16 @@
                 "onClose",
                 "title",
                 "toolbar"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/snackbar/SnackbarOutlet",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
             ]
         },
         {
@@ -2499,8 +2661,8 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeDetailBody.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice",
-                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityNotice"
+                "web: back canStartCooking dataSourcesHref descriptionExpanded editHref headerActions heroControls ingredientsEndRef marks nutritionExpanded onEditSection onReviewLine onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityAnnouncement visibilityNotice",
+                "native: back canStartCooking dataSourcesHref dataSourcesReturnFocusSignal descriptionExpanded editHref headerActions heroControls layout marks nutritionExpanded onEditSection onIngredientsLayout onOpenDataSources onReviewLine onScroll onServingsChange onStartCooking onToggleDescription onToggleNutrition onViewVersions pinnedIngredients rating recipe refreshNotice screenOn scrollFooter servings unreachableRetry versionsHref viewerIsOwner visibilityAnnouncement visibilityNotice"
             ]
         },
         {
@@ -2600,6 +2762,26 @@
             "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeSourceLine.tsx",
             "message": "the component declaration has no JSDoc summary",
             "evidence": []
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/RecipeVisibilityNotice",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "notice"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresRecipes/detail/RecipeVisibilityNotice",
+            "sourcePath": "packages/apps/commise/features/recipes/src/detail/RecipeVisibilityNotice.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "notice"
+            ]
         },
         {
             "rule": "platform-singleton",
@@ -5450,6 +5632,16 @@
             "evidence": [
                 "web: exit ingredients place",
                 "native: exit ingredients narrow place"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/timer/TimerProvider",
+            "sourcePath": "packages/apps/commise/features/cooking/src/timer/TimerProvider.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

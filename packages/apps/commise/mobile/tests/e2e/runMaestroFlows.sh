@@ -285,6 +285,7 @@ recipes:recipes/sourceFromPaste
 recipes:recipes/sourceStatement
 recipes:recipes/sourceStatementPaidSite
 recipes:recipes/sourceStatementFromPerson
+recipes:recipes/makePublicRefusal
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups
@@ -392,6 +393,47 @@ maestro_local_flows() {
 
         return 2
     fi
+
+    printf '%s' "$out"
+}
+
+# maestro_unnamed_spine_rows <local verdict> <selection reason>
+#
+# The local verdict, with the spine's `needs-sandbox=` row turned into `prerequisite-not-run=` when the selector
+# narrowed the run and did not name the spine. A narrowed run always carries the spine (it signs every shard in), so a
+# spine the local stack cannot serve is a prerequisite that did not run, NOT a flow the run chose and now owes.
+# Reporting it as owed misled the reader of a one-flow run (#393). A full run, or a run that names the spine, keeps its
+# `needs-sandbox=` row. Which flows are the spine comes from the plan's `spine:` labels, never from a flow name here.
+# Pure.
+maestro_unnamed_spine_rows() {
+    local verdict="$1" reason="$2" named spine row flow out=''
+
+    case "$reason" in
+        flows:*) ;;
+        *)
+            printf '%s\n' "$verdict"
+
+            return 0
+            ;;
+    esac
+
+    named="${reason#flows:}"
+    named=" ${named% (plus the spine)} "
+    spine=$(printf '%s\n' $FLOW_PLAN | sed -n 's/^spine://p')
+
+    while IFS= read -r row; do
+        flow="${row#needs-sandbox=}"
+        flow="${flow%%|*}"
+
+        if [ "${row#needs-sandbox=}" != "$row" ] && printf '%s\n' "$spine" | grep -qxF -- "$flow"; then
+            case "$named" in
+                *" ${flow} "*) ;;
+                *) row="prerequisite-not-run=${row#needs-sandbox=}" ;;
+            esac
+        fi
+
+        out="${out}${row}"$'\n'
+    done <<<"$verdict"
 
     printf '%s' "$out"
 }
@@ -896,7 +938,8 @@ maestro_platform_flows() {
 # for this shard's flows, `skipped=` for flows the selector did not choose, `excluded=` for flows the platform
 # cannot run, `deferred=` for flows another shard runs, `local-only=<flow>|<reason>` for flows that need the local stack (every
 # run but `MAESTRO_LOCAL=1`), and — under `MAESTRO_LOCAL=1` only — `needs-sandbox=<flow>|<reason>` for flows the local stack
-# cannot serve. Run mode consumes exactly this, and the guards
+# cannot serve, and `prerequisite-not-run=<flow>|<reason>` for the spine a narrowed run carries without naming it. Run
+# mode consumes exactly this, and the guards
 # execute it, so the composition CI runs is the composition that is tested.
 #
 # Exit 2 on any stage's refusal, with that stage's reason on stderr and NOTHING on stdout — a partial verdict
@@ -926,11 +969,13 @@ maestro_shard_selection() {
     # ⛔ A LOCAL run (`MAESTRO_LOCAL=1`, the local lane orchestrator) drops the flows the local stack cannot serve BEFORE
     # packing, so every lane is packed over what it can run and none is left holding only flows it would refuse. ONLY then:
     # the deployed composition never reads the sandbox-only table (`maestroSandboxOnlyFlows.test.ts`).
-    local local_verdict=''
+    local local_verdict='' selection_reason=''
     if [ "${MAESTRO_LOCAL:-}" = '1' ]; then
         # shellcheck disable=SC2086 # `kept` is a space-separated list of flow names
         local_verdict=$(maestro_local_flows $kept) || return 2
         kept=$(printf '%s\n' "$local_verdict" | sed -n 's/^flow=//p' | tr '\n' ' ')
+        selection_reason=$(printf '%s\n' "$verdict" | sed -n 's/^reason=//p')
+        local_verdict=$(maestro_unnamed_spine_rows "$local_verdict" "$selection_reason")
     fi
 
     # ⛔ A DEPLOYED run (everything but `MAESTRO_LOCAL=1`) drops the flows that need the local stack BEFORE packing, for the
@@ -950,7 +995,7 @@ maestro_shard_selection() {
     printf '%s\n' "$sharded" | grep -E '^(flow|deferred)=' || true
     printf '%s\n' "$verdict" | grep '^skipped=' || true
     printf '%s\n' "$filtered" | grep '^excluded=' || true
-    printf '%s\n' "$local_verdict" | grep '^needs-sandbox=' || true
+    printf '%s\n' "$local_verdict" | grep -E '^(needs-sandbox|prerequisite-not-run)=' || true
     printf '%s\n' "$deployed_verdict" | grep '^local-only=' || true
 }
 
@@ -1928,6 +1973,11 @@ maestro_run_flows() {
     # A local lane names what the local stack could not serve, so a green lane never reads as covering it.
     # shellcheck disable=SC2046 # one flow name per word
     maestro_local_summary $(printf '%s\n' "$verdict" | sed -n 's/^needs-sandbox=\([^|]*\)|.*/\1/p')
+    # The spine every narrowed run carries, when the local stack cannot serve it: a prerequisite, not an owed flow.
+    while IFS= read -r row; do
+        [ -n "$row" ] || continue
+        echo "prerequisite not run locally: ${row%%|*} (${row#*|})"
+    done < <(printf '%s\n' "$verdict" | sed -n 's/^prerequisite-not-run=//p')
 
     # Unquoted on purpose: `flows` is a space-separated list.
     # shellcheck disable=SC2086

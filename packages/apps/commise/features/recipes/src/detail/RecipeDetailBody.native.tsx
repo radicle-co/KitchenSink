@@ -25,7 +25,6 @@
  */
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
-import { LiveRegion } from '@commise/ui/live-region';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { useScreenReaderFocusOnMount, useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';
@@ -59,6 +58,7 @@ import { pinnedBarFactsOf } from './pinnedBarFacts.js';
 import { PinnedIngredientsBar } from './PinnedIngredientsBar.native.js';
 import { RecipeHero } from './RecipeHero.native.js';
 import { RecipeSourceLine } from './RecipeSourceLine.native.js';
+import { RecipeVisibilityNotice } from './RecipeVisibilityNotice.native.js';
 import { ReviewLineButton } from './ReviewLineButton.native.js';
 import { ServingScaleControl } from './ServingScaleControl.js';
 import { StartCookingRow } from './StartCookingRow.js';
@@ -104,6 +104,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
     onViewVersions,
     viewerIsOwner,
     visibilityNotice,
+    visibilityAnnouncement,
     marks,
     screenOn,
     descriptionExpanded,
@@ -206,12 +207,8 @@ export const RecipeDetailBody: FC<RecipeDetailBodyNativeProps> = ({
                 status={detailStatusLine(recipe, owner, { detail, card })}
                 onViewVersions={onViewVersions}
             />
-            {/* The owner's visibility notice (§6.4): assertive, mounted empty and filled one render later by the host. */}
-            {owner && (
-                <LiveRegion politeness="assertive" typeRole="meta" tone="dangerText">
-                    {visibilityNotice ?? ''}
-                </LiveRegion>
-            )}
+            {/* The owner's visibility notice (§6.4, board P6). */}
+            <RecipeVisibilityNotice owner={owner} notice={visibilityNotice} announcement={visibilityAnnouncement} />
             <RecipeSourceLine
                 {...(recipe.sourceUrl === undefined ? {} : { sourceUrl: recipe.sourceUrl })}
                 {...(recipe.sourceAttribution === undefined ? {} : { sourceAttribution: recipe.sourceAttribution })}

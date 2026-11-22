@@ -114,6 +114,26 @@ export interface RecipeVisibilityToggleMessages {
     readonly privateRefused: Readonly<Record<'final' | 'slots', string>>;
 }
 
+/**
+ * One line per reason a recipe cannot be public (board P6, `publicRefusalOf`). One key per reason, named by the recipe state
+ * model's refusal (the recipe state model under `docs/architecture`): the recipe page's slot and the editor's Public card say the
+ * same line. A line states what is true and stops: no public path, no invitation to change the answer (brainstorm R5).
+ */
+export interface PublicRefusalMessages {
+    /** "From another person" (`fromPerson`). */
+    readonly fromPerson: string;
+    /** A source or statement this app cannot word (`unrecognised`): a newer server, or an older app. */
+    readonly unrecognised: string;
+    /** A copy of a web page (`policy.webPage`). */
+    readonly policyWebPage: string;
+    /** A cookbook or magazine (`policy.book`). */
+    readonly policyBook: string;
+    /** A paid website (`policy.paidSite`). */
+    readonly policyPaidSite: string;
+    /** A source the server holds on record, though the draft may have taken it off (`sourceConflict`). */
+    readonly sourceConflict: string;
+}
+
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
 export interface RecipeMoreMenuMessages {
     /**
@@ -139,6 +159,8 @@ export interface RecipeActionMessages {
     readonly publicConfirm: PublicConfirmMessages;
     /** Copy for the visibility toggle. */
     readonly visibility: RecipeVisibilityToggleMessages;
+    /** Why a recipe stays private, one line per reason: the page's slot and the editor's Public card. */
+    readonly publicRefusal: PublicRefusalMessages;
     /** Copy for the "More" overflow menu. */
     readonly moreMenu: RecipeMoreMenuMessages;
     /** Copy for saving a copy of another cook's recipe from a Discover card (build spec §4.1). */
@@ -269,6 +291,14 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
                 // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
                 slots: 'Not available. All {total} of your private slots are in use.',
             },
+        },
+        publicRefusal: {
+            fromPerson: 'This recipe stays private because it’s from another person.',
+            unrecognised: 'This recipe stays private because of its source.',
+            policyWebPage: 'This recipe stays private because it’s from a web page.',
+            policyBook: 'This recipe stays private because it’s from a cookbook or magazine.',
+            policyPaidSite: 'This recipe stays private because it’s from a paid website.',
+            sourceConflict: 'This recipe stays private because it was saved with a source.',
         },
         moreMenu: {
             triggerFor: 'More actions for {title}',

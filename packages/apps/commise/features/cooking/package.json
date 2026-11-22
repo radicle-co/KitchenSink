@@ -24,9 +24,13 @@
         "@commise/ui": "*",
         "@kitchensink/cooking-core": "*",
         "@kitchensink/recipe-core": "*",
+        "dequal": "^2.0.3",
+        "uuid": "^14.0.3",
         "zod": "^4.6.7"
     },
     "peerDependencies": {
+        "@tanstack/react-query": "^5.62.0",
+        "expo-crypto": ">=57.0.0 <58.0.0",
         "react": "^19.2.0",
         "react-native": ">=0.81.0",
         "tamagui": "^3.1.9"
@@ -42,6 +46,7 @@
         "@kitchensink/prettier": "*",
         "@kitchensink/typescript": "*",
         "@kitchensink/vitest": "*",
+        "@tanstack/react-query": "^5.62.0",
         "@testing-library/react": "^16.3.0",
         "@testing-library/user-event": "^14.0.0",
         "@types/react": "^19.0.0",

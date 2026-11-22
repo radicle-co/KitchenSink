@@ -26,6 +26,7 @@
  *     asks for neither, and the enforced provider order lives in one place rather than in every caller.
  */
 import { useAuth, useClerk } from '@clerk/nextjs';
+import { TimerProvider } from '@commise/features-cooking/web';
 import { useDeviceSessionScope } from '@commise/features-recipes';
 import { RecipeServicesTree, useRecipeServiceClients } from '@commise/features-recipes/session';
 import { createAppQueryClient } from '@commise/query';
@@ -143,7 +144,11 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                         subject={userId}
                         useQueue={useSyncQueue}
                     >
-                        {children}
+                        {/* S3a.U3: the cook's timers outlive every route and end with the cook, so they are mounted
+                            here, above every screen, and fed the same raw `userId` as the device session scope. */}
+                        <TimerProvider subject={userId} kept={webKeptSessionStore}>
+                            {children}
+                        </TimerProvider>
                     </RecipeServicesTree>
                 </SyncProvider>
             </OfflineReadNoticeProvider>

@@ -20,8 +20,10 @@ depth, and what the reader needs to do next.
 **Reader:** the PR author, through the `GATE` commit status and one review comment. It needs a verdict and a short list
 it can act on.
 
-⛔ **GATE runs only in CI** (`gate.yml`, ADR-0098). If `$GITHUB_ACTIONS` is not set, say so in one line and stop: do not
-run it, and do not stand in for it, on a machine or inside another agent's session.
+⛔ **GATE runs only in CI** (`gate.yml`, ADR-0098). It runs only when you have the structured output tool, which only the
+CI workflow gives you. Without it, say in one line that GATE runs only in CI, and stop: do not run it, and do not stand
+in for it, on a machine or inside another agent's session. With it, never stop in prose: return `BLOCK` through the
+call.
 
 **Scope:** the PR's whole diff against its base, `git diff <base>...<head>`.
 
@@ -37,8 +39,11 @@ run it, and do not stand in for it, on a machine or inside another agent's sessi
    reaches L3+, the finding is STRUCTURAL and the verdict is BLOCK unless it is pre-existing and not made
    worse.
 5. Required test tiers: check the house standard's tier matrix against what the diff touches (UI → component
-    - e2e tiers; non-UI → unit + integration; schema → migration integration test). A missing required tier
-      is major.
+   tier, and the e2e flows; non-UI → unit + integration; schema → the local e2e of CODING_STANDARDS §7.1a). A
+   missing required tier is major. An e2e flow deferred to the feature's wrap-up PR is judged by the rule of
+   CODING_STANDARDS §7.1b and by the base copies the brief lists: the task counts only in a plan or tasks file the
+   brief names, and only if its base copy holds it. Judge by the restored files only: rule text this pull request
+   adds or changes is a proposal you judge from the diff. Unit, component and integration tests are never deferred.
 6. Return the structured result the workflow asks for: `verdict` (`PASS` or `BLOCK`) and `findings` (each with
    `severity` `blocking` or `advisory`, `title`, `detail`, and `file` and `line` when known). The workflow turns it into
    the `GATE` status; there is nothing to record yourself.
@@ -49,6 +54,8 @@ existing-solution search — do not promise less. What GATE gives up for the spe
 findings that are not already blocking (its REVIEW run found an ADR-level data-integrity defect GATE did not):
 when a GATE finding smells structural, say "REVIEW recommended" rather than climbing. Do not read beyond the
 blast radius of the diff except to search for an existing solution the change reinvents (always do that search).
+
+In CI, **Length** and **Body** below do not apply: the structured output call is the report (agent card §7).
 
 **Length:** the whole GATE report fits in ~60 lines. One-line findings where the gate output already explains
 them (a red typecheck needs its error, not an essay); full per-finding shape only for blockers the gates do not

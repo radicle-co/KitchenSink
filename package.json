@@ -58,7 +58,7 @@
         "format:docs": "npm run -s scope -- files docs prettier --write",
         "format:check:docs": "npm run -s scope -- files docs prettier --check",
         "format:check:python": "ruff format --check packages",
-        "prepare": "husky || true",
+        "prepare": "husky || true; node scripts/installMergeDrivers.mjs",
         "local:up": "npm run up --workspace=@kitchensink/local-sandbox",
         "local:down": "npm run down --workspace=@kitchensink/local-sandbox",
         "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox",

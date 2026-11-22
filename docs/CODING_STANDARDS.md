@@ -609,7 +609,7 @@ export function registerIngredient(name: string, _metadata: unknown): void {
 
 ### 7.1 Test Mandate — ABSOLUTE, NON-NEGOTIABLE (every phase, every feature, every contributor)
 
-**This is the single highest-priority rule in this document. It is NOT a guideline, NOT a "best effort", and NOT subject to judgment calls.** Tests are written **BEFORE** the code they cover — TDD red → green — with **ZERO EXCEPTIONS**. Code that lacks the tests its category requires below is, by definition, **INCOMPLETE**: it **MUST NOT** be merged, **MUST NOT** be marked "done", and **MUST NOT** be called shippable — regardless of deadline, scope, or author (human **or** AI agent). The following are all **VIOLATIONS**, not acceptable trade-offs: "I'll add tests later", "the happy path is enough", "it's just a small change", "the test can't run in my environment so I skipped it", and thinning, deferring, downgrading, or omitting **any** required test tier.
+**This is the single highest-priority rule in this document. It is NOT a guideline, NOT a "best effort", and NOT subject to judgment calls.** Tests are written **BEFORE** the code they cover — TDD red → green — with **one exception, the end-to-end wrap-up in §7.1b**. Code that lacks the tests its category requires below is, by definition, **INCOMPLETE**: it **MUST NOT** be merged, **MUST NOT** be marked "done", and **MUST NOT** be called shippable — regardless of deadline, scope, or author (human **or** AI agent). The following are all **VIOLATIONS**, not acceptable trade-offs: "I'll add tests later", "the happy path is enough", "it's just a small change", "the test can't run in my environment so I skipped it", and thinning, deferring, downgrading, or omitting **any** required test tier. The one allowed deferral is the end-to-end wrap-up PR in [Cheapest tier first](#71b-cheapest-tier-first-and-the-end-to-end-wrap-up).
 
 This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this repository — permanently.
 
@@ -619,14 +619,14 @@ This applies to **EVERY** phase, **EVERY** feature, and **EVERY** change to this
 | **Non-UI code** (services, DALs, domain logic, controllers, DTOs, workers, libraries, utilities) | **unit tests AND integration tests — BOTH, always.** ⛔ Integration **MOCKS** its dependencies (§7.1a) — a unit test alone is a **VIOLATION**, and so is an "integration" test that opens a real connection. **PLUS a LOCAL-target e2e test wherever the real dependency is what is under test** — a constraint, an index, an FK cascade, a migration, a concurrency race, a LocalStack side effect. Those live in `tests/e2e/` and run on `npm run test:e2e`.                                                                                                                                                                                                                                                                                                                                                                                    |
 | **Services** (deployable HTTP APIs)                                                              | everything above **PLUS DEPLOYED-target end-to-end tests** that drive the service at a **real deployed origin** — this PR's sandbox or prod ([§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target), ADR-0032) — **AND k6 load/performance tests** against those same deployed origins (assert the service's latency/throughput SLOs). ⚠️ The **LOCAL-target e2e** tier is what exercises the real dependency and carries the fixture-seeded and forced-error paths a deployed suite structurally cannot reach; it is required in its own right, it **never skips**, and it is **not** discharged by the deployed tier nor it by the local one. ⚠️ The **DEPLOYED** e2e and k6 tiers **SKIP** when the PR has no live sandbox — the test is still **WRITTEN**, and a skip is never reported as a pass. |
 
-**Absolute rules — no interpretation, no exceptions:**
+**Absolute rules — no interpretation, one exception (§7.1b):**
 
 - **EVERY UI path/state gets a vitest component test.** Every branch, every state. Not a sample, not the happy path only — every one.
 - **EVERY happy-path / user story gets a Playwright (web) AND a Maestro (mobile) test.**
 - **EVERY non-UI unit gets BOTH a unit test AND an integration test.** Never one without the other. ⛔ And wherever the **real** dependency is the thing under test, a LOCAL-target e2e test too — a mocked integration test structurally cannot observe a constraint, an index, a cascade or a migration.
 - **EVERY service additionally gets DEPLOYED end-to-end AND k6 tests**, on top of unit + integration + local e2e, and both target a **real deployed origin**. A green unit/integration suite is not evidence that anything is deployed, and neither is a green LOCAL e2e suite, and a green deployed suite is not a licence to thin unit or integration ([§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target)). ⚠️ Those two tiers **skip** on a PR with no live sandbox; the mandate is that the test EXISTS and is wired to the deployed target, not that it runs on every PR.
 - A feature is **NOT DONE** — not "done pending tests", not "done except CI", not "done, tests to follow" — until **every** category it touches has **passing** tests of **every** required kind.
-- This is a **HARD MERGE GATE.** A change that adds or modifies code without its required tests is incomplete by definition and **MUST be rejected in review**.
+- This is a **HARD MERGE GATE.** A change that adds or modifies code without its required tests is incomplete by definition and **MUST be rejected in review**, except for the end-to-end wrap-up deferral that §7.1b allows.
 - **"It can't run in this environment" is NEVER an excuse to omit a test.** A required test is always **written**, and it runs where its tier runs: unit, integration and guards in CI; LOCAL e2e on a developer's machine (owner ruling 2026-10-03, [§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target)); DEPLOYED e2e and k6 against a deployed target. A missing test file is a violation. ⚠️ The deployed e2e and k6 tiers are the one place where "did not run" is a legitimate CI outcome, and only for the ruled reason: there was no deployed target ([§7.1a](#71a-integration-mocks-end-to-end-uses-the-real-thing--and-every-suite-states-its-target) rule 2). That excuses the RUN, never the WRITING, and never the reporting of a skip as a pass.
 - The `>= 70% unit / <= 20% integration / <= 10% E2E` pyramid still holds; **k6 is a separate, additional performance gate**, not part of the pyramid.
 
@@ -766,6 +766,28 @@ rename it or relabel its target so the guard goes quiet.
 Playwright (`tests/e2e/*.spec.ts`) and `.maestro/` keep their folders. CI job **keys** never change (`GITHUB_JOB` is
 folded into the run-scoped Clerk fixture identity by `deriveRunKey`, so renaming a key silently re-keys every
 fixture user).
+
+### 7.1b Cheapest tier first, and the end-to-end wrap-up
+
+This section is the one full statement of the end-to-end timing and deferral rule.
+
+- **Unit tests are always written**, for every change. They are the automatic floor of coverage.
+- **Prove each behaviour at the cheapest tier that can observe it**: unit, then component or integration, then end to
+  end. Do not run an end-to-end suite (Playwright, Maestro, local e2e, deployed e2e) when a component or integration test
+  already proves the behaviour.
+- **During development, write and run an end-to-end test only when no lower tier can prove the behaviour**, for example a
+  migration, a real-dependency constraint, or a native device behaviour that a component test cannot show.
+- **Every other end-to-end flow still has to exist**: Playwright for web, Maestro for mobile, and local and deployed e2e
+  where §7.1 requires them. They prevent regression, so a feature's stories may land their flows together in ONE wrap-up
+  PR at the end of the feature.
+- **A story PR that defers its end-to-end flows names the wrap-up task in its PR body.** GATE does not read the PR body.
+  The deferral counts only when that task already exists on the base branch, in a plan or tasks file at one of
+  `specs/<feature>/plan.md`, `specs/<feature>/tasks.md` or `docs/plans/<name>.md`, and covers this story's flows. A task
+  in any other file never counts. A wrap-up task that this diff adds or changes does not count. The feature is NOT DONE
+  until the wrap-up PR merges and its flows pass.
+- **An end-to-end test that is the only proof (a schema or migration change's local e2e, a real-dependency constraint) is
+  never deferred.**
+- **Unit, component and integration tests are never deferred.** A story PR without them is incomplete.
 
 ### Test File Location
 

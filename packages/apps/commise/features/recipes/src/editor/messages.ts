@@ -253,6 +253,10 @@ export interface EditorMessages {
             readonly bodyWebSource: string;
             /** The same, said when the limit is not known. */
             readonly bodyWebSourceNoCount: string;
+            /** The body for a recipe whose Public is refused for any other reason: no public path in it. `{total}` is the limit. */
+            readonly bodyRefused: string;
+            /** The same, said when the limit is not known. */
+            readonly bodyRefusedNoCount: string;
             /** `{premiumFeatures}` is the list of what Premium adds. */
             readonly upsell: string;
         };
@@ -344,16 +348,6 @@ export interface EditorMessages {
         readonly slotsLoading: string;
         /** Private chosen on a DRAFT: it uses no slot; publishing it does (ADR-0073 section 12). */
         readonly slotsDraft: string;
-        /**
-         * Under the Public card of a book or paid-site recipe, which can never be public (004 FR-014a): the reason, as the
-         * card's accessible description. The same words the import statement gives for the same fact.
-         */
-        readonly publicRefused: string;
-        /**
-         * Under the Public card of a recipe a source holds out of Public (a web copy, and a recorded source after the cook
-         * removes it), and on the recipe page when the server holds it so (ADR-0095): the ONE key for every one of them.
-         */
-        readonly publicHeldBySource: string;
         /** A downgraded cook holds more private recipes than slots (`{count}`, `{total}` are the server's numbers). */
         readonly overLimit: string;
         /** The link under `overLimit`, where paid features are shown: opens the Premium sheet. */
@@ -577,6 +571,10 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
                     'All {total} of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
                 bodyWebSourceNoCount:
                     'All of your private slots are in use. A recipe copied from a web page can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+                bodyRefused:
+                    'All {total} of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
+                bodyRefusedNoCount:
+                    'All of your private slots are in use. This recipe can only be private. Keep it as a draft for now, or free a slot. Nothing is lost.',
                 upsell: 'Pro gives you unlimited private recipes, plus {premiumFeatures}.',
             },
             publishPublic: 'Publish as public',
@@ -645,8 +643,6 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             slotsFull: 'Not available. All {total} of your private slots are in use.',
             slotsLoading: 'Checking your private slots…',
             slotsDraft: 'A private draft uses no slot. Publishing it uses one.',
-            publicRefused: 'Not for this recipe. Its source is a book or a paid site, not a public web page.',
-            publicHeldBySource: 'This recipe was saved with a source, so it stays private.',
             overLimit:
                 'You have {count} private recipes and {total} private slots. They stay private. To make another recipe private, first bring your private recipes under {total}.',
             aboutPremium: 'About Pro',

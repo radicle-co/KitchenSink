@@ -25,6 +25,7 @@
  */
 import { useAuth, useClerk } from '@clerk/expo';
 import { recipeSender } from '@commise/query/recipe-sender';
+import { TimerProvider } from '@commise/features-cooking/mobile';
 import { RecipeServicesTree, useRecipeServiceClients } from '@commise/features-recipes/session';
 import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
@@ -105,7 +106,11 @@ export function RecipeServiceGate({ children }: { readonly children: ReactNode }
                 subject={userId}
                 useQueue={useSyncQueue}
             >
-                {children}
+                {/* S3a.U3: the cook's timers outlive every screen and end with the cook, so they are mounted here,
+                    fed the same raw `userId` as the device session scope. */}
+                <TimerProvider subject={userId} kept={nativeKeptSessionStore}>
+                    {children}
+                </TimerProvider>
             </RecipeServicesTree>
         </SyncProvider>
     );

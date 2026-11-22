@@ -6,11 +6,11 @@
     "coverage": {
         "components": 97,
         "implementations": 154,
-        "props": 1226,
+        "props": 1227,
         "documentedComponents": 97,
         "implementationsWithModuleDoc": 154,
         "implementationsWithComponentDoc": 140,
-        "documentedProps": 1034,
+        "documentedProps": 1035,
         "classifiedComponents": 90,
         "componentsWithPatternTag": 97,
         "crossPlatformComponents": 57
@@ -17377,6 +17377,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Utility classes for the `svg`: the spin animation, and any text colour.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The label this spinner stands beside: it then grows with that label's text, as a glyph does (see `Icon`).",
                             "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
                         }
                     ],

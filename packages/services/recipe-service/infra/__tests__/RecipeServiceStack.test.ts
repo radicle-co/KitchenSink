@@ -1385,47 +1385,63 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
     const ENABLED = { alarmsEnabled: true, alertEmail: 'ops@example.com' } as const;
 
     it('watches Commise/RecipeSource source.corrected on the Stage dimension: Sum over 86400 s, above 10, missing data not breaching', () => {
-        synthTemplate('prod', 'prod', undefined, ENABLED).hasResourceProperties('AWS::CloudWatch::Alarm', {
-            Namespace: SOURCE_EVENT_NAMESPACE,
-            MetricName: SOURCE_CORRECTED_METRIC,
-            Dimensions: [{ Name: 'Stage', Value: 'prod' }],
-            Statistic: 'Sum',
-            Period: 86400,
-            EvaluationPeriods: 1,
-            Threshold: 10,
-            ComparisonOperator: 'GreaterThanThreshold',
-            TreatMissingData: 'notBreaching',
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: {
+                Namespace: SOURCE_EVENT_NAMESPACE,
+                MetricName: SOURCE_CORRECTED_METRIC,
+                Dimensions: [{ Name: 'Stage', Value: 'prod' }],
+                Statistic: 'Sum',
+                Period: 86400,
+                EvaluationPeriods: 1,
+                Threshold: 10,
+                ComparisonOperator: 'GreaterThanThreshold',
+                TreatMissingData: 'notBreaching',
+            },
         });
+
+        expect(Object.keys(matching)).toHaveLength(1);
     });
 
     it('notifies the stack`s own alarm topic, which lets CloudWatch publish to it and has an email subscription', () => {
         const template = synthTemplate('prod', 'prod', undefined, ENABLED);
-        const alarms = Object.values(template.findResources('AWS::CloudWatch::Alarm'));
         const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
-
-        expect(alarms).toHaveLength(1);
-        expect(topics).toHaveLength(1);
-        expect(JSON.stringify(alarms[0]?.Properties.AlarmActions)).toContain(topics[0]);
-        template.hasResourceProperties('AWS::SNS::TopicPolicy', {
-            PolicyDocument: {
-                Statement: Match.arrayWith([
-                    Match.objectLike({ Sid: 'AllowCloudWatchAlarmPublish', Action: 'sns:Publish' }),
-                ]),
+        const notifying = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { AlarmActions: [{ Ref: topics[0] }] },
+        });
+        const policies = template.findResources('AWS::SNS::TopicPolicy', {
+            Properties: {
+                PolicyDocument: {
+                    Statement: Match.arrayWith([
+                        Match.objectLike({ Sid: 'AllowCloudWatchAlarmPublish', Action: 'sns:Publish' }),
+                    ]),
+                },
             },
         });
-        template.hasResourceProperties('AWS::SNS::Subscription', { Protocol: 'email', Endpoint: 'ops@example.com' });
+        const subscriptions = template.findResources('AWS::SNS::Subscription', {
+            Properties: { Protocol: 'email', Endpoint: 'ops@example.com' },
+        });
+
+        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(1);
+        expect(topics).toHaveLength(1);
+        expect(Object.keys(notifying)).toHaveLength(1);
+        expect(Object.keys(policies)).toHaveLength(1);
+        expect(Object.keys(subscriptions)).toHaveLength(1);
     });
 
     it('is keyed to the deploy stage, so a preview watches its own series', () => {
-        synthTemplate('pr-73', 'sandbox', undefined, ENABLED).hasResourceProperties('AWS::CloudWatch::Alarm', {
-            Dimensions: [{ Name: 'Stage', Value: 'pr-73' }],
+        const template = synthTemplate('pr-73', 'sandbox', undefined, ENABLED);
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { Dimensions: [{ Name: 'Stage', Value: 'pr-73' }] },
         });
+
+        expect(Object.keys(matching)).toHaveLength(1);
     });
 
     it('creates NO alarm while the stage switch is off, and the topic stays (a topic nothing publishes to costs nothing)', () => {
         const template = synthTemplate('prod', 'prod');
 
-        template.resourceCountIs('AWS::CloudWatch::Alarm', 0);
-        template.resourceCountIs('AWS::SNS::Topic', 1);
+        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(0);
+        expect(Object.keys(template.findResources('AWS::SNS::Topic'))).toHaveLength(1);
     });
 });

@@ -704,8 +704,8 @@ describe('evaluateSourceCorrection — a confirmed answer', () => {
     ];
 
     it('covers every confirmed source × move exactly once', () => {
-        expect(TABLE.map(([name, move]) => `${name}/${move}`).sort()).toEqual(
-            CONFIRMED_SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(),
+        expect(TABLE.map(([name, move]) => `${name}/${move}`).sort(byText)).toEqual(
+            CONFIRMED_SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(byText),
         );
     });
 

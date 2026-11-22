@@ -516,7 +516,7 @@ describe('a restatement writes no columns and no evidence (KTD-2, AE6, AE15)', (
             cuisine: 'italian',
             ...BOOK_ROW,
         });
-        const { wording: _wording, ...unworded } = BOOK;
+        const unworded = { ...BOOK, wording: undefined };
 
         await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private', statement: unworded });
 

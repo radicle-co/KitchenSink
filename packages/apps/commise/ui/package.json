@@ -51,6 +51,7 @@
         "./testing/animations-shim": "./src/testing/animationsShim.ts",
         "./testing/measure-text": "./src/testing/measureText.ts",
         "./button": "./src/button/index.ts",
+        "./icon-button": "./src/iconButton/index.ts",
         "./check-box-glyph": "./src/checkBoxGlyph/index.ts",
         "./combobox": "./src/combobox/index.ts",
         "./confirm-dialog": "./src/confirmDialog/index.ts",

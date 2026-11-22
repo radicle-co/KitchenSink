@@ -126,4 +126,16 @@ describe('_ci.yml codeQuality job', () => {
         expect(job.steps[install]?.env?.['NODE_AUTH_TOKEN']).toBe('${{ secrets.GITHUB_TOKEN }}');
         expect(job.steps[install]?.run).toContain('npm ci');
     });
+    it('resolves the diff base once, so the install and the scan cannot disagree about it', () => {
+        const resolvers = job.steps.filter((step) => step.run?.includes('scqBase') && step.run.includes('>'));
+        const recomputes = job.steps.filter(
+            (step) => step.run?.includes('origin/main"') || step.run?.includes('HEAD^'),
+        );
+
+        expect(resolvers).toHaveLength(1);
+        expect(recomputes).toEqual(resolvers);
+        expect(job.steps.indexOf(resolvers[0] as Step)).toBeLessThan(install);
+        expect(job.steps[install]?.run).toContain('scqBase');
+        expect(job.steps[scan]?.run).toContain('scqBase');
+    });
 });

@@ -9,6 +9,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { TWO_COLUMN } from '../../cookingLayout.js';
 import { CookingScaleNote } from '../CookingScaleNote.js';
 
 const user = userEvent.setup({ delay: null });
@@ -39,6 +40,18 @@ describe('CookingScaleNote (web)', () => {
         await user.click(button);
 
         expect(onOpen).toHaveBeenCalledExactlyOnceWith();
+    });
+
+    // At two columns the column is in view, so CSS removes the control from the page and the accessibility tree.
+    it('wraps the button in the narrow-only class, so it is gone from the two-column band', () => {
+        render(<CookingScaleNote note={NOTE} openLabel="Open ingredients" onOpen={vi.fn()} />);
+
+        const wrapper = screen
+            .getByRole('button', { name: 'Open ingredients' })
+            .closest(`[class~="${TWO_COLUMN.narrowOnlyWebClassName}"]`);
+
+        expect(wrapper).not.toBeNull();
+        expect(wrapper?.parentElement?.getAttribute('role')).toBe('note');
     });
 
     it('draws the note and no button while onOpen is absent', () => {

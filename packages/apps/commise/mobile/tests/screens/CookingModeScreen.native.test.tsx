@@ -8,6 +8,7 @@
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
+import { CookMarksProvider } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -41,7 +42,12 @@ const nextStep = () => screen.getByRole('button', { name: /^(Next step|Start ste
 const onLeave = vi.fn();
 const onEdit = vi.fn();
 const onHome = vi.fn();
-const screenOf = () => <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />;
+/** The screen under the cook marks provider the app root mounts: the cooking screen reads the cook's ticks. */
+const screenOf = () => (
+    <CookMarksProvider subject="user_test">
+        <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
+    </CookMarksProvider>
+);
 
 beforeEach(() => {
     vi.mocked(useSessionClaims).mockReturnValue({ external_id: OWNER_ID });

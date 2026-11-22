@@ -40,10 +40,10 @@ export const CookingIngredientsList: FC<CookingIngredientsListProps> = ({
                 onToggle={onToggle}
             />
         </div>
-        {view.hasTicks && (
+        {view.hasTicks && onClear !== undefined ? (
             <Button variant="quiet" size="md" onPress={onClear}>
                 {copy.clear}
             </Button>
-        )}
+        ) : null}
     </div>
 );

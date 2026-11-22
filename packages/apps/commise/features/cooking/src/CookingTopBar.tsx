@@ -16,7 +16,7 @@ import type { FC } from 'react';
 
 import type { CookingTopBarProps } from './cookingViewProps.js';
 import { nameOf } from './cookingCopy.js';
-import { NARROW_ROW } from './cookingLayout.js';
+import { NARROW_ROW, TWO_COLUMN } from './cookingLayout.js';
 
 /** The web cooking top bar. */
 export const CookingTopBar: FC<CookingTopBarProps> = ({ exit, place, ingredients }) => (
@@ -25,7 +25,7 @@ export const CookingTopBar: FC<CookingTopBarProps> = ({ exit, place, ingredients
             {exit.label}
         </Button>
         {ingredients === undefined ? null : (
-            <div className={NARROW_ROW.ingredientsWebClassName}>
+            <div className={`${NARROW_ROW.ingredientsWebClassName} ${TWO_COLUMN.narrowOnlyWebClassName}`}>
                 <Button variant="quiet" icon="listChecks" onPress={ingredients.onPress} {...nameOf(ingredients)}>
                     {ingredients.label}
                 </Button>

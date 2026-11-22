@@ -131,8 +131,8 @@ describe('visibilityNoticeOf — the slots sentence', () => {
 });
 
 /**
- * ADR-0095: a recorded source holds the recipe out of Public, and the page says so. REWRITTEN for board P6 (qse
- * TEST-CHANGE, decisions/makePublicRefusalNotice-qse.md): `held` was a flag that won over every other word; it is now the
+ * ADR-0095: a recorded source holds the recipe out of Public, and the page says so. REWRITTEN for board P6 (a
+ * recorded test change): `held` was a flag that won over every other word; it is now the
  * standing `sourceConflict` reason, said in the designer's words and below any moment line.
  */
 describe('visibilityNoticeOf — a recipe held out of Public by a recorded source', () => {

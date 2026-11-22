@@ -26,3 +26,6 @@ yarn-error.log*
 
 expo-env.d.ts
 # @end expo-cli
+
+# one-off Maestro flows staged for a `maestro:lanes --one-off` run; the door creates and deletes this folder
+.maestro/oneOff/

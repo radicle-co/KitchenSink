@@ -1000,6 +1000,52 @@ maestro_shard_selection() {
     printf '%s\n' "$deployed_verdict" | grep '^local-only=' || true
 }
 
+# maestro_one_off_selection
+#
+# The flows of a `maestro:lanes --one-off` run: the staged ids in MAESTRO_ONE_OFF_FLOWS, printed as the `flow=`
+# lines the registry selection prints, so run mode reads one shape. A one-off has no row in the registry, so the
+# registry cannot select it; each id must be the door's staged name `oneOff/<runId>/<name>` and its file must
+# be there.
+#
+# Exit 2, with the id on stderr and NOTHING on stdout, for an id that is not a staged name, a file that is
+# missing, or an empty list: a run over no flows is refused, never read as a pass.
+maestro_one_off_selection() {
+    local id
+    local ids=()
+    read -r -a ids <<<"${MAESTRO_ONE_OFF_FLOWS:-}"
+
+    if [ "${#ids[@]}" -eq 0 ]; then
+        echo 'runMaestroFlows.sh: MAESTRO_ONE_OFF_FLOWS names no flow - refusing to report a run over no flows' >&2
+
+        return 2
+    fi
+
+    for id in "${ids[@]}"; do
+        if ! [[ "$id" =~ ^oneOff/[A-Za-z0-9][A-Za-z0-9_-]*/[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
+            echo "runMaestroFlows.sh: '${id}' is not a staged one-off flow name (oneOff/<runId>/<name>)" >&2
+
+            return 2
+        fi
+
+        local staged="packages/apps/commise/mobile/.maestro/${id}.yaml"
+
+        if [ ! -f "$staged" ]; then
+            echo "runMaestroFlows.sh: the staged one-off flow ${id} has no file at ${staged}" >&2
+
+            return 2
+        fi
+    done
+
+    # The lane's own share, by the one packer every run uses: the door packed the same ids the same way.
+    local sharded
+    sharded=$(maestro_pack_flows "$(maestro_platform)" "$FLOW_PLAN" \
+        "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" "${ids[@]}") || return 2
+
+    printf 'selection-reason=%s\n' 'one-off flows named by the lane door'
+    printf 'shard-reason=%s\n' "$(printf '%s\n' "$sharded" | sed -n 's/^reason=//p')"
+    printf '%s\n' "$sharded" | grep -E '^(flow|deferred)=' || true
+}
+
 # maestro_positive_integer <value>
 #
 # True when the value is a decimal positive integer. Pure. Written out rather than reaching for `[ "$x" -gt 0 ]`,
@@ -1922,7 +1968,11 @@ maestro_run_flows() {
     # means the two disagree — and a job that then ran "some flows" would report a green shard over an unknown
     # subset. `maestro_shard_selection`'s stderr names the stage that refused.
     local verdict
-    if ! verdict=$(maestro_shard_selection "$platform" "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
+    # ⛔ A one-off run names its own flows (`maestro:lanes --one-off`): none has a row in the registry, so the registry
+    # selection is not asked. `maestro_one_off_selection` packs the lane's own share of the staged ids.
+    if [ -n "${MAESTRO_ONE_OFF_FLOWS:-}" ]; then
+        verdict=$(maestro_one_off_selection) || return 1
+    elif ! verdict=$(maestro_shard_selection "$platform" "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
         ${pairs[@]+"${pairs[@]}"}); then
         echo "::error::maestro could not decide which flows ${platform} shard ${MAESTRO_SHARD_INDEX:-1}/${MAESTRO_SHARD_COUNT:-1} runs — refusing to run an unknown subset of the suite"
 
@@ -2359,6 +2409,9 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
         driver-port)
             printf '%s\n' "$MAESTRO_DRIVER_PORT"
             ;;
+        one-off-selection)
+            maestro_one_off_selection
+            ;;
         run-one)
             # ONE flow through the REAL loop, so the lifecycle test exercises the code CI runs rather than a
             # reimplementation of it. Not used by CI itself.
@@ -2371,7 +2424,7 @@ if [ "${BASH_SOURCE[0]}" = "$0" ]; then
             printf '%s\n' $FLOW_PLAN
             ;;
         *)
-            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-only|local-flows|deployed-flows|local-summary|exclusions|plan|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|run-one] …" >&2
+            echo "usage: runMaestroFlows.sh [select|select-plan|shard|shard-plan|shard-matrix|shard-selection|platform-flows|sandbox-only|local-only|local-flows|deployed-flows|local-summary|exclusions|plan|platforms|max-shards|erasure-shard|erasing-flows|erasure-subject|role-flows|pack|weights|default-weight|flow-cost|driver-port|one-off-selection|run-one] …" >&2
             exit 2
             ;;
     esac

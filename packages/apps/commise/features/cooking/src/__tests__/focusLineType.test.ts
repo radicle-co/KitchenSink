@@ -7,7 +7,7 @@ import { FOCUS_LINE_TYPE, LINE_TYPE } from '../focusLineType.js';
 const kebab = (role: string): string => role.replace(/([a-z])([A-Z])/g, '$1-$2').toLowerCase();
 
 /**
- * The focus line's type, in the one place both platforms read it (both values are `readingLarge`). The web class is the native role's own name, so the two cannot drift.
+ * The focus line's type, as both platforms read it (both values are `readingLarge`). The web class is the native role's own name, so the two cannot drift.
  */
 describe('FOCUS_LINE_TYPE', () => {
     it('names the readingLarge role on the native side', () => {

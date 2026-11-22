@@ -7,8 +7,7 @@
  * house control and a screen reader says "checked" or "not checked". The row is not given a name: its text is the name,
  * so stating it again would be a second stop saying the same thing.
  *
- * The focus line is set in the role named by `LINE_TYPE.focus`, the one seam both platforms read, and every other line in
- * `readingBody`.
+ * Each line is set in its `LINE_TYPE` entry.
  *
  * Presentational: props → JSX, apart from taking the screen-reader cursor when the screen asks (`focusRequested`).
  *

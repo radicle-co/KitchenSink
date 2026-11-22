@@ -4,8 +4,10 @@ appId: ${APP_ID}
 # cookingModeFlow.
 # One column: the top bar's Ingredients button opens the sheet over the step, and closing it leaves the cook on the SAME
 # step. The two-column band needs 800 wide, which only a tablet reaches, so it is proved by the component tests.
+# The step label is matched with `.` for its space: the copy has a no-break space (messages.ts, top.place), and the
+# component tests pin the text. Only the step number matters here.
 - runFlow: common/openCookingRecipe.yaml
-- assertVisible: 'Step 1 of 3'
+- assertVisible: 'Step.1 of 3'
 - tapOn: '^Heat the oven to 200 degrees\.$'
 - assertVisible: 'You ticked 1 line'
 
@@ -16,5 +18,5 @@ appId: ${APP_ID}
 # ── CLOSING IT KEEPS THE STEP AND THE TICK ──
 - tapOn: 'Close ingredients'
 - assertNotVisible: 'Close ingredients'
-- assertVisible: 'Step 1 of 3'
+- assertVisible: 'Step.1 of 3'
 - assertVisible: 'You ticked 1 line'

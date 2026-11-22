@@ -14,8 +14,7 @@ appId: ${APP_ID}
 #   6. The signer's draft (the Crostini, kept in every reset mode) offers no Start cooking.
 #
 # Android system Back = Exit is its own flow, `cooking/cookingSystemBack`, because Maestro's `back` is Android-only.
-# The step and line labels are matched with `.` for their space: the copy has a no-break space (messages.ts, top.place
-# and step.lineOf), and the component tests pin the text. Only the numbers matter here.
+# In a label selector, `.` stands for the no-break space.
 - runFlow: common/openCookingRecipe.yaml
 
 # ── 1. ONE STEP, TWO LINES, THE FIRST FOCUSED (the Hermes check) ──

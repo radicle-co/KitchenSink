@@ -13,12 +13,13 @@
  * copy of it.
  */
 import { readFileSync } from 'node:fs';
-import { join, resolve } from 'node:path';
+import { join } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
-const FLOW_DIR = join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro/cooking');
+import { FLOW_ROOT, REPO_ROOT, isRecord, parseFlow } from './maestroFlowYaml.js';
+
+const FLOW_DIR = join(REPO_ROOT, FLOW_ROOT, 'cooking');
 const MESSAGES = join(REPO_ROOT, 'packages/apps/commise/features/cooking/src/messages.ts');
 
 /** The English `<group>.<key>` template of messages.ts, with its `\\uXXXX` escapes turned into characters. */
@@ -44,15 +45,26 @@ type Kind = keyof typeof LABELS;
 const real = (kind: Kind, current: number, total: number): string =>
     LABELS[kind].replace('{current}', String(current)).replace('{total}', String(total));
 
-/** The quoted text of every `assertVisible` and `tapOn` line of a flow. */
-const selectors = (flow: string): string[] =>
-    readFileSync(join(FLOW_DIR, flow), 'utf8')
-        .split('\n')
-        .flatMap((line) => {
-            const match = /^\s*-\s*(?:assertVisible|assertNotVisible|tapOn):\s*'(.*)'\s*$/u.exec(line);
+/** Every text in a parsed flow, whatever command or selector form holds it. Pure. */
+function* texts(value: unknown): Generator<string> {
+    if (typeof value === 'string') {
+        yield value;
+    } else if (Array.isArray(value)) {
+        for (const item of value) {
+            yield* texts(item);
+        }
+    } else if (isRecord(value)) {
+        for (const item of Object.values(value)) {
+            yield* texts(item);
+        }
+    }
+}
 
-            return match?.[1] === undefined ? [] : [match[1]];
-        });
+/** The step and line labels a flow names, in file order, however its selector is written. */
+const labelSelectors = (flow: string): string[] =>
+    parseFlow(flow, readFileSync(join(FLOW_DIR, flow), 'utf8'))
+        .flatMap((document) => [...texts(document)])
+        .filter((text) => /^(?:Step|Line)[ .\u00a0]\d+ of \d+$/u.test(text));
 
 /** Maestro matches the whole text of an element against the selector as a regex. */
 const matchesWholeText = (selector: string, text: string): boolean => new RegExp(`^(?:${selector})$`, 'u').test(text);
@@ -66,36 +78,35 @@ describe.each(Object.entries(LABELS))('the %s label this guard reads from messag
 });
 
 describe.each([
-    {
-        flow: 'cookingIngredients.yaml',
-        labels: [real('Step', 1, 3), real('Step', 1, 3)],
-    },
-    {
-        flow: 'cookingModeFlow.yaml',
-        labels: [
-            real('Line', 1, 2),
-            real('Line', 2, 2),
-            real('Step', 2, 3),
-            real('Step', 2, 3),
-            real('Step', 1, 3),
-            real('Line', 2, 2),
-            real('Step', 2, 3),
-            real('Step', 3, 3),
-            real('Line', 1, 1),
-        ],
-    },
-])('$flow reads the step and line labels', ({ flow, labels }) => {
+    { flow: 'cookingIngredients.yaml', count: 2 },
+    { flow: 'cookingModeFlow.yaml', count: 9 },
+])('$flow reads the step and line labels', ({ flow, count }) => {
     it('never with the space typed out, plain or no-break: the copy is cooking top.place and step.lineOf', () => {
-        const typed = selectors(flow).filter((selector) => /\b(?:Step|Line)[ \u00a0]\d+ of \d+/u.test(selector));
+        const typed = labelSelectors(flow).filter((selector) => /^(?:Step|Line)[ \u00a0]/u.test(selector));
 
         expect(typed).toEqual([]);
     });
 
-    it('with a selector that matches the real label at each point the flow checks it, in order', () => {
-        const labelled = selectors(flow).filter((selector) => /^(?:Step|Line)/u.test(selector));
+    it('with a selector that matches the real label, at each of the points the flow checks one', () => {
+        const labels = labelSelectors(flow);
+        const matches = labels.map((selector) => {
+            const parts = /^(Step|Line)\.(\d+) of (\d+)$/u.exec(selector);
+            const kind = parts?.[1] === 'Step' || parts?.[1] === 'Line' ? parts[1] : undefined;
 
-        expect(labelled.map((selector, at) => matchesWholeText(selector, labels[at] ?? ''))).toEqual(
-            labels.map(() => true),
-        );
+            return kind !== undefined && matchesWholeText(selector, real(kind, Number(parts?.[2]), Number(parts?.[3])));
+        });
+
+        expect(labels).toHaveLength(count);
+        expect(matches).toEqual(labels.map(() => true));
+    });
+});
+
+describe('the label reader sees every selector form', () => {
+    it('finds a bare selector, a text selector and a visible condition, whatever the quoting', () => {
+        const flow =
+            "- assertVisible: 'Step.1 of 3'\n- tapOn:\n    text: \"Line.2 of 2\"\n- runFlow:\n    when:\n      visible: 'Step 2 of 3'\n";
+        const found = parseFlow('inline', flow).flatMap((document) => [...texts(document)]);
+
+        expect(found).toEqual(['Step.1 of 3', 'Line.2 of 2', 'Step 2 of 3']);
     });
 });

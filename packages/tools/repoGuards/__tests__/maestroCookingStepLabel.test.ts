@@ -65,12 +65,32 @@ const labelSelectors = (file: string): string[] =>
         .flatMap((document) => [...texts(document)])
         .filter((text) => /^(?:Step|Line)[ .\u00a0]\d+ of \d+$/u.test(text));
 
-/** How many step and line labels each flow that names any asserts, so a deleted assert turns the guard red. */
-const LABEL_COUNTS: Readonly<Record<string, number>> = {
-    'cooking/common/openCookingRecipe.yaml': 1,
-    'cooking/cookingIngredients.yaml': 2,
-    'cooking/cookingModeFlow.yaml': 9,
-    'cooking/cookingSystemBack.yaml': 2,
+/**
+ * What each flow that names a step or line label must see on the device, in file order: kind, current, total. This is
+ * the oracle the selectors are held to, so a selector with a wrong number turns the guard red, and a deleted assert
+ * turns it red too.
+ */
+const EXPECTED: Readonly<Record<string, readonly (readonly [Kind, number, number])[]>> = {
+    'cooking/common/openCookingRecipe.yaml': [['Step', 1, 3]],
+    'cooking/cookingIngredients.yaml': [
+        ['Step', 1, 3],
+        ['Step', 1, 3],
+    ],
+    'cooking/cookingModeFlow.yaml': [
+        ['Line', 1, 2],
+        ['Line', 2, 2],
+        ['Step', 2, 3],
+        ['Step', 2, 3],
+        ['Step', 1, 3],
+        ['Line', 2, 2],
+        ['Step', 2, 3],
+        ['Step', 3, 3],
+        ['Line', 1, 1],
+    ],
+    'cooking/cookingSystemBack.yaml': [
+        ['Step', 2, 3],
+        ['Step', 1, 3],
+    ],
 };
 
 const FLOWS = committedFlowFiles();
@@ -101,21 +121,22 @@ describe('every committed flow reads the step and line labels', () => {
     it('and the flows that name a label are the ones this guard counts', () => {
         const labelled = FLOWS.filter((file) => labelSelectors(file).length > 0).map(relative);
 
-        expect(labelled.toSorted((a, b) => a.localeCompare(b))).toEqual(Object.keys(LABEL_COUNTS));
+        expect(labelled.toSorted((a, b) => a.localeCompare(b))).toEqual(
+            Object.keys(EXPECTED).toSorted((a, b) => a.localeCompare(b)),
+        );
     });
 });
 
-describe.each(Object.entries(LABEL_COUNTS))('%s', (flow, count) => {
-    it('asserts every label it names with a selector that matches the real label', () => {
+describe.each(Object.entries(EXPECTED))('%s', (flow, expected) => {
+    it('asserts each label it names with a selector that matches what the device shows, in order', () => {
         const labels = labelSelectors(`${FLOW_ROOT}/${flow}`);
-        const matches = labels.map((selector) => {
-            const parts = /^(Step|Line)\.(\d+) of (\d+)$/u.exec(selector);
-            const kind = parts?.[1] === 'Step' || parts?.[1] === 'Line' ? parts[1] : undefined;
+        const matches = labels.map((selector, at) => {
+            const point = expected[at];
 
-            return kind !== undefined && matchesWholeText(selector, real(kind, Number(parts?.[2]), Number(parts?.[3])));
+            return point !== undefined && matchesWholeText(selector, real(...point));
         });
 
-        expect(labels).toHaveLength(count);
+        expect(labels).toHaveLength(expected.length);
         expect(matches).toEqual(labels.map(() => true));
     });
 });

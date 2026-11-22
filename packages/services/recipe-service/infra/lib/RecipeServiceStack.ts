@@ -44,6 +44,7 @@ import {
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
+import { stageDimensions } from '@kitchensink/metric-dimensions';
 import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
 import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 
@@ -635,7 +636,7 @@ export class RecipeServiceStack extends Stack {
         this.serviceUrl = `https://${serviceDomain}`;
 
         // ── Alarm topic and the source-correction volume alarm (ADR-0100 / ADR-0062) ─────────────────────
-        // eslint-disable-next-line sonarjs/aws-sns-unencrypted-topics -- reported by the code-quality scanners; SSL-only with no SSE, like every alarm topic in the repo: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key, and the payload holds no user data.
+        // eslint-disable-next-line sonarjs/aws-sns-unencrypted-topics -- reported by the code-quality scanners; SSL-only with no SSE: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key, and the payload holds no user data.
         const alarmTopic = new sns.Topic(this, 'RecipeServiceAlarmTopic', {
             enforceSSL: true,
             displayName: `Recipe service alarms (${stage})`,
@@ -664,12 +665,11 @@ export class RecipeServiceStack extends Stack {
             // directly on it, no metric filter. Sum over a day.
             new cloudwatch.Alarm(this, 'SourceCorrectionVolumeAlarm', {
                 alarmName: `kitchensink-recipe-source-corrected-${stage}`,
-                alarmDescription:
-                    'More than 10 staff source corrections in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).',
+                alarmDescription: `More than ${SOURCE_CORRECTED_DAILY_THRESHOLD} staff source corrections in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).`,
                 metric: new cloudwatch.Metric({
                     namespace: SOURCE_EVENT_NAMESPACE,
                     metricName: SOURCE_CORRECTED_METRIC,
-                    dimensionsMap: { Stage: stage },
+                    dimensionsMap: stageDimensions(stage),
                     statistic: 'Sum',
                     period: Duration.days(1),
                 }),

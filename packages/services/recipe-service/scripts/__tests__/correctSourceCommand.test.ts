@@ -164,6 +164,33 @@ describe('runCorrection', () => {
         expect(result.exitCode).toBe(1);
     });
 
+    it('an id whose preview body does not match the contract is reported unreadable, is NOT corrected, and the exit code says so', async () => {
+        const { seen, fetchStub } = stub({
+            ...OK,
+            [`GET ${C}`]: { status: 200, body: { title: 42, visibility: 'private' } },
+        });
+        const d = deps(fetchStub, true);
+
+        const result = await runCorrection({ ...INPUT, recipeIds: [A, C] }, d);
+
+        expect(d.printed).toContain(`${C}: preview unreadable, skipped`);
+        expect(seen.filter(({ method }) => method === 'POST').map(({ url }) => url.includes(C))).toEqual([false]);
+        expect(result.exitCode).toBe(1);
+    });
+
+    it('a correction reply that does not match the contract is reported unreadable and the exit code says so', async () => {
+        const { fetchStub } = stub({
+            ...OK,
+            [`POST ${A}`]: { status: 200, body: { result: 'bogus' } },
+        });
+        const d = deps(fetchStub, true);
+
+        const result = await runCorrection({ ...INPUT, recipeIds: [A] }, d);
+
+        expect(d.printed).toContain(`${A}: reply unreadable`);
+        expect(result.exitCode).toBe(1);
+    });
+
     it('when no id can be corrected it asks nothing and sends nothing', async () => {
         const { seen, fetchStub } = stub({});
         const d = deps(fetchStub, true);

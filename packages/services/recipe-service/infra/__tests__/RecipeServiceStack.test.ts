@@ -17,6 +17,7 @@ import {
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
+import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
@@ -1390,7 +1391,8 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
             Properties: {
                 Namespace: SOURCE_EVENT_NAMESPACE,
                 MetricName: SOURCE_CORRECTED_METRIC,
-                Dimensions: [{ Name: 'Stage', Value: 'prod' }],
+                Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'prod' }],
+                AlarmDescription: Match.stringLikeRegexp('^More than 10 staff source corrections'),
                 Statistic: 'Sum',
                 Period: 86400,
                 EvaluationPeriods: 1,
@@ -1432,7 +1434,7 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
     it('is keyed to the deploy stage, so a preview watches its own series', () => {
         const template = synthTemplate('pr-73', 'sandbox', undefined, ENABLED);
         const matching = template.findResources('AWS::CloudWatch::Alarm', {
-            Properties: { Dimensions: [{ Name: 'Stage', Value: 'pr-73' }] },
+            Properties: { Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'pr-73' }] },
         });
 
         expect(Object.keys(matching)).toHaveLength(1);

@@ -9,10 +9,11 @@
  *
  * Everything outside it (the network, the prompt, the output) is passed in, so the whole flow runs against a stub.
  */
-import type {
-    SourceCorrectionPreview,
-    SourceCorrectionRequest,
-    SourceCorrectionResponse,
+import {
+    sourceCorrectionPreviewSchema,
+    sourceCorrectionResponseSchema,
+    type SourceCorrectionPreview,
+    type SourceCorrectionRequest,
 } from '../src/recipes/recipes.schema.js';
 
 /** What the command is asked to do. */
@@ -93,7 +94,16 @@ export async function runCorrection(input: CorrectionInput, deps: CorrectionDeps
             continue;
         }
 
-        const preview = (await response.json()) as SourceCorrectionPreview;
+        const parsed = sourceCorrectionPreviewSchema.safeParse(await response.json().catch(() => undefined));
+
+        if (!parsed.success) {
+            failed = true;
+            deps.print(`${id}: preview unreadable, skipped`);
+
+            continue;
+        }
+
+        const preview = parsed.data;
 
         deps.print(previewLine(id, preview));
 
@@ -142,9 +152,16 @@ export async function runCorrection(input: CorrectionInput, deps: CorrectionDeps
             continue;
         }
 
-        const { result } = (await response.json()) as SourceCorrectionResponse;
+        const reply = sourceCorrectionResponseSchema.safeParse(await response.json().catch(() => undefined));
 
-        deps.print(`${id}: ${result === 'applied' ? 'applied' : 'already so'}`);
+        if (!reply.success) {
+            failed = true;
+            deps.print(`${id}: reply unreadable`);
+
+            continue;
+        }
+
+        deps.print(`${id}: ${reply.data.result === 'applied' ? 'applied' : 'already so'}`);
     }
 
     return { exitCode: failed ? 1 : 0 };

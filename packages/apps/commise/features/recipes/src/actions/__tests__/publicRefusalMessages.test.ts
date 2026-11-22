@@ -1,7 +1,7 @@
 /**
  * The words for each reason a recipe cannot be public (board P6, plan makePublicRefusalNotice U5, KTD-4). Written
- * before the keys: the lines are the designer's (decisions/makePublicRefusalNotice-designer.md, 2026-11-19), read back
- * from the keys, and the AE8 word list is checked over every locale's values.
+ * before the keys: the lines are the designer's, read back from the keys, and the AE8 word list is checked over every
+ * locale's values.
  *
  * A reason line says what is true and stops: it never names a public path, never invites the cook to change the answer,
  * and never sends them to ask for a change (brainstorm R5, AE8).

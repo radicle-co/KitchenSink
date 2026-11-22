@@ -6,6 +6,7 @@ import tseslint from 'typescript-eslint';
 import checkFile from 'eslint-plugin-check-file';
 import importX from 'eslint-plugin-import-x';
 import reactHooks from 'eslint-plugin-react-hooks';
+import sonarjs from 'eslint-plugin-sonarjs';
 
 import { nativeA11yPlugin } from './nativeA11y.js';
 
@@ -339,6 +340,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/*/ciMatrix',
         // `stampRun` moves the last-green stamp after a local run (ADR-0086); the web door and the Maestro lanes call it.
         '!@kitchensink/*/stampRun',
+        // `maestroFlows` reads the files a Maestro flow runs: the lane door checks a one-off flow's targets with it.
+        '!@kitchensink/*/maestroFlows',
         // `hostMemory` is the one reader of the machine's free memory, for the lane planners (the web door and local-sandbox).
         '!@kitchensink/*/hostMemory',
         // `registeredMobileScreens` gives the screen recorder's guard (mobile `screenTrace.integration.test.ts`) the selector's own
@@ -615,6 +618,15 @@ export function createConfig(tsconfigPath = './tsconfig.json', tsconfigRootDir =
             files: ['**/*.{ts,tsx,jsx}'],
             plugins: { 'react-hooks': reactHooks },
             rules: Object.fromEntries(Object.keys(reactHooks.configs.recommended.rules).map((rule) => [rule, 'error'])),
+        },
+        {
+            /**
+             * Registered with NO rule enabled, so repo lint reports what it always did. The code-quality overlay in CI
+             * runs sonarjs; a source comment may now name one of its rules in an `eslint-disable` (a reasoned, single
+             * rule exception) instead of failing here with "Definition for rule not found". The version equals the
+             * overlay's pin (`sonarjsRegistration.test.js`).
+             */
+            plugins: { sonarjs },
         },
         ...filenameConventionConfig(namingRegimeForRoot(tsconfigRootDir)),
         {

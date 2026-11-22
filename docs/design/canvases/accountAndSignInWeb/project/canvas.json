@@ -378,40 +378,40 @@
       "x": 1360,
       "y": 14442,
       "w": 1280,
-      "h": 8100,
+      "h": 9100,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (web, 1280)"
     },
     "AccountCloseLicenceStatesWeb390.dc.html": {
       "x": 0,
-      "y": 23102,
+      "y": 24102,
       "w": 390,
       "h": 3400,
       "title": "Profile, close account, licence reminder and takedown (web, 390)"
     },
     "AccountEraseLicenceStatesWeb390.dc.html": {
       "x": 470,
-      "y": 23102,
+      "y": 24102,
       "w": 390,
-      "h": 9250,
+      "h": 9900,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (web, 390)"
     },
     "ErasureNoticeEmailHtml600Web.dc.html": {
       "x": 0,
-      "y": 32912,
+      "y": 34562,
       "w": 600,
       "h": 6340,
       "title": "Erasure notice email, HTML at 600 px"
     },
     "ErasureNoticeEmailHtml320Web.dc.html": {
       "x": 680,
-      "y": 32912,
+      "y": 34562,
       "w": 320,
       "h": 8240,
       "title": "Erasure notice email, HTML at 320 px"
     },
     "ErasureNoticeEmailTextWeb.dc.html": {
       "x": 1080,
-      "y": 32912,
+      "y": 34562,
       "w": 600,
       "h": 6120,
       "title": "Erasure notice email, plain text"
@@ -515,14 +515,14 @@
     },
     "rowLic390": {
       "x": 0,
-      "y": 22842,
+      "y": 23842,
       "text": "Account closure licence: web 390",
       "kind": "title1",
       "maxW": 2400
     },
     "rowLicEmail": {
       "x": 0,
-      "y": 32652,
+      "y": 34302,
       "text": "Erasure notice email: HTML 600, HTML 320, plain text",
       "kind": "title1",
       "maxW": 2400

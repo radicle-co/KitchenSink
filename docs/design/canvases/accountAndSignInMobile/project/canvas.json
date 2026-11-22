@@ -525,21 +525,21 @@
       "x": 470,
       "y": 19661,
       "w": 390,
-      "h": 9330,
+      "h": 9980,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, iPhone 390)"
     },
     "AccountCloseLicenceStatesAndroid384.dc.html": {
       "x": 0,
-      "y": 29551,
+      "y": 30201,
       "w": 384,
       "h": 3460,
       "title": "Profile, close account, licence reminder and takedown (mobile, Android 384)"
     },
     "AccountEraseLicenceStatesAndroid384.dc.html": {
       "x": 464,
-      "y": 29551,
+      "y": 30201,
       "w": 384,
-      "h": 9320,
+      "h": 9970,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, Android 384)"
     }
   },
@@ -652,7 +652,7 @@
     },
     "rowLicAndroid": {
       "x": 0,
-      "y": 29291,
+      "y": 29941,
       "text": "Account closure licence: mobile, Android 384 (384 x 832)",
       "kind": "title1",
       "maxW": 2400

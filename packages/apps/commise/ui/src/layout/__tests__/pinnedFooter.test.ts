@@ -22,6 +22,18 @@ describe('isFooterUnpinned', () => {
         expect(isFooterUnpinned({ pinnedTop, footer, frame })).toBe(unpinned);
     });
 
+    // AE14 (plan largeTextSheet): the iPad 820 statement sheet, measured on a device at d3365b5f3 (reviews
+    // largeTextSheet-B8c-U6). The pinned top is the title row (48 dp). A 4-row footer stacked at the largest text is
+    // 312 dp in a 1148 dp frame, 360 against half of 574: the footer stays pinned.
+    it.each([
+        [48, 312, 1148, 'AX-XXXL, actions stacked'],
+        [48, 149, 784.5, 'default, actions as a row'],
+        [48, 205, 840.5, 'default, the first layout before the row (the accepted in-band flip)'],
+        [48, 149, 873, 'default, the book end'],
+    ])('iPad 820: pinned top %d + footer %d in a %d frame stays pinned (%s)', (pinnedTop, footer, frame) => {
+        expect(isFooterUnpinned({ pinnedTop, footer, frame })).toBe(false);
+    });
+
     it('stays pinned until the frame is measured', () => {
         expect(isFooterUnpinned({ pinnedTop: 56, footer: 80, frame: 0 })).toBe(false);
     });

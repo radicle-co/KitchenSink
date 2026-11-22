@@ -66,12 +66,12 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: Partial<RecipeRow>, _tx?: unknown) => {
+const create = vi.fn((input: Partial<RecipeRow>) => {
     stored = makeRecipeRow({ ...input, id: RECIPE_ID, ownerId: COOK });
 
-    return aggregateOf(stored);
+    return Promise.resolve(aggregateOf(stored));
 });
-const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown) => {
+const update = vi.fn((_id: string, patch: UpdateRecipeInput) => {
     stored = {
         ...stored,
         ...(patch.provenance === undefined ? {} : patch.provenance),
@@ -79,18 +79,33 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown
         currentVersion: stored.currentVersion + 1,
     };
 
-    return aggregateOf(stored);
+    return Promise.resolve(aggregateOf(stored));
 });
-const setVisibility = vi.fn(async (_id: string, visibility: RecipeRow['visibility']) =>
-    aggregateOf({ ...stored, visibility }),
+const setVisibility = vi.fn((_id: string, visibility: RecipeRow['visibility']) =>
+    Promise.resolve(aggregateOf({ ...stored, visibility })),
 );
-const insertEvidence = vi.fn(async () => undefined);
-const insertMany = vi.fn(async (_tx: unknown, _rows: readonly unknown[]) => undefined);
-const hasFromPerson = vi.fn(async (_tx: unknown, _recipeId: string) => false);
-const hasWorded = vi.fn(async (_tx: unknown, _recipeId: string, _choice: string) => false);
+const insertEvidence = vi.fn(() => Promise.resolve(undefined));
+const insertMany = vi.fn<(tx: unknown, rows: readonly unknown[]) => Promise<undefined>>(() =>
+    Promise.resolve(undefined),
+);
+const hasFromPerson = vi.fn(() => Promise.resolve(false));
+const hasWorded = vi.fn<(tx: unknown, recipeId: string, choice: string) => Promise<boolean>>(() =>
+    Promise.resolve(false),
+);
 
 let food: FoodFake;
 let booted: BootedServiceApp;
+
+/** The stored recipe as the DAL returns it, with the statement kind the test set aside for the read before the lock. */
+function readStored(id: string): Promise<ReturnType<typeof aggregateOf> | undefined> {
+    if (id !== RECIPE_ID) {
+        return Promise.resolve(undefined);
+    }
+
+    const row = preLockStatementKind === undefined ? stored : { ...stored, statementKind: preLockStatementKind };
+
+    return Promise.resolve(aggregateOf(row));
+}
 
 async function call(method: string, path: string, body: unknown): Promise<Response> {
     return asPrincipal(COOK, () =>
@@ -120,35 +135,29 @@ beforeAll(async () => {
                 useValue: {
                     create,
                     update,
-                    findById: async (id: string) =>
-                        id === RECIPE_ID
-                            ? aggregateOf(
-                                  preLockStatementKind === undefined
-                                      ? stored
-                                      : { ...stored, statementKind: preLockStatementKind },
-                              )
-                            : undefined,
-                    privateFoodLines: async () => [],
-                    lockAndCountPrivateSlots: async () => heldSlots,
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility,
-                        status: stored.status,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        sourceUrl: stored.sourceUrl,
-                        sourceConfirmedAt: stored.sourceConfirmedAt,
-                        sourceCorrectionHold: stored.sourceCorrectionHold,
-                        statementKind: stored.statementKind,
-                        contentPastedAt: stored.contentPastedAt,
-                        clonedFromId: stored.clonedFromId,
-                        sourceAttribution: stored.sourceAttribution,
-                    }),
+                    findById: readStored,
+                    privateFoodLines: () => Promise.resolve([]),
+                    lockAndCountPrivateSlots: () => Promise.resolve(heldSlots),
+                    lockSlotFacts: () =>
+                        Promise.resolve({
+                            visibility: stored.visibility,
+                            status: stored.status,
+                            sourceType: stored.sourceType,
+                            sourceKind: stored.sourceKind,
+                            sourceUrl: stored.sourceUrl,
+                            sourceConfirmedAt: stored.sourceConfirmedAt,
+                            sourceCorrectionHold: stored.sourceCorrectionHold,
+                            statementKind: stored.statementKind,
+                            contentPastedAt: stored.contentPastedAt,
+                            clonedFromId: stored.clonedFromId,
+                            sourceAttribution: stored.sourceAttribution,
+                        }),
                     setVisibility,
-                    clearPublicFoodOwners: async () => undefined,
+                    clearPublicFoodOwners: () => Promise.resolve(undefined),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work(TX),
                 },
             },
-            { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: async () => [] } },
+            { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
             {
                 provide: RecipeStatementAttestationsDal,
                 useValue: { insertMany, hasFromPerson, hasWordedAttestation: hasWorded },
@@ -156,26 +165,29 @@ beforeAll(async () => {
             {
                 provide: VERSIONS_DAL,
                 useValue: {
-                    createSnapshot: vi.fn(async () => ({ id: 'v', snapshot: {}, createdAt: AT })),
-                    findVersionsBeyondRetention: async () => [],
+                    createSnapshot: vi.fn(() => Promise.resolve({ id: 'v', snapshot: {}, createdAt: AT })),
+                    findVersionsBeyondRetention: () => Promise.resolve([]),
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
+            { provide: PendingArchivesDal, useValue: { enqueueMany: () => Promise.resolve(undefined) } },
+            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
+            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
             {
                 provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+                useValue: {
+                    findBandsByKeys: () => Promise.resolve(new Map()),
+                    findExistingKeys: () => Promise.resolve(new Set()),
+                },
             },
             {
                 provide: FoodLookupsDal,
                 useValue: {
-                    findByIds: async (ids: readonly string[]) =>
-                        new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : []),
+                    findByIds: (ids: readonly string[]) =>
+                        Promise.resolve(new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : [])),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
+            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });
@@ -184,13 +196,13 @@ afterEach(() => {
     heldSlots = 0;
     preLockStatementKind = undefined;
     vi.clearAllMocks();
-    hasFromPerson.mockImplementation(async () => false);
-    hasWorded.mockImplementation(async () => false);
+    hasFromPerson.mockImplementation(() => Promise.resolve(false));
+    hasWorded.mockImplementation(() => Promise.resolve(false));
 });
 
 afterAll(async () => {
-    await booted?.close();
-    await food?.close();
+    await booted.close();
+    await food.close();
 });
 
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
@@ -375,14 +387,12 @@ describe('a confirmed own answer can only be downgraded, and the recipe is priva
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement });
 
         expect(response.status).toBe(200);
-        expect(update).toHaveBeenCalledWith(
-            RECIPE_ID,
-            expect.objectContaining({
-                visibility: 'private',
-                provenance: expect.objectContaining({ statementKind: 'source' }),
-            }),
-            expect.anything(),
-        );
+        expect(update).toHaveBeenCalledTimes(1);
+        expect(update.mock.calls[0][0]).toBe(RECIPE_ID);
+        expect(update.mock.calls[0][1]).toMatchObject({
+            visibility: 'private',
+            provenance: { statementKind: 'source' },
+        });
         expect(stored).toMatchObject({ visibility: 'private' });
     });
 
@@ -463,9 +473,7 @@ describe('a restatement writes no columns and no evidence (KTD-2, AE6, AE15)', (
             cuisine: 'italian',
             ...BOOK_ROW,
         });
-        hasWorded.mockImplementation(
-            async (tx, recipeId, choice) => tx === TX && recipeId === RECIPE_ID && choice === 'book' && false,
-        );
+        hasWorded.mockImplementation(() => Promise.resolve(false));
 
         await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'private',
@@ -489,8 +497,8 @@ describe('a restatement writes no columns and no evidence (KTD-2, AE6, AE15)', (
             cuisine: 'italian',
             ...BOOK_ROW,
         });
-        hasWorded.mockImplementation(
-            async (tx, recipeId, choice) => tx === TX && recipeId === RECIPE_ID && choice === 'book',
+        hasWorded.mockImplementation((tx, recipeId, choice) =>
+            Promise.resolve(tx === TX && recipeId === RECIPE_ID && choice === 'book'),
         );
 
         await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, { visibility: 'private', statement: BOOK });

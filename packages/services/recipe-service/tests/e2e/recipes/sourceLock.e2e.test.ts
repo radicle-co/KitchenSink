@@ -106,11 +106,16 @@ describe('a confirmed source answer (e2e, ADR-0100)', () => {
     async function readRow(id: string): Promise<RecipeRow> {
         const [row] = await db.select().from(recipes).where(eq(recipes.id, id)).limit(1);
 
-        if (!row) {
-            throw new Error(`recipe ${id} not found`);
-        }
+        expect(row, `recipe ${id} not found`).toBeDefined();
 
         return row;
+    }
+
+    /** The `currentVersion` of a response body, or `undefined` when it carries none. */
+    function versionOf(json: Record<string, unknown>): number | undefined {
+        const version = json['currentVersion'];
+
+        return typeof version === 'number' ? version : undefined;
     }
 
     async function create(over: Record<string, unknown>): Promise<{ id: string; version: number }> {
@@ -210,7 +215,7 @@ describe('a confirmed source answer (e2e, ADR-0100)', () => {
             expect(await readRow(id)).toMatchObject({ sourceKind: 'book', visibility: 'private' });
 
             const back = await send('PATCH', `/api/v1/recipes/${id}`, {
-                expectedVersion: (down.json['currentVersion'] as number) ?? version + 1,
+                expectedVersion: versionOf(down.json) ?? version + 1,
                 statement: AUTHORED,
             });
 

@@ -41,21 +41,23 @@ const BOOK: CorrectableRecipe = {
 
 let stored: CorrectableRecipe | undefined;
 const calls: string[] = [];
-const readPreview = vi.fn(async (_id: string) =>
-    stored === undefined
-        ? undefined
-        : { ...stored, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false },
+const readPreview = vi.fn(() =>
+    Promise.resolve(
+        stored === undefined
+            ? undefined
+            : { ...stored, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false },
+    ),
 );
-const rewriteSource = vi.fn(async (..._args: unknown[]) => {
+const rewriteSource = vi.fn(() => {
     calls.push('rewrite');
 });
-const recordCorrection = vi.fn(async (..._args: unknown[]) => {
+const recordCorrection = vi.fn(() => {
     calls.push('record');
 });
-const holdOwnersClones = vi.fn(async (..._args: unknown[]) => {
+const holdOwnersClones = vi.fn(() => {
     calls.push('clones');
 });
-const insertEvidence = vi.fn(async (..._args: unknown[]) => {
+const insertEvidence = vi.fn(() => {
     calls.push('evidence');
 });
 
@@ -104,20 +106,20 @@ beforeAll(async () => {
 
                         return fn(FAKE_TX);
                     },
-                    lockAndCountPrivateSlots: async () => {
+                    lockAndCountPrivateSlots: () => {
                         calls.push('lockOwner');
 
-                        return 0;
+                        return Promise.resolve(0);
                     },
                 },
             },
             {
                 provide: SourceCorrectionsDal,
                 useValue: {
-                    lockRecipe: async () => {
+                    lockRecipe: () => {
                         calls.push('lockRecipe');
 
-                        return stored;
+                        return Promise.resolve(stored);
                     },
                     readPreview,
                     rewriteSource,
@@ -126,18 +128,18 @@ beforeAll(async () => {
                 },
             },
             // The erasure lock reads the CALLER's job on every write; no job here.
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: async () => [] } },
+            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
+            { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
         ],
     });
 });
 
 afterAll(async () => {
-    await booted?.close();
+    await booted.close();
 
     for (const [key, value] of Object.entries(savedEnv)) {
         if (value === undefined) {
-            delete process.env[key];
+            Reflect.deleteProperty(process.env, key);
         } else {
             process.env[key] = value;
         }

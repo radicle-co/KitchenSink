@@ -131,9 +131,7 @@ describe('a staff source correction (e2e, ADR-0100)', () => {
     async function readRow(id: string): Promise<RecipeRow> {
         const [row] = await db.select().from(recipes).where(eq(recipes.id, id)).limit(1);
 
-        if (!row) {
-            throw new Error(`recipe ${id} not found`);
-        }
+        expect(row, `recipe ${id} not found`).toBeDefined();
 
         return row;
     }
@@ -262,7 +260,10 @@ describe('a staff source correction (e2e, ADR-0100)', () => {
 
         const evidence = await db.select().from(recipeSourceEvidence).where(eq(recipeSourceEvidence.recipeId, id));
 
-        expect(evidence.map((row) => row.capture).sort()).toEqual(['editorCitation', 'staffCorrection']);
+        expect(evidence.map((row) => row.capture).sort((a, b) => a.localeCompare(b))).toEqual([
+            'editorCitation',
+            'staffCorrection',
+        ]);
     });
 
     it('AE21 and AE25: from another person corrected to "I wrote this" is held; the owner’s clone of it is held too and refused Public', async () => {

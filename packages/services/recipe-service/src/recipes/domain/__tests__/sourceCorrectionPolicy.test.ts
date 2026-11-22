@@ -16,6 +16,9 @@ import type { RecipeSourceKind, RecipeSourceType } from '@kitchensink/recipe-cor
 
 import { evaluateSourceCorrection, type StoredSource } from '../sourceCorrectionPolicy.js';
 
+/** Order two keys by their text, so a comparison of two sorted key lists does not depend on the default sort. */
+const byText = (a: string, b: string): number => a.localeCompare(b);
+
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
 const STATEMENT = {
     kind: 'public_web',
@@ -385,8 +388,8 @@ describe('evaluateSourceCorrection — the whole table', () => {
     ];
 
     it('covers every source × move exactly once', () => {
-        expect(TABLE.map(([name, move]) => `${name}/${move}`).sort()).toEqual(
-            SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(),
+        expect(TABLE.map(([name, move]) => `${name}/${move}`).sort(byText)).toEqual(
+            SOURCES.flatMap(([name]) => MOVES.map((move) => `${name}/${move}`)).sort(byText),
         );
     });
 
@@ -717,7 +720,7 @@ describe('evaluateSourceCorrection — a confirmed answer', () => {
     });
 
     it('a confirmed own answer downgraded to a book or a paid site is written Private in the same write (AE4)', () => {
-        const own = CONFIRMED_SOURCES[1]?.[1] as StoredSource;
+        const own = CONFIRMED_SOURCES[1][1];
 
         expect(evaluateSourceCorrection({ statement: BOOK, stored: own })).toMatchObject({
             kind: 'apply',
@@ -730,7 +733,7 @@ describe('evaluateSourceCorrection — a confirmed answer', () => {
     });
 
     it('compares a book title exactly as stored: another case or an outer space is a different title (KTD-2)', () => {
-        const book = CONFIRMED_SOURCES[3]?.[1] as StoredSource;
+        const book = CONFIRMED_SOURCES[3][1];
 
         expect(
             evaluateSourceCorrection({ statement: { ...BOOK, citation: CITATION.toLowerCase() }, stored: book }).kind,
@@ -749,8 +752,8 @@ describe('evaluateSourceCorrection — a confirmed answer', () => {
     it('a different link or title over a confirmed answer is locked, and over an unconfirmed one it applies', () => {
         const otherLink = { ...STATEMENT, citation: 'https://www.allrecipes.com/recipe/2/other/' };
         const otherTitle = { ...BOOK, citation: 'Another Book, p. 1' };
-        const web = CONFIRMED_SOURCES[2]?.[1] as StoredSource;
-        const book = CONFIRMED_SOURCES[3]?.[1] as StoredSource;
+        const web = CONFIRMED_SOURCES[2][1];
+        const book = CONFIRMED_SOURCES[3][1];
 
         expect(evaluateSourceCorrection({ statement: otherLink, stored: web }).kind).toBe('locked');
         expect(evaluateSourceCorrection({ statement: otherTitle, stored: book }).kind).toBe('locked');

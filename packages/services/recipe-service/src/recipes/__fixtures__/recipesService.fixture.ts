@@ -123,9 +123,9 @@ export function makeRecipesService(overrides: Partial<RecipesServiceCollaborator
         authorHandles: { findByline: async () => undefined },
         sourceEvidence: noSourceEvidence(),
         attestations: {
-            insertMany: async () => undefined,
-            hasFromPerson: async () => false,
-            hasWordedAttestation: async () => false,
+            insertMany: () => Promise.resolve(undefined),
+            hasFromPerson: () => Promise.resolve(false),
+            hasWordedAttestation: () => Promise.resolve(false),
         },
         ...overrides,
     };

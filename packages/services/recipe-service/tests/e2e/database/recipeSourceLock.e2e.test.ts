@@ -100,10 +100,13 @@ describe('the source lock schema (migration 0092)', () => {
         source_confirmed_at: Date | null;
         source_correction_hold: boolean;
     }> {
-        const { rows } = await pool.query(
-            `SELECT first_published_at, source_confirmed_at, source_correction_hold FROM recipes WHERE id = $1`,
-            [id],
-        );
+        const { rows } = await pool.query<{
+            first_published_at: Date | null;
+            source_confirmed_at: Date | null;
+            source_correction_hold: boolean;
+        }>(`SELECT first_published_at, source_confirmed_at, source_correction_hold FROM recipes WHERE id = $1`, [id]);
+
+        expect(rows).toHaveLength(1);
 
         return rows[0];
     }
@@ -256,7 +259,9 @@ describe('the source lock schema (migration 0092)', () => {
                 ],
             );
 
-            return rows[0]!.id;
+            expect(rows).toHaveLength(1);
+
+            return rows[0].id;
         }
 
         it('lets the service role INSERT and SELECT a record', async () => {
@@ -308,9 +313,10 @@ describe('the source lock schema (migration 0092)', () => {
 
             await pool.query(`UPDATE recipe_source_corrections SET actor_account_id = $2 WHERE id = $1`, [id, TOKEN]);
 
-            const { rows } = await pool.query(`SELECT actor_account_id FROM recipe_source_corrections WHERE id = $1`, [
-                id,
-            ]);
+            const { rows } = await pool.query<{ actor_account_id: string }>(
+                `SELECT actor_account_id FROM recipe_source_corrections WHERE id = $1`,
+                [id],
+            );
 
             expect(rows[0].actor_account_id).toBe(TOKEN);
         });

@@ -40,7 +40,7 @@ interface Seen {
 function stub(routes: Record<string, { status: number; body: unknown }>) {
     const seen: Seen[] = [];
 
-    const fetchStub: typeof fetch = async (input, init) => {
+    const fetchStub: typeof fetch = (input, init) => {
         const url = input instanceof Request ? input.url : input.toString();
         const method = init?.method ?? 'GET';
         const id = /recipes\/([^/]+)\/source-correction/u.exec(url)?.[1] ?? '';
@@ -55,7 +55,7 @@ function stub(routes: Record<string, { status: number; body: unknown }>) {
 
         const route = routes[`${method} ${id}`] ?? { status: 404, body: { code: 'RECIPE_NOT_FOUND', message: 'x' } };
 
-        return new Response(JSON.stringify(route.body), { status: route.status });
+        return Promise.resolve(new Response(JSON.stringify(route.body), { status: route.status }));
     };
 
     return { seen, fetchStub };
@@ -68,10 +68,10 @@ function deps(fetchStub: typeof fetch, answer: boolean): CorrectionDeps & { prin
     return {
         fetch: fetchStub,
         print: (line) => printed.push(line),
-        confirm: async (question) => {
+        confirm: (question) => {
             asked.push(question);
 
-            return answer;
+            return Promise.resolve(answer);
         },
         printed,
         asked,

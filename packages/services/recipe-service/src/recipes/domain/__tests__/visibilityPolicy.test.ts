@@ -740,7 +740,7 @@ describe('the staff-correction hold (migration 0092)', () => {
         const decision = evaluateVisibility({ ...ASK, requested: PUBLIC, sourceCorrected: true });
 
         expectDecision(decision, false);
-        expect(decision.allowed === false && decision.denial).toBe('sourceCorrected');
+        expect(!decision.allowed && decision.denial).toBe('sourceCorrected');
     });
 
     it('never refuses Private because of the hold, and allows Public once the hold is gone (the only difference)', () => {

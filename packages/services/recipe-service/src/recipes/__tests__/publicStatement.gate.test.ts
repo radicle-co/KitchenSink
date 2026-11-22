@@ -13,7 +13,6 @@ import { RecipeSourceType, type RecipeStatus, type RecipeVisibility } from '@kit
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { RecipeSourceEvidenceDal } from '../dal/recipeSourceEvidence.dal.js';
-import type { RecipeStatementAttestationsDal } from '../dal/recipeStatementAttestations.dal.js';
 import type { EvidenceToWrite } from '../domain/sourceEvidence.js';
 import { PublicStatementGate, type PublicWrite } from '../publicStatement.gate.js';
 
@@ -43,13 +42,10 @@ function gateOf(stored: readonly EvidenceToWrite[] = [], attestedFromPerson = fa
     const list = vi.fn(async () => stored.map((row, index) => ({ ...row, id: `e${String(index)}` })));
     const insertMany = vi.fn(async () => undefined);
     const hasFromPerson = vi.fn(async () => attestedFromPerson);
-    const hasWordedAttestation = vi.fn(async () => false);
+    const hasWordedAttestation = vi.fn(() => Promise.resolve(false));
     const gate = new PublicStatementGate(
         { insert, list } as unknown as Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>,
-        { insertMany, hasFromPerson, hasWordedAttestation } as unknown as Pick<
-            RecipeStatementAttestationsDal,
-            'insertMany' | 'hasFromPerson' | 'hasWordedAttestation'
-        >,
+        { insertMany, hasFromPerson, hasWordedAttestation },
     );
 
     return { gate, insert, list, insertMany, hasFromPerson };

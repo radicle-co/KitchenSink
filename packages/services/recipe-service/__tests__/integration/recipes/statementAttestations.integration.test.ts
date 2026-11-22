@@ -132,7 +132,7 @@ const setVisibility = vi.fn(
     },
 );
 const insertMany = vi.fn(async (_tx: unknown, _rows: readonly unknown[]) => undefined);
-const hasWordedAttestation = vi.fn(async (_tx: unknown, _recipeId: string, _choice: string) => false);
+const hasWordedAttestation = vi.fn(() => Promise.resolve(false));
 const hasFromPerson = vi.fn(async (_tx: unknown, _recipeId: string) => false);
 
 let evidence: RecipeSourceEvidenceRow[] = [];
@@ -298,7 +298,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-    hasWordedAttestation.mockImplementation(async () => false);
+    hasWordedAttestation.mockImplementation(() => Promise.resolve(false));
     evidence = [];
     writeFindsNoRow = false;
     underLock = undefined;
@@ -956,7 +956,7 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
      * nothing WHEN the recipe already holds its worded attestation. The twin below records it once when none is held.
      */
     it('the identical paid website again, with its attestation already held, is applied as nothing and records nothing', async () => {
-        hasWordedAttestation.mockImplementation(async () => true);
+        hasWordedAttestation.mockImplementation(() => Promise.resolve(true));
         stored = rowOf({
             status: 'draft',
             sourceType: 'imported_paid',

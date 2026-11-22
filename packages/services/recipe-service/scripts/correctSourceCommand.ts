@@ -45,15 +45,23 @@ async function failureOf(response: Response): Promise<string> {
     const body: unknown = await response.json().catch(() => undefined);
     const code = typeof body === 'object' && body !== null && 'code' in body ? String(body.code) : 'unknown';
 
-    return `${response.status} ${code}`;
+    return `${String(response.status)} ${code}`;
+}
+
+/** The current answer as one phrase: its kind, and its citation in brackets when it has one. */
+function answerLine(answer: SourceCorrectionPreview['answer']): string {
+    if (answer === null) {
+        return 'holds no source answer';
+    }
+
+    const citation = answer.citation === null ? '' : ` (${answer.citation})`;
+
+    return `${answer.kind}${citation}`;
 }
 
 /** One preview line: the id, title, owner, current answer and visibility. */
 function previewLine(id: string, preview: SourceCorrectionPreview): string {
-    const answer =
-        preview.answer === null
-            ? 'holds no source answer'
-            : `${preview.answer.kind}${preview.answer.citation === null ? '' : ` (${preview.answer.citation})`}`;
+    const answer = answerLine(preview.answer);
 
     return `${id} | ${preview.title} | owner ${preview.ownerAccountId} | ${answer} | ${preview.visibility}`;
 }
@@ -107,7 +115,7 @@ export async function runCorrection(input: CorrectionInput, deps: CorrectionDeps
 
     if (
         !(await deps.confirm(
-            `Correct ${correctable.length} recipe(s) to "${input.answer.kind}"? Check each line above against the owner's reply.`,
+            `Correct ${String(correctable.length)} recipe(s) to "${input.answer.kind}"? Check each line above against the owner's reply.`,
         ))
     ) {
         deps.print('Nothing was sent.');

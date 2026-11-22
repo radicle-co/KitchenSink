@@ -13,6 +13,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { CorrectableRecipe } from '../domain/sourceCorrectionScopePolicy.js';
+import type { SourceCorrectionsDal } from '../dal/sourceCorrections.dal.js';
 import { SourceCorrectionService } from '../sourceCorrection.service.js';
 import { SOURCE_CORRECT_SCOPE, type SourceCorrectionRequest } from '../recipes.schema.js';
 
@@ -51,34 +52,44 @@ const body = (over: Partial<SourceCorrectionRequest> = {}): SourceCorrectionRequ
 /** The calls, in order, so the ORDER of the work is an assertion. */
 function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
     const calls: string[] = [];
-    const rewrite = vi.fn(async (..._args: unknown[]) => {
+    const rewrite = vi.fn<SourceCorrectionsDal['rewriteSource']>(() => {
         calls.push('rewrite');
+
+        return Promise.resolve();
     });
-    const record = vi.fn(async (..._args: unknown[]) => {
+    const record = vi.fn<SourceCorrectionsDal['recordCorrection']>(() => {
         calls.push('record');
+
+        return Promise.resolve();
     });
-    const holdClones = vi.fn(async (..._args: unknown[]) => {
+    const holdClones = vi.fn(() => {
         calls.push('holdClones');
+
+        return Promise.resolve();
     });
-    const evidence = vi.fn(async (..._args: unknown[]) => {
+    const evidence = vi.fn(() => {
         calls.push('evidence');
+
+        return Promise.resolve();
     });
-    const lockRecipe = vi.fn(async (..._args: unknown[]) => {
+    const lockRecipe = vi.fn(() => {
         calls.push('lockRecipe');
 
-        return recipe ?? undefined;
+        return Promise.resolve(recipe ?? undefined);
     });
-    const lockOwner = vi.fn(async (..._args: unknown[]) => {
+    const lockOwner = vi.fn(() => {
         calls.push('lockOwner');
 
-        return 0;
+        return Promise.resolve(0);
     });
-    const readPreview = vi.fn(async (..._args: unknown[]) => {
+    const readPreview = vi.fn(() => {
         calls.push('readPreview');
 
-        return recipe === null
-            ? undefined
-            : { ...recipe, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false };
+        return Promise.resolve(
+            recipe === null
+                ? undefined
+                : { ...recipe, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false },
+        );
     });
 
     const transaction = async <T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> => {
@@ -137,14 +148,13 @@ describe('SourceCorrectionService.correct', () => {
 
         await t.service.correct(staff(), RECIPE_ID, body());
 
-        expect(t.rewrite).toHaveBeenCalledWith(
-            FAKE_TX,
-            expect.objectContaining({
-                recipeId: RECIPE_ID,
-                hold: false,
-                provenance: expect.objectContaining({ sourceKind: 'public_web', sourceUrl: LINK }),
-            }),
-        );
+        expect(t.rewrite).toHaveBeenCalledTimes(1);
+        expect(t.rewrite.mock.calls[0][0]).toBe(FAKE_TX);
+        expect(t.rewrite.mock.calls[0][1]).toMatchObject({
+            recipeId: RECIPE_ID,
+            hold: false,
+            provenance: { sourceKind: 'public_web', sourceUrl: LINK },
+        });
         expect(t.evidence).toHaveBeenCalledWith(
             FAKE_TX,
             expect.objectContaining({ recipeId: RECIPE_ID, capture: 'staffCorrection', sourceKind: 'public_web' }),
@@ -166,14 +176,18 @@ describe('SourceCorrectionService.correct', () => {
         await t.service.correct(staff(), RECIPE_ID, body());
 
         expect(t.record).toHaveBeenCalledTimes(1);
-        expect(t.record).toHaveBeenCalledWith(FAKE_TX, {
+        const [tx, written] = t.record.mock.calls[0];
+
+        expect(tx).toBe(FAKE_TX);
+        expect(written).toEqual({
             recipeId: RECIPE_ID,
             actorAccountId: STAFF,
             before: BOOK_RECIPE,
-            after: expect.objectContaining({ sourceKind: 'public_web', sourceUrl: LINK }),
+            after: written.after,
             ground: 'ownerConfirmedByAccountEmail',
             reason: 'Owner asked by email; mailbox challenge passed.',
         });
+        expect(written.after).toMatchObject({ sourceKind: 'public_web', sourceUrl: LINK });
     });
 
     it('holds the OWNER’S clones on every apply, whether or not the recipe itself is held', async () => {

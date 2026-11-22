@@ -20,6 +20,9 @@ import { sourceConflictOfEvidence, type EvidenceToWrite } from '../sourceEvidenc
 import { evidenceListOf } from '../sourceEvidence.js';
 import type { StatementAnswer } from '../provenancePolicy.js';
 
+/** Order two keys by their text, so a comparison of two sorted key lists does not depend on the default sort. */
+const byText = (a: string, b: string): number => a.localeCompare(b);
+
 const OWNER = '01JUOWNER000000000000000A1';
 const SCOPES = [SOURCE_CORRECT_SCOPE] as const;
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
@@ -119,8 +122,8 @@ const decide = (from: SourceAnswerKind, to: SourceAnswerKind) =>
 
 describe('evaluateSourceCorrectionScope — the whole table', () => {
     it('covers every stored answer x new answer exactly once', () => {
-        expect(TABLE.map(([from, to]) => `${from}/${to}`).sort()).toEqual(
-            KINDS.flatMap((from) => KINDS.map((to) => `${from}/${to}`)).sort(),
+        expect(TABLE.map(([from, to]) => `${from}/${to}`).sort(byText)).toEqual(
+            KINDS.flatMap((from) => KINDS.map((to) => `${from}/${to}`)).sort(byText),
         );
     });
 
@@ -228,7 +231,7 @@ describe('the hold oracle (qse Q-6, Q-7)', () => {
             });
 
             expect(afterCorrection).toEqual(statedFirst);
-            expect(afterCorrection.allowed === false && afterCorrection.denial).not.toBe('sourceCorrected');
+            expect(!afterCorrection.allowed && afterCorrection.denial).not.toBe('sourceCorrected');
         },
     );
 

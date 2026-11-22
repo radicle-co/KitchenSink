@@ -28,7 +28,7 @@ const TOKEN_SHAPE = /^erased_[0-9a-f]{32}$/;
 
 describe('erasure and the source lock (migration 0092)', () => {
     let pool: pg.Pool;
-    let db: NodePgDatabase<Record<string, never>>;
+    let db: NodePgDatabase;
 
     beforeAll(() => {
         pool = new pg.Pool({ connectionString: roleDb.appUrl });
@@ -56,9 +56,9 @@ describe('erasure and the source lock (migration 0092)', () => {
             VALUES (${ownerId}, 'source lock erasure probe', 'probe', 2, 5, 5, 10, 'private', 'published', 'authored', ${held})
             RETURNING id
         `);
-        const id = rows[0]?.id;
+        const id: unknown = rows[0]?.id;
 
-        if (id === undefined) {
+        if (typeof id !== 'string') {
             throw new Error('test setup: the recipe insert returned no id');
         }
 

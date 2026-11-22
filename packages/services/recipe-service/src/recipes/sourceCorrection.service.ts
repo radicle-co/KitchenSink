@@ -99,29 +99,27 @@ export class SourceCorrectionService {
             const recipe = await this.corrections.lockRecipe(tx, recipeId);
             const verdict = evaluateSourceCorrectionScope({ callerScopes, recipe, ownerAccountId, answer });
 
-            if (verdict.kind !== 'apply' || recipe === undefined) {
-                return verdict;
+            if (verdict.kind === 'apply' && recipe !== undefined) {
+                await this.corrections.rewriteSource(tx, {
+                    recipeId,
+                    provenance: verdict.provenance,
+                    hold: verdict.hold,
+                });
+
+                for (const row of evidenceListOf(verdict.provenance, 'editor')) {
+                    await this.evidence.insert(tx, { ...row, recipeId, capture: 'staffCorrection' });
+                }
+
+                await this.corrections.recordCorrection(tx, {
+                    recipeId,
+                    actorAccountId: principal.userId,
+                    before: recipe,
+                    after: verdict.provenance,
+                    ground: request.ground,
+                    reason: request.reason,
+                });
+                await this.corrections.holdOwnersClones(tx, recipeId, recipe.ownerId);
             }
-
-            await this.corrections.rewriteSource(tx, {
-                recipeId,
-                provenance: verdict.provenance,
-                hold: verdict.hold,
-            });
-
-            for (const row of evidenceListOf(verdict.provenance, 'editor')) {
-                await this.evidence.insert(tx, { ...row, recipeId, capture: 'staffCorrection' });
-            }
-
-            await this.corrections.recordCorrection(tx, {
-                recipeId,
-                actorAccountId: principal.userId,
-                before: recipe,
-                after: verdict.provenance,
-                ground: request.ground,
-                reason: request.reason,
-            });
-            await this.corrections.holdOwnersClones(tx, recipeId, recipe.ownerId);
 
             return verdict;
         });

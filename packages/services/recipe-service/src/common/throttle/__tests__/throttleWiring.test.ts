@@ -45,6 +45,21 @@ type ControllerClass = new (...args: never[]) => object;
 type Handler = (...args: never[]) => unknown;
 
 /** A minimal `ExecutionContext` exposing only what `ThrottlerGuard` reads: the handler, class, and req/res. */
+function isHandler(value: unknown): value is Handler {
+    return typeof value === 'function';
+}
+
+/** A controller's handler read by name from its prototype, so a rename fails here and not as a silent miss. */
+function handlerOf(controllerClass: ControllerClass, name: string): Handler {
+    const handler: unknown = Reflect.get(controllerClass.prototype, name);
+
+    if (!isHandler(handler)) {
+        throw new Error(`${controllerClass.name} has no handler named ${name}`);
+    }
+
+    return handler;
+}
+
 function contextFor(controllerClass: ControllerClass, handler: Handler): ExecutionContext {
     const req = { ip: '203.0.113.7', headers: {} as Record<string, string | undefined> };
     const res = { header: (): void => undefined };
@@ -126,13 +141,13 @@ describe('throttle wiring — effective per-route limits enforced by the real Th
         [
             'recipes.correctSource (write)',
             SourceCorrectionController,
-            SourceCorrectionController.prototype.correctSource,
+            handlerOf(SourceCorrectionController, 'correctSource'),
             writeLimit,
         ],
         [
             'recipes.previewSource (read)',
             SourceCorrectionController,
-            SourceCorrectionController.prototype.previewSource,
+            handlerOf(SourceCorrectionController, 'previewSource'),
             readLimit,
         ],
         ['collections.create (write)', CollectionsController, CollectionsController.prototype.create, writeLimit],

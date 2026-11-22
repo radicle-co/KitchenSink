@@ -49,9 +49,9 @@ async function main(): Promise<number> {
     });
 
     if (!parsed.success) {
-        console.error(
-            `${USAGE}\n${parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('\n')}`,
-        );
+        const problems = parsed.error.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`);
+
+        console.error(`${USAGE}\n${problems.join('\n')}`);
 
         return 2;
     }
@@ -71,7 +71,9 @@ async function main(): Promise<number> {
             },
             {
                 fetch,
-                print: (line) => console.log(line),
+                print: (line) => {
+                    console.log(line);
+                },
                 confirm: async (question) =>
                     (await terminal.question(`${question} Type "yes" to apply: `)).trim() === 'yes',
             },

@@ -1118,23 +1118,37 @@ describe('runLaneRun — a lost tunnel', () => {
 describe('runLaneRun: one-off flows', () => {
     const oneOffs = ['oneOff/run1/shots', 'oneOff/run1/more'];
 
+    /** The `stageOneOffs` dependency: answers `ids`, and records `stage` and `unstage` in `events`. */
+    const staged = (events: string[] = [], ids: readonly string[] = oneOffs) => ({
+        stageOneOffs: () => {
+            events.push('stage');
+
+            return {
+                ids,
+                remove: () => {
+                    events.push('unstage');
+                },
+            };
+        },
+    });
+
     it('runs only the staged ids: the selector is never asked, and each lane is packed over them', async () => {
         const selectFlows = vi.fn(() => Promise.resolve({ flows: ['committed'], notes: [], owed: [] }));
         const pack = vi.fn((_platform: string, index: number, count: number, flows: readonly string[]) =>
             Promise.resolve(flows.filter((_, position) => position % count === index - 1)),
         );
-        const { deps } = harness({ selectFlows, pack });
+        const { deps } = harness({ selectFlows, pack, ...staged() });
 
-        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
 
         expect(selectFlows).not.toHaveBeenCalled();
         expect(pack).toHaveBeenCalledWith('android', 1, 2, oneOffs);
     });
 
     it('hands each lane the ids in MAESTRO_ONE_OFF_FLOWS and no selector pairs', async () => {
-        const { state, deps } = harness();
+        const { state, deps } = harness(staged());
 
-        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
 
         for (const index of [1, 2]) {
             const env = envOf(laneFile(state, index));
@@ -1154,26 +1168,13 @@ describe('runLaneRun: one-off flows', () => {
 
     it('never moves the green stamp: a one-off is not part of the committed suite', async () => {
         const settleStamp = vi.fn(() => Promise.resolve());
-        const { deps } = harness({ settleStamp });
+        const { deps } = harness({ settleStamp, ...staged() });
 
-        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all', oneOffs });
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
 
         expect(settleStamp).not.toHaveBeenCalled();
     });
     describe('staging', () => {
-        const staged = (events: string[], ids: readonly string[] = oneOffs) => ({
-            stageOneOffs: () => {
-                events.push('stage');
-
-                return {
-                    ids,
-                    remove: () => {
-                        events.push('unstage');
-                    },
-                };
-            },
-        });
-
         it('stages under the lock, before the host is prepared, and runs the staged ids', async () => {
             const made = harness();
             const { events } = made;
@@ -1184,20 +1185,6 @@ describe('runLaneRun: one-off flows', () => {
             const order = events.filter((event) => /^(lock|stage|prepareHost|unstage|unlock)/u.test(event));
 
             expect(order).toEqual(['lock', 'stage', 'prepareHost android', 'unstage', 'unlock']);
-        });
-
-        it('runs the ids staging answered, not the raw paths of the request', async () => {
-            const made = harness();
-            const deps: LaneRunDeps = { ...made.deps, ...staged(made.events, ['oneOff/run1/shots']) };
-
-            await runLaneRun(deps, {
-                platforms: ['android'],
-                requested: 1,
-                selection: 'all',
-                oneOffs: ['/tmp/shots.yaml'],
-            });
-
-            expect(envOf(laneFile(made.state, 1))['MAESTRO_ONE_OFF_FLOWS']).toBe('oneOff/run1/shots');
         });
 
         it('removes the staged flows when the run fails, and when it is stopped', async () => {
@@ -1226,7 +1213,7 @@ describe('runLaneRun: one-off flows', () => {
             const deps: LaneRunDeps = {
                 ...made.deps,
                 stageOneOffs: () => {
-                    throw new Error('/tmp/a.yaml: ../../nope.yaml: not found');
+                    throw new Error('a.yaml: ../../nope.yaml: not found');
                 },
             };
 

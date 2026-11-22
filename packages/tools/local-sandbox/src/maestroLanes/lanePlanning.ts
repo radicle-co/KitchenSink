@@ -148,7 +148,8 @@ const DEFAULT_STAGGER_SECONDS = 20;
  *
  * @throws On a missing or unknown platform, a lane count that is not a positive integer, `--flows` naming nothing, a
  *   flow named without `--flows`, any other argument, a stagger that is not a whole number of seconds, a device that is
- *   not `iphone` or `ipad` (the flag and the variable are named together), or an iPad without an iOS platform.
+ *   not `iphone` or `ipad` (the flag and the variable are named together), an iPad without an iOS platform, a blank
+ *   `--one-off`, or `--one-off` beside `--flows` or `FULL_SUITE=1`.
  */
 export function parseLaneArgs(argv: readonly string[], env: Readonly<Record<string, string | undefined>>): LaneArgs {
     let parsed;

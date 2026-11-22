@@ -217,9 +217,9 @@ describe('parseLaneArgs: one-off flows', () => {
     const android = ['--platform', 'android'];
 
     it('reads each --one-off path, in order', () => {
-        const args = parseLaneArgs([...android, '--one-off', '/tmp/a.yaml', '--one-off', 'b.yaml'], {});
+        const args = parseLaneArgs([...android, '--one-off', '/flows/a.yaml', '--one-off', 'b.yaml'], {});
 
-        expect(args.oneOffs).toEqual(['/tmp/a.yaml', 'b.yaml']);
+        expect(args.oneOffs).toEqual(['/flows/a.yaml', 'b.yaml']);
     });
 
     it('has no one-offs unless one is named', () => {

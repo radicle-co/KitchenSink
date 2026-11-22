@@ -1010,7 +1010,7 @@ maestro_shard_selection() {
 # Exit 2, with the id on stderr and NOTHING on stdout, for an id that is not a staged name, a file that is
 # missing, or an empty list: a run over no flows is refused, never read as a pass.
 maestro_one_off_selection() {
-    local id out=''
+    local id
     local ids=()
     read -r -a ids <<<"${MAESTRO_ONE_OFF_FLOWS:-}"
 
@@ -1034,16 +1034,12 @@ maestro_one_off_selection() {
 
             return 2
         fi
-
-        out+="flow=${id}"$'\n'
     done
 
     # The lane's own share, by the one packer every run uses: the door packed the same ids the same way.
     local sharded
-    # shellcheck disable=SC2086 # `out` is one flow name per word, and flow names carry no whitespace
     sharded=$(maestro_pack_flows "$(maestro_platform)" "$FLOW_PLAN" \
-        "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" \
-        $(printf '%s' "$out" | sed 's/^flow=//' | tr '\n' ' ')) || return 2
+        "${MAESTRO_SHARD_INDEX:-1}" "${MAESTRO_SHARD_COUNT:-1}" "${ids[@]}") || return 2
 
     printf 'selection-reason=%s\n' 'one-off flows named by the lane door'
     printf 'shard-reason=%s\n' "$(printf '%s\n' "$sharded" | sed -n 's/^reason=//p')"

@@ -15,6 +15,8 @@ import { afterEach, describe, expect, it } from 'vitest';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 const SCRIPT = join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
+/** Absolute, so the run does not depend on which `bash` a writable PATH folder offers. */
+const BASH = '/bin/bash';
 const FLOW_DIR = 'packages/apps/commise/mobile/.maestro';
 
 const scratch: string[] = [];
@@ -24,6 +26,13 @@ afterEach(() => {
         rmSync(dir, { recursive: true, force: true });
     }
 });
+
+/** The ids of the `flow=` lines of a selection's stdout. */
+const flowIds = (stdout: string): string[] =>
+    stdout
+        .split('\n')
+        .filter((line) => line.startsWith('flow='))
+        .map((line) => line.slice(5));
 
 /** A working directory holding the staged files given, as the door would leave them. */
 function cwdWith(...ids: string[]): string {
@@ -44,7 +53,7 @@ function selection(
     ids: string,
     shard = { index: 1, count: 1 },
 ): { code: number | null; stdout: string; stderr: string } {
-    const result = spawnSync('bash', [SCRIPT, 'one-off-selection'], {
+    const result = spawnSync(BASH, [SCRIPT, 'one-off-selection'], {
         cwd,
         encoding: 'utf8',
         env: {
@@ -81,14 +90,11 @@ describe('runMaestroFlows.sh one-off-selection', () => {
 
             expect(out.code, out.stderr).toBe(0);
 
-            return out.stdout
-                .split('\n')
-                .filter((line) => line.startsWith('flow='))
-                .map((line) => line.slice(5));
+            return flowIds(out.stdout);
         });
 
         expect(shares.every((share) => share.length > 0)).toBe(true);
-        expect(shares.flat().sort()).toEqual(ids);
+        expect(shares.flat().toSorted((a, b) => a.localeCompare(b))).toEqual(ids);
     });
 
     it('refuses a staged id whose file is missing, names it, and prints nothing on stdout', () => {
@@ -135,7 +141,7 @@ describe('run mode', () => {
 describe('the runner packer over one-off ids', () => {
     const pack = (index: number, count: number): { code: number | null; stdout: string; stderr: string } => {
         const result = spawnSync(
-            'bash',
+            BASH,
             [
                 SCRIPT,
                 'pack',
@@ -158,13 +164,14 @@ describe('the runner packer over one-off ids', () => {
 
             expect(out.code, out.stderr).toBe(0);
 
-            return out.stdout
-                .split('\n')
-                .filter((line) => line.startsWith('flow='))
-                .map((line) => line.slice(5));
+            return flowIds(out.stdout);
         });
 
         expect(shares.every((share) => share.length > 0)).toBe(true);
-        expect(shares.flat().sort()).toEqual(['oneOff/run1/a', 'oneOff/run1/b', 'oneOff/run1/c']);
+        expect(shares.flat().toSorted((a, b) => a.localeCompare(b))).toEqual([
+            'oneOff/run1/a',
+            'oneOff/run1/b',
+            'oneOff/run1/c',
+        ]);
     });
 });

@@ -19,7 +19,7 @@ import path from 'node:path';
 import { flowReferences } from '@kitchensink/e2e-plan/maestroFlows';
 
 /** The folder under `.maestro/` that holds staged one-offs. */
-export const ONE_OFF_DIR = 'oneOff';
+const ONE_OFF_DIR = 'oneOff';
 
 /** A file name that is one plain word, so it is safe in a flow id, a runner selector and a Mac path. */
 const PLAIN_FLOW_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]*\.yaml$/u;
@@ -136,9 +136,14 @@ export function stageOneOffs(input: {
             return [`${one.source}: no such file`];
         }
 
-        return referenceProblems(readFileSync(one.source, 'utf8'), targetDir, (relative) =>
-            existsSync(path.join(maestroDir, relative)),
-        ).map((problem) => `${one.source}: ${problem}`);
+        try {
+            return referenceProblems(readFileSync(one.source, 'utf8'), targetDir, (relative) =>
+                existsSync(path.join(maestroDir, relative)),
+            ).map((problem) => `${one.source}: ${problem}`);
+        } catch (error) {
+            // `flowReferences` throws on YAML that does not parse, and its message does not name the file.
+            return [`${one.source}: ${error instanceof Error ? error.message : String(error)}`];
+        }
     });
 
     if (problems.length > 0) {

@@ -24,6 +24,7 @@ import { inspect } from 'node:util';
 
 import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
+import { MAESTRO_DIR } from '@kitchensink/e2e-plan/maestroFlows';
 import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { settleStamp, stateRoot, type Env, type StampStart } from '@kitchensink/e2e-plan/stampRun';
@@ -51,7 +52,6 @@ import { startSharedServices, type RunningService, type ServiceSpec } from '../s
 
 const REPO_ROOT = fileURLToPath(new URL('../../../../', import.meta.url));
 const LOCAL_MAESTRO = path.join(REPO_ROOT, 'packages/tools/local-sandbox/bin/localMaestro.sh');
-const MAESTRO_DIR = path.join(REPO_ROOT, 'packages/apps/commise/mobile/.maestro');
 const RUNNER = path.join(REPO_ROOT, 'packages/apps/commise/mobile/tests/e2e/runMaestroFlows.sh');
 /** `localMaestro.sh`'s default state folder too; `localSettings.test.ts` holds the two equal. */
 const STATE_DIR = path.join(stateRoot(), 'localMaestro');
@@ -587,7 +587,7 @@ async function main(argv: readonly string[]): Promise<number> {
                 log,
             }),
         aborted: () => aborted,
-        ...oneOffStaging({ oneOffs: args.oneOffs, maestroDir: MAESTRO_DIR, runId: runStamp }),
+        ...oneOffStaging({ oneOffs: args.oneOffs, maestroDir: path.join(REPO_ROOT, MAESTRO_DIR), runId: runStamp }),
         staggerMs: args.staggerSeconds * 1000,
         log,
     };

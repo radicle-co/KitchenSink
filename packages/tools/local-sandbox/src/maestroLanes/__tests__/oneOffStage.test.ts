@@ -108,6 +108,15 @@ describe('referenceProblems: a target that climbs to exactly the parent of .maes
 });
 
 describe('stageOneOffs', () => {
+    it('names the file when its YAML does not parse, and copies nothing', () => {
+        const { maestroDir, sources } = world();
+        const good = write(sources, 'good.yaml', '- launchApp\n');
+        const bad = write(sources, 'bad.yaml', 'a: [unclosed\n');
+
+        expect(() => stageOneOffs({ maestroDir, paths: [good, bad], runId: 'run1' })).toThrow(bad);
+        expect(existsSync(path.join(maestroDir, 'oneOff'))).toBe(false);
+    });
+
     it('refuses a run that names no file, so no wiring slip can fall back to the suite', () => {
         const { maestroDir } = world();
 

@@ -16,7 +16,10 @@ import { describe, expect, it } from 'vitest';
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
 const ONE_OFF_ROOT = 'packages/apps/commise/mobile/.maestro/oneOff';
 
-const git = (...args: string[]): string => execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' });
+/** Absolute, so the guard does not depend on which `git` a writable PATH folder offers. */
+const GIT = '/usr/bin/git';
+
+const git = (...args: string[]): string => execFileSync(GIT, args, { cwd: REPO_ROOT, encoding: 'utf8' });
 
 describe('the one-off flow staging folder', () => {
     it('is ignored by git, at any depth, so a staged flow is never listed or committed by accident', () => {

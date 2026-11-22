@@ -38,11 +38,6 @@ export interface LaneRunRequest {
     readonly requested?: number;
     /** The flows named on the command line or `all` for every platform, or the impact selector's answer for each. */
     readonly selection: Selection | Readonly<Record<LanePlatform, Selection>>;
-    /**
-     * The staged one-off flow ids (`oneOffStage`). When given, a platform runs only these: the selector is not asked,
-     * every lane is handed the ids, and the green stamp does not move.
-     */
-    readonly oneOffs?: readonly string[];
 }
 
 const selectionFor = (selection: LaneRunRequest['selection'], platform: LanePlatform): Selection =>
@@ -143,11 +138,17 @@ interface PlatformPlan {
 const laneName = (lane: LaneSpec): string => `${lane.platform}-${lane.index}`;
 
 /**
- * Plan one platform: its lanes, or none when it has nothing to run.
+ * Plan one platform: its lanes, or none when it has nothing to run. With staged one-off ids the platform runs only
+ * those: the selector is not asked, every lane is handed the ids, and the green stamp does not move.
  *
  * @throws When no lane has its Clerk users (refused before anything starts).
  */
-async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform: LanePlatform): Promise<PlatformPlan> {
+async function planPlatform(
+    deps: LaneRunDeps,
+    request: LaneRunRequest,
+    platform: LanePlatform,
+    oneOffs: readonly string[],
+): Promise<PlatformPlan> {
     const adapter = deps.adapterFor(platform);
     const selection = selectionFor(request.selection, platform);
 
@@ -157,7 +158,6 @@ async function planPlatform(deps: LaneRunDeps, request: LaneRunRequest, platform
         return { adapter, flows: [], owed: [], selector: '', lanes: [], oneOffs: [] };
     }
 
-    const oneOffs = request.oneOffs ?? [];
     const selector = selection === 'all' || oneOffs.length > 0 ? '' : flowSelector(selection);
     // A one-off has no row in the runner's registry, so the runner's selector would refuse it: they are the flows.
     const { flows, notes, owed } =
@@ -227,11 +227,10 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
 
     try {
         staged = deps.stageOneOffs?.();
-        const planned = staged === undefined ? request : { ...request, oneOffs: staged.ids };
         const plans: PlatformPlan[] = [];
 
-        for (const platform of planned.platforms) {
-            plans.push(await planPlatform(deps, planned, platform));
+        for (const platform of request.platforms) {
+            plans.push(await planPlatform(deps, request, platform, staged?.ids ?? []));
         }
 
         const lanes = plans.flatMap((plan) => plan.lanes);

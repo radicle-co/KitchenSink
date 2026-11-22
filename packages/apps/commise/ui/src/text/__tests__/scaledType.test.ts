@@ -9,7 +9,14 @@ import { describe, expect, it } from 'vitest';
 
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
-import { CHROME_CAPS, scaledTypeMetrics, scaledTypeSize } from '../scaledType.js';
+import {
+    CHROME_CAPS,
+    GLYPH_HIDE_ABOVE_SCALE,
+    leadingGlyphWebStyle,
+    scaledTypeMetrics,
+    scaledTypeSize,
+    showsLeadingGlyph,
+} from '../scaledType.js';
 import { letterLiftOf } from '../letterMetrics.js';
 
 /** Each sized role's ceiling, written out (not read from the code under test). */
@@ -193,6 +200,29 @@ describe('scaledTypeMetrics — a cap-centred fixed size', () => {
             fontSize: 111,
             lineHeight: '152px',
             transform: [{ translateY: -0 }],
+        });
+    });
+});
+
+/**
+ * The timer row's leading glyph gives way to the time above 1.3x text (designer D83, Stellar 0073). Native reads the system
+ * text scale; web writes the same rule in CSS, keyed to the root font size, so browser zoom (which scales the viewport and
+ * not the root font size) never hides it and the browser's text-size setting does. Mutation lens: `<` for `<=` fails the
+ * 1.3 row; a different threshold fails the 1.31 row; a width that does not read the root font size fails the style row.
+ */
+describe('the leading glyph hide rule', () => {
+    it('hides above 1.3x and not at or below it', () => {
+        expect(GLYPH_HIDE_ABOVE_SCALE).toBe(1.3);
+        expect(showsLeadingGlyph(1)).toBe(true);
+        expect(showsLeadingGlyph(1.3)).toBe(true);
+        expect(showsLeadingGlyph(1.31)).toBe(false);
+        expect(showsLeadingGlyph(2)).toBe(false);
+    });
+
+    it('states the web rule as a width that reaches zero once the root font size passes 1.3 x 16 px', () => {
+        expect(leadingGlyphWebStyle()).toEqual({
+            width: 'clamp(0px, calc((20.8001px - 1rem) * 1000), 1.75rem)',
+            overflow: 'hidden',
         });
     });
 });

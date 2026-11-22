@@ -21,8 +21,7 @@ content container's own opening tag and the card styles; this script replaces on
 its own rules (`.p6`). Heights (board -> px) come from draw20261120P6RefusalNoticeBoardsHeights.json, measured by a
 render. A board with no entry there stops the run.
 
-The six lines and the states are decisions/makePublicRefusalNotice-designer.md (Solar Squad), signed plan
-makePublicRefusalNotice U0. The standing line is the `meta` text role (14/20) in ink-muted, with no icon, and is never
+The six lines and the states are the make-public refusal notice's design (unit U0). The standing line is the `meta` text role (14/20) in ink-muted, with no icon, and is never
 in a live region. A failed write keeps today's danger line with its icon.
 
 Run once from the repository root on its parent commit b5c4f68da (pull request docs/p6RefusalBoards):

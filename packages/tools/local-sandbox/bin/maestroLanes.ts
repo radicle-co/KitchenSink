@@ -24,6 +24,7 @@ import { inspect } from 'node:util';
 
 import { GetQueueAttributesCommand, SQSClient } from '@aws-sdk/client-sqs';
 import { clerkPoolAdminPort, listLocalLanes } from '@kitchensink/e2e-fixtures/poolAdmin';
+import { MAESTRO_DIR } from '@kitchensink/e2e-plan/maestroFlows';
 import { checkRecordedScreens, flowOutcomes } from '@kitchensink/e2e-plan/recordedScreens';
 import { runPlan } from '@kitchensink/e2e-plan/runPlan';
 import { settleStamp, stateRoot, type Env, type StampStart } from '@kitchensink/e2e-plan/stampRun';
@@ -38,6 +39,7 @@ import { acquireHostLock, currentBootId, pidIsAlive } from '../src/maestroLanes/
 import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes/lanePlanning.js';
 import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
+import { oneOffStaging } from '../src/maestroLanes/oneOffStage.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { processGroup } from '../src/maestroLanes/stopGroups.js';
@@ -445,7 +447,9 @@ async function main(argv: readonly string[]): Promise<number> {
         process.stdout.write(`maestro:lanes: ${new Date().toISOString().slice(11, 19)} ${line}\n`);
     };
 
-    const choices = await resolveSelection(args, base, log);
+    // A one-off run runs only its own flows: the impact selector has nothing to say about them.
+    const choices =
+        args.oneOffs === undefined ? await resolveSelection(args, base, log) : new Map<LanePlatform, PlatformChoice>();
 
     const children = new Set<LaneChild>();
     let aborted = false;
@@ -461,11 +465,13 @@ async function main(argv: readonly string[]): Promise<number> {
     process.on('SIGINT', abort);
     process.on('SIGTERM', abort);
 
+    // Sorts by age, and holds no `:` or `.` (a folder name on the Mac side of an rsync too).
+    const runStamp = new Date().toISOString().replace(/[:.]/gu, '-');
+
     const deps: LaneRunDeps = {
         adapterFor: (platform) => adapterFor(platform, base, settings, args.iosDevice),
         stateDir: STATE_DIR,
-        // Sorts by age, and holds no `:` or `.` (a folder name on the Mac side of an rsync too).
-        runStamp: new Date().toISOString().replace(/[:.]/gu, '-'),
+        runStamp,
         repoRoot: REPO_ROOT,
         lockDir: path.join(STATE_DIR, 'locks'),
         baseEnv: base,
@@ -581,6 +587,7 @@ async function main(argv: readonly string[]): Promise<number> {
                 log,
             }),
         aborted: () => aborted,
+        ...oneOffStaging({ oneOffs: args.oneOffs, maestroDir: path.join(REPO_ROOT, MAESTRO_DIR), runId: runStamp }),
         staggerMs: args.staggerSeconds * 1000,
         log,
     };

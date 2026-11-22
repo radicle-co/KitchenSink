@@ -15,7 +15,7 @@ there stops the run with an error.
 
 The sheet is `Sheet size="content" presentation="dialog"`: a bottom sheet on a phone, a centred dialog at most 448 wide
 from the tablet width. The copy is the en copy of `sourceStatement.*`, `editor.source.*`, `editor.visibility.*` and
-`detailActions.*`, with the P3 keys from decisions/directCreateSourceLabels-designer.md.
+`detailActions.*`, with the P3 keys added for the direct-create source labels.
 
 Run once from the repository root on its parent commit: python3 docs/design/canvasScripts/draw20261119P3StatementBoards.py
 """

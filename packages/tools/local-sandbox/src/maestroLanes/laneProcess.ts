@@ -81,6 +81,8 @@ export function laneRunnerEnv(input: {
     /** Where the runner keeps the debug folder of a flow that fails (`failureEvidenceDir`). */
     readonly evidenceDir: string;
     readonly adapterEnv: Readonly<Record<string, string>>;
+    /** The staged one-off flow ids the runner runs instead of selecting from its registry; none for a normal run. */
+    readonly oneOffFlows?: readonly string[];
 }): Env {
     const { lane } = input;
 
@@ -88,6 +90,9 @@ export function laneRunnerEnv(input: {
         ...input.base,
         MAESTRO_PLATFORM: lane.platform,
         MAESTRO_FLOW_SELECTOR: input.selector,
+        ...(input.oneOffFlows === undefined || input.oneOffFlows.length === 0
+            ? {}
+            : { MAESTRO_ONE_OFF_FLOWS: input.oneOffFlows.join(' ') }),
         MAESTRO_SHARD_INDEX: String(lane.index),
         MAESTRO_SHARD_COUNT: String(lane.count),
         MAESTRO_DRIVER_PORT: String(lane.driverPort),

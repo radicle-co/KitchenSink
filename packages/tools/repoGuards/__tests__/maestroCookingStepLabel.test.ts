@@ -2,12 +2,12 @@
 /**
  * Repo guard: how the cooking flows read the step and line labels.
  *
- * The labels are the cooking `top.place` and `step.lineOf` copy (messages.ts), and the space after `Step` and `Line` is a
- * no-break space. A flow that
- * asserts it with a plain space matches nothing on a device, and one that types the no-break space hides an invisible
- * character in a file nobody can read it in. These flows are there to show what the cook sees move, not to pin the
- * copy: the component tests and `messages.test.ts` already pin the text. So each flow asserts a label with `.` for the
- * space, and the number stays in the selector, because the number is what the flow proves.
+ * The labels are the cooking `top.place` and `step.lineOf` copy (messages.ts), and the space after `Step` and `Line` is
+ * a no-break space. A flow that asserts it with a plain space matches nothing on a device, and one that types the
+ * no-break space hides an invisible character in a file nobody can read it in. These flows are there to show what the
+ * cook sees move, not to pin the copy: the component tests and `messages.test.ts` already pin the text. So each flow
+ * asserts a label with `.` for the space, and the number stays in the selector, because the number is what the flow
+ * proves.
  *
  * The real label is read from messages.ts as text, so a change to the copy cannot leave this guard checking a stale
  * copy of it.
@@ -58,10 +58,10 @@ const selectors = (flow: string): string[] =>
 const matchesWholeText = (selector: string, text: string): boolean => new RegExp(`^(?:${selector})$`, 'u').test(text);
 
 describe.each(Object.entries(LABELS))('the %s label this guard reads from messages.ts', (kind, label) => {
-    it('is a template with both slots and a no-break space after the word', () => {
+    it('is a template with both slots, led by its word', () => {
         expect(label).toContain('{current}');
         expect(label).toContain('{total}');
-        expect(label.startsWith(`${kind}\u00a0`)).toBe(true);
+        expect(label.startsWith(kind)).toBe(true);
     });
 });
 

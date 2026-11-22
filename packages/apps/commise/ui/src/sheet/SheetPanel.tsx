@@ -71,6 +71,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
         <div
             ref={frameRef}
             className="flex min-h-0 flex-1 flex-col"
+            // The cast: React's CSSProperties has no key for a custom property, which the outlet reads in CSS.
             style={
                 footerShown && !unpinned
                     ? ({ '--sheet-footer-inset': `${footerHeight}px` } as CSSProperties)

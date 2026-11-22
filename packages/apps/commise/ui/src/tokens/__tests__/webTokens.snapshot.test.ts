@@ -305,6 +305,9 @@ describe('web tokens — generated theme.css artifact', () => {
               --text-figure-stat: 1.125rem;
               --text-figure-stat--line-height: calc(24 / 18);
               --text-figure-stat--font-weight: 600;
+              --text-figure-large: 1.75rem;
+              --text-figure-large--line-height: calc(32 / 28);
+              --text-figure-large--font-weight: 600;
               --breakpoint-medium: 37.5rem;
               --breakpoint-nav: 52.5rem;
               --container-regular: 37.5rem;

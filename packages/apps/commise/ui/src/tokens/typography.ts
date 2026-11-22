@@ -55,7 +55,8 @@ export type TypeRole =
     | 'label'
     | 'caption'
     | 'figureInline'
-    | 'figureStat';
+    | 'figureStat'
+    | 'figureLarge';
 
 /** One type role: its face, size (px, per container class, or the size of its line), weight step and leading. */
 export interface TypeRoleSpec {
@@ -86,6 +87,8 @@ export interface TypeRoleSpec {
  * - `barTitle` is `cardTitle`'s size and weight; the bar's emphasis, if it needs more, comes from colour or the bar
  *   material, never from size.
  * - `figureStat` is 18 / 24: a standalone number takes a heading's size.
+ * - `figureLarge` is 28 / 32 in the body face, semibold, tabular: the time in the cooking timer row. It is a figure, so it
+ *   takes the display ceiling (1.5x) like the other display-sized text, and it never wraps.
  * - `readingLarge` is reading text at the largest size, 28 / 36 in the body face at regular weight. It is not a heading:
  *   `largeTitle` is the display face in semibold. It is the 28 step above `readingBody` and takes the reading cap.
  *   No screen may show `readingLarge` and `largeTitle` together: at the largest text it grows to 56 against the title's 42,
@@ -105,6 +108,7 @@ export const typeRole = {
     caption: { face: 'body', size: 14, weight: 'medium', lineHeight: 20 },
     figureInline: { face: 'body', size: 'inherit', weight: 'semibold', lineHeight: 'inherit', figure: true },
     figureStat: { face: 'body', size: 18, weight: 'semibold', lineHeight: 24, figure: true },
+    figureLarge: { face: 'body', size: 28, weight: 'semibold', lineHeight: 32, figure: true },
 } as const satisfies Record<TypeRole, TypeRoleSpec>;
 
 /** A type role as Tailwind's `--text-{role}` and its sub-properties. */

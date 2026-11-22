@@ -42,6 +42,7 @@ describe('typeRole — the §1.5 table', () => {
             caption: { face: 'body', size: 14, weight: 'medium', lineHeight: 20 },
             figureInline: { face: 'body', size: 'inherit', weight: 'semibold', lineHeight: 'inherit', figure: true },
             figureStat: { face: 'body', size: 18, weight: 'semibold', lineHeight: 24, figure: true },
+            figureLarge: { face: 'body', size: 28, weight: 'semibold', lineHeight: 32, figure: true },
         });
     });
 
@@ -81,6 +82,15 @@ describe('webTypeRoles — the --text-{role} projection', () => {
         expect(webTypeRoles['figure-stat']).toEqual({
             size: '1.125rem',
             lineHeight: 'calc(24 / 18)',
+            fontWeight: '600',
+        });
+    });
+
+    // The timer row's time: 28 / 32, semibold, tabular. It never wraps, which the row's summary enforces.
+    it('emits the figure-large role at 28 px (1.75rem), leading 32 px, weight 600', () => {
+        expect(webTypeRoles['figure-large']).toEqual({
+            size: '1.75rem',
+            lineHeight: 'calc(32 / 28)',
             fontWeight: '600',
         });
     });
@@ -140,6 +150,7 @@ describe('webTypeRoles — the --text-{role} projection', () => {
                 'label',
                 'caption',
                 'figure-stat',
+                'figure-large',
             ].sort(),
         );
     });
@@ -219,6 +230,7 @@ describe('nativeTokens.type — a face per weight, a pixel leading', () => {
     it('sets figures in tabular, lining digits', () => {
         expect(nativeTokens.type.figureStat.fontVariant).toEqual(['tabular-nums', 'lining-nums']);
         expect(nativeTokens.type.figureInline.fontVariant).toEqual(['tabular-nums', 'lining-nums']);
+        expect(nativeTokens.type.figureLarge.fontVariant).toEqual(['tabular-nums', 'lining-nums']);
     });
 
     // React Native nests a figure inside the line it qualifies, and a nested Text inherits the size of its parent.

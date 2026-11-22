@@ -26,6 +26,7 @@ const CEILING = {
     label: 2,
     caption: 2,
     figureStat: 2,
+    figureLarge: 1.5,
 } as const satisfies Record<Exclude<TypeRole, 'figureInline'>, number>;
 
 const SCALES = [0.85, 1, 1.3, 1.5, 2, 2.643, 3.1] as const;
@@ -71,6 +72,13 @@ describe('scaledTypeMetrics', () => {
     it('draws readingLarge at 56 on a 72 px leading at 2x, and stops there at 3x', () => {
         expect(scaledTypeMetrics('readingLarge', 2)).toEqual({ fontSize: 56, lineHeight: '72px' });
         expect(scaledTypeMetrics('readingLarge', 3)).toEqual({ fontSize: 56, lineHeight: '72px' });
+    });
+
+    // figureLarge is the timer row's time, a display-sized figure: it takes the display cap (1.5x), not the reading
+    // cap. 3x is the assertion that tells DISPLAY_FONT_SCALE_CAP from FONT_SCALE_CAP: 28 x 1.5 = 42, 28 x 2 = 56.
+    it('draws figureLarge at 42 on a 48 px leading at 3x, and stops there', () => {
+        expect(scaledTypeMetrics('figureLarge', 3)).toEqual({ fontSize: 42, lineHeight: '48px' });
+        expect(scaledTypeMetrics('figureLarge', 1)).toEqual({ fontSize: 28, lineHeight: '32px' });
     });
 
     it('draws body at 32 on a 48 px leading, and largeTitle at 1.5×, above every cap', () => {

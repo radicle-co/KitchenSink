@@ -287,6 +287,7 @@ The default rule of each role:
 | `caption`      | truncate:1                                                        |
 | `figureInline` | never wraps                                                       |
 | `figureStat`   | never wraps                                                       |
+| `figureLarge`  | never wraps                                                       |
 
 - **Manrope sets names only:** the greeting, large titles, the recipe title, a collection name, the monogram cover,
   the wordmark. **It never sets a number.** Every amount, time, count, kcal and serving uses a figure role.

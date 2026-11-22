@@ -33,6 +33,7 @@ const CEILING: Readonly<Record<Exclude<TypeRole, 'figureInline'>, number>> = {
     label: FONT_SCALE_CAP,
     caption: FONT_SCALE_CAP,
     figureStat: FONT_SCALE_CAP,
+    figureLarge: DISPLAY_FONT_SCALE_CAP,
 };
 
 /**

@@ -1,0 +1,251 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Profile, close account, licence reminder and takedown (web, 1280)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+    <link rel="stylesheet" href="ds/commise/redesign.css" /></head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font-family: var(--font-body);
+                    }
+                    a {
+                        color: inherit;
+                        text-decoration: none;
+                    }
+                    .cap {
+                        margin: 0;
+                        padding: 0 24px;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .pg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 8px;
+                        min-width: 0;
+                    }
+                    .two {
+                        display: grid;
+                        grid-template-columns: 1fr 1fr;
+                        gap: 32px 0;
+                        align-items: stretch;
+                    }
+                    .two > .fg:last-child:nth-child(odd) {
+                        grid-column: 1 / -1;
+                    }
+                    .two > .fg > .stage {
+                        flex: 1;
+                    }
+                    .crop {
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                        padding: 24px 32px;
+                        box-sizing: border-box;
+                    }
+                    .col {
+                        margin: 0;
+                        display: flex;
+                        width: 100%;
+                        max-width: 640px;
+                        flex-direction: column;
+                        gap: 24px;
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        justify-content: center;
+                        align-items: center;
+                        overflow: hidden;
+                        box-sizing: border-box;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background: var(--canvas);
+                        transform: translateZ(0);
+                        padding: 32px 24px;
+                    }
+                    .stage .bg {
+                        position: absolute;
+                        inset: 0;
+                        padding: 24px 32px;
+                        box-sizing: border-box;
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .dlg {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 16px;
+                        width: 100%;
+                        box-sizing: border-box;
+                        padding: 24px;
+                        background: var(--paper-overlay);
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-lg);
+                    }
+                    .dlg h2,
+                    .dlg h3,
+                    .dlg p,
+                    .dlg ul {
+                        margin: 0;
+                    }
+                    .dlg ul {
+                        padding: 0;
+                        list-style: none;
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                    }
+                    .btns {
+                        display: flex;
+                        flex-direction: row;
+                        justify-content: flex-end;
+                        gap: 12px;
+                    }
+                    .alert {
+                        margin: 0;
+                        padding: 0 16px 12px;
+                    }
+                    .shell {
+                        position: relative;
+                        display: flex;
+                        height: 320px;
+                        overflow: hidden;
+                        border-top: 1px solid var(--line-divider);
+                        border-bottom: 1px solid var(--line-divider);
+                        background-color: var(--canvas);
+                        background-image: var(--background-image-hero);
+                    }
+                    .sbx {
+                        display: flex;
+                    }
+                    .shell main {
+                        min-width: 0;
+                        flex: 1;
+                        padding: 24px 32px 32px;
+                        box-sizing: border-box;
+                    }
+                    .nv:hover {
+                        background: color-mix(in srgb, var(--ink) 6%, transparent);
+                        color: var(--ink);
+                    }</style
+                ><style>
+                    /* redesign patch */
+                    .sr-only {
+                        font-size: 14px;
+                    }
+                    .cap {
+                        margin: 8px 16px;
+                        padding: 8px 12px;
+                        border: 1px dashed var(--line-control);
+                        border-radius: 12px;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .f-cap {
+                        font-size: 14px;
+                    }
+                    .counter {
+                        font-size: 14px;
+                    }
+                    .c-shell,
+                    .f-page {
+                        font-size: 16px;
+                    }
+                    .nav\:inline {
+                        font-size: 16px;
+                    }
+                    article[data-card-variant] {
+                        border: 0;
+                        border-radius: var(--radius-lg);
+                        box-shadow: var(--shadow-md);
+                        padding: 6px 6px 12px;
+                    }
+                    article[data-card-variant] > div:first-child {
+                        border-radius: 13px;
+                    }
+                    article[data-card-variant] h2 {
+                        font-family: var(--font-display);
+                        font-weight: 600;
+                    }
+                    article[data-card-variant] [class*='aspect-[4/3]'] > div[aria-hidden='true'] {
+                        background: linear-gradient(170deg, var(--cover-sky) 0%, var(--cover-cream) 100%);
+                        gap: 8px;
+                    }
+                    article[data-card-variant] [class*='aspect-[4/3]'] > div[aria-hidden='true'] > span {
+                        position: relative;
+                        width: 40px;
+                        height: 40px;
+                        flex: none;
+                        border-radius: 50%;
+                        background: var(--paper);
+                        font-size: 14px !important;
+                        line-height: 20px !important;
+                        color: transparent !important;
+                        overflow: hidden;
+                        display: block;
+                    }
+                    article[data-card-variant] [class*='aspect-[4/3]'] > div[aria-hidden='true'] > span::after {
+                        content: '';
+                        position: absolute;
+                        inset: 10px;
+                        background: var(--action-text);
+                        -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                        mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3.5' y='5.5' width='17' height='13' rx='2.5'/%3E%3Ccircle cx='9' cy='10.5' r='1.6'/%3E%3Cpath d='m20.5 15.5-4.5-4.5-8.5 7.5'/%3E%3C/svg%3E")
+                            center / contain no-repeat;
+                    }
+                    article[data-card-variant] [class*='aspect-[4/3]'] > div[aria-hidden='true']::after {
+                        content: 'Waiting for its photo';
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                        text-align: center;
+                    }
+                </style><style>
+                    /* 003A licence boards */
+                    .hf { outline: 2px solid var(--focus-ring); outline-offset: 4px; border-radius: 4px; }
+                    .rem { display: flex; flex-direction: column; gap: 8px; }
+                    .rem p, .rem ul { margin: 0; }
+                    .rem ul { padding: 0 0 0 20px; list-style: disc; }
+                    .rem li + li { margin-top: 4px; }
+                    .rem a, .lic a { color: var(--action-text); text-decoration: underline; }
+                    .lnkbtn { box-sizing: border-box; display: inline-flex; max-width: 100%; min-height: 44px; align-items: center; justify-content: center; gap: 8px; padding: 10px 20px; border: 1px solid var(--line-control); border-radius: 22px; background: var(--paper); color: var(--ink); text-align: center; text-decoration: none; overflow-wrap: anywhere; }
+                    .lnkbtn.w { width: 100%; }
+                    .acts { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: 12px; }
+                    .acts-p { display: flex; flex-direction: column-reverse; align-items: stretch; gap: 12px; }
+                    .dwarn { display: flex; flex-direction: column; gap: 4px; }
+                    .dwarn p { margin: 0; }
+                    .code { display: flex; flex-wrap: wrap; gap: 8px 12px; margin: 0; font-family: var(--font-mono); font-size: 20px; line-height: 28px; font-weight: 500; color: var(--ink); user-select: all; }
+                    .codebox { display: flex; flex-direction: column; gap: 8px; padding: 12px 16px; border: 1px solid var(--line-divider); border-radius: var(--radius-md); background: var(--surface-muted); }
+                    .chk { display: flex; flex-direction: row; align-items: center; gap: 8px; padding: 4px 0; }
+</style></helmet
+            >
+            <div class="pg"><div class="fg"><p class="cap">Close confirm, 0 public recipes. Only the lead and the objection line show. Focus starts on the heading. The takedown link opens in a new tab on web and in the in-app browser on mobile.</p><div class="stage" style="min-height: 0px"><div class="scrim"></div><div class="dlg" role="alertdialog" aria-labelledby="t1" style="max-width: 640px"><h2 id="t1" tabindex="-1" class="text-section-title text-ink hf" style="margin: 0">Close account?</h2><p class="text-body text-ink-muted" style="margin: 0">Closing signs you out and deactivates your account. Your recipes and data are kept, and you can restore your account by contacting support. This is not permanent deletion — to erase your data for good, use “Erase my data” instead.</p><div class="rem"><p class="text-body text-ink">You have no public recipes.</p><ul class="text-body text-ink-muted"><li>You can object and ask us to take a recipe down.</li></ul></div><div class="acts"><x-import component-from-global-scope="Commise.Button" variant="ghost" on-press="{{noop}}">Cancel</x-import><a class="lnkbtn text-card-title" href="#" target="_blank" rel="noopener">Ask us to take recipes down</a><x-import component-from-global-scope="Commise.Button" variant="destructive" tone="confirm" icon="userX" on-press="{{noop}}">Close account</x-import></div></div></div></div><div class="fg"><p class="cap">Close confirm, 0 public recipes, but copies other cooks made of the cook’s recipes exist: the copies line shows too, because copies outlive the original (001-FR-005d).</p><div class="stage" style="min-height: 0px"><div class="scrim"></div><div class="dlg" role="alertdialog" aria-labelledby="t2" style="max-width: 640px"><h2 id="t2" tabindex="-1" class="text-section-title text-ink" style="margin: 0">Close account?</h2><p class="text-body text-ink-muted" style="margin: 0">Closing signs you out and deactivates your account. Your recipes and data are kept, and you can restore your account by contacting support. This is not permanent deletion — to erase your data for good, use “Erase my data” instead.</p><div class="rem"><p class="text-body text-ink">You have no public recipes.</p><ul class="text-body text-ink-muted"><li>Copies other cooks made of your recipes stay up.</li><li>You can object and ask us to take a recipe down.</li></ul></div><div class="acts"><x-import component-from-global-scope="Commise.Button" variant="ghost" on-press="{{noop}}">Cancel</x-import><a class="lnkbtn text-card-title" href="#" target="_blank" rel="noopener">Ask us to take recipes down</a><x-import component-from-global-scope="Commise.Button" variant="destructive" tone="confirm" icon="userX" on-press="{{noop}}">Close account</x-import></div></div></div></div><div class="fg"><p class="cap">Close confirm, 1 public recipe. The name stays on it, so there is no former-member line until erasure.</p><div class="stage" style="min-height: 0px"><div class="scrim"></div><div class="dlg" role="alertdialog" aria-labelledby="t3" style="max-width: 640px"><h2 id="t3" tabindex="-1" class="text-section-title text-ink" style="margin: 0">Close account?</h2><p class="text-body text-ink-muted" style="margin: 0">Closing signs you out and deactivates your account. Your recipes and data are kept, and you can restore your account by contacting support. This is not permanent deletion — to erase your data for good, use “Erase my data” instead.</p><div class="rem"><p class="text-body text-ink">Your 1 public recipe stays public, with your name on it.</p><ul class="text-body text-ink-muted"><li>If your account is erased later, they stay public, with “a former member” instead of your name.</li><li>The licence you gave Commise when you made them public continues after you close your account. Read <a href="#">the licence</a></li><li>Copies other cooks made of your recipes stay up.</li><li>You can object and ask us to take a recipe down.</li></ul></div><div class="acts"><x-import component-from-global-scope="Commise.Button" variant="ghost" on-press="{{noop}}">Cancel</x-import><a class="lnkbtn text-card-title" href="#" target="_blank" rel="noopener">Ask us to take recipes down</a><x-import component-from-global-scope="Commise.Button" variant="destructive" tone="confirm" icon="userX" on-press="{{noop}}">Close account</x-import></div></div></div></div><div class="fg"><p class="cap">Close confirm, many public recipes (12).</p><div class="stage" style="min-height: 0px"><div class="scrim"></div><div class="dlg" role="alertdialog" aria-labelledby="t4" style="max-width: 640px"><h2 id="t4" tabindex="-1" class="text-section-title text-ink" style="margin: 0">Close account?</h2><p class="text-body text-ink-muted" style="margin: 0">Closing signs you out and deactivates your account. Your recipes and data are kept, and you can restore your account by contacting support. This is not permanent deletion — to erase your data for good, use “Erase my data” instead.</p><div class="rem"><p class="text-body text-ink">Your 12 public recipes stay public, with your name on them.</p><ul class="text-body text-ink-muted"><li>If your account is erased later, they stay public, with “a former member” instead of your name.</li><li>The licence you gave Commise when you made them public continues after you close your account. Read <a href="#">the licence</a></li><li>Copies other cooks made of your recipes stay up.</li><li>You can object and ask us to take a recipe down.</li></ul></div><div class="acts"><x-import component-from-global-scope="Commise.Button" variant="ghost" on-press="{{noop}}">Cancel</x-import><a class="lnkbtn text-card-title" href="#" target="_blank" rel="noopener">Ask us to take recipes down</a><x-import component-from-global-scope="Commise.Button" variant="destructive" tone="confirm" icon="userX" on-press="{{noop}}">Close account</x-import></div></div></div></div></div></x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":2300}}'>
+            class Component extends DCLogic { renderVals(){ const noop=function(){}; return { yes:true, no:false, noop:noop }; } }
+        </script>
+    </body>
+</html>

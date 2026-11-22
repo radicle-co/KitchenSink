@@ -4,6 +4,9 @@
  */
 import type { IconName } from '../icon/props.js';
 
+/** The side of the visible circle, in points: the 44 the design draws on both platforms. */
+export const ICON_BUTTON_CIRCLE_PX = 44;
+
 /** The cross-platform `IconButton` contract shared by the web and native leaves. */
 export interface IconButtonProps {
     /** The meaning to draw: a glyph from the icon Registry. */

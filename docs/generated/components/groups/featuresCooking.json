@@ -442,7 +442,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingLineRow.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingLineRow — one line of a cooking step, as the web checkbox the cook ticks.\n\nThe whole row is the control: a `button` with `role=\"checkbox\"`, named by the line's text, at least 44 px tall, as\nthe recipe page's ingredient row is. Each line is set in its `LINE_TYPE` entry. A ticked line dims to `inkMuted`, never struck through.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "CookingLineRow — one line of a cooking step, as the web checkbox the cook ticks.\n\nThe whole row is the control: a `button` with `role=\"checkbox\"`, named by the line's text, at least 44 px tall, as\nthe recipe page's ingredient row is. Each line is set in its `LINE_TYPE` entry. A ticked line dims to `inkMuted`,\nnever struck through.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

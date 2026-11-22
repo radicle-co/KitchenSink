@@ -1,8 +1,10 @@
 /**
- * @module @commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the touch
+ * @module @commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the
+ * touch
  * floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a `hitSlop`, so a
- * device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text (designer
- * D85: an icon-only control keeps its pixel size). Styled with Tamagui only (ADR-0080).
+ * device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text: an
+ * icon-only
+ * control keeps its pixel size. Styled with Tamagui only (ADR-0080).
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
@@ -14,16 +16,13 @@ import { styled, View } from 'tamagui';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { PressScale } from '../pressScale/PressScale.native.js';
-import type { IconButtonProps } from './props.js';
-
-/** The visible circle: the 44 the design draws. */
-const CIRCLE_PX = 44;
+import { ICON_BUTTON_CIRCLE_PX, type IconButtonProps } from './props.js';
 
 /** The circle. A Tamagui view, so the leaf sets no React Native style. */
 const Circle = styled(View, {
     name: 'IconButtonCircle',
-    width: CIRCLE_PX,
-    height: CIRCLE_PX,
+    width: ICON_BUTTON_CIRCLE_PX,
+    height: ICON_BUTTON_CIRCLE_PX,
     borderRadius: '$full',
     alignItems: 'center',
     justifyContent: 'center',

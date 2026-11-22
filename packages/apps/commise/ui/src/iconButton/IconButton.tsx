@@ -1,7 +1,8 @@
 /**
  * @module @commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the
- * caller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it (designer
- * D85: an icon-only control keeps its pixel size). A press scales the control through {@link PressScale} and fills it with the
+ * caller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an
+ * icon-only
+ * control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the
  * neutral press row.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
@@ -19,7 +20,12 @@ import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 import type { IconButtonProps } from './props.js';
 
 /** The control's classes, written whole so Tailwind finds each one. */
-const ICON_BUTTON_CLASS = `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`;
+const ICON_BUTTON_CLASS = [
+    'inline-flex shrink-0 items-center justify-center rounded-full text-ink',
+    TOUCH_TARGET_CLASS.fixed,
+    PRESS_FILL_CLASS.pointer,
+    FOCUS_RING_CLASS.offset,
+].join(' ');
 
 /** The design-system icon button. */
 export const IconButton: FC<IconButtonProps> = ({ icon, accessibilityLabel, onPress }) => (

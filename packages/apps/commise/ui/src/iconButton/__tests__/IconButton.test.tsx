@@ -1,6 +1,7 @@
 /**
  * The web icon button: one glyph in a 44 px target, named by the caller. Mutation lens: drop the name and the role
- * row fails; let the target grow with the text and the fixed-class row fails; let the glyph grow and the fixed-glyph row
+ * row fails; let the target grow with the text and the fixed-class row fails; let the glyph grow and the fixed-glyph
+ * row
  * fails; drop the press handler and the press row fails.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';

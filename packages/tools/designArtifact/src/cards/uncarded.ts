@@ -11,7 +11,8 @@
 /** Surface name to why it has no card. */
 export const UNCARDED: Readonly<Record<string, string>> = {
     CookingTimerSummary:
-        'The body of a CookingTimerRow: a part placed inside the row frame and never on its own. The CookingTimerRow card draws it in all three states.',
+        'The body of a CookingTimerRow: a part placed inside the row frame and never on its own. ' +
+        'The CookingTimerRow card draws it in all three states.',
     HeaderEyebrowBack:
         'The "‹ {parent}" eyebrow Back is a part of the large title header, not a component a screen places: on web it shows only from 840 px and is display: none below, and on native it renders nothing because the pinned bar owns Back. The LargeTitleHeader card covers the header it belongs to.',
     SafeAreaProvider:

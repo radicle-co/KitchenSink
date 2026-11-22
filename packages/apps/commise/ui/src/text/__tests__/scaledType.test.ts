@@ -205,9 +205,11 @@ describe('scaledTypeMetrics — a cap-centred fixed size', () => {
 });
 
 /**
- * The timer row's leading glyph gives way to the time above 1.3x text (designer D83, Stellar 0073). Native reads the system
- * text scale; web writes the same rule in CSS, keyed to the root font size, so browser zoom (which scales the viewport and
- * not the root font size) never hides it and the browser's text-size setting does. Mutation lens: `<` for `<=` fails the
+ * The timer row's leading glyph gives way to the time above 1.3x text (designer ruling). Native reads the system
+ * text scale; web writes the same rule in CSS, keyed to the root font size, so browser zoom (which scales the viewport
+ * and
+ * not the root font size) never hides it and the browser's text-size setting does. Mutation lens: `<` for `<=` fails
+ * the
  * 1.3 row; a different threshold fails the 1.31 row; a width that does not read the root font size fails the style row.
  */
 describe('the leading glyph hide rule', () => {

@@ -1,7 +1,10 @@
 /**
- * The native cooking timer row: the frame, its three states and the summary part. Mutation lens: a wrong glyph per state
- * fails the glyph rows; a row that is itself one accessible element hides its buttons from a screen reader and fails the
- * container row; a glyph that stays above 1.3x text fails the hide rows; two 48 dp frames that overlap fail the gap row.
+ * The native cooking timer row: the frame, its three states and the summary part. Mutation lens: a wrong glyph per
+ * state
+ * fails the glyph rows; a row that is itself one accessible element hides its buttons from a screen reader and fails
+ * the
+ * container row; a glyph that stays above 1.3x text fails the hide rows; two 48 dp frames that overlap fail the gap
+ * row.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';

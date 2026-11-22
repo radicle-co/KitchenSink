@@ -87,7 +87,8 @@ export interface TypeRoleSpec {
  * - `barTitle` is `cardTitle`'s size and weight; the bar's emphasis, if it needs more, comes from colour or the bar
  *   material, never from size.
  * - `figureStat` is 18 / 24: a standalone number takes a heading's size.
- * - `figureLarge` is 28 / 32 in the body face, semibold, tabular: the time in the cooking timer row. It is a figure, so it
+ * - `figureLarge` is 28 / 32 in the body face, semibold, tabular: the time in the cooking timer row. It is a figure, so
+ * it
  *   takes the display ceiling (1.5x) like the other display-sized text, and it never wraps.
  * - `readingLarge` is reading text at the largest size, 28 / 36 in the body face at regular weight. It is not a heading:
  *   `largeTitle` is the display face in semibold. It is the 28 step above `readingBody` and takes the reading cap.

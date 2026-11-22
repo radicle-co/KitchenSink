@@ -3285,7 +3285,6 @@
             "dir": "packages/apps/commise/ui/src/cookingTimerRow",
             "kind": "presentational",
             "patterns": [
-                "Registry — the state-to-actions table below is the one place the glyphs are chosen",
                 "Slot — `body` is filled by the caller"
             ],
             "platforms": [
@@ -3301,7 +3300,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerRow.tsx",
                     "dir": "packages/apps/commise/ui/src/cookingTimerRow",
-                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else: a running\ntimer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.\n\nThe frame has no role and no name of its own, and it is not a live region: the controls and the body name themselves.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else: a\nrunning\ntimer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.\n\nThe frame has no role and no name of its own, and it is not a live region: the controls and the body name themselves.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3310,10 +3309,6 @@
                         {
                             "name": "pattern",
                             "text": "Slot — `body` is filled by the caller"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Registry — the state-to-actions table below is the one place the glyphs are chosen"
                         }
                     ],
                     "description": "The cooking timer row frame.",
@@ -3361,10 +3356,6 @@
                         {
                             "name": "pattern",
                             "text": "Slot — `body` is filled by the caller"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Registry — the state-to-actions table below is the one place the glyphs are chosen"
                         }
                     ],
                     "description": "The native cooking timer row frame.",
@@ -7134,7 +7125,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it (designer\nD85: an icon-only control keeps its pixel size). A press scales the control through {@link PressScale} and fills it with the\nneutral press row.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only\ncontrol keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7250,11 +7241,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the touch\nfloor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a `hitSlop`, so a\ndevice inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text (designer\nD85: an icon-only control keeps its pixel size). Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch\nfloor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a `hitSlop`, so a\ndevice inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text: an\nicon-only\ncontrol keeps its pixel size. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the touch"
+                            "text": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the"
                         },
                         {
                             "name": "pattern",

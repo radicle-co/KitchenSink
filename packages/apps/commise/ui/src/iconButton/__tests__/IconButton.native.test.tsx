@@ -1,5 +1,6 @@
 /**
- * The native icon button: a 48 dp frame on Android (44 elsewhere) around a 44 circle, one glyph at 24 that stays 24, named by the caller. Mutation lens: a hit slop instead of a frame fails the frame row; a target
+ * The native icon button: a 48 dp frame on Android (44 elsewhere) around a 44 circle, one glyph at 24 that stays 24,
+ * named by the caller. Mutation lens: a hit slop instead of a frame fails the frame row; a target
  * that grows with the text fails the 2x row; a glyph that grows fails the 2x row.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';

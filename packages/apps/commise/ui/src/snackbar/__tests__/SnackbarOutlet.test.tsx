@@ -75,11 +75,13 @@ function Shower({ input }: { readonly input: SnackbarInput }): JSX.Element {
     );
 }
 
+const noop = (): void => undefined;
+
 /** One sheet, controlled by the test. */
 function OneSheet({
     open,
     title,
-    onOpenChange = () => undefined,
+    onOpenChange = noop,
     children,
 }: {
     readonly open: boolean;
@@ -95,8 +97,10 @@ function OneSheet({
 }
 
 /** Every status region that holds the message. */
-function regionsHolding(message: string): HTMLElement[] {
-    return screen.getAllByRole('status', { hidden: true }).filter((region) => region.textContent?.includes(message));
+function regionsHolding(message: string, root: HTMLElement = document.body): HTMLElement[] {
+    return within(root)
+        .getAllByRole('status', { hidden: true })
+        .filter((region) => region.textContent.includes(message));
 }
 
 const showFrom = (message: string): void => {
@@ -115,10 +119,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
 
         showFrom('Ticks cleared');
 
-        const [region, ...others] = regionsHolding('Ticks cleared');
-
-        expect(others).toStrictEqual([]);
-        expect(screen.getByRole('dialog', { name: 'Ingredients' }).contains(region ?? null)).toBe(true);
+        expect(regionsHolding('Ticks cleared')).toHaveLength(1);
+        expect(regionsHolding('Ticks cleared', screen.getByRole('dialog', { name: 'Ingredients' }))).toHaveLength(1);
     });
 
     it('lets a keyboard reach Undo from inside the open sheet, and Undo works', async () => {
@@ -160,7 +162,12 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             return (
                 <>
                     <Shower input={input} />
-                    <button type="button" onClick={() => setOpen(false)}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setOpen(false);
+                        }}
+                    >
                         close sheet
                     </button>
                     <OneSheet open={open} title="Ingredients" onOpenChange={setOpen}>
@@ -190,12 +197,10 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             screen.getByText('close sheet').click();
         });
 
-        const [region, ...others] = regionsHolding('Ticks cleared');
-
-        expect(others).toStrictEqual([]);
+        expect(regionsHolding('Ticks cleared')).toHaveLength(1);
         expect(screen.queryByRole('dialog')).toBeNull();
 
-        fireEvent.click(within(region ?? document.body).getByRole('button', { name: 'Undo' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
         expect(onAction).toHaveBeenCalledOnce();
     });
@@ -213,10 +218,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
 
         showFrom('Ticks cleared');
 
-        const [region, ...others] = regionsHolding('Ticks cleared');
-
-        expect(others).toStrictEqual([]);
-        expect(screen.getByRole('dialog', { name: 'Confirm' }).contains(region ?? null)).toBe(true);
+        expect(regionsHolding('Ticks cleared')).toHaveLength(1);
+        expect(regionsHolding('Ticks cleared', screen.getByRole('dialog', { name: 'Confirm' }))).toHaveLength(1);
     });
 
     it('gives its children depth 1 in a sheet and 2 in a nested sheet, which orders the outlets', () => {

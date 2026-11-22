@@ -74,7 +74,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
             // The cast: React's CSSProperties has no key for a custom property, which the outlet reads in CSS.
             style={
                 footerShown && !unpinned
-                    ? ({ '--sheet-footer-inset': `${footerHeight}px` } as CSSProperties)
+                    ? ({ '--sheet-footer-inset': `${String(footerHeight)}px` } as CSSProperties)
                     : undefined
             }
         >
@@ -112,7 +112,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                 `:has()`), so a scrollbar arriving or leaving never changes the row's width and never flips the actions. */}
             <div
                 className="flex min-h-0 flex-1 flex-col overflow-y-auto has-[[data-dialog-actions]]:[scrollbar-gutter:stable]"
-                style={footerShown && !unpinned ? { scrollPaddingBottom: `${footerHeight}px` } : undefined}
+                style={footerShown && !unpinned ? { scrollPaddingBottom: `${String(footerHeight)}px` } : undefined}
             >
                 <div className="shrink-0 grow px-6 py-4">{children}</div>
                 {footerShown && (

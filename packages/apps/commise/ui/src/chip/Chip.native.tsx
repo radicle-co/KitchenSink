@@ -17,7 +17,7 @@ import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
 import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipPill } from './chipStyle.js';
-import type { ChipProps } from './props.js';
+import { CHIP_LABEL_ROLE, type ChipProps } from './props.js';
 
 /** The native design-system chip. */
 export const Chip: FC<ChipProps> = (props) => {
@@ -37,12 +37,12 @@ export const Chip: FC<ChipProps> = (props) => {
                     {({ pressed }) => (
                         <View style={chipPill(theme, props.selected, pressed, tone)}>
                             {props.selected ? (
-                                <Icon name="check" size={16} tone="actionText" scaleWith={{ role: 'caption' }} />
+                                <Icon name="check" size={16} tone="actionText" scaleWith={{ role: CHIP_LABEL_ROLE }} />
                             ) : null}
                             {/* The design-system Text, so the label and the count stop at 2x and wrap at word boundaries
                                 (designer finding C-1, reviews/mergedUiIos1.md); the pill grows with them (a minimum height). */}
                             <Text
-                                typeRole="caption"
+                                typeRole={CHIP_LABEL_ROLE}
                                 color={props.selected ? '$actionText' : '$ink'}
                                 flexShrink={1}
                                 numberOfLines={CHIP_LABEL_LINES}
@@ -68,10 +68,15 @@ export const Chip: FC<ChipProps> = (props) => {
                 >
                     {({ pressed }) => (
                         <View style={chipPill(theme, false, pressed, tone)}>
-                            <Text typeRole="caption" color="$ink" flexShrink={1} numberOfLines={CHIP_LABEL_LINES}>
+                            <Text
+                                typeRole={CHIP_LABEL_ROLE}
+                                color="$ink"
+                                flexShrink={1}
+                                numberOfLines={CHIP_LABEL_LINES}
+                            >
                                 {visibleChipLabel(props.label)}
                             </Text>
-                            <Icon name="x" size={16} scaleWith={{ role: 'caption' }} />
+                            <Icon name="x" size={16} scaleWith={{ role: CHIP_LABEL_ROLE }} />
                         </View>
                     )}
                 </Pressable>

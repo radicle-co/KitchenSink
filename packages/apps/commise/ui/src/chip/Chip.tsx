@@ -16,7 +16,7 @@ import type { FC } from 'react';
 import { Icon } from '../icon/Icon.js';
 import { CHIP_LABEL_CLASS, chipClass } from './chipClass.js';
 import { visibleChipLabel } from './chipLabel.js';
-import type { ChipProps, FilterChipProps } from './props.js';
+import { CHIP_LABEL_ROLE, type ChipProps, type FilterChipProps } from './props.js';
 
 /** The name a filter chip states when its visible text cannot: its full label, then its count. Pure. */
 const filterName = ({ label, count }: FilterChipProps): string =>
@@ -36,7 +36,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     onClick={props.onPress}
                     className={chipClass(props.selected)}
                 >
-                    {props.selected ? <Icon name="check" size={16} scaleWith={{ role: 'caption' }} /> : null}
+                    {props.selected ? <Icon name="check" size={16} scaleWith={{ role: CHIP_LABEL_ROLE }} /> : null}
                     <span className={CHIP_LABEL_CLASS}>{visible}</span>
                     {props.count === undefined ? null : (
                         <>
@@ -57,7 +57,7 @@ export const Chip: FC<ChipProps> = (props) => {
                     className={chipClass(false)}
                 >
                     <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(props.label)}</span>
-                    <Icon name="x" size={16} scaleWith={{ role: 'caption' }} />
+                    <Icon name="x" size={16} scaleWith={{ role: CHIP_LABEL_ROLE }} />
                 </button>
             );
     }

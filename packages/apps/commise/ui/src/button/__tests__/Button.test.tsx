@@ -659,7 +659,7 @@ describe('Button (web) — expanded', () => {
 });
 
 /**
- * D6: the glyph of a labelled button is part of its label, so it is in `rem` and follows the browser text size. 1 rem
+ * The glyph of a labelled button is part of its label, so it is in `rem` and follows the browser text size. 1 rem
  * is 16 px at 1x, so a 20 px glyph is the 20 px it was. jsdom resolves no `rem`, so these pin the declared size.
  */
 describe('Button (web) glyph follows its label', () => {

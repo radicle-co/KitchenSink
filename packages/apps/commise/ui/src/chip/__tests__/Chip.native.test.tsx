@@ -414,7 +414,7 @@ describe('Chip (native) — the label colour follows the theme', () => {
     });
 });
 
-/** D6 (native): a chip's glyph is its 16 pt times the caption role's growth under the system text scale, to the cap. */
+/** Native: a chip's glyph is its 16 pt times the caption role's growth under the system text scale, to the cap. */
 describe('Chip (native) glyph follows its label', () => {
     const sizesAt = (scale: number): string[] => {
         const { container, unmount } = renderWithTamagui(

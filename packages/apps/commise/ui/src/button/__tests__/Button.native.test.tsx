@@ -705,8 +705,8 @@ describe('Button (native) — expanded', () => {
 });
 
 /**
- * D6 (native): a labelled button's glyph is its 20 pt times the label role's growth under the system text scale, never
- * past the role's cap (cardTitle stops at 2x). An icon-only control does not exist here: this Button always has a label.
+ * Native: a labelled button's glyph is its 20 pt times the label role's growth under the system text scale, never past
+ * the role's cap (cardTitle stops at 2x). This Button always has a label, so its glyph always grows.
  */
 describe('Button (native) glyph follows its label', () => {
     const glyphSizeAt = (scale: number): string | undefined => {

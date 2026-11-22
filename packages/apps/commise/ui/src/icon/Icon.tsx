@@ -21,7 +21,7 @@ import { MIRROR_IN_RTL, type IconProps } from './props.js';
 /** The design-system icon. */
 export const Icon: FC<IconProps> = ({ name, size = 24, tone, filled = false, label, scaleWith }) => {
     const Glyph = GLYPHS[name];
-    // With `scaleWith` the glyph is in `rem`, as its label's text is, so browser text size moves both: 1 rem is 16 px at 1x.
+    // With `scaleWith` the glyph is in `rem`, as its label's text is, so browser text size moves both (1 rem = 16 px).
     const grown: CSSProperties = scaleWith === undefined ? {} : { width: pxToRemUnit(size), height: pxToRemUnit(size) };
     const style: CSSProperties | undefined =
         tone === undefined && scaleWith === undefined

@@ -94,8 +94,8 @@ export const MIRROR_IN_RTL: ReadonlySet<IconName> = new Set<IconName>(['chevronL
 export type IconSize = 16 | 20 | 24 | 48;
 
 /**
- * The label a glyph grows with: its type role and, where the label passes one, the navigation-chrome cap it stops at, so
- * the glyph never outgrows its own label. The control states the cap once and hands it to the label and to this.
+ * The label a glyph grows with: its type role and, where the label passes one, the navigation-chrome cap it stops
+ * at, so the glyph never outgrows its own label. The control states the cap once and hands it to the label and to this.
  */
 export interface IconScaleWith {
     readonly role: Exclude<TypeRole, 'figureInline'>;
@@ -116,7 +116,7 @@ export interface IconProps {
     /**
      * The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows
      * with that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at
-     * every text size, which is right for an icon-only control and a decoration (designer D6, D85).
+     * every text size, which is right for an icon-only control and a decoration.
      */
     readonly scaleWith?: IconScaleWith;
     /** Fill the glyph with its own colour. Only the active tab is filled, always with its label weight and bar (§1.7). */

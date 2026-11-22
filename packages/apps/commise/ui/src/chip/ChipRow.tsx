@@ -32,12 +32,18 @@ import { HorizontalScroller } from '../horizontalScroller/HorizontalScroller.js'
 import { Icon } from '../icon/Icon.js';
 import { CHIP_LABEL_CLASS, SCROLL_BOX_CLASS, chipClass, chipRowClass } from './chipClass.js';
 import { visibleChipLabel } from './chipLabel.js';
-import type { ChipOption, ChipRowOverflow, ChipRowProps, ChoiceRowProps } from './props.js';
+import {
+    CHIP_LABEL_ROLE,
+    type ChipOption,
+    type ChipRowOverflow,
+    type ChipRowProps,
+    type ChoiceRowProps,
+} from './props.js';
 
 /** An option's face: the check while chosen, then its label. */
 const OptionFace: FC<{ readonly option: ChipOption; readonly chosen: boolean }> = ({ option, chosen }) => (
     <>
-        {chosen ? <Icon name="check" size={16} scaleWith={{ role: 'caption' }} /> : null}
+        {chosen ? <Icon name="check" size={16} scaleWith={{ role: CHIP_LABEL_ROLE }} /> : null}
         <span className={CHIP_LABEL_CLASS}>{visibleChipLabel(option.label)}</span>
     </>
 );

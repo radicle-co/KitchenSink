@@ -139,8 +139,8 @@ describe('Icon (native)', () => {
 });
 
 /**
- * D6 (native): a glyph with `scaleWith` is its 1x size times the label role's own growth under the system text scale
- * (`grownScale`), never past that role's cap; one without it is a fixed size at every text scale (D85: an icon-only
+ * Native: a glyph with `scaleWith` is its 1x size times the label role's own growth under the system text scale
+ * (`grownScale`), never past that role's cap; one without it is a fixed size at every text scale (an icon-only
  * control keeps its glyph).
  */
 describe('Icon (native) scaleWith', () => {
@@ -177,7 +177,7 @@ describe('Icon (native) scaleWith', () => {
         expect(sizeAt(3, { role: 'largeTitle' })).toBe('30');
     });
 
-    it('stops at its label chrome cap, as the label does: body is capped at 2x, a 1.3 chrome cap stops it at 26', () => {
+    it('stops at its label chrome cap: body stops at 2x, a 1.3 chrome cap stops it at 26', () => {
         expect(sizeAt(3, { role: 'body', chromeCap: '1.3' })).toBe('26');
     });
 

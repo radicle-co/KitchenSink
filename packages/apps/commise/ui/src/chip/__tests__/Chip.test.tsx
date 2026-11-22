@@ -463,7 +463,7 @@ describe('chip row geometry — the scroller room follows the chip overlay', () 
     });
 });
 
-/** D6: a chip's own glyph (the filter check, the input remove) is part of its label, so it is in `rem` like the label. */
+/** A chip's own glyph (the filter check, the input remove) is part of its label, so it is in `rem` like the label. */
 describe('Chip (web) glyph follows its label', () => {
     it('draws the selected filter check and the input remove in rem, 1 rem at 1x', () => {
         const filter = render(<Chip kind="filter" label="Vegan" selected onPress={vi.fn()} />);

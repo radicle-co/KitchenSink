@@ -42,7 +42,14 @@ import { useTheme } from '../theme/useTheme.native.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
-import { BUTTON_VISUAL_HEIGHT, glyphToneOf, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import {
+    BUTTON_LABEL_ROLE,
+    BUTTON_VISUAL_HEIGHT,
+    glyphToneOf,
+    surfaceOf,
+    type ButtonProps,
+    type ButtonSize,
+} from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
 import { ButtonLabel } from './ButtonLabel.native.js';
 
@@ -121,7 +128,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 {busy || icon === undefined ? (
                     <ActivityIndicator color={theme.colors[glyphRole]} />
                 ) : (
-                    <Icon name={icon} size={20} tone={glyphRole} scaleWith={{ role: 'cardTitle' }} />
+                    <Icon name={icon} size={20} tone={glyphRole} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 )}
             </View>
         ) : null;

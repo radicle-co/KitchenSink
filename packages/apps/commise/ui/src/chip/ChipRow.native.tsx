@@ -19,7 +19,13 @@ import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { visibleChipLabel } from './chipLabel.js';
 import { CHIP_LABEL_LINES, chipHit, chipHitHeight, chipPill } from './chipStyle.js';
-import type { ChipRowOverflow, ChipRowProps, ChipRowSurface, ChoiceRowProps } from './props.js';
+import {
+    CHIP_LABEL_ROLE,
+    type ChipRowOverflow,
+    type ChipRowProps,
+    type ChipRowSurface,
+    type ChoiceRowProps,
+} from './props.js';
 
 /**
  * Lay chips out on one scrolling line, or wrapped. The wrapping line is the only row box between the group and its
@@ -92,11 +98,11 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
                                             name="check"
                                             size={16}
                                             tone="actionText"
-                                            scaleWith={{ role: 'caption' }}
+                                            scaleWith={{ role: CHIP_LABEL_ROLE }}
                                         />
                                     ) : null}
                                     <Text
-                                        typeRole="caption"
+                                        typeRole={CHIP_LABEL_ROLE}
                                         color={chosen ? '$actionText' : '$ink'}
                                         flexShrink={1}
                                         numberOfLines={CHIP_LABEL_LINES}

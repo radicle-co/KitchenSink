@@ -80,11 +80,13 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
             ? undefined
             : { ...recipe, title: 'Tomato Soup', visibility: 'private' as const, sourceCorrectionHold: false };
     });
+
     const transaction = async <T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> => {
         calls.push('begin');
 
         return fn(FAKE_TX);
     };
+
     const service = new SourceCorrectionService(
         { transaction, lockAndCountPrivateSlots: lockOwner },
         { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones, readPreview },

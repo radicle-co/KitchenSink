@@ -39,8 +39,9 @@ interface Seen {
 /** A stubbed API: `routes` answers `METHOD id` with a status and a body; anything else is a 404. */
 function stub(routes: Record<string, { status: number; body: unknown }>) {
     const seen: Seen[] = [];
+
     const fetchStub: typeof fetch = async (input, init) => {
-        const url = String(input);
+        const url = input instanceof Request ? input.url : input.toString();
         const method = init?.method ?? 'GET';
         const id = /recipes\/([^/]+)\/source-correction/u.exec(url)?.[1] ?? '';
         const headers = new Headers(init?.headers);

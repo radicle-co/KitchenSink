@@ -32,6 +32,7 @@
  */
 import { useRef, type FC, type ReactNode } from 'react';
 import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
+import { View as ScaledView } from 'tamagui';
 
 import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
@@ -40,6 +41,8 @@ import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { PressScale } from '../pressScale/index.js';
+import { grownScale } from '../text/scaledType.js';
+import { TextScaleContext } from '../text/textScaleContext.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import {
@@ -113,6 +116,9 @@ export const Button: FC<ButtonProps> = (props) => {
             : variant;
     const glyphRole = glyphRoleOf(surface, props);
     const theme = useTheme();
+    const { textScale } = TextScaleContext.useStyledContext();
+    // The busy indicator takes the glyph's slot, so it grows with the label as the glyph does.
+    const grown = grownScale(BUTTON_LABEL_ROLE, textScale);
     const node = useRef<View>(null);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
 
@@ -126,7 +132,11 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <View style={styles.glyph} aria-hidden>
                 {busy || icon === undefined ? (
-                    <ActivityIndicator color={theme.colors[glyphRole]} />
+                    <ScaledView width={20 * grown} height={20 * grown} alignItems="center" justifyContent="center">
+                        <ScaledView scale={grown}>
+                            <ActivityIndicator color={theme.colors[glyphRole]} />
+                        </ScaledView>
+                    </ScaledView>
                 ) : (
                     <Icon name={icon} size={20} tone={glyphRole} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 )}

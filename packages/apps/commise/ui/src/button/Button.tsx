@@ -69,7 +69,7 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <span aria-hidden="true" className={`inline-flex shrink-0 items-center ${glyphClass}`.trimEnd()}>
                 {busy || icon === undefined ? (
-                    <Spinner className="animate-spin" />
+                    <Spinner className="animate-spin" scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 ) : (
                     <Icon name={icon} size={20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 )}

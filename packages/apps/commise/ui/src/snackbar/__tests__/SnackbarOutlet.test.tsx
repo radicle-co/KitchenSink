@@ -219,7 +219,7 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
         expect(screen.getByRole('dialog', { name: 'Confirm' }).contains(region ?? null)).toBe(true);
     });
 
-    it('gives its children the overlay depth, 1 in a sheet and 2 in a sheet inside it, which orders the outlets', () => {
+    it('gives its children depth 1 in a sheet and 2 in a nested sheet, which orders the outlets', () => {
         const Probe = ({ id }: { readonly id: string }): JSX.Element => (
             <output data-testid={id}>{useContext(OverlayDepthContext)}</output>
         );

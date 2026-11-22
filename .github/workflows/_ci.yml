@@ -813,7 +813,9 @@ jobs:
                   NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
                   set -euo pipefail
-                  for dir in $(bash .github/scripts/touchedInfraApps.sh "$(cat "$RUNNER_TEMP/scqBase")"); do
+                  # Its own statement: `set -e` ignores a failure inside a `for` list, which would install nothing.
+                  apps="$(bash .github/scripts/touchedInfraApps.sh "$(cat "$RUNNER_TEMP/scqBase")")"
+                  for dir in $apps; do
                       echo "::group::npm ci in $dir"
                       (cd "$dir" && npm ci --no-audit --no-fund)
                       echo "::endgroup::"

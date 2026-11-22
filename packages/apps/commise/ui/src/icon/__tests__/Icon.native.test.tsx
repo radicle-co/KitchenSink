@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Icon } from '../Icon.native.js';
 import { role } from '../../tokens/colors.js';
+import type { IconScaleWith } from '../props.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 
 /**
@@ -143,7 +144,7 @@ describe('Icon (native)', () => {
  * control keeps its glyph).
  */
 describe('Icon (native) scaleWith', () => {
-    const sizeAt = (scale: number, scaleWith?: 'body' | 'largeTitle'): string | undefined => {
+    const sizeAt = (scale: number, scaleWith?: IconScaleWith): string | undefined => {
         const { container, unmount } = renderWithTamagui(
             <Icon name="x" size={20} {...(scaleWith === undefined ? {} : { scaleWith })} />,
             'light',
@@ -157,7 +158,7 @@ describe('Icon (native) scaleWith', () => {
     };
 
     it('is unchanged at 1x', () => {
-        expect(sizeAt(1, 'body')).toBe('20');
+        expect(sizeAt(1, { role: 'body' })).toBe('20');
     });
 
     it('without scaleWith stays fixed at the largest text', () => {
@@ -165,14 +166,22 @@ describe('Icon (native) scaleWith', () => {
     });
 
     it('grows with the label role: 20 at 1.5x text is 30', () => {
-        expect(sizeAt(1.5, 'body')).toBe('30');
+        expect(sizeAt(1.5, { role: 'body' })).toBe('30');
     });
 
     it('stops at the role cap: body stops at 2x, so 40 at 3x', () => {
-        expect(sizeAt(3, 'body')).toBe('40');
+        expect(sizeAt(3, { role: 'body' })).toBe('40');
     });
 
     it('stops at a display role cap of 1.5x: 30 at 3x', () => {
-        expect(sizeAt(3, 'largeTitle')).toBe('30');
+        expect(sizeAt(3, { role: 'largeTitle' })).toBe('30');
+    });
+
+    it('stops at its label chrome cap, as the label does: body is capped at 2x, a 1.3 chrome cap stops it at 26', () => {
+        expect(sizeAt(3, { role: 'body', chromeCap: '1.3' })).toBe('26');
+    });
+
+    it('a chrome cap only lowers the role: at 1.2x text it is still 24', () => {
+        expect(sizeAt(1.2, { role: 'body', chromeCap: '1.3' })).toBe('24');
     });
 });

@@ -88,7 +88,12 @@ const ChoiceRow: FC<ChoiceRowProps> = ({
                             {({ pressed }) => (
                                 <View style={chipPill(theme, chosen, pressed, tone)}>
                                     {chosen ? (
-                                        <Icon name="check" size={16} tone="actionText" scaleWith="caption" />
+                                        <Icon
+                                            name="check"
+                                            size={16}
+                                            tone="actionText"
+                                            scaleWith={{ role: 'caption' }}
+                                        />
                                     ) : null}
                                     <Text
                                         typeRole="caption"

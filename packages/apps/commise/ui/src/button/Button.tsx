@@ -71,7 +71,7 @@ export const Button: FC<ButtonProps> = (props) => {
                 {busy || icon === undefined ? (
                     <Spinner className="animate-spin" />
                 ) : (
-                    <Icon name={icon} size={20} scaleWith="cardTitle" />
+                    <Icon name={icon} size={20} scaleWith={{ role: 'cardTitle' }} />
                 )}
             </span>
         ) : null;

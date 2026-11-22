@@ -26,7 +26,7 @@ export const Icon: FC<IconProps> = ({ name, size = 24, tone = 'ink', filled = fa
     // From the theme at render, so the glyph repaints in the dark scheme (D15).
     const color = useTheme().colors[tone];
     const { textScale } = TextScaleContext.useStyledContext();
-    const drawn = scaleWith === undefined ? size : size * grownScale(scaleWith, textScale);
+    const drawn = scaleWith === undefined ? size : size * grownScale(scaleWith.role, textScale, scaleWith.chromeCap);
     const mirrored = MIRROR_IN_RTL.has(name) && I18nManager.getConstants().isRTL;
 
     return (

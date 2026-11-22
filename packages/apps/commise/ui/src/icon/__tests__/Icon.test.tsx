@@ -124,7 +124,7 @@ describe('Icon (web) scaleWith', () => {
         [20, '1.25rem'],
         [24, '1.5rem'],
     ] as const)('with scaleWith draws a %i px glyph as %s, so browser text size moves it', (size, rem) => {
-        const { container } = render(<Icon name="x" size={size} scaleWith="body" />);
+        const { container } = render(<Icon name="x" size={size} scaleWith={{ role: 'body' }} />);
 
         expect(svgOf(container).style.width).toBe(rem);
         expect(svgOf(container).style.height).toBe(rem);

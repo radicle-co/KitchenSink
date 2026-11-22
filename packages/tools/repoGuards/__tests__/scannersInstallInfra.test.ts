@@ -143,7 +143,12 @@ describe('_ci.yml codeQuality job', () => {
     it('assigns the app list in its own statement, so a script failure fails the step', () => {
         const body = job.steps[install]?.run ?? '';
 
-        expect(body).toContain('apps="$(bash .github/scripts/touchedInfraApps.sh ');
+        const appsLine = body
+            .split('\n')
+            .map((line) => line.trim())
+            .find((line) => line.startsWith('apps="$('));
+
+        expect(appsLine).toBe('apps="$(bash .github/scripts/touchedInfraApps.sh "$(cat "$RUNNER_TEMP/scqBase")")"');
         const forLines = body.split('\n').filter((line) => line.trimStart().startsWith('for '));
 
         expect(forLines.length).toBeGreaterThan(0);

@@ -6,7 +6,8 @@
  * What differs from web, and why:
  * - The effect line is pinned in the footer, above the buttons, so it is read before the confirm at any text size; the body
  *   scrolls and the title and footer stay put.
- * - The two footer buttons are equal shares; their labels wrap and are never clipped.
+ * - The two footer actions are the house `DialogActions` in equal shares: side by side from 400 in text units (a phone
+ *   stacks at every text size, a tablet dialog stacks once the larger text no longer fits), Publish on top when stacked.
  * - React Native has no `aria-describedby`: a field's error is its accessibility hint (`error`) as well as drawn, and the message
  *   above the field is an assertive live region, so it is spoken as it appears.
  * - The platform back route is the dismiss, and does nothing while the change is in flight.
@@ -15,13 +16,14 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { DialogActions } from '@commise/ui/dialog-actions';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { LiveRegion } from '@commise/ui/live-region';
 import { RadioList } from '@commise/ui/radio-list';
 import { Sheet } from '@commise/ui/sheet';
 import { Text } from '@commise/ui/text';
 import { useId, type FC } from 'react';
-import { styled, XStack, YStack } from 'tamagui';
+import { styled, YStack } from 'tamagui';
 
 import { editorMessages } from '../editor/messages.js';
 import { recipeActionMessages } from './messages.js';
@@ -31,9 +33,6 @@ import type { SourceStatementSheetProps } from './sourceStatementSheetProps.js';
 const Body = styled(YStack, { name: 'SourceStatementBody', gap: '$4' });
 const Field = styled(YStack, { name: 'SourceStatementField', gap: '$1' });
 const Footer = styled(YStack, { name: 'SourceStatementFooter', gap: '$3' });
-const Buttons = styled(XStack, { name: 'SourceStatementButtons', gap: '$3' });
-// An equal share of the row, with room to wrap its label.
-const Share = styled(YStack, { name: 'SourceStatementShare', flex: 1, flexBasis: 0, minWidth: 0 });
 
 /** The source-statement sheet. */
 export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
@@ -69,25 +68,21 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                     <Text typeRole="meta" color="$inkMuted">
                         {m.effect}
                     </Text>
-                    <Buttons>
-                        <Share>
-                            <Button variant="secondary" width="fill" disabled={view.busy} onPress={onDismiss}>
-                                {view.dismissLabel}
-                            </Button>
-                        </Share>
-                        <Share>
-                            <Button
-                                variant="primary"
-                                icon="check"
-                                width="fill"
-                                busy={view.busy}
-                                refused={view.confirmRefused}
-                                onPress={onConfirm}
-                            >
-                                {view.confirmLabel}
-                            </Button>
-                        </Share>
-                    </Buttons>
+                    <DialogActions sideBySideFrom={400} shares="equal">
+                        <Button variant="secondary" width="fill" disabled={view.busy} onPress={onDismiss}>
+                            {view.dismissLabel}
+                        </Button>
+                        <Button
+                            variant="primary"
+                            icon="check"
+                            width="fill"
+                            busy={view.busy}
+                            refused={view.confirmRefused}
+                            onPress={onConfirm}
+                        >
+                            {view.confirmLabel}
+                        </Button>
+                    </DialogActions>
                 </Footer>
             }
         >

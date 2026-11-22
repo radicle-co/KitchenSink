@@ -106,3 +106,62 @@ describe('dialogActionSlotClass', () => {
         expect(dialogActionSlotClass(600)).toBe('w-full @[37.5rem]/dialog:w-auto');
     });
 });
+
+describe('DialogActions (web) — equal shares and the scrollbar marker', () => {
+    const rowOf = (): HTMLElement => screen.getByRole('button', { name: 'Keep' }).parentElement as HTMLElement;
+
+    it("renders exactly the default classes for shares='content' (R6)", () => {
+        const { rerender } = render(<DialogActions sideBySideFrom={400}>{pair}</DialogActions>);
+        const base = rowOf().className;
+
+        rerender(
+            <DialogActions sideBySideFrom={400} shares="content">
+                {pair}
+            </DialogActions>,
+        );
+
+        expect(rowOf().className).toBe(base);
+        expect(base).not.toContain('flex-1');
+    });
+
+    it.each([
+        [400, '25rem'],
+        [440, '27.5rem'],
+        [600, '37.5rem'],
+    ] as const)('gives each child an equal share from %i, at that threshold only', (from, rem) => {
+        render(
+            <DialogActions sideBySideFrom={from} shares="equal">
+                {pair}
+            </DialogActions>,
+        );
+        const classes = tokensOf(rowOf());
+
+        expect(classes).toEqual(
+            expect.arrayContaining([
+                `@[${rem}]/dialog:*:flex-1`,
+                `@[${rem}]/dialog:*:basis-0`,
+                `@[${rem}]/dialog:*:min-w-0`,
+            ]),
+        );
+        expect(classes.filter((token) => token.includes('*:')).every((token) => token.includes(rem))).toBe(true);
+    });
+
+    it('keeps the buttons in source order with equal shares', () => {
+        render(
+            <DialogActions sideBySideFrom={400} shares="equal">
+                {pair}
+            </DialogActions>,
+        );
+
+        expect([...rowOf().querySelectorAll('button')].map((button) => button.textContent)).toStrictEqual([
+            'Keep',
+            'Do it',
+        ]);
+    });
+
+    it('marks its wrapper, so a scroll region can tell it holds a row', () => {
+        render(<DialogActions sideBySideFrom={400}>{pair}</DialogActions>);
+
+        expect((rowOf().parentElement as HTMLElement).hasAttribute('data-dialog-actions')).toBe(true);
+    });
+});

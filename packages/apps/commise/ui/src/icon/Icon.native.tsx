@@ -14,15 +14,19 @@
 import type { FC } from 'react';
 import { I18nManager, StyleSheet, View } from 'react-native';
 
+import { grownScale } from '../text/scaledType.js';
+import { TextScaleContext } from '../text/textScaleContext.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { GLYPHS } from './glyphs.native.js';
 import { MIRROR_IN_RTL, type IconProps } from './props.js';
 
 /** The native design-system icon. */
-export const Icon: FC<IconProps> = ({ name, size = 24, tone = 'ink', filled = false, label }) => {
+export const Icon: FC<IconProps> = ({ name, size = 24, tone = 'ink', filled = false, label, scaleWith }) => {
     const Glyph = GLYPHS[name];
     // From the theme at render, so the glyph repaints in the dark scheme (D15).
     const color = useTheme().colors[tone];
+    const { textScale } = TextScaleContext.useStyledContext();
+    const drawn = scaleWith === undefined ? size : size * grownScale(scaleWith, textScale);
     const mirrored = MIRROR_IN_RTL.has(name) && I18nManager.getConstants().isRTL;
 
     return (
@@ -33,7 +37,7 @@ export const Icon: FC<IconProps> = ({ name, size = 24, tone = 'ink', filled = fa
                 ? { 'aria-hidden': true }
                 : { accessible: true, accessibilityRole: 'image' as const, accessibilityLabel: label })}
         >
-            <Glyph size={size} color={color} strokeWidth={2} fill={filled ? color : 'none'} />
+            <Glyph size={drawn} color={color} strokeWidth={2} fill={filled ? color : 'none'} />
         </View>
     );
 };

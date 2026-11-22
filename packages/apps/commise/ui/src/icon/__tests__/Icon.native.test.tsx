@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Icon } from '../Icon.native.js';
 import { role } from '../../tokens/colors.js';
+import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 
 /**
  * Icon (native) — the Adapter over `lucide-react-native`, rendered through the `lucideNativeStub` stand-in (the real
@@ -133,5 +134,45 @@ describe('Icon (native)', () => {
         const { container } = render(<Icon name="chevronLeft" />);
 
         expect(transformOf(glyphOf(container))).toBe('none');
+    });
+});
+
+/**
+ * D6 (native): a glyph with `scaleWith` is its 1x size times the label role's own growth under the system text scale
+ * (`grownScale`), never past that role's cap; one without it is a fixed size at every text scale (D85: an icon-only
+ * control keeps its glyph).
+ */
+describe('Icon (native) scaleWith', () => {
+    const sizeAt = (scale: number, scaleWith?: 'body' | 'largeTitle'): string | undefined => {
+        const { container, unmount } = renderWithTamagui(
+            <Icon name="x" size={20} {...(scaleWith === undefined ? {} : { scaleWith })} />,
+            'light',
+            scale,
+        );
+        const size = glyphOf(container).dataset['iconSize'];
+
+        unmount();
+
+        return size;
+    };
+
+    it('is unchanged at 1x', () => {
+        expect(sizeAt(1, 'body')).toBe('20');
+    });
+
+    it('without scaleWith stays fixed at the largest text', () => {
+        expect(sizeAt(3)).toBe('20');
+    });
+
+    it('grows with the label role: 20 at 1.5x text is 30', () => {
+        expect(sizeAt(1.5, 'body')).toBe('30');
+    });
+
+    it('stops at the role cap: body stops at 2x, so 40 at 3x', () => {
+        expect(sizeAt(3, 'body')).toBe('40');
+    });
+
+    it('stops at a display role cap of 1.5x: 30 at 3x', () => {
+        expect(sizeAt(3, 'largeTitle')).toBe('30');
     });
 });

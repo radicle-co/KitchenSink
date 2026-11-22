@@ -13,6 +13,7 @@
  * slice 3 deletes.
  */
 import type { Role } from '../tokens/colors.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 /** Every meaning the Registry can draw. */
 export const ICON_NAMES = [
@@ -102,6 +103,12 @@ export interface IconProps {
      * inherits nothing, so the native leaf draws in `ink` when it is absent.
      */
     readonly tone?: Role;
+    /**
+     * The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows
+     * with that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at
+     * every text size, which is right for an icon-only control and a decoration (designer D6, D85).
+     */
+    readonly scaleWith?: Exclude<TypeRole, 'figureInline'>;
     /** Fill the glyph with its own colour. Only the active tab is filled, always with its label weight and bar (§1.7). */
     readonly filled?: boolean;
     /**

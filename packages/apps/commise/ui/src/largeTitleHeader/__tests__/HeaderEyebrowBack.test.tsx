@@ -43,3 +43,12 @@ describe('HeaderEyebrowBack (web)', () => {
         expect(onPress).toHaveBeenCalledTimes(1);
     });
 });
+
+describe('HeaderEyebrowBack (web) chevron', () => {
+    it('is drawn in rem, as the parent name beside it is, because the eyebrow shows only from 840 where the name shows', () => {
+        render(<HeaderEyebrowBack back={back} />);
+        const link = screen.getByRole('link', { name: 'Back to Collections', hidden: true });
+
+        expect(link.querySelector('svg')?.style.width).toBe('1.5rem');
+    });
+});

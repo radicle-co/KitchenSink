@@ -4,6 +4,8 @@ import { createRef } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { ActionMenu } from '../../actionMenu/ActionMenu.js';
+import { ConfirmDialog } from '../../confirmDialog/ConfirmDialog.js';
+import { StateNotice } from '../../stateNotice/StateNotice.js';
 import { ChoiceRow } from '../../choiceRow/ChoiceRow.js';
 import { KeepAwakeToggle } from '../../keepAwake/KeepAwakeToggle.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
@@ -116,6 +118,35 @@ describe('a glyph in a labelled control is in rem', () => {
         await user.click(trigger);
 
         expect(widthsIn(screen.getByRole('menuitem', { name: 'Try again' }))).toEqual(['1.25rem']);
+    });
+
+    it('ConfirmDialog keep action glyph: 1.25rem', () => {
+        render(
+            <ConfirmDialog
+                open
+                title="Discard?"
+                body="Leaving discards them."
+                confirm={{ label: 'Discard', icon: 'trash' }}
+                keep={{ label: 'Keep editing', icon: 'pencilLine' }}
+                onConfirm={noop}
+                onKeep={noop}
+            />,
+        );
+
+        expect(widthsIn(screen.getByRole('button', { name: 'Keep editing' }))).toEqual(['1.25rem']);
+    });
+
+    it('StateNotice link action glyph: 1.25rem quiet, 1rem ghost', () => {
+        render(
+            <StateNotice
+                title="Failed."
+                primary={{ label: 'Try again', icon: 'refreshCw', onPress: noop, href: '/retry' }}
+                secondary={{ label: 'Back', icon: 'chevronLeft', onPress: noop, href: '/back' }}
+            />,
+        );
+
+        expect(widthsIn(screen.getByRole('link', { name: 'Try again' }))).toEqual(['1.25rem']);
+        expect(widthsIn(screen.getByRole('link', { name: 'Back' }))).toEqual(['1rem']);
     });
 
     it('SectionIndex: every glyph beside a label, in the rail, strip and bar', () => {

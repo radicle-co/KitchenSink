@@ -4,7 +4,9 @@
  * are derived from one number each.
  */
 import { pinnedBarHeight } from '../tokens/layout.js';
+import type { ChromeCap } from '../text/scaledType.js';
 import { spacing } from '../tokens/scale.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 /**
  * The pinned back bar's height, pt (`docs/design/uiRefreshWorkshop5/pinnedBackBar.md` §3; buildSpec §3.3): ONE height,
@@ -40,3 +42,19 @@ export function backGlyphInset(floor: number): number {
 export function barStartPadding(floor: number): number {
     return Math.max(0, CONTENT_GUTTER_PX - backGlyphInset(floor));
 }
+
+/** The type role of the parent name beside the back chevron. The name and the chevron (`Icon`'s `scaleWith`) read it. */
+export const BACK_LABEL_ROLE = 'label' satisfies TypeRole;
+
+/** The chrome cap of the parent name on native: navigation chrome, so 1.5x. The chevron stops at it too. */
+export const BACK_CHROME_CAP = '1.5' satisfies ChromeCap;
+
+/**
+ * Where the web pinned bar's back control names its parent: from `medium` (600). The name's reveal and the chevron's
+ * growth are stated side by side, so the breakpoint is one fact. Below it the chevron stands alone, an icon-only
+ * control, and keeps its 24 px. Tailwind reads whole class strings, so each is written out.
+ */
+export const BACK_PARENT_REVEAL = {
+    name: 'hidden min-w-0 truncate medium:inline',
+    chevron: 'medium:[&>svg]:size-[1.5rem]',
+} as const;

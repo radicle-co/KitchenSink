@@ -17,6 +17,7 @@ import * as AlertDialog from '@radix-ui/react-alert-dialog';
 import type { FC } from 'react';
 
 import { Button } from '../button/Button.js';
+import { BUTTON_LABEL_ROLE } from '../button/props.js';
 import { buttonSurfaceClass } from '../button/surfaceClass.js';
 import { DialogActions } from '../dialogActions/DialogActions.js';
 import { dialogActionSlotClass } from '../dialogActions/dialogActionsClass.js';
@@ -87,7 +88,9 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                             type="button"
                             className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
                         >
-                            {keep.icon === undefined ? null : <Icon name={keep.icon} size={20} />}
+                            {keep.icon === undefined ? null : (
+                                <Icon name={keep.icon} size={20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
+                            )}
                             <span>{keep.label}</span>
                         </AlertDialog.Cancel>
                         <Button

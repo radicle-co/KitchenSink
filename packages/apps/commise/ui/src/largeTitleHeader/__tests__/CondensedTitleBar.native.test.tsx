@@ -240,3 +240,30 @@ describe('CondensedTitleBar (native) — the title and the parent name cap at 1.
         expect(getComputedStyle(screen.getByText('A long title', { ignore: 'none' })).textOverflow).toBe('ellipsis');
     });
 });
+
+describe('CondensedTitleBar (native) back chevron follows its parent name', () => {
+    const chevronAt = (scale: number): string | undefined => {
+        const { container, unmount } = renderWithTamagui(
+            <CondensedTitleBar title="Weeknight dinners" surfaceShown titleShown back={back()} />,
+            'light',
+            scale,
+        );
+        const size = container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconSize'];
+
+        unmount();
+
+        return size;
+    };
+
+    it('alone on a phone it is an icon-only chevron and stays 24 at the largest text', () => {
+        platform.width = 390;
+
+        expect([1, 3].map(chevronAt)).toEqual(['24', '24']);
+    });
+
+    it('beside the parent name on a tablet it is 24 at 1x and stops at the name chrome cap of 1.5x: 36', () => {
+        platform.width = 834;
+
+        expect([1, 1.25, 3].map(chevronAt)).toEqual(['24', '30', '36']);
+    });
+});

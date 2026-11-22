@@ -11,6 +11,7 @@
 import type { FC } from 'react';
 
 import { Button } from '../button/Button.js';
+import { BUTTON_LABEL_ROLE } from '../button/props.js';
 import { buttonGlyphClass, buttonSurfaceClass } from '../button/surfaceClass.js';
 import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
@@ -52,7 +53,7 @@ const NoticeAction: FC<NoticeActionProps> = ({ action, variant, description }) =
                 aria-hidden="true"
                 className={`inline-flex shrink-0 items-center ${buttonGlyphClass(variant)}`.trimEnd()}
             >
-                <Icon name={action.icon} size={variant === 'ghost' ? 16 : 20} />
+                <Icon name={action.icon} size={variant === 'ghost' ? 16 : 20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
             </span>
             {action.label}
         </RouteAction>

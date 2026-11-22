@@ -742,9 +742,11 @@ jobs:
         name: Code quality scanners
         timeout-minutes: 20
         runs-on: ubuntu-latest
-        needs: [install]
+        # `infra-shared`: the app installs below resolve `@radicle-co/infra-shared` from GitHub Packages.
+        needs: [install, infra-shared]
         permissions:
             contents: read # checkout
+            packages: read # zizmor: ignore[use-trusted-publishing]
             pull-requests: read # the live labels of the PR, for `baseline-growth` (a re-run's event payload is stale)
             security-events: read # scan.mjs --codeql ci reads the CodeQL alerts published for this ref
         env:
@@ -793,6 +795,29 @@ jobs:
               working-directory: tooling/codeQuality
               # --legacy-peer-deps: eslint-plugin-jsx-a11y and eslint-plugin-react declare no ESLint 10 peer range yet.
               run: npm ci --legacy-peer-deps
+            # The ONE place the diff base is decided: the CDK install below and `Run the scanners` both read it, so they
+            # cannot scan and install for different diffs (`scannersInstallInfra.test.ts`). `Judge the evidence` reads it too.
+            - name: Resolve the diff base
+              run: |
+                  set -euo pipefail
+                  case "$EVENT_NAME" in
+                      pull_request) echo "origin/${BASE_REF}" >"$RUNNER_TEMP/scqBase" ;;
+                      push) echo "HEAD^" >"$RUNNER_TEMP/scqBase" ;;
+                      *) echo "origin/main" >"$RUNNER_TEMP/scqBase" ;;
+                  esac
+            # Every `infra/` app is outside the npm workspaces, so the root install has no `aws-cdk-lib` and type-aware
+            # ESLint reads every CDK type as `any` (false `no-unsafe-*` findings). Install the own packages of each app the
+            # change touches, as the `test` job's guards group does for infra-global. The base is resolved once, above.
+            - name: Install the CDK apps the change touches
+              env:
+                  NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  set -euo pipefail
+                  for dir in $(bash .github/scripts/touchedInfraApps.sh "$(cat "$RUNNER_TEMP/scqBase")"); do
+                      echo "::group::npm ci in $dir"
+                      (cd "$dir" && npm ci --no-audit --no-fund)
+                      echo "::endgroup::"
+                  done
             - name: Install Semgrep (pinned)
               run: pipx install semgrep==1.177.0
             - name: Test the verdict policy
@@ -801,17 +826,12 @@ jobs:
             - name: Run the scanners
               run: |
                   set -euo pipefail
+                  base="$(cat "$RUNNER_TEMP/scqBase")"
                   if [ "$EVENT_NAME" = pull_request ]; then
-                      base="origin/${BASE_REF}"
                       export SCQ_CODEQL_REF="refs/pull/${PR_NUMBER}/merge"
-                  elif [ "$EVENT_NAME" = push ]; then
-                      base="HEAD^"
-                      export SCQ_CODEQL_REF="${GITHUB_REF}"
                   else
-                      base="origin/main"
                       export SCQ_CODEQL_REF="${GITHUB_REF}"
                   fi
-                  echo "$base" >"$RUNNER_TEMP/scqBase"
                   node tooling/codeQuality/scan.mjs --repo . --base "$base" --out "$SCQ_OUT" --codeql ci \
                       --tools eslint-overlay,semgrep,depcruise,jscpd,knip,sherif,turbo-config,turbo-boundaries,codeql
             - name: Judge the evidence

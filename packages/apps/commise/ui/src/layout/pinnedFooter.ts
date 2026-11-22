@@ -17,6 +17,11 @@
  * half" truer, so the decision holds. Only a change from outside (the keyboard closing, a rotation) grows the frame and
  * pins the footer again. A frame whose height its parent fixes does not change at all.
  *
+ * ⚠️ Precondition: the footer has the SAME height before and after the move. The move remounts it on native, and a footer
+ * holding `DialogActions` is taller stacked than as a row, so a remount that starts stacked again breaks the argument. A
+ * frame with such a footer holds the actions' width memento above the move (`dialogActions/dialogActionsWidth.ts`), so the
+ * remounted actions start as the form they had.
+ *
  * @pattern Specification — one pure predicate every platform leaf feeds with its own measurements.
  */
 

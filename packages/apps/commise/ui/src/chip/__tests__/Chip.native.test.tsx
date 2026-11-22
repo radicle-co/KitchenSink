@@ -443,3 +443,18 @@ describe('Chip (native) glyph follows its label', () => {
         expect(sizesAt(3)).toEqual(['32', '32']);
     });
 });
+
+describe('ChipRow (native) choice check grows with its label', () => {
+    it('draws the chosen check larger at a larger text scale', () => {
+        const sizeAt = (scale: number): number => {
+            const { container, unmount } = renderWithTamagui(<Choice initial="easy" />, 'light', scale);
+            const check = container.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+            unmount();
+
+            return Number(check?.dataset['iconSize']);
+        };
+
+        expect(sizeAt(1)).toBe(16);
+        expect(sizeAt(1.5)).toBe(24);
+    });
+});

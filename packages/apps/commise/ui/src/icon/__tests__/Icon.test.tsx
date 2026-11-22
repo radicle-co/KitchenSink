@@ -119,6 +119,13 @@ describe('Icon (web) scaleWith', () => {
         expect(svgOf(container).style.width).toBe('');
     });
 
+    it('with a tone but without scaleWith still keeps its pixel size', () => {
+        const { container } = render(<Icon name="x" size={20} tone="ink" />);
+
+        expect(svgOf(container).style.width).toBe('');
+        expect(svgOf(container).style.height).toBe('');
+    });
+
     it.each([
         [16, '1rem'],
         [20, '1.25rem'],

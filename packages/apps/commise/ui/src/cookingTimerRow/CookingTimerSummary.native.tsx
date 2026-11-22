@@ -41,7 +41,7 @@ export const CookingTimerSummary: FC<CookingTimerSummaryProps> = ({ figure, stat
 
     return (
         <Summary accessible aria-label={accessibilityLabel}>
-            {showsLeadingGlyph(textScale) ? <Icon name="timer" size={24} tone="ink" growsWithText /> : null}
+            {showsLeadingGlyph(textScale) ? <Icon name="timer" size={24} tone="ink" /> : null}
             <Column>
                 <Text typeRole="figureLarge" numberOfLines={1} flexShrink={0}>
                     {figure}

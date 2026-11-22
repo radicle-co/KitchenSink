@@ -20,7 +20,7 @@ import type { CookingTimerSummaryProps } from './props.js';
 export const CookingTimerSummary: FC<CookingTimerSummaryProps> = ({ figure, status, meta, accessibilityLabel }) => (
     <div className="flex min-w-0 flex-1 items-center gap-3">
         <span aria-hidden="true" className="flex shrink-0 items-center text-ink" style={leadingGlyphWebStyle()}>
-            <Icon name="timer" size={24} growsWithText />
+            <Icon name="timer" size={24} />
         </span>
         <div aria-hidden="true" className="flex min-w-0 flex-1 flex-col">
             <span className="text-figure-large shrink-0 whitespace-nowrap tabular-nums lining-nums text-ink">

@@ -110,7 +110,10 @@ describe('CookingTimerRow (native), the frame', () => {
 
         expect(screen.getAllByRole('button')).toHaveLength(2);
         expect(container.querySelector('[aria-live]')).toBeNull();
-        expect(container.firstElementChild?.getAttribute('aria-label')).toBeNull();
+        const row = container.querySelector('[name="CookingTimerRow"]');
+
+        expect(row?.getAttribute('aria-label')).toBeNull();
+        expect(row?.getAttribute('role')).toBeNull();
     });
 
     it('keeps the two actions apart: 48 dp frames on Android with a 4 dp gap, 44 on iOS with an 8 dp gap', () => {

@@ -286,6 +286,7 @@ recipes:recipes/sourceFromPaste
 recipes:recipes/sourceStatement
 recipes:recipes/sourceStatementPaidSite
 recipes:recipes/sourceStatementFromPerson
+recipes:recipes/makePublicRefusal
 recipes:recipes/quantityRange
 recipes:recipes/preparationGroups
 recipes:recipes/ingredientGroups

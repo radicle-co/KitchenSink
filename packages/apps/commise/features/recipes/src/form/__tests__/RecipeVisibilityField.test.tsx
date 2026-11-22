@@ -19,6 +19,8 @@ import {
     recipePrivateRefusalOf,
     type RecipePrivateFacts,
 } from '../../actions/recipePrivateGate.js';
+import { recipeActionMessages } from '../../actions/messages.js';
+import type { PublicRefusal } from '../../actions/publicRefusal.js';
 import { editorMessages } from '../../editor/messages.js';
 import { RecipeVisibilityField } from '../RecipeVisibilityField.js';
 import { defaultRecipeFormValues, type RecipeFormValues } from '../values.js';
@@ -45,6 +47,10 @@ interface HarnessProps {
     readonly onConfirmPublic?: () => void;
     /** What "Make a private recipe public" / "Delete a private recipe" do from the full refusal. */
     readonly onFreeASlot?: () => void;
+    /** Why Public is refused for the draft (`publicRefusalOf`): the field says that reason's line. Absent is `none`. */
+    readonly publicRefusal?: PublicRefusal;
+    /** The passive line the host gives when no sheet will ask. */
+    readonly confirmLine?: string;
 }
 
 /** The host's wiring, as `usePrivateChoice` hands it over: the field decides from what the cook may still keep. */
@@ -57,6 +63,8 @@ const Harness: FC<HarnessProps> = ({
     onPremiumRequired,
     onConfirmPublic,
     onFreeASlot,
+    publicRefusal,
+    confirmLine,
 }) => {
     const facts: RecipePrivateFacts = givenFacts ?? {
         rule: 'slots',
@@ -81,11 +89,21 @@ const Harness: FC<HarnessProps> = ({
             {...(onPremiumRequired === undefined ? {} : { onPremiumRequired })}
             onConfirmPublic={onConfirmPublic ?? (() => change({ ...values, visibility: 'public' }))}
             onChange={change}
+            publicRefusal={publicRefusal ?? 'none'}
+            {...(confirmLine === undefined ? {} : { confirmLine })}
         />
     );
 };
 
 const radio = (name: string): HTMLInputElement => screen.getByRole<HTMLInputElement>('radio', { name });
+
+/** The text of everything a control points at with `aria-describedby`, joined. */
+const descriptionOf = (element: HTMLElement): string =>
+    (element.getAttribute('aria-describedby') ?? '')
+        .split(' ')
+        .map((id) => document.getElementById(id)?.textContent ?? '')
+        .join(' ')
+        .trim();
 
 describe('RecipeVisibilityField (web)', () => {
     it('is a group named "Who can see it" holding Public and Private, each with its hint', () => {
@@ -378,22 +396,18 @@ describe('RecipeVisibilityField (web) - private slots (ADR-0073)', () => {
 });
 
 describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only)', () => {
-    const REASON = 'Not for this recipe. Its source is a book or a paid site, not a public web page.';
+    const REASON = recipeActionMessages.en.publicRefusal.policyBook;
     const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
     const privateOnly = (state: PaidFeatureState = 'upsell'): RecipePrivateFacts => ({
         rule: 'privateOnly',
         standing: { kind: 'open', used: 10, limit: 50, left: 40 },
         state,
     });
-    const descriptionOf = (element: HTMLElement): string =>
-        (element.getAttribute('aria-describedby') ?? '')
-            .split(' ')
-            .map((id) => document.getElementById(id)?.textContent ?? '')
-            .join(' ')
-            .trim();
 
     it('⛔ shows Public refused - aria-disabled, never natively disabled - with the reason as its description', () => {
-        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
+        render(
+            <Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} publicRefusal="policy.book" />,
+        );
 
         const pub = radio(v.public);
 
@@ -405,7 +419,9 @@ describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only
 
     it('⛔ keeps the refused Public focusable: programmatically, from a click, and by arrowing onto it', async () => {
         const user = userEvent.setup();
-        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} />);
+        render(
+            <Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" facts={privateOnly()} publicRefusal="policy.book" />,
+        );
 
         radio(v.public).focus();
         expect(document.activeElement).toBe(radio(v.public));
@@ -428,6 +444,7 @@ describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only
                 initial={PRIVATE_DRAFT}
                 paidFeatures="upsell"
                 facts={privateOnly()}
+                publicRefusal="policy.book"
                 onChange={onChange}
                 onConfirmPublic={onConfirmPublic}
             />,
@@ -443,7 +460,14 @@ describe('RecipeVisibilityField (web) - a book or paid-site recipe (private only
     });
 
     it('says the same with paid features hidden: the reason is about the source, not the plan', () => {
-        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="hidden" facts={privateOnly('hidden')} />);
+        render(
+            <Harness
+                initial={PRIVATE_DRAFT}
+                paidFeatures="hidden"
+                facts={privateOnly('hidden')}
+                publicRefusal="policy.book"
+            />,
+        );
 
         expect(descriptionOf(radio(v.public))).toBe(REASON);
     });
@@ -531,7 +555,7 @@ describe('RecipeVisibilityField (web) - the passive line and the held note (ADR-
     const LINE =
         'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.';
     const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
-    const fieldWith = (extra: { readonly confirmLine?: string; readonly publicHeld?: boolean }) => (
+    const fieldWith = (extra: { readonly confirmLine?: string; readonly publicRefusal?: PublicRefusal }) => (
         <RecipeVisibilityField
             values={{ ...defaultRecipeFormValues(), visibility: 'public' }}
             facts={facts}
@@ -540,6 +564,7 @@ describe('RecipeVisibilityField (web) - the passive line and the held note (ADR-
             onFreeASlot={() => undefined}
             onConfirmPublic={() => undefined}
             onChange={() => undefined}
+            publicRefusal="none"
             {...extra}
         />
     );
@@ -559,10 +584,10 @@ describe('RecipeVisibilityField (web) - the passive line and the held note (ADR-
     });
 
     it('a held recipe refuses Public with the held note and draws no line', () => {
-        render(fieldWith({ confirmLine: LINE, publicHeld: true }));
+        render(fieldWith({ confirmLine: LINE, publicRefusal: 'sourceConflict' }));
 
         expect(screen.queryByText(LINE)).toBeNull();
-        expect(screen.getByText(v.publicHeldBySource)).toBeTruthy();
+        expect(screen.getByText(recipeActionMessages.en.publicRefusal.sourceConflict)).toBeTruthy();
     });
 });
 
@@ -573,7 +598,7 @@ describe('RecipeVisibilityField (web) - the passive line and the held note (ADR-
  */
 describe('RecipeVisibilityField (web) - an unavailable Public card and the focus signal', () => {
     const facts: RecipePrivateFacts = { rule: 'slots', standing: { kind: 'unknown' }, state: 'granted' };
-    const fieldWith = (extra: { readonly publicHeld?: boolean; readonly focusSignal?: number }) => (
+    const fieldWith = (extra: { readonly publicRefusal?: PublicRefusal; readonly focusSignal?: number }) => (
         <RecipeVisibilityField
             values={{ ...defaultRecipeFormValues(), visibility: 'private' }}
             facts={facts}
@@ -582,6 +607,7 @@ describe('RecipeVisibilityField (web) - an unavailable Public card and the focus
             onFreeASlot={() => undefined}
             onConfirmPublic={() => undefined}
             onChange={() => undefined}
+            publicRefusal="none"
             {...extra}
         />
     );
@@ -597,7 +623,7 @@ describe('RecipeVisibilityField (web) - an unavailable Public card and the focus
     };
 
     it('⛔ draws the held Public as unavailable: a muted border, a muted title, no opacity, the note at the secondary colour', () => {
-        render(fieldWith({ publicHeld: true }));
+        render(fieldWith({ publicRefusal: 'sourceConflict' }));
 
         expect(cardOf(v.public).className).toContain('border-line-divider');
         expect(cardOf(v.public).className).not.toContain('border-line-control');
@@ -608,7 +634,9 @@ describe('RecipeVisibilityField (web) - an unavailable Public card and the focus
         expect(cardOf(v.public).innerHTML).not.toMatch(/opacity/u);
         expect(radio(v.public).getAttribute('aria-disabled')).toBe('true');
         // The reason is the one thing on the card that must stay readable.
-        expect(screen.getByText(v.publicHeldBySource).className).toContain('text-ink-muted');
+        expect(screen.getByText(recipeActionMessages.en.publicRefusal.sourceConflict).className).toContain(
+            'text-ink-muted',
+        );
     });
 
     it('draws a Public that can be chosen, and the Private card beside it, at full strength', () => {
@@ -644,4 +672,101 @@ describe('RecipeVisibilityField (web) - an unavailable Public card and the focus
 
         expect(document.activeElement).toBe(document.body);
     });
+});
+
+/**
+ * Board P6 (plan makePublicRefusalNotice U3, KTD-5; designer DF-3 and "Redteam fixes"): the editor's Public card says the SAME
+ * reason line the recipe page says, for every reason, including "From another person", whose rule is slots. The card is
+ * described by the reason alone, is never in a live region, and pressing it changes nothing.
+ */
+describe('RecipeVisibilityField (web) - the reason on the refused Public card (P6)', () => {
+    const CONFIRM = 'By making this public, you confirm it is your own recipe.';
+    const lines = recipeActionMessages.en.publicRefusal;
+    const PRIVATE_DRAFT = { ...defaultRecipeFormValues(), visibility: 'private' } as const;
+
+    it.each([
+        ['fromPerson', lines.fromPerson],
+        ['unrecognised', lines.unrecognised],
+        ['policy.webPage', lines.policyWebPage],
+        ['policy.book', lines.policyBook],
+        ['policy.paidSite', lines.policyPaidSite],
+        ['sourceConflict', lines.sourceConflict],
+    ] as const)(
+        '%s: Public is refused, described by that line alone, and the line is not a live region',
+        (reason, line) => {
+            render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" publicRefusal={reason} />);
+
+            expect(radio(v.public).getAttribute('aria-disabled')).toBe('true');
+            expect(descriptionOf(radio(v.public))).toBe(line);
+            expect(screen.getByText(line).closest('[role="alert"], [role="status"], [aria-live]')).toBeNull();
+        },
+    );
+
+    it('⛔ both cards refused: Public says the reason, Private says its slots note and offers the ways forward', () => {
+        const facts: RecipePrivateFacts = {
+            rule: 'privateOnly',
+            standing: { kind: 'full', used: 50, limit: 50 },
+            state: 'upsell',
+        };
+        render(<Harness paidFeatures="upsell" facts={facts} publicRefusal="policy.webPage" confirmLine={CONFIRM} />);
+
+        expect(descriptionOf(radio(v.public))).toBe(lines.policyWebPage);
+        expect(screen.getByText('Not available. All 50 of your private slots are in use.')).toBeTruthy();
+        expect(screen.getByText(v.wayMakePublic)).toBeTruthy();
+        expect(screen.getByText(v.wayDelete)).toBeTruthy();
+        // The host gives a passive line; with Public refused it is never drawn.
+        expect(screen.queryByText(CONFIRM)).toBeNull();
+    });
+
+    it('⛔ a "From another person" recipe (rule slots) refuses Public, and pressing it changes nothing and asks no confirm', async () => {
+        const user = userEvent.setup();
+        const onChange = vi.fn();
+        const onConfirmPublic = vi.fn();
+        render(
+            <Harness
+                initial={PRIVATE_DRAFT}
+                paidFeatures="upsell"
+                publicRefusal="fromPerson"
+                onChange={onChange}
+                onConfirmPublic={onConfirmPublic}
+            />,
+        );
+
+        await user.click(radio(v.public));
+
+        expect(onChange).not.toHaveBeenCalled();
+        expect(onConfirmPublic).not.toHaveBeenCalled();
+        expect(radio(v.private).checked).toBe(true);
+    });
+
+    it('none: Public is offered, with no reason', () => {
+        render(<Harness initial={PRIVATE_DRAFT} paidFeatures="upsell" publicRefusal="none" />);
+
+        expect(radio(v.public).getAttribute('aria-disabled')).toBeNull();
+        expect(screen.queryByText(/This recipe stays private/u)).toBeNull();
+    });
+
+    it.each(['fromPerson', 'policy.webPage'] as const)(
+        'both cards refused (%s, no private slot left): the reason on Public, the slots note on Private, and the ways forward',
+        (reason) => {
+            render(
+                <Harness
+                    initial={{ ...defaultRecipeFormValues(), visibility: 'public' }}
+                    paidFeatures="upsell"
+                    publicRefusal={reason}
+                    facts={{ rule: 'slots', standing: { kind: 'full', used: 50, limit: 50 }, state: 'upsell' }}
+                />,
+            );
+
+            expect(descriptionOf(radio(v.public))).toBe(
+                reason === 'fromPerson' ? lines.fromPerson : lines.policyWebPage,
+            );
+            expect(radio(v.private).checked).toBe(true);
+            expect(descriptionOf(radio(v.private))).toContain(
+                'Not available. All 50 of your private slots are in use.',
+            );
+            expect(screen.getByText(v.wayMakePublic)).toBeTruthy();
+            expect(screen.getByText(v.wayDelete)).toBeTruthy();
+        },
+    );
 });

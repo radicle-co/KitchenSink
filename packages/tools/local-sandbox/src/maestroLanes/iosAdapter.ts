@@ -47,6 +47,7 @@ export class IosAdapter implements DeviceAdapter {
     private readonly session: MacSession;
     private readonly udids = new Map<number, string>();
     private contentKey = '';
+    private verified: Promise<void> | undefined;
 
     constructor(private readonly options: IosAdapterOptions) {
         this.session = new MacSession(options);
@@ -61,7 +62,17 @@ export class IosAdapter implements DeviceAdapter {
         return this.session.facts();
     }
 
-    async prepareHost(run: RunContext): Promise<void> {
+    /**
+     * Open the Mac session and check that the app for this tree is built, once. `preflight` and `prepareHost` both
+     * ask; only the first does the work. The script refuses, and says how to build it, when the app is missing.
+     */
+    private verifyBuild(run: RunContext): Promise<void> {
+        this.verified ??= this.openAndCheck(run);
+
+        return this.verified;
+    }
+
+    private async openAndCheck(run: RunContext): Promise<void> {
         const { shell, repoRoot, env } = this.options;
         await this.session.open(run);
 
@@ -79,6 +90,14 @@ export class IosAdapter implements DeviceAdapter {
         }
 
         await shell.run('bash', [script, 'check', this.contentKey, macPathsOf().iosApp(this.contentKey)], buildEnv);
+    }
+
+    preflight(run: RunContext): Promise<void> {
+        return this.verifyBuild(run);
+    }
+
+    async prepareHost(run: RunContext): Promise<void> {
+        await this.verifyBuild(run);
         await this.session.syncFlows();
         await this.session.linkShim('maestro', 'maestroShim.sh');
         await this.session.linkShim('xcrun', 'xcrunShim.sh');

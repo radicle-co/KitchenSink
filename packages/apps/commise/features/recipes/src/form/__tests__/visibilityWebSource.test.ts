@@ -7,6 +7,7 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { describe, expect, it } from 'vitest';
 
 import type { RecipePrivateFacts } from '../../actions/recipePrivateGate.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import { editorMessages } from '../../editor/messages.js';
 import { visibilityChoice, visibilityFieldOf } from '../props.js';
 
@@ -21,17 +22,28 @@ const facts = (
     standing,
     state: 'hidden',
 });
-const base = { saved: RecipeVisibility.PUBLIC, draft: RecipeVisibility.PUBLIC, refusal: undefined, messages: v };
+const refusalLines = recipeActionMessages.en.publicRefusal;
+const base = {
+    saved: RecipeVisibility.PUBLIC,
+    draft: RecipeVisibility.PUBLIC,
+    refusal: undefined,
+    messages: v,
+    refusalLines,
+};
 
+// REWRITTEN for P6: the web-copy and book cases are driven by the shared reason (`publicRefusalOf`), not a `webSource`
+// flag, and the card says the designer's line for that reason. Every behavioural assertion is kept.
 describe('visibilityFieldOf for a web copy', () => {
-    // REWRITTEN for the designer's approval fixes: a web copy says the ONE "saved with a source" note, the same words the
-    // card says once the source is removed, so the cook reads one sentence before and after.
-    it('shows Private even though the cook chose Public, and refuses the Public card with the one source note', () => {
-        const model = visibilityFieldOf({ ...base, facts: facts('privateOnly'), webSource: true });
+    it('shows Private even though the cook chose Public, and refuses the Public card with the web-page line', () => {
+        const model = visibilityFieldOf({
+            ...base,
+            facts: facts('privateOnly'),
+            publicRefusal: 'policy.webPage',
+        });
 
         expect(model.shown).toBe(RecipeVisibility.PRIVATE);
         expect(model.options[0].refused).toBe(true);
-        expect(model.options[0].note).toBe('This recipe was saved with a source, so it stays private.');
+        expect(model.options[0].note).toBe(refusalLines.policyWebPage);
         expect(model.options[1].refused).toBe(false);
     });
 
@@ -40,27 +52,27 @@ describe('visibilityFieldOf for a web copy', () => {
             ...base,
             refusal: 'slots',
             facts: facts('privateOnly', FULL),
-            webSource: true,
+            publicRefusal: 'policy.webPage',
         });
 
         expect(model.shown).toBe(RecipeVisibility.PRIVATE);
-        expect(model.options[0].note).toBe(v.publicHeldBySource);
+        expect(model.options[0].note).toBe(refusalLines.policyWebPage);
     });
 
-    it('keeps the book and paid-site reason for a recipe that is not a web copy', () => {
-        const model = visibilityFieldOf({ ...base, facts: facts('privateOnly'), webSource: false });
+    it('keeps the book reason for a recipe that is not a web copy', () => {
+        const model = visibilityFieldOf({ ...base, facts: facts('privateOnly'), publicRefusal: 'policy.book' });
 
-        expect(model.options[0].note).toBe(v.publicRefused);
+        expect(model.options[0].note).toBe(refusalLines.policyBook);
     });
 
     it('is the cook’s own choice again once the source is off (the rule is slots)', () => {
-        const model = visibilityFieldOf({ ...base, facts: facts('slots'), webSource: false });
+        const model = visibilityFieldOf({ ...base, facts: facts('slots'), publicRefusal: 'none' });
 
         expect(model.shown).toBe(RecipeVisibility.PUBLIC);
         expect(model.options[0].refused).toBe(false);
     });
 
     it('choosing Public does nothing while the draft is a web copy', () => {
-        expect(visibilityChoice('private', 'public', 'public', facts('privateOnly'))).toBeUndefined();
+        expect(visibilityChoice('private', 'public', 'public', facts('privateOnly'), 'policy.webPage')).toBeUndefined();
     });
 });

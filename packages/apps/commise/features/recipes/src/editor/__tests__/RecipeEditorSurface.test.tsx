@@ -25,6 +25,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PaidFeatureState } from '@commise/features-account';
 
+import { recipeActionMessages } from '../../actions/messages.js';
 import { makeFakeEditorWritePort } from '../../__fixtures__/editorWritePort.js';
 import {
     makeFilledRecipeFormValues,
@@ -798,7 +799,8 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         const publicCard = within(section()).getByRole('radio', { name: /^public/i });
 
         expect(publicCard.getAttribute('aria-disabled')).toBe('true');
-        expect(within(section()).getByText('This recipe was saved with a source, so it stays private.')).toBeTruthy();
+        // REWRITTEN for P6: the note is the web-page reason's line, from the shared refusal, not the old source note.
+        expect(within(section()).getByText(recipeActionMessages.en.publicRefusal.policyWebPage)).toBeTruthy();
         expect(within(section()).getByRole<HTMLInputElement>('radio', { name: /^private/i }).checked).toBe(true);
     });
 
@@ -859,6 +861,55 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
         expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
     });
+
+    it('with every slot used, a locked stored web copy with no link in the draft still gets the web words (one reason for card and sheet)', async () => {
+        mount({
+            seed: {
+                recipe: makeRecipeDetail({
+                    id: 'rec_1',
+                    status: RecipeStatus.PUBLISHED,
+                    visibility: RecipeVisibility.PRIVATE,
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    clonedFromId: 'rec_origin',
+                    cuisine: 'Italian',
+                }),
+            },
+            publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+        });
+
+        const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+        expect(within(dialog).getByText(/A recipe copied from a web page can only be private/u)).toBeTruthy();
+        expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
+    });
+
+    it.each([
+        ['a book recipe', { sourceType: 'imported_physical' as const, sourceKind: 'book' as const }],
+        ['a "From another person" recipe', { statementKind: 'fromPerson' as const }],
+    ])(
+        'with every slot used, %s: the ask says it can only be private and offers no Publish as public',
+        async (_name, over) => {
+            mount({
+                seed: {
+                    recipe: makeRecipeDetail({
+                        id: 'rec_1',
+                        status: RecipeStatus.PUBLISHED,
+                        visibility: RecipeVisibility.PRIVATE,
+                        cuisine: 'Italian',
+                        ...over,
+                    }),
+                },
+                publishBlocked: { ask: { kind: 'noSlot', total: 50 }, keepAsDraft: vi.fn(), publishAsPublic: vi.fn() },
+            });
+
+            const dialog = await screen.findByRole('dialog', { name: 'Your private slots are full' });
+
+            expect(within(dialog).getByText(/This recipe can only be private/u)).toBeTruthy();
+            expect(within(dialog).queryByRole('button', { name: 'Publish as public' })).toBeNull();
+            expect(within(dialog).getByRole('button', { name: 'Keep as draft' })).toBeTruthy();
+        },
+    );
 
     it('without a Source the same ask still offers Publish as public', async () => {
         mount({

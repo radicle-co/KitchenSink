@@ -26,6 +26,7 @@ export type CookingTimerRowState =
 
 /** What the row frame is given. */
 export interface CookingTimerRowProps {
+    /** Which timer state the row shows, and the actions that state offers. */
     readonly state: CookingTimerRowState;
     /** The row's body, usually a `CookingTimerSummary`. */
     readonly body: ReactNode;

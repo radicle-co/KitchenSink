@@ -24,7 +24,7 @@ const Circle = styled(View, {
     name: 'IconButtonCircle',
     width: CIRCLE_PX,
     height: CIRCLE_PX,
-    borderRadius: CIRCLE_PX / 2,
+    borderRadius: '$full',
     alignItems: 'center',
     justifyContent: 'center',
 });

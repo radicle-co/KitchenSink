@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 97,
-        "implementations": 154,
-        "props": 1224,
-        "documentedComponents": 97,
-        "implementationsWithModuleDoc": 154,
-        "implementationsWithComponentDoc": 140,
-        "documentedProps": 1032,
-        "classifiedComponents": 90,
-        "componentsWithPatternTag": 97,
-        "crossPlatformComponents": 57
+        "components": 100,
+        "implementations": 160,
+        "props": 1242,
+        "documentedComponents": 100,
+        "implementationsWithModuleDoc": 160,
+        "implementationsWithComponentDoc": 146,
+        "documentedProps": 1050,
+        "classifiedComponents": 93,
+        "componentsWithPatternTag": 100,
+        "crossPlatformComponents": 60
     },
     "components": [
         {
@@ -744,6 +744,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -1022,6 +1024,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -1307,7 +1311,8 @@
                                 "\"readingLarge\"",
                                 "\"meta\"",
                                 "\"caption\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": "body",
@@ -1371,7 +1376,8 @@
                                 "\"readingLarge\"",
                                 "\"meta\"",
                                 "\"caption\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": "body",
@@ -3271,6 +3277,281 @@
             ]
         },
         {
+            "id": "designSystem/cookingTimerRow/CookingTimerRow",
+            "name": "CookingTimerRow",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+            "kind": "presentational",
+            "patterns": [
+                "Registry — the state-to-actions table below is the one place the glyphs are chosen",
+                "Slot — `body` is filled by the caller"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerRow.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else: a running\ntimer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.\n\nThe frame has no role and no name of its own, and it is not a live region: the controls and the body name themselves.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — `body` is filled by the caller"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Registry — the state-to-actions table below is the one place the glyphs are chosen"
+                        }
+                    ],
+                    "description": "The cooking timer row frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's body, usually a `CookingTimerSummary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "CookingTimerRowState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which timer state the row shows, and the actions that state offers.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerRow.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the native {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else.\n\nThe frame is NOT `accessible` (that would fold its buttons into one element) and has no name of its own; the buttons\nand the body name themselves. It is not a live region. Each action's frame is the touch floor (48 dp on Android), and\nthe gap between two is `8 - (floor - 44)`, so their 44 circles sit 8 apart on both platforms and the frames never\noverlap. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the native {@link CookingTimerRow}: one frame that holds a body slot and the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — `body` is filled by the caller"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Registry — the state-to-actions table below is the one place the glyphs are chosen"
+                        }
+                    ],
+                    "description": "The native cooking timer row frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's body, usually a `CookingTimerSummary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "CookingTimerRowState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which timer state the row shows, and the actions that state offers.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/cookingTimerRow/CookingTimerSummary",
+            "name": "CookingTimerSummary",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+            "kind": "presentational",
+            "patterns": [
+                "Slot — a part that fills the row frame's `body` slot"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerSummary",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerSummary.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerSummary}: the body of a cooking timer row. A timer\nglyph, the time, an optional status word and what the timer is for. The glyph hides above 1.3x text so the time keeps\nits room (`leadingGlyphWebStyle`); the time never wraps and the meta does.\n\nIt is not a live region. Its accessible name is the caller's `accessibilityLabel`: the visible text is hidden from\nassistive technology and a sibling `sr-only` span carries the name, so the time is not read as digits.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the web {@link CookingTimerSummary}: the body of a cooking timer row. A timer"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — a part that fills the row frame's `body` slot"
+                        }
+                    ],
+                    "description": "The cooking timer summary part.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The whole summary's accessible name, in words (\"Roast, 4 minutes 30 seconds left\").",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "figure",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The time, already formatted (\"4:30\", \"1:09:50\"). Never wraps, never truncates.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "meta",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the timer is for and where (\"Roast, step 4\"). It wraps.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "status",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A word for the state (\"Paused\", \"Done\"), or absent while the timer runs.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerSummary",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerSummary.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the native {@link CookingTimerSummary}: the body of a cooking timer row. A\ntimer glyph, the time, an optional status word and what the timer is for. The glyph is dropped above 1.3x text\n(`showsLeadingGlyph`) so the time keeps its room; the time never wraps and the meta does. Styled with Tamagui only\n(ADR-0080).\n\nIt is ONE accessibility element named by the caller's `accessibilityLabel`, and not a live region.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the native {@link CookingTimerSummary}: the body of a cooking timer row. A"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — a part that fills the row frame's `body` slot"
+                        }
+                    ],
+                    "description": "The native cooking timer summary part.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The whole summary's accessible name, in words (\"Roast, 4 minutes 30 seconds left\").",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "figure",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The time, already formatted (\"4:30\", \"1:09:50\"). Never wraps, never truncates.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "meta",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the timer is for and where (\"Roast, step 4\"). It wraps.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "status",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A word for the state (\"Paused\", \"Done\"), or absent while the timer runs.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/createFab/CreateFab",
             "name": "CreateFab",
             "group": "designSystem",
@@ -3348,6 +3629,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3491,6 +3774,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3643,6 +3928,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3765,6 +4052,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -5913,6 +6202,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6050,6 +6341,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6547,6 +6840,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6709,6 +7004,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6806,6 +7103,257 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/iconButton/IconButton",
+            "name": "IconButton",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/iconButton",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — `PressScale` adds the press motion and owns the one `Pressable`",
+                "Decorator — `PressScale` adds the press motion around the button",
+                "Style Recipe — `TOUCH_TARGET_CLASS.fixed` and the focus ring and press fill rows are the whole look"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "IconButton",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+                    "dir": "packages/apps/commise/ui/src/iconButton",
+                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it (designer\nD85: an icon-only control keeps its pixel size). A press scales the control through {@link PressScale} and fills it with the\nneutral press row.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `PressScale` adds the press motion around the button"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Style Recipe — `TOUCH_TARGET_CLASS.fixed` and the focus ring and press fill rows are the whole look"
+                        }
+                    ],
+                    "description": "The design-system icon button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The control's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The meaning to draw: a glyph from the icon Registry.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "IconButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/iconButton",
+                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the touch\nfloor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a `hitSlop`, so a\ndevice inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow with the text (designer\nD85: an icon-only control keeps its pixel size). Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the touch"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `PressScale` adds the press motion and owns the one `Pressable`"
+                        }
+                    ],
+                    "description": "The native design-system icon button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The control's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The meaning to draw: a glyph from the icon Registry.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -10374,7 +10922,8 @@
                                 "\"meta\"",
                                 "\"caption\"",
                                 "\"figureInline\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -10507,7 +11056,8 @@
                                 "\"meta\"",
                                 "\"caption\"",
                                 "\"figureInline\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -12192,6 +12742,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -12378,6 +12930,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",

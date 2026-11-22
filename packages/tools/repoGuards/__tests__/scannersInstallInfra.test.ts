@@ -29,7 +29,7 @@ afterEach(() => {
     }
 });
 
-// `/usr/bin/env` finds git and bash on PATH: their place differs per machine, so no command is run by bare name.
+// `env` searches PATH on purpose: git and bash live in different places per machine, and this test runs only on CI runners and developer machines. It stands in for a sonarjs disable, which this package's ESLint config cannot express.
 const ENV = '/usr/bin/env';
 const git = (cwd: string, ...args: string[]): string => execFileSync(ENV, ['git', ...args], { cwd, encoding: 'utf8' });
 

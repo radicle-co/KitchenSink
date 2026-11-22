@@ -180,6 +180,18 @@ describe('MacSession', () => {
         expect(rsync).toContain('me@mac:ksIos/run/r/mobile/.maestro/');
     });
 
+    it('syncs the whole .maestro folder, so a staged one-off flow reaches the Mac', async () => {
+        const rec = recorder();
+        const session = make(rec.shell);
+        await session.open(run);
+        await session.syncFlows();
+
+        const args = rec.calls.find((c) => c.command === 'rsync')?.args ?? [];
+        expect(args).toContain('--delete');
+        expect(args.filter((arg) => arg.startsWith('--exclude') || arg.startsWith('--filter'))).toEqual([]);
+        expect(args.some((arg) => arg.endsWith('/packages/apps/commise/mobile/.maestro/'))).toBe(true);
+    });
+
     it('opens one reverse tunnel for the forwards it is given, and stops it on close', async () => {
         const rec = recorder();
         const session = make(rec.shell);

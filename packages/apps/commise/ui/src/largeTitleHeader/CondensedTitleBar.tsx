@@ -31,7 +31,8 @@ import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
 /** The back control: its chevron grows from the breakpoint where the parent name shows. */
 const BACK_CLASS = [
-    'pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1 rounded-md text-label text-action-text',
+    'pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1',
+    'rounded-md text-label text-action-text',
     BACK_PARENT_REVEAL.chevron,
     FOCUS_RING_CLASS.offset,
 ].join(' ');

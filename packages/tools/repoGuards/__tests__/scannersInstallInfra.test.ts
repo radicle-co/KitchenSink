@@ -138,4 +138,11 @@ describe('_ci.yml codeQuality job', () => {
         expect(job.steps[install]?.run).toContain('scqBase');
         expect(job.steps[scan]?.run).toContain('scqBase');
     });
+    it('assigns the app list in its own statement, so a script failure fails the step', () => {
+        const body = job.steps[install]?.run ?? '';
+
+        expect(body).toMatch(/^\s*apps="\$\(bash \.github\/scripts\/touchedInfraApps\.sh [^\n]*\)"\s*$/m);
+        expect(body).not.toMatch(/for\s[^\n]*\$\(/);
+        expect(body.indexOf('apps="$(')).toBeLessThan(body.indexOf('for '));
+    });
 });

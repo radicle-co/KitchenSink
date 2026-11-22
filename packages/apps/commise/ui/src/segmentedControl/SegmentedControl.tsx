@@ -22,6 +22,7 @@ import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
 import { isModifiedClick } from '../routeLink/isModifiedClick.js';
+import { SEGMENT_LABEL_ROLE } from './nativeSegmentGeometry.js';
 import type { RouteSegmentedControlProps, SegmentedControlProps } from './props.js';
 import { routeSegmentClass, segmentClass, trackClass, type SegmentWidth } from './segmentClass.js';
 
@@ -90,7 +91,15 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                             value={segment.id}
                             className={segmentClass(segment.id === props.value, width)}
                         >
-                            {segment.icon === undefined ? null : <Icon name={segment.icon} size={20} />}
+                            {segment.icon === undefined ? null : (
+                                <Icon
+                                    name={segment.icon}
+                                    size={20}
+                                    {...(props.labelVisibility === 'hidden'
+                                        ? {}
+                                        : { scaleWith: { role: SEGMENT_LABEL_ROLE } })}
+                                />
+                            )}
                             {props.labelVisibility === 'hidden' ? (
                                 <span className="sr-only">{segment.label}</span>
                             ) : (

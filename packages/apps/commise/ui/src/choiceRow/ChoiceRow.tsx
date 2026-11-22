@@ -25,7 +25,7 @@ import { BUSY_CONTROL_CLASS, busyControlProps } from '../button/busyControlProps
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.js';
 import { Spinner } from '../spinner/Spinner.js';
-import type { ChoiceRowProps } from './props.js';
+import { CHOICE_ROW_LABEL_ROLE, type ChoiceRowProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
@@ -60,7 +60,9 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
                     <Spinner className="animate-spin" />
                 </span>
             ) : null}
-            {!busy && chosen ? <Icon name="check" size={20} tone="actionText" /> : null}
+            {!busy && chosen ? (
+                <Icon name="check" size={20} tone="actionText" scaleWith={{ role: CHOICE_ROW_LABEL_ROLE }} />
+            ) : null}
         </button>
     );
 };

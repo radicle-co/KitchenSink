@@ -16,7 +16,7 @@ import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { PressScale } from '../pressScale/index.js';
 import { Text } from '../text/Text.native.js';
-import type { KeepAwakeToggleProps } from './props.js';
+import { KEEP_AWAKE_LABEL_ROLE, type KeepAwakeToggleProps } from './props.js';
 
 const Row = styled(XStack, { name: 'KeepAwakeToggle', alignItems: 'center', gap: '$2', paddingHorizontal: '$2' });
 
@@ -30,8 +30,8 @@ export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label,
         {...(hint === undefined ? {} : { accessibilityHint: hint })}
     >
         <Row minHeight={touchFloor()}>
-            <Icon name="sun" size={20} filled={on} tone="actionText" />
-            <Text typeRole="label" color="$ink">
+            <Icon name="sun" size={20} filled={on} tone="actionText" scaleWith={{ role: KEEP_AWAKE_LABEL_ROLE }} />
+            <Text typeRole={KEEP_AWAKE_LABEL_ROLE} color="$ink">
                 {label}
             </Text>
         </Row>

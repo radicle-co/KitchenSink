@@ -29,6 +29,13 @@ import { BACK_PARENT_REVEAL } from './barGeometry.js';
 import type { CondensedTitleBarWebProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
+/** The back control: its chevron grows from the breakpoint where the parent name shows. */
+const BACK_CLASS = [
+    'pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1 rounded-md text-label text-action-text',
+    BACK_PARENT_REVEAL.chevron,
+    FOCUS_RING_CLASS.offset,
+].join(' ');
+
 /** The web design-system condensed title bar. */
 export const CondensedTitleBar: FC<CondensedTitleBarWebProps> = ({
     title,
@@ -49,7 +56,7 @@ export const CondensedTitleBar: FC<CondensedTitleBarWebProps> = ({
                 label={back.label}
                 onPress={back.onPress}
                 {...(back.href === undefined ? {} : { href: back.href })}
-                className={`pointer-events-auto inline-flex min-h-11 min-w-11 max-w-[40%] items-center justify-start gap-1 rounded-md text-label text-action-text ${BACK_PARENT_REVEAL.chevron} ${FOCUS_RING_CLASS.offset}`}
+                className={BACK_CLASS}
             >
                 <Icon name="chevronLeft" size={24} />
                 {/* From tablet width (`medium`, 600) the control names its parent, as native does ("‹ Collections"); the

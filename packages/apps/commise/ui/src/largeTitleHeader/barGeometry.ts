@@ -43,7 +43,7 @@ export function barStartPadding(floor: number): number {
     return Math.max(0, CONTENT_GUTTER_PX - backGlyphInset(floor));
 }
 
-/** The type role of the parent name beside the back chevron. The name and the chevron (`Icon`'s `scaleWith`) read it. */
+/** The type role of the parent name beside the back chevron. The name and the chevron both read it. */
 export const BACK_LABEL_ROLE = 'label' satisfies TypeRole;
 
 /** The chrome cap of the parent name on native: navigation chrome, so 1.5x. The chevron stops at it too. */

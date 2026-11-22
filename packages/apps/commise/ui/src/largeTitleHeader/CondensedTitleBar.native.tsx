@@ -64,7 +64,7 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
                         name="chevronLeft"
                         size={24}
                         tone="actionText"
-                        // Alone on a phone the chevron is icon-only and stays fixed; beside the parent name it grows with it.
+                        // Alone on a phone the chevron is icon-only and stays fixed; beside the parent name it grows.
                         {...(showsParent ? { scaleWith: { role: BACK_LABEL_ROLE, chromeCap: BACK_CHROME_CAP } } : {})}
                     />
                     {showsParent ? (

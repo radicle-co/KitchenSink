@@ -103,8 +103,14 @@ describe.each([
 
 describe('the label reader sees every selector form', () => {
     it('finds a bare selector, a text selector and a visible condition, whatever the quoting', () => {
-        const flow =
-            "- assertVisible: 'Step.1 of 3'\n- tapOn:\n    text: \"Line.2 of 2\"\n- runFlow:\n    when:\n      visible: 'Step 2 of 3'\n";
+        const flow = [
+            "- assertVisible: 'Step.1 of 3'",
+            '- tapOn:',
+            '    text: "Line.2 of 2"',
+            '- runFlow:',
+            '    when:',
+            "      visible: 'Step 2 of 3'",
+        ].join('\n');
         const found = parseFlow('inline', flow).flatMap((document) => [...texts(document)]);
 
         expect(found).toEqual(['Step.1 of 3', 'Line.2 of 2', 'Step 2 of 3']);

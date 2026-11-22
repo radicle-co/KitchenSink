@@ -445,7 +445,7 @@ describe('PATCH /api/v1/recipes/{id} — the source can be settled, also after t
     // stated source after the first publish. The cook's statement stays editable, so it now proves the change is written and
     // the recipe is made Private in the same write.
     /**
-     * Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE, decisions/everyAnswerSourceLock-qse.md batch 2): it asserted that a
+     * Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2): it asserted that a
      * published recipe's "I wrote this" could change to a web source after the first publish. The first publish confirms the answer
      * (migration 0092), so a confirmed own answer can now only be downgraded to a book or a paid site.
      */

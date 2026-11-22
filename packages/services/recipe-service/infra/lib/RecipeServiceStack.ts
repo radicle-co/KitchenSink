@@ -635,7 +635,7 @@ export class RecipeServiceStack extends Stack {
         this.serviceUrl = `https://${serviceDomain}`;
 
         // ── Alarm topic and the source-correction volume alarm (ADR-0100 / ADR-0062) ─────────────────────
-        // eslint-disable-next-line sonarjs/aws-sns-unencrypted-topics -- SSL-only with no SSE, like every alarm topic in the repo: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key and the payload holds no user data (staff ruling, squad decisions/everyAnswerSourceLock-staff.md).
+        // eslint-disable-next-line sonarjs/aws-sns-unencrypted-topics -- SSL-only with no SSE, like every alarm topic in the repo: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key and the payload holds no user data.
         const alarmTopic = new sns.Topic(this, 'RecipeServiceAlarmTopic', {
             enforceSSL: true,
             displayName: `Recipe service alarms (${stage})`,
@@ -661,7 +661,7 @@ export class RecipeServiceStack extends Stack {
             relayAlarmTransitions(this, alarmTopic, importAlarmRelayArn(stage));
 
             // The metric is an EMF line `src/recipes/sourceEvents.ts` writes, with `Stage` as its one dimension (DD29): an alarm
-            // directly on it, no metric filter (staff's binding reading, decisions/everyAnswerSourceLock-staff.md). Sum over a day.
+            // directly on it, no metric filter. Sum over a day.
             new cloudwatch.Alarm(this, 'SourceCorrectionVolumeAlarm', {
                 alarmName: `kitchensink-recipe-source-corrected-${stage}`,
                 alarmDescription:

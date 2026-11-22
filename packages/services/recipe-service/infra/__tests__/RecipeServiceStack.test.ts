@@ -1378,8 +1378,7 @@ describe('media CDN wiring (ADR-0064)', () => {
 });
 
 /**
- * The source-correction volume alarm (ADR-0100, plan everyAnswerSourceLock KTD-11, qse Q-10; staff's binding reading in
- * `decisions/everyAnswerSourceLock-staff.md`): an alarm directly on the EMF metric `source.corrected`, no metric filter. A staff
+ * The source-correction volume alarm (ADR-0100, plan everyAnswerSourceLock KTD-11, qse Q-10): an alarm directly on the EMF metric `source.corrected`, no metric filter. A staff
  * correction is rare and manual, so more than 10 in a day is a leaked grant or a runaway script.
  */
 describe('the source-correction volume alarm (ADR-0100)', () => {

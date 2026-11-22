@@ -10,10 +10,11 @@
  */
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState, type JSX, type ReactNode } from 'react';
+import { useContext, useState, type JSX, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resizeEntryOf } from '../../testing/resizeObserver.js';
+import { OverlayDepthContext } from '../../overlay/overlayDepthContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
 import { SnackbarHost } from '../SnackbarHost.js';
 import { SnackbarOutlet } from '../SnackbarOutlet.js';
@@ -216,6 +217,26 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
 
         expect(others).toStrictEqual([]);
         expect(screen.getByRole('dialog', { name: 'Confirm' }).contains(region ?? null)).toBe(true);
+    });
+
+    it('gives its children the overlay depth, 1 in a sheet and 2 in a sheet inside it, which orders the outlets', () => {
+        const Probe = ({ id }: { readonly id: string }): JSX.Element => (
+            <output data-testid={id}>{useContext(OverlayDepthContext)}</output>
+        );
+
+        render(
+            <SnackbarHost>
+                <OneSheet open title="Outer">
+                    <Probe id="outer" />
+                    <OneSheet open title="Inner">
+                        <Probe id="inner" />
+                    </OneSheet>
+                </OneSheet>
+            </SnackbarHost>,
+        );
+
+        expect(screen.getByTestId('outer').textContent).toBe('1');
+        expect(screen.getByTestId('inner').textContent).toBe('2');
     });
 
     it('keeps a status region mounted in the sheet before any snackbar arrives, so the change is announced', () => {

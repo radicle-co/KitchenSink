@@ -635,7 +635,7 @@ export class RecipeServiceStack extends Stack {
         this.serviceUrl = `https://${serviceDomain}`;
 
         // ── Alarm topic and the source-correction volume alarm (ADR-0100 / ADR-0062) ─────────────────────
-        // eslint-disable-next-line sonarjs/aws-sns-unencrypted-topics -- SSL-only with no SSE, like every alarm topic in the repo: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key and the payload holds no user data.
+        // eslint-disable-next-line -- the scanners' sonarjs/aws-sns-unencrypted-topics rule: SSL-only with no SSE, like every alarm topic in the repo: a CloudWatch alarm cannot publish under the AWS-managed aws/sns key and the payload holds no user data.
         const alarmTopic = new sns.Topic(this, 'RecipeServiceAlarmTopic', {
             enforceSSL: true,
             displayName: `Recipe service alarms (${stage})`,

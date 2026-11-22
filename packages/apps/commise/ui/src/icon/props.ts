@@ -36,6 +36,8 @@ export const ICON_NAMES = [
     'globe',
     'pencilLine',
     'timer',
+    'pause',
+    'play',
     'sun',
     'check',
     'arrowUp',

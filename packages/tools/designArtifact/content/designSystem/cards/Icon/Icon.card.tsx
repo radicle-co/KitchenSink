@@ -62,6 +62,8 @@ const names = [
     'layoutGrid',
     'cookingPot',
     'listChecks',
+    'pause',
+    'play',
 ] as const satisfies readonly IconName[];
 
 type MissingFromCard = Exclude<IconName, (typeof names)[number]>;

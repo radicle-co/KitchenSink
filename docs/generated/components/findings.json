@@ -3,10 +3,10 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 30,
+        "cross-platform-props-diverge": 31,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 109,
+        "platform-singleton": 108,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -1174,13 +1174,14 @@
             ]
         },
         {
-            "rule": "platform-singleton",
+            "rule": "cross-platform-props-diverge",
             "severity": "review",
             "component": "designSystem/snackbar/SnackbarOutlet",
-            "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.native.tsx",
-            "message": "a package that ships to both platforms has only one leaf of this component",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
+            "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "native"
+                "web: depth",
+                "native: depth footHeight presenting"
             ]
         },
         {

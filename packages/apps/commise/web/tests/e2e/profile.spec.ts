@@ -154,7 +154,9 @@ test.describe('the display name', () => {
 
         await field.fill('a'.repeat(100));
         await expect(dialog.getByText('100/100')).toBeVisible();
-        await expect(dialog.getByRole('status')).toHaveText('That is the longest name we can take.');
+        await expect(
+            dialog.getByRole('status').filter({ hasText: 'That is the longest name we can take.' }),
+        ).toHaveText('That is the longest name we can take.');
     });
 
     test('closing the sheet saves nothing', async ({ page }) => {

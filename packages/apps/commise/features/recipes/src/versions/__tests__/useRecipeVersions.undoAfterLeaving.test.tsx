@@ -22,6 +22,7 @@ import { useRecipeVersions } from '../useRecipeVersions.js';
 afterEach(cleanup);
 
 const GONE = commonMessages.en.undoGone;
+const FAILED = commonMessages.en.undoFailed;
 
 const json = (status: number, body: unknown): Response =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -173,7 +174,7 @@ describe('the version restore Undo, after its page unmounted', () => {
         expect(realErrors(consoleError)).toEqual([]);
     });
 
-    it('marks the recipe and its history stale by id after a 409, and shows no gone message', async () => {
+    it('marks the recipe and its history stale by id after a 409, and shows neither message', async () => {
         const { queryClient, consoleError } = await setup(() =>
             json(409, { statusCode: 409, message: 'Version conflict', error: 'Conflict' }),
         );
@@ -184,14 +185,15 @@ describe('the version restore Undo, after its page unmounted', () => {
             expect(queryClient.getQueryState(recipeServiceKeys.recipe('rec_1'))?.isInvalidated).toBe(true);
             expect(queryClient.getQueryState(recipeServiceKeys.recipeVersions('rec_1'))?.isInvalidated).toBe(true);
         });
-        expect(statusText()).not.toContain(GONE);
+        await undoSettled(queryClient);
+        expect(statusText()).toBe('');
         expect(realErrors(consoleError)).toEqual([]);
     });
 
     it.each([
         ['a 500', () => json(500, { statusCode: 500, message: 'Internal server error' })],
         ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
-    ] as const)('never shows the gone message for %s, and does not log or throw', async (_name, answer) => {
+    ] as const)('says it could not undo, and not that it is gone, for %s', async (_name, answer) => {
         const { consoleError, restorePosts, queryClient } = await setup(answer);
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
@@ -200,7 +202,22 @@ describe('the version restore Undo, after its page unmounted', () => {
             expect(restorePosts).toHaveLength(2);
         });
         await undoSettled(queryClient);
-        expect(statusText()).not.toContain(GONE);
+        expect(statusText()).toBe(FAILED);
+        expect(realErrors(consoleError)).toEqual([]);
+    });
+
+    it('shows neither message for a 403, which a later try cannot fix', async () => {
+        const { consoleError, restorePosts, queryClient } = await setup(() =>
+            json(403, { statusCode: 403, message: 'Forbidden', error: 'Forbidden' }),
+        );
+
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+        await vi.waitFor(() => {
+            expect(restorePosts).toHaveLength(2);
+        });
+        await undoSettled(queryClient);
+        expect(statusText()).toBe('');
         expect(realErrors(consoleError)).toEqual([]);
     });
 });

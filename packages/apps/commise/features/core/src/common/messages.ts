@@ -14,11 +14,17 @@ export interface CommonMessages {
      * reads the same for a collection, a recipe version or anything else.
      */
     readonly undoGone: string;
+    /**
+     * What an Undo says when it failed for now, a failure a later try can fix (the server or the network). It says the
+     * change is still in place, because that is what the cook needs to know.
+     */
+    readonly undoFailed: string;
 }
 
 /** The shared copy, per locale. */
 export const commonMessages: LocalizedMessages<CommonMessages> = {
     en: {
         undoGone: 'Can’t undo. It was deleted.',
+        undoFailed: 'Can’t undo right now. The change is still in place.',
     },
 };

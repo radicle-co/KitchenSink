@@ -19,7 +19,11 @@ import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { isNotFoundError, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
+import {
+    isNotFoundError,
+    shouldRetryRecipeServiceFailure,
+    type CollectionWithRecipes,
+} from '@kitchensink/recipe-service-client';
 import {
     invalidateCollections,
     recipeServiceKeys,
@@ -65,7 +69,7 @@ export function useCollectionVisibility(collection: {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const [upsellOpen, setUpsellOpen] = useState(false);
-    const undoGone = useMessages(commonMessages).undoGone;
+    const { undoGone, undoFailed } = useMessages(commonMessages);
     const detailKey = recipeServiceKeys.collection(collection.id);
     const mutationKey = ['recipe-service', 'mutations', 'collectionVisibility', collection.id] as const;
 
@@ -96,12 +100,17 @@ export function useCollectionVisibility(collection: {
     /**
      * The compensating change. The snackbar outlives this screen, so Undo can run after it unmounted: it awaits the
      * mutation (TanStack skips callbacks passed to one `mutate` call after unmount) and reports a collection that is
-     * gone in a snackbar of its own. Every other failure takes the hook-level rollback and is not raised again.
+     * gone in a snackbar of its own, and a failure a later try can fix in another. Every other refusal takes the hook-level rollback and is not raised again.
      */
     const undo = (change: VisibilityChange): void => {
         mutation.mutateAsync(change).catch((error: unknown) => {
             if (isNotFoundError(error)) {
                 snackbar.show({ message: undoGone });
+            } else if (shouldRetryRecipeServiceFailure(error)) {
+                // A failure a later try can fix. The change is still in place, so the page's "change failed" state,
+                // which says the first change was refused, would be the wrong story: clear it (a no-op off the page).
+                mutation.reset();
+                snackbar.show({ message: undoFailed });
             }
         });
     };

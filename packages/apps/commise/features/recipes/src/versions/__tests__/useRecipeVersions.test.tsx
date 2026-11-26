@@ -9,6 +9,7 @@
  *
  * `@kitchensink/recipe-service-client/hooks` runs for real over a fake, network-guarded client stubbed per test.
  */
+import { commonMessages } from '@commise/features-core/common';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, screen, waitFor } from '@testing-library/react';
@@ -124,6 +125,30 @@ describe('useRecipeVersions — restore', () => {
         await waitFor(() => expect(restore).toHaveBeenLastCalledWith('rec_1', 3));
         await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Restored version 3.'));
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it('says it could not undo, and leaves no inline restore error, when the Undo fails for now', async () => {
+        const { result, restore } = setup();
+        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+
+        act(() => result.current.list.onRestore(1));
+        await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy());
+        restore.mockRejectedValue(new TypeError('Failed to fetch'));
+        act(() => screen.getByRole('button', { name: 'Undo' }).click());
+
+        await waitFor(() => expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed));
+        expect(result.current.list.restoreError).toBeUndefined();
+    });
+
+    it('keeps the inline error, and shows no snackbar, when the first restore fails for now', async () => {
+        const { result, restore } = setup();
+        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        restore.mockRejectedValue(new TypeError('Failed to fetch'));
+
+        act(() => result.current.list.onRestore(1));
+
+        await waitFor(() => expect(result.current.list.restoreError).toBeDefined());
+        expect(screen.getByRole('status').textContent).toBe('');
     });
 
     it('classifies a refused restore for the version it targeted', async () => {

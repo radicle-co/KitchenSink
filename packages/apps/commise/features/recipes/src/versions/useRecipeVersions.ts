@@ -27,6 +27,7 @@ import {
     isNotFoundError,
     isPrivateFoodsOnPublicRecipeError,
     isVersionConflictError,
+    shouldRetryRecipeServiceFailure,
     recipeQueries,
 } from '@kitchensink/recipe-service-client';
 import {
@@ -105,7 +106,7 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
     const snackbar = useSnackbar();
     const { versionList } = useMessages(recipeVersionMessages);
     const { ingredientLineName } = useMessages(recipeMessages);
-    const { undoGone } = useMessages(commonMessages);
+    const { undoGone, undoFailed } = useMessages(commonMessages);
 
     const versions = versionsQuery.data;
     const recipe = recipeQuery.data;
@@ -137,6 +138,11 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
                     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
                 } else if (!undoable && isNotFoundError(error)) {
                     snackbar.show({ message: undoGone });
+                } else if (!undoable && shouldRetryRecipeServiceFailure(error)) {
+                    // The restore is still in place, so the inline error that says a restore failed is the wrong story
+                    // after a failed Undo: clear it (a no-op once this screen is gone).
+                    restore.reset();
+                    snackbar.show({ message: undoFailed });
                 }
 
                 return;

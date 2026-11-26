@@ -28,6 +28,7 @@ import { useCollectionVisibility } from '../useCollectionVisibility.js';
 afterEach(cleanup);
 
 const GONE = commonMessages.en.undoGone;
+const FAILED = commonMessages.en.undoFailed;
 
 const detailOf = (visibility: RecipeVisibility): CollectionWithRecipes => ({
     id: 'col_1',
@@ -189,9 +190,8 @@ describe('the collection visibility Undo, after its page unmounted', () => {
 
     it.each([
         ['a 500', () => json(500, { statusCode: 500, message: 'Internal server error' })],
-        ['a 409', () => json(409, { statusCode: 409, message: 'Conflict', error: 'Conflict' })],
         ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
-    ] as const)('never shows the gone message for %s, and does not log or throw', async (_name, answer) => {
+    ] as const)('says it could not undo, and not that it is gone, for %s', async (_name, answer) => {
         const { calls, consoleError, queryClient } = await setup(answer);
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
@@ -200,7 +200,23 @@ describe('the collection visibility Undo, after its page unmounted', () => {
             expect(calls.filter((method) => method !== 'GET')).toHaveLength(2);
         });
         await undoSettled(queryClient);
-        expect(statusText()).not.toContain(GONE);
+        expect(statusText()).toBe(FAILED);
+        expect(realErrors(consoleError)).toEqual([]);
+    });
+
+    it.each([
+        ['a 403', () => json(403, { statusCode: 403, message: 'Forbidden', error: 'Forbidden' })],
+        ['a 409', () => json(409, { statusCode: 409, message: 'Conflict', error: 'Conflict' })],
+    ] as const)('shows neither message for %s, which a later try cannot fix', async (_name, answer) => {
+        const { calls, consoleError, queryClient } = await setup(answer);
+
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+        await vi.waitFor(() => {
+            expect(calls.filter((method) => method !== 'GET')).toHaveLength(2);
+        });
+        await undoSettled(queryClient);
+        expect(statusText()).toBe('');
         expect(realErrors(consoleError)).toEqual([]);
     });
 });

@@ -178,7 +178,7 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
             return Promise.resolve();
         },
         setupLane: (lane) => {
-            events.push(`setupLane ${lane.platform}-${lane.index}`);
+            events.push(`setupLane ${lane.platform}-${String(lane.index)}`);
             writeFileSync(lane.fixtureEnvFile, 'E2E_X=1\n');
 
             return Promise.resolve();

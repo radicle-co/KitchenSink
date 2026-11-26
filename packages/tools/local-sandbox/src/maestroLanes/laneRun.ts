@@ -197,8 +197,8 @@ async function planPlatform(
     // Flows were chosen and no lane can hold one: ending green here would pass flows that never ran.
     if (count === 0) {
         throw new Error(
-            `maestro:lanes: ${platform} has ${flows.length} flow(s) to run and no lane can hold one ` +
-                `(planned ${plan.count}, bound by ${plan.boundBy}) - nothing was started`,
+            `maestro:lanes: ${platform} has ${String(flows.length)} flow(s) to run and no lane can hold one ` +
+                `(planned ${String(plan.count)}, bound by ${plan.boundBy}) - nothing was started`,
         );
     }
     deps.log(

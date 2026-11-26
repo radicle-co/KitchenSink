@@ -133,12 +133,16 @@ describe('useRecipeVersions — restore', () => {
             expect(result.current.list.versions).toHaveLength(3);
         });
 
-        act(() => result.current.list.onRestore(1));
+        act(() => {
+            result.current.list.onRestore(1);
+        });
         await waitFor(() => {
             expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
         });
         restore.mockRejectedValue(new TypeError('Failed to fetch'));
-        act(() => screen.getByRole('button', { name: 'Undo' }).click());
+        act(() => {
+            screen.getByRole('button', { name: 'Undo' }).click();
+        });
 
         await waitFor(() => {
             expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed);
@@ -153,7 +157,9 @@ describe('useRecipeVersions — restore', () => {
         });
         restore.mockRejectedValue(new TypeError('Failed to fetch'));
 
-        act(() => result.current.list.onRestore(1));
+        act(() => {
+            result.current.list.onRestore(1);
+        });
 
         await waitFor(() => {
             expect(result.current.list.restoreError).toBeDefined();

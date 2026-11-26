@@ -201,6 +201,7 @@ async function planPlatform(
                 `(planned ${String(plan.count)}, bound by ${plan.boundBy}) - nothing was started`,
         );
     }
+
     deps.log(
         `${platform}: ${count} lane(s) for ${flows.length} flow(s) (planned ${plan.count}, bound by ${plan.boundBy}; ` +
             `caps ${JSON.stringify(plan.caps)})`,

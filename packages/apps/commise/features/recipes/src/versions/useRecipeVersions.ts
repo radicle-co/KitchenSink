@@ -127,31 +127,38 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
         // `mutateAsync`, not callbacks on `mutate`: the snackbar's Undo can run after this screen unmounted, and
         // TanStack skips a `mutate` call's own callbacks then. A failure is not raised again: the observer's `error`
         // already feeds `restoreError`, so the rejection is handled here and nowhere else.
-        restore.mutateAsync({ id: recipeId, versionNumber }).then(
-            () => {
-                onRestored?.();
-                snackbar.show({
-                    message: fillTemplate(versionList.restored, { version: versionNumber }),
-                    ...(undoable
-                        ? {
-                              action: {
-                                  label: versionList.undo,
-                                  onAction: () => restoreVersion(wasCurrent, { undoable: false }),
-                              },
-                          }
-                        : {}),
-                });
-            },
-            (error: unknown) => {
-                // On a conflict the local history and current version are stale: mark the recipe and its history stale
-                // by id (the history's key sits under the recipe's), so it also works once this screen is gone.
+        const send = async (): Promise<void> => {
+            try {
+                await restore.mutateAsync({ id: recipeId, versionNumber });
+            } catch (error: unknown) {
+                // On a conflict the local history and current version are stale: mark the recipe and its history
+                // stale by id (the history's key sits under the recipe's), so it also works once this screen is gone.
                 if (isVersionConflictError(error)) {
                     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
                 } else if (!undoable && isNotFoundError(error)) {
                     snackbar.show({ message: undoGone });
                 }
-            },
-        );
+
+                return;
+            }
+
+            onRestored?.();
+            snackbar.show({
+                message: fillTemplate(versionList.restored, { version: versionNumber }),
+                ...(undoable
+                    ? {
+                          action: {
+                              label: versionList.undo,
+                              onAction: () => {
+                                  restoreVersion(wasCurrent, { undoable: false });
+                              },
+                          },
+                      }
+                    : {}),
+            });
+        };
+
+        void send();
     };
 
     // B21: the whole preview derivation — including the FAILED-LOOKUP report a preview target the history no longer
@@ -179,24 +186,42 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
             restoreError,
             now,
             recipeTitle: recipe.title,
-            onRestore: (versionNumber) => restoreVersion(versionNumber),
-            onPreview: (versionNumber) => setPreviewTarget(versionNumber),
+            onRestore: (versionNumber) => {
+                restoreVersion(versionNumber);
+            },
+            onPreview: (versionNumber) => {
+                setPreviewTarget(versionNumber);
+            },
             ...(currentEntry === undefined
                 ? {}
-                : { onCompare: (versionNumber: number) => setCompareTarget(versionNumber) }),
+                : {
+                      onCompare: (versionNumber: number) => {
+                          setCompareTarget(versionNumber);
+                      },
+                  }),
         },
         preview: {
             ...preview,
             locale,
             ...(restoreError === undefined ? {} : { restoreError }),
-            onCancel: () => setPreviewTarget(null),
-            onRestore: (versionNumber) => restoreVersion(versionNumber, { onRestored: () => setPreviewTarget(null) }),
+            onCancel: () => {
+                setPreviewTarget(null);
+            },
+            onRestore: (versionNumber) => {
+                restoreVersion(versionNumber, {
+                    onRestored: () => {
+                        setPreviewTarget(null);
+                    },
+                });
+            },
         },
         compare: {
             open: compareDiff !== undefined,
             ...(compareVersion === undefined ? {} : { version: compareVersion }),
             ...(compareDiff === undefined ? {} : { diff: compareDiff }),
-            onClose: () => setCompareTarget(null),
+            onClose: () => {
+                setCompareTarget(null);
+            },
         },
         ...(refusedFoods === undefined || refusedVersion === undefined
             ? {}

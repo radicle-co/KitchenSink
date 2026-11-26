@@ -83,7 +83,9 @@ export function useCollectionVisibility(collection: {
             await queryClient.cancelQueries({ queryKey: detailKey });
             writeVisibility(to);
         },
-        onError: (_error, { from }) => writeVisibility(from),
+        onError: (_error, { from }) => {
+            writeVisibility(from);
+        },
         onSettled: () => {
             if (queryClient.isMutating({ mutationKey }) === 1) {
                 invalidateCollections(queryClient);
@@ -107,7 +109,9 @@ export function useCollectionVisibility(collection: {
     return {
         // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
         upsellOpen: upsellOpen && collection.paidFeatures === 'upsell',
-        closeUpsell: () => setUpsellOpen(false),
+        closeUpsell: () => {
+            setUpsellOpen(false);
+        },
         failed: mutation.isError,
         change: (to) => {
             const from = queryClient.getQueryData<CollectionWithRecipes>(detailKey)?.visibility;
@@ -136,7 +140,14 @@ export function useCollectionVisibility(collection: {
                         to === RecipeVisibility.PRIVATE ? copy.visibilityPrivateWord : copy.visibilityPublicWord,
                 }),
                 ...(canUndoVisibilityChange({ from, state: collection.paidFeatures })
-                    ? { action: { label: copy.undo, onAction: () => undo({ to: from, from: to }) } }
+                    ? {
+                          action: {
+                              label: copy.undo,
+                              onAction: () => {
+                                  undo({ to: from, from: to });
+                              },
+                          },
+                      }
                     : {}),
             });
         },

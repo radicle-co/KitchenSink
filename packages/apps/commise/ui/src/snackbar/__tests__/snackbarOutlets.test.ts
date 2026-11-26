@@ -71,7 +71,7 @@ describe('the top rule over entries that carry more than a token and a depth', (
     });
 
     it('has no top while the stack is empty', () => {
-        expect(topEntry([])).toBeUndefined();
+        expect(topEntry(NO_OUTLETS)).toBeUndefined();
     });
 
     it('keeps the entry type through register and unregister', () => {

@@ -83,7 +83,12 @@ const Screen: FC = () => {
     return (
         <>
             <p>{`now ${data?.visibility ?? '…'}`}</p>
-            <button type="button" onClick={() => control.change(RecipeVisibility.PRIVATE)}>
+            <button
+                type="button"
+                onClick={() => {
+                    control.change(RecipeVisibility.PRIVATE);
+                }}
+            >
                 make private
             </button>
         </>
@@ -96,7 +101,12 @@ const Pages: FC = () => {
 
     return (
         <>
-            <button type="button" onClick={() => setOnScreen(false)}>
+            <button
+                type="button"
+                onClick={() => {
+                    setOnScreen(false);
+                }}
+            >
                 leave the page
             </button>
             {onScreen ? <Screen /> : <p>another page</p>}
@@ -138,13 +148,15 @@ const realErrors = (spy: { mock: { calls: unknown[][] } }): unknown[][] =>
 
 /** The Undo has been sent and its mutation settled, with a turn for the `.catch` that follows to have run. */
 const undoSettled = async (queryClient: QueryClient): Promise<void> => {
-    await vi.waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await vi.waitFor(() => {
+        expect(queryClient.isMutating()).toBe(0);
+    });
     await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
     });
 };
 
-const statusText = (): string => screen.getByRole('status').textContent ?? '';
+const statusText = (): string => screen.getByRole('status').textContent;
 
 describe('the collection visibility Undo, after its page unmounted', () => {
     it('still sends the compensating change, and changes the cache back', async () => {
@@ -152,12 +164,14 @@ describe('the collection visibility Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(calls.filter((method) => method !== 'GET')).toHaveLength(2));
-        await vi.waitFor(() =>
+        await vi.waitFor(() => {
+            expect(calls.filter((method) => method !== 'GET')).toHaveLength(2);
+        });
+        await vi.waitFor(() => {
             expect(
                 queryClient.getQueryData<CollectionWithRecipes>(recipeServiceKeys.collection('col_1'))?.visibility,
-            ).toBe(RecipeVisibility.PUBLIC),
-        );
+            ).toBe(RecipeVisibility.PUBLIC);
+        });
         expect(statusText()).not.toContain(GONE);
     });
 
@@ -166,7 +180,9 @@ describe('the collection visibility Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(statusText()).toBe(GONE));
+        await vi.waitFor(() => {
+            expect(statusText()).toBe(GONE);
+        });
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
         expect(realErrors(consoleError)).toEqual([]);
     });
@@ -180,7 +196,9 @@ describe('the collection visibility Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(calls.filter((method) => method !== 'GET')).toHaveLength(2));
+        await vi.waitFor(() => {
+            expect(calls.filter((method) => method !== 'GET')).toHaveLength(2);
+        });
         await undoSettled(queryClient);
         expect(statusText()).not.toContain(GONE);
         expect(realErrors(consoleError)).toEqual([]);

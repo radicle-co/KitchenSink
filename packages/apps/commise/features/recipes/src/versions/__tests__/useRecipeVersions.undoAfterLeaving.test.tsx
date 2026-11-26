@@ -56,7 +56,9 @@ function serverWhere(undo: UndoAnswer) {
         return /\/versions$/.test(url)
             ? json(
                   200,
-                  [1, 2, 3].map((versionNumber) => makeRecipeVersion({ id: `ver_${versionNumber}`, versionNumber })),
+                  [1, 2, 3].map((versionNumber) =>
+                      makeRecipeVersion({ id: `ver_${String(versionNumber)}`, versionNumber }),
+                  ),
               )
             : json(200, makeRecipeDetail({ currentVersion: 3 }));
     });
@@ -68,7 +70,12 @@ const History: FC = () => {
     const session = useRecipeVersions({ recipeId: 'rec_1' });
 
     return (
-        <button type="button" onClick={() => session.list.onRestore(1)}>
+        <button
+            type="button"
+            onClick={() => {
+                session.list.onRestore(1);
+            }}
+        >
             restore version 1
         </button>
     );
@@ -79,7 +86,12 @@ const Pages: FC = () => {
 
     return (
         <>
-            <button type="button" onClick={() => setOnScreen(false)}>
+            <button
+                type="button"
+                onClick={() => {
+                    setOnScreen(false);
+                }}
+            >
                 leave the page
             </button>
             {onScreen ? (
@@ -122,13 +134,15 @@ async function setup(undo: UndoAnswer) {
 
 /** The Undo has been sent and its mutation settled, with a turn for the `.catch` that follows to have run. */
 const undoSettled = async (queryClient: QueryClient): Promise<void> => {
-    await vi.waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await vi.waitFor(() => {
+        expect(queryClient.isMutating()).toBe(0);
+    });
     await act(async () => {
         await new Promise((resolve) => setTimeout(resolve, 0));
     });
 };
 
-const statusText = (): string => screen.getByRole('status').textContent ?? '';
+const statusText = (): string => screen.getByRole('status').textContent;
 
 /** What was logged, minus React's act() notice: the Undo settles outside any test act, which is no fault of the code. */
 const realErrors = (spy: { mock: { calls: unknown[][] } }): unknown[][] =>
@@ -142,7 +156,9 @@ describe('the version restore Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(restorePosts).toHaveLength(2));
+        await vi.waitFor(() => {
+            expect(restorePosts).toHaveLength(2);
+        });
         expect(restorePosts[1]).toMatch(/\/versions\/3\/restore$/);
     });
 
@@ -151,7 +167,9 @@ describe('the version restore Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(statusText()).toBe(GONE));
+        await vi.waitFor(() => {
+            expect(statusText()).toBe(GONE);
+        });
         expect(realErrors(consoleError)).toEqual([]);
     });
 
@@ -178,7 +196,9 @@ describe('the version restore Undo, after its page unmounted', () => {
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(restorePosts).toHaveLength(2));
+        await vi.waitFor(() => {
+            expect(restorePosts).toHaveLength(2);
+        });
         await undoSettled(queryClient);
         expect(statusText()).not.toContain(GONE);
         expect(realErrors(consoleError)).toEqual([]);

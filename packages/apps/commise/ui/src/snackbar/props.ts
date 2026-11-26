@@ -69,7 +69,7 @@ export interface SnackbarHostProps {
      * from a known subject closes the snackbar showing, so it never shows to the next person (see
      * `SnackbarStore.observeSubject`). Web only for now.
      */
-    readonly subject?: string | null | undefined;
+    readonly subject?: string | null;
 }
 
 /** The cross-platform `UndoSnackbar` contract: what the host draws for the snackbar on screen. */

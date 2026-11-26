@@ -1,6 +1,6 @@
 import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useContext, useState, type FC, type JSX } from 'react';
+import { useContext, useEffect, useState, type FC, type JSX } from 'react';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { PopupInsetsProvider } from '../../popupInsets/PopupInsetsProvider.js';
@@ -251,7 +251,7 @@ describe('SnackbarHost (web)', () => {
  */
 describe('SnackbarHost (web): above the pages', () => {
     const Pages: FC<{ readonly page: 'a' | 'b'; readonly bottom: Record<'a' | 'b', number> }> = ({ page, bottom }) => (
-        <PopupInsetsProvider key={page} reader={reader(bottom[page])}>
+        <PopupInsetsProvider key={page} reader={reader(page === 'a' ? bottom.a : bottom.b)}>
             <Screen input={{ message: `from ${page}`, durationMs: 6000 }} />
         </PopupInsetsProvider>
     );
@@ -357,15 +357,25 @@ describe('SnackbarHost (web): above the pages', () => {
     });
 
     it('lets a show captured before its page unmounted still show, and the snackbar stay', () => {
-        let captured: (input: SnackbarInput) => SnackbarHandle = () => ({ snackbar: true });
-        const Capture: FC = () => {
-            captured = useSnackbar().show;
+        const held: { show?: (input: SnackbarInput) => SnackbarHandle } = {};
+        const Capture: FC<{ readonly onShow: (show: (input: SnackbarInput) => SnackbarHandle) => void }> = ({
+            onShow,
+        }) => {
+            const { show } = useSnackbar();
+
+            useEffect(() => {
+                onShow(show);
+            }, [onShow, show]);
 
             return null;
         };
         const { rerender } = render(
             <SnackbarHost>
-                <Capture />
+                <Capture
+                    onShow={(show) => {
+                        held.show = show;
+                    }}
+                />
             </SnackbarHost>,
         );
 
@@ -375,7 +385,7 @@ describe('SnackbarHost (web): above the pages', () => {
             </SnackbarHost>,
         );
         act(() => {
-            captured({ message: 'Undone' });
+            held.show?.({ message: 'Undone' });
         });
 
         expect(statusText()).toBe('Undone');
@@ -509,7 +519,9 @@ describe('UndoSnackbar (web)', () => {
         showFrom('Saved');
         regionHeight = 52;
         act(() => {
-            heights.forEach((report) => report());
+            heights.forEach((report) => {
+                report();
+            });
         });
 
         expect(screen.getByText('clearance 52')).toBeDefined();
@@ -531,7 +543,12 @@ describe('SnackbarHost (web): withdraw', () => {
 
             return (
                 <>
-                    <button type="button" onClick={() => setHandle(show({ message: 'Removed', onTimeout }))}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHandle(show({ message: 'Removed', onTimeout }));
+                        }}
+                    >
                         open
                     </button>
                     <button

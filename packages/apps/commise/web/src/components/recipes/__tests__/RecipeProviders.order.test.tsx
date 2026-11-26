@@ -17,10 +17,10 @@ import { useSnackbar } from '@commise/ui/snackbar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 /** The cook Clerk reports: a user id, `null` once signed out. A test changes it between renders. */
-const auth = vi.hoisted(() => ({ userId: 'user_1' as string | null | undefined }));
+const auth = vi.hoisted((): { userId: string | null | undefined } => ({ userId: 'user_1' }));
 
 vi.mock('@clerk/nextjs', () => ({
-    useAuth: () => ({ getToken: async () => 'tok', userId: auth.userId }),
+    useAuth: () => ({ getToken: () => Promise.resolve('tok'), userId: auth.userId }),
     useClerk: () => ({ session: { user: { id: 'user_1' } } }),
 }));
 
@@ -97,6 +97,24 @@ afterEach(() => {
     auth.userId = 'user_1';
 });
 
+/** The one control these rows press: it raises a snackbar from inside the providers. */
+const Raise = () => {
+    const { show } = useSnackbar();
+
+    return (
+        <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
+            raise
+        </button>
+    );
+};
+
+/** A new element each time: React skips an element it has already rendered, so the same one would not re-read Clerk. */
+const tree = () => (
+    <RecipeProviders>
+        <Raise />
+    </RecipeProviders>
+);
+
 describe('RecipeProviders (web) — provider order', () => {
     it('mounts the queue outside the recipe client, and the recipe client outside the food client', () => {
         const { container } = render(
@@ -156,21 +174,6 @@ describe('RecipeProviders (web) — provider order', () => {
 
     it('closes a snackbar when the cook signs out, and never shows it to the next cook (condition 1)', async () => {
         const user = userEvent.setup();
-        const Raise = () => {
-            const { show } = useSnackbar();
-
-            return (
-                <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
-                    raise
-                </button>
-            );
-        };
-        // A new element each time: React skips an element it has already rendered, so the same one would not re-read Clerk.
-        const tree = () => (
-            <RecipeProviders>
-                <Raise />
-            </RecipeProviders>
-        );
         const { rerender } = render(tree());
 
         await user.click(screen.getByRole('button', { name: 'raise' }));
@@ -186,21 +189,6 @@ describe('RecipeProviders (web) — provider order', () => {
 
     it('keeps a snackbar while Clerk is still loading the cook (userId undefined changes nothing)', async () => {
         const user = userEvent.setup();
-        const Raise = () => {
-            const { show } = useSnackbar();
-
-            return (
-                <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
-                    raise
-                </button>
-            );
-        };
-        // A new element each time: React skips an element it has already rendered, so the same one would not re-read Clerk.
-        const tree = () => (
-            <RecipeProviders>
-                <Raise />
-            </RecipeProviders>
-        );
         const { rerender } = render(tree());
 
         await user.click(screen.getByRole('button', { name: 'raise' }));

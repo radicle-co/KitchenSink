@@ -22,7 +22,7 @@
  */
 import type { PaidFeatureState } from '@commise/features-account';
 import { supportLinkOf } from '@commise/features-core/config/supportLink';
-import { pluralOf } from '@commise/i18n';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -165,7 +165,11 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
-    const { ingredients: ingredientsCopy, source: sourceCopy } = useMessages(editorMessages);
+    const {
+        ingredients: ingredientsCopy,
+        source: sourceCopy,
+        visibility: visibilityCopy,
+    } = useMessages(editorMessages);
     const locale = useLocale();
     const { publicConfirm } = useMessages(recipeActionMessages);
     const statementSheet = useStatementSheet({
@@ -175,17 +179,40 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
         onAnswer: editor.answerStatement,
     });
     // ADR-0100: the Source row's own sheet. `rowSheet` is which of its three purposes is open; the sheet is the same one.
+    const [downgraded, setDowngraded] = useState<{ readonly text: string; readonly n: number } | undefined>(undefined);
     const [rowSheet, setRowSheet] = useState<SourceRowSheet | undefined>(undefined);
     const rowStatementSheet = useStatementSheet({
         locale,
         surface: rowSheet ?? 'firstAnswer',
         recipeConfirmed: editor.storedRecipe?.sourceConfirmed === true,
         onAnswer: (write) => {
-            if (rowSheet !== undefined) {
-                editor.answerRowStatement(write, rowSheet);
+            if (rowSheet === undefined) {
+                return;
             }
 
+            // AE19: a downgrade makes the recipe private, and a cook with every slot used is told here, before anything is sent.
+            if (
+                rowSheet === 'downgrade' &&
+                write.visibility === RecipeVisibility.PRIVATE &&
+                editor.storedRecipe?.visibility !== RecipeVisibility.PRIVATE &&
+                slotStanding.kind === 'full'
+            ) {
+                rowStatementSheet.dispatch({ type: 'failed' });
+
+                return;
+            }
+
+            editor.answerRowStatement(write, rowSheet);
             setRowSheet(undefined);
+
+            const { statement } = write;
+
+            if (rowSheet === 'downgrade' && statement !== undefined && 'citation' in statement) {
+                setDowngraded((previous) => ({
+                    text: fillTemplate(sourceCopy.announceDowngrade, { answer: statement.citation }),
+                    n: (previous?.n ?? 0) + 1,
+                }));
+            }
         },
     });
     const askHref = editor.recipeId === undefined ? undefined : supportLinkOf(supportAddress, editor.recipeId);
@@ -373,6 +400,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
                     {source.notice?.text ?? ''}
                 </LiveRegion>
+                {/* Said once after a confirmed "I wrote this" became a cookbook or paid website. */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={downgraded?.n ?? 0}>
+                    {downgraded?.text ?? ''}
+                </LiveRegion>
             </>
         ),
     };
@@ -491,6 +522,9 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 open={rowSheet !== undefined}
                 surface={rowSheet ?? 'firstAnswer'}
                 recipeConfirmed={editor.storedRecipe?.sourceConfirmed === true}
+                {...(slotStanding.kind === 'full'
+                    ? { failureText: fillTemplate(visibilityCopy.slotsFull, { total: slotStanding.limit }) }
+                    : {})}
                 state={rowStatementSheet.state}
                 dispatch={rowStatementSheet.dispatch}
                 onConfirm={rowStatementSheet.confirm}

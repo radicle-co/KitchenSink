@@ -106,6 +106,8 @@ function noticeTextOf(note: PastedSourceNote, messages: EditorMessages['source']
             return messages.ownSiteLeftOut;
         case 'locked':
             return messages.lockedLeftOut;
+        case 'ownLinkLeftOut':
+            return messages.ownLinkLeftOut;
     }
 }
 

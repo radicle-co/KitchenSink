@@ -284,6 +284,14 @@ describe('pastedSourcePlanOf: a link line in pasted text', () => {
         ).toEqual({ note: { kind: 'locked' } });
     });
 
+    it('says the recipe is "I wrote this" when a link is left out of a confirmed own recipe (ADR-0100)', () => {
+        expect(
+            plan(`2 eggs\n${ALLRECIPES}`, {
+                recipe: neverPublished({ sourceConfirmed: true, statementKind: 'authored' }),
+            }),
+        ).toEqual({ note: { kind: 'ownLinkLeftOut' } });
+    });
+
     it('leaves a pasted link out of a "from another person" recipe and says it can’t change (AE2)', () => {
         expect(plan(`2 eggs\n${ALLRECIPES}`, { recipe: neverPublished({ statementKind: 'fromPerson' }) })).toEqual({
             note: { kind: 'locked' },

@@ -269,7 +269,9 @@ export type PastedSourceNote =
     | { readonly kind: 'set'; readonly site: string }
     | { readonly kind: 'keptExisting'; readonly site: string }
     | { readonly kind: 'ownSiteLeftOut' }
-    | { readonly kind: 'locked' };
+    | { readonly kind: 'locked' }
+    /** A confirmed "I wrote this": the link was left out, and the cook can still move it to a cookbook or paid website. */
+    | { readonly kind: 'ownLinkLeftOut' };
 
 /** What a paste does to the Source: the link to set, if any, and what to tell the cook. */
 export interface PastedSourcePlan {
@@ -297,6 +299,10 @@ export function pastedSourcePlanOf(input: {
 
     if (link === undefined) {
         return extraction.ownSiteLeftOut ? { note: { kind: 'ownSiteLeftOut' } } : {};
+    }
+
+    if (recipe !== undefined && sourceLockOfStored(recipe) === 'downgradeOnly') {
+        return { note: { kind: 'ownLinkLeftOut' } };
     }
 
     if (sourceIsLocked(recipe)) {

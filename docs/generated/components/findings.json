@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 32,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 107,
+        "platform-singleton": 108,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -865,6 +865,16 @@
             "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
                 "useRef"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/popupInsets/PopupInsetsProvider",
+            "sourcePath": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

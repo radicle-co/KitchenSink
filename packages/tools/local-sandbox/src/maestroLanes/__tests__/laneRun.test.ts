@@ -139,69 +139,79 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
         },
     };
 
+    /** The flows the run asked `pack` to place, per platform: the run's own plan, whichever `pack` a test brings. */
+    const planned = new Map<string, readonly string[]>();
+    const given: LaneRunDeps = {
+        adapterFor: (platform) => fakeAdapter(events, platform),
+        aborted: () => false,
+        stateDir: state,
+        runStamp: 'run1',
+        repoRoot: state,
+        lockDir: path.join(state, 'locks'),
+        baseEnv: { PATH: process.env['PATH'] ?? '', KEEP: 'me', ...env },
+        acquireLock: () => {
+            events.push('lock');
+
+            return {
+                release: () => {
+                    events.push('unlock');
+                },
+            };
+        },
+        selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [], owed: [] }),
+        pack: (_platform, index, count) =>
+            Promise.resolve(['a', 'b', 'c', 'd'].filter((_, position) => position % count === index - 1)),
+        identityCap: () => Promise.resolve(8),
+        startServices: () => {
+            events.push('startServices');
+
+            return Promise.resolve(services);
+        },
+        createRunUsers: (platforms) => {
+            events.push(`createRunUsers ${platforms.join(',')}`);
+
+            return Promise.resolve();
+        },
+        removeRunUsers: (platforms) => {
+            events.push(`removeRunUsers ${platforms.join(',')}`);
+
+            return Promise.resolve();
+        },
+        setupLane: (lane) => {
+            events.push(`setupLane ${lane.platform}-${lane.index}`);
+            writeFileSync(lane.fixtureEnvFile, 'E2E_X=1\n');
+
+            return Promise.resolve();
+        },
+        // Every planned flow passed, so a test of something else still sees a clean run.
+        checkScreens: () =>
+            Promise.resolve({
+                code: 0,
+                results: new Map(
+                    [...planned].map(([platform, flows]) => [
+                        platform,
+                        new Map(flows.map((flow) => [flow, 'passed'] as const)),
+                    ]),
+                ),
+            }),
+        settleStamp: () => Promise.resolve(),
+        spawnLane: (lane, laneEnv) =>
+            spawnRunner({ script: runner, cwd: state, env: laneEnv, log: path.join(lane.stateDir, 'runner.log') }),
+        staggerMs: 50,
+        log: (line) => events.push(`log ${line}`),
+        ...overrides,
+    };
+
     return {
         events,
         state,
         deps: {
-            adapterFor: (platform) => fakeAdapter(events, platform),
-            aborted: () => false,
-            stateDir: state,
-            runStamp: 'run1',
-            repoRoot: state,
-            lockDir: path.join(state, 'locks'),
-            baseEnv: { PATH: process.env['PATH'] ?? '', KEEP: 'me', ...env },
-            acquireLock: () => {
-                events.push('lock');
+            ...given,
+            pack: (platform, index, count, flows) => {
+                planned.set(platform, flows);
 
-                return {
-                    release: () => {
-                        events.push('unlock');
-                    },
-                };
+                return given.pack(platform, index, count, flows);
             },
-            selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [], owed: [] }),
-            pack: (_platform, index, count) =>
-                Promise.resolve(['a', 'b', 'c', 'd'].filter((_, position) => position % count === index - 1)),
-            identityCap: () => Promise.resolve(8),
-            startServices: () => {
-                events.push('startServices');
-
-                return Promise.resolve(services);
-            },
-            createRunUsers: (platforms) => {
-                events.push(`createRunUsers ${platforms.join(',')}`);
-
-                return Promise.resolve();
-            },
-            removeRunUsers: (platforms) => {
-                events.push(`removeRunUsers ${platforms.join(',')}`);
-
-                return Promise.resolve();
-            },
-            setupLane: (lane) => {
-                events.push(`setupLane ${lane.platform}-${lane.index}`);
-                writeFileSync(lane.fixtureEnvFile, 'E2E_X=1\n');
-
-                return Promise.resolve();
-            },
-            // Every planned flow passed, so a test of something else still sees a clean run. The flows come from the
-            // run's own plan, not from a second list here.
-            checkScreens: (_lanes, planned) =>
-                Promise.resolve({
-                    code: 0,
-                    results: new Map(
-                        [...planned].map(([platform, flows]) => [
-                            platform,
-                            new Map(flows.map((flow) => [flow, 'passed'] as const)),
-                        ]),
-                    ),
-                }),
-            settleStamp: () => Promise.resolve(),
-            spawnLane: (lane, laneEnv) =>
-                spawnRunner({ script: runner, cwd: state, env: laneEnv, log: path.join(lane.stateDir, 'runner.log') }),
-            staggerMs: 50,
-            log: (line) => events.push(`log ${line}`),
-            ...overrides,
         },
     };
 }

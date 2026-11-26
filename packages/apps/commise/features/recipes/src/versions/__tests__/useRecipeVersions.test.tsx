@@ -129,25 +129,35 @@ describe('useRecipeVersions — restore', () => {
 
     it('says it could not undo, and leaves no inline restore error, when the Undo fails for now', async () => {
         const { result, restore } = setup();
-        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        await waitFor(() => {
+            expect(result.current.list.versions).toHaveLength(3);
+        });
 
         act(() => result.current.list.onRestore(1));
-        await waitFor(() => expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy());
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+        });
         restore.mockRejectedValue(new TypeError('Failed to fetch'));
         act(() => screen.getByRole('button', { name: 'Undo' }).click());
 
-        await waitFor(() => expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed));
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed);
+        });
         expect(result.current.list.restoreError).toBeUndefined();
     });
 
     it('keeps the inline error, and shows no snackbar, when the first restore fails for now', async () => {
         const { result, restore } = setup();
-        await waitFor(() => expect(result.current.list.versions).toHaveLength(3));
+        await waitFor(() => {
+            expect(result.current.list.versions).toHaveLength(3);
+        });
         restore.mockRejectedValue(new TypeError('Failed to fetch'));
 
         act(() => result.current.list.onRestore(1));
 
-        await waitFor(() => expect(result.current.list.restoreError).toBeDefined());
+        await waitFor(() => {
+            expect(result.current.list.restoreError).toBeDefined();
+        });
         expect(screen.getByRole('status').textContent).toBe('');
     });
 

@@ -159,7 +159,9 @@ describe('useCollectionVisibility', () => {
         update.mockRejectedValue(new TypeError('Failed to fetch'));
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed));
+        await vi.waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed);
+        });
         expect(screen.queryByRole('alert')).toBeNull();
     });
 

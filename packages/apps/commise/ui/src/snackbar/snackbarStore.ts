@@ -41,7 +41,7 @@ export interface SnackbarStore {
 }
 
 /** Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while unknown. */
-export type SnackbarSubject = string | null | undefined;
+type SnackbarSubject = string | null | undefined;
 
 /**
  * A store for one queue.

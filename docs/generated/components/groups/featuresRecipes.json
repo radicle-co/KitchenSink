@@ -22006,6 +22006,7 @@
             "dir": "packages/apps/commise/features/recipes/src/form",
             "kind": "presentational",
             "patterns": [
+                "Adapter over `useFieldStartReveal` — the scroll the same signal asks of the screen's `ScrollHost`",
                 "Adapter over `useFocusOnSignal` — the DOM focus move the host's signal asks for",
                 "Adapter over `useScreenReaderFocusOnSignal` — the accessibility focus event the host's signal asks for"
             ],
@@ -22078,7 +22079,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it. It holds a ref only so a refusal the cook must read can take the\nscreen reader's focus.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it. It holds a ref only so a refusal the cook must read can take the\nscreen reader's focus and be scrolled into view. With no text it shows nothing, so a host can keep it mounted and the\nfirst refusal still counts as a change of its signal.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -22087,6 +22088,10 @@
                         {
                             "name": "pattern",
                             "text": "Adapter over `useScreenReaderFocusOnSignal` — the accessibility focus event the host's signal asks for"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `useFieldStartReveal` — the scroll the same signal asks of the screen's `ScrollHost`"
                         }
                     ],
                     "description": "What a paste did to the Source, under the paste control.",

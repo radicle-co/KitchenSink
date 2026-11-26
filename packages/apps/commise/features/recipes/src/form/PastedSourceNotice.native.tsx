@@ -2,9 +2,11 @@
  * @module @commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of
  * `./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label
  * at the start of the row rather than stretching across it. It holds a ref only so a refusal the cook must read can take the
- * screen reader's focus.
+ * screen reader's focus and be scrolled into view. With no text it shows nothing, so a host can keep it mounted and the
+ * first refusal still counts as a change of its signal.
  *
  * @pattern Adapter over `useScreenReaderFocusOnSignal` — the accessibility focus event the host's signal asks for
+ * @pattern Adapter over `useFieldStartReveal` — the scroll the same signal asks of the screen's `ScrollHost`
  */
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';

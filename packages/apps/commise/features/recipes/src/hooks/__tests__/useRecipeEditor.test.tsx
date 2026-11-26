@@ -4662,6 +4662,71 @@ describe('a row editor holds the draft’s server checkpoints', () => {
     });
 });
 
+/** ADR-0100: the Source row's own sheet queues its answer into the next write, and a refusal of it is data, not a retry. */
+describe("the Source row's own sheet (ADR-0100)", () => {
+    const fromPerson = {
+        statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } },
+        visibility: RecipeVisibility.PRIVATE,
+    } as const;
+
+    it('⛔ an answer draws the row at once, moves the draft to Private and rides the next write', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues({ ...complete(), visibility: RecipeVisibility.PUBLIC });
+        });
+        act(() => {
+            result.current.answerRowStatement(fromPerson, 'firstAnswer');
+        });
+        await settle();
+
+        expect(port.submitted[0]).toMatchObject({
+            payload: { input: { visibility: RecipeVisibility.PRIVATE, statement: { kind: 'fromPerson' } } },
+        });
+        expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
+    });
+
+    it('"I wrote this" in the change sheet clears the stored answer: it is held as the absence of one', () => {
+        const { result } = mount();
+
+        act(() => {
+            result.current.answerRowStatement(
+                {
+                    statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
+                    visibility: RecipeVisibility.PUBLIC,
+                },
+                'change',
+            );
+        });
+
+        expect(result.current.rowStated).toEqual({ statement: null, locks: false });
+    });
+
+    it('⛔ a refused answer is dropped, the refusal is told, and the rest of the draft goes again', async () => {
+        const { result, port } = mount();
+
+        act(() => {
+            result.current.setValues(complete());
+        });
+        act(() => {
+            result.current.answerRowStatement(fromPerson, 'firstAnswer');
+        });
+        await settle();
+        const first = port.submitted.length;
+
+        act(() => {
+            port.park(port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+        });
+        await settle();
+        await settle();
+
+        expect(result.current.sourceLockRefused).toBe(true);
+        expect(result.current.rowStated).toBeUndefined();
+        expect(port.submitted.length).toBeGreaterThan(first);
+        expect(port.submitted.at(-1)?.payload).not.toHaveProperty('input.statement');
+    });
+});
+
 /**
  * ADR-0095: a Publish that ends public asks where the recipe is from, once, after validation and before the slots question;
  * the answer rides the publishing write; and the passive line is sent only where it is drawn.

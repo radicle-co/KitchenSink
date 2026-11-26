@@ -14,15 +14,30 @@
  */
 
 /**
- * The wording of each statement choice, by the choice's name in the attestation record. The ONE authority: the flat
+ * The wording of each statement choice. A `v2` is the `v1` text plus the lock note ("Once you confirm, this answer is locked."),
+ * shown where confirming that answer locks it (ADR-0100), so the recorded version says which text the cook saw. The paid-site
+ * wording always carried the note, so it has one version.
+ *
+ * Keyed by the choice's name in the attestation record. The ONE authority: the flat
  * {@link STATEMENT_WORDINGS} is derived from it.
  */
 export const STATEMENT_WORDINGS_BY_CHOICE = {
     authored: ['statementAuthored.v1'],
-    publicWeb: ['statementPublicWeb.v1'],
-    book: ['statementBook.v1'],
-    fromPerson: ['statementFromPerson.v1'],
+    publicWeb: ['statementPublicWeb.v1', 'statementPublicWeb.v2'],
+    book: ['statementBook.v1', 'statementBook.v2'],
+    fromPerson: ['statementFromPerson.v1', 'statementFromPerson.v2'],
     paidSite: ['statementPaidSite.v1'],
+} as const;
+
+/**
+ * The wording that includes the lock note, for each choice that has two. A client that drew the note records THIS key and
+ * otherwise the choice's first one, so the choice never rests on a position in the list. A paid website has one wording and no
+ * entry here: its `v1` already carries the note, so nobody adds a `v2` thinking the note is missing.
+ */
+export const LOCK_NOTE_WORDING_BY_CHOICE = {
+    publicWeb: 'statementPublicWeb.v2',
+    book: 'statementBook.v2',
+    fromPerson: 'statementFromPerson.v2',
 } as const;
 
 /** Every statement wording, flat. */

@@ -139,3 +139,32 @@ describe('the Public confirmation', () => {
         );
     });
 });
+
+describe('a Source row answer (ADR-0100)', () => {
+    it('rides any update, a draft’s included: it is stored at once, and confirmed only by the act that publishes', () => {
+        const body = toUpdateRecipeInput(PUBLIC, RecipeStatus.DRAFT, stored(), { rowStatement: BOOK });
+
+        expect(body.statement).toEqual(BOOK);
+        expect(updateRecipeRequestSchema.safeParse({ ...body, expectedVersion: 1 }).success).toBe(true);
+    });
+
+    it('a clear is an explicit null on an update, and no key on a create (nothing is stored to clear)', () => {
+        const update = toUpdateRecipeInput(PUBLIC, RecipeStatus.DRAFT, stored(), { rowStatement: null });
+
+        expect(update).toHaveProperty('statement', null);
+        expect(toCreateRecipeInput(PUBLIC, RecipeStatus.DRAFT, { rowStatement: null })).not.toHaveProperty('statement');
+    });
+
+    it('rides a create too, and beats the link the field holds', () => {
+        const withLink = { ...PUBLIC, sourceLink: ALLRECIPES };
+
+        expect(toCreateRecipeInput(withLink, RecipeStatus.DRAFT, { rowStatement: BOOK }).statement).toEqual(BOOK);
+        expect(toUpdateRecipeInput(withLink, RecipeStatus.DRAFT, stored(), { rowStatement: BOOK }).statement).toEqual(
+            BOOK,
+        );
+    });
+
+    it('is left out when the shown wordings carry none, so the field’s own reading still decides', () => {
+        expect(toUpdateRecipeInput(PUBLIC, RecipeStatus.DRAFT, stored())).not.toHaveProperty('statement');
+    });
+});

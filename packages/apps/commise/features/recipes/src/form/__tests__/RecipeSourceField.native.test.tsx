@@ -42,6 +42,7 @@ function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSo
         onRemove: vi.fn(),
         onOpen: vi.fn(),
         onTouched: vi.fn(),
+        onAsk: vi.fn(),
     };
 
     render(<RecipeSourceField row={row} {...handlers} {...over} />);
@@ -171,5 +172,80 @@ describe('RecipeSourceField (native)', () => {
 
         expect(screen.queryByText(m.invalid)).toBeNull();
         expect(screen.getByRole('button', { name: m.remove })).toBeTruthy();
+    });
+});
+
+const HELP = 'https://commise.app/support?recipe=r1';
+
+describe('RecipeSourceField (native): the row after the lock (ADR-0100)', () => {
+    it.each([
+        ['a locked web page', { kind: 'locked', site: 'allrecipes.com', url: URL }],
+        ['a locked book', { kind: 'lockedAnswer', answer: 'book', citation: 'The Sunday Roast Book' }],
+        ['a locked paid site', { kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Kitchen' }],
+        ['another person', { kind: 'lockedAnswer', answer: 'fromPerson' }],
+        ['an answer this app cannot word', { kind: 'lockedAnswer' }],
+    ] as const)('%s: says who can change it, and the link opens the support page in the browser', (_name, row) => {
+        const { onOpen } = renderRow(row, { askHref: HELP });
+
+        fireEvent.click(screen.getByRole('link', { name: m.askChangeNative }));
+
+        expect(onOpen).toHaveBeenCalledWith(HELP);
+        expect(screen.getByText(m.locked)).toBeTruthy();
+    });
+
+    it('draws no help link when no support address is set, and the locked line still reads true', () => {
+        renderRow({ kind: 'lockedAnswer', answer: 'book', citation: '' });
+
+        expect(screen.queryByRole('link')).toBeNull();
+        expect(screen.getByText(m.locked)).toBeTruthy();
+    });
+
+    it('a locked book names the answer and its title', () => {
+        renderRow({ kind: 'lockedAnswer', answer: 'book', citation: 'The Sunday Roast Book' });
+
+        expect(screen.getByText(a.answerBook)).toBeTruthy();
+        expect(screen.getByText('The Sunday Roast Book')).toBeTruthy();
+    });
+
+    it('own: the answer and one button to change it, no locked line, and the other-source link in its own words', () => {
+        const { onAsk, onOpen } = renderRow({ kind: 'own' }, { askHref: HELP });
+
+        expect(screen.getByText(a.answerAuthored)).toBeTruthy();
+        expect(screen.queryByText(m.locked)).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: m.changeOwn }));
+        expect(onAsk).toHaveBeenCalledWith('downgrade');
+        fireEvent.click(screen.getByRole('link', { name: m.askOtherNative }));
+        expect(onOpen).toHaveBeenCalledWith(HELP);
+        expect(screen.queryByRole('link', { name: m.askChangeNative })).toBeNull();
+    });
+
+    it('open, answered: the stored book, its title, the warning, and the control that changes the answer', () => {
+        const { onAsk } = renderRow({ kind: 'openAnswered', answer: 'book', citation: 'The Sunday Roast Book' });
+
+        expect(screen.getByText(a.answerBook)).toBeTruthy();
+        expect(screen.getByText('The Sunday Roast Book')).toBeTruthy();
+        expect(screen.getByText(m.lockWarning)).toBeTruthy();
+        fireEvent.click(screen.getByRole('button', { name: m.changeAnswer }));
+        expect(onAsk).toHaveBeenCalledWith('change');
+    });
+
+    it('open, none: the field with no warning, and the button that says where it is from', () => {
+        const { onAsk } = renderRow({ kind: 'empty', text: '' }, { askHref: HELP });
+
+        expect(screen.queryByText(m.lockWarning)).toBeNull();
+        fireEvent.click(screen.getByRole('button', { name: m.sayWhere }));
+        expect(onAsk).toHaveBeenCalledWith('firstAnswer');
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('a filled link warns that publishing locks it, or that the next save does once confirmed', () => {
+        renderRow({ kind: 'filled', text: URL, site: 'allrecipes.com', fromPaste: false });
+        expect(screen.getByText(m.lockWarning)).toBeTruthy();
+        expect(recordedTextInput(sourceFieldId).accessibilityHint).toContain(m.lockWarning);
+        cleanup();
+
+        renderRow({ kind: 'filled', text: URL, site: 'allrecipes.com', fromPaste: false, confirmed: true });
+        expect(screen.getByText(m.lockWarningSave)).toBeTruthy();
+        expect(screen.queryByText(m.lockWarning)).toBeNull();
     });
 });

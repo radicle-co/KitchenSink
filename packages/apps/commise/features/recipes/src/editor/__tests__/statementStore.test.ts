@@ -57,3 +57,46 @@ describe('createStatementStore', () => {
         expect(store.get()).toBe(before);
     });
 });
+
+describe('createStatementStore: the Source row’s own answer (ADR-0100)', () => {
+    const book = {
+        statement: {
+            kind: 'book',
+            citation: 'The Sunday Roast Book',
+            wording: { version: 'statementBook.v2', locale: 'en' },
+        },
+        locks: true,
+    } as const;
+
+    it('holds a row answer apart from the publish answer, and a clear is an answer too', () => {
+        const store = createStatementStore();
+
+        store.rowAnswer(book);
+        expect(store.get().row).toEqual(book);
+        expect(store.get().answer).toBeUndefined();
+
+        store.rowAnswer({ statement: null, locks: false });
+        expect(store.get().row).toEqual({ statement: null, locks: false });
+    });
+
+    it('forgets the row answer without touching the publish answer', () => {
+        const store = createStatementStore();
+
+        store.answer(authored);
+        store.rowAnswer(book);
+        store.clearRow();
+
+        expect(store.get()).toMatchObject({ answer: authored, row: undefined });
+    });
+
+    it('tells a subscriber when the row answer changes', () => {
+        const store = createStatementStore();
+        const listener = vi.fn();
+
+        store.subscribe(listener);
+        store.rowAnswer(book);
+        store.clearRow();
+
+        expect(listener).toHaveBeenCalledTimes(2);
+    });
+});

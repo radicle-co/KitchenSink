@@ -49,6 +49,7 @@ import { useSuspenseQuery } from '@tanstack/react-query';
 import { useState, type JSX, type ReactNode } from 'react';
 
 import { RecipePhotoUploader } from '../components/RecipePhotoUploader.js';
+import { env } from '../config/env.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
 import { reportErrorToSentry } from '../observability/sentryErrorReporter.js';
 import { nativeDeviceStore } from '../storage/deviceSession.js';
@@ -258,6 +259,7 @@ function RecipeEditorSession({
                 keep="disk"
                 // Every removal of the route is held by its own guard (`renderLeaveGuard`), so the page asks nothing.
                 leaveAsk="byNavigator"
+                {...(env.EXPO_PUBLIC_SUPPORT_URL === undefined ? {} : { supportAddress: env.EXPO_PUBLIC_SUPPORT_URL })}
                 paidFeatures={paidFeatures}
                 knownPaidFeatures={knownPaidFeatures}
                 slotStanding={recipePrivate.standing}

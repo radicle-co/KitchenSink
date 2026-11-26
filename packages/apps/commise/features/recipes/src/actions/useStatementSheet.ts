@@ -14,11 +14,13 @@ import { useReducer } from 'react';
 
 import {
     initialSheet,
+    lockNoteShown,
     sheetReducer,
     statementFieldErrorOf,
     statementWriteOf,
     type StatementSheetAction,
     type StatementSheetState,
+    type StatementSurface,
     type StatementWrite,
 } from './sourceStatement.js';
 
@@ -26,6 +28,10 @@ import {
 export interface UseStatementSheetOptions {
     /** The locale the wording was shown in. */
     readonly locale: string;
+    /** Why the sheet is asked: it decides whether the lock note was drawn under the answer. */
+    readonly surface: StatementSurface;
+    /** The recipe's source is confirmed already (a web page and a book then show the lock note too). */
+    readonly recipeConfirmed: boolean;
     /** The cook confirmed a usable answer: send it. */
     readonly onAnswer: (write: StatementWrite) => void;
 }
@@ -64,7 +70,14 @@ export function useStatementSheet(options: UseStatementSheetOptions): StatementS
                 return;
             }
 
-            options.onAnswer(statementWriteOf(state.answer, state, options.locale));
+            options.onAnswer(
+                statementWriteOf(
+                    state.answer,
+                    state,
+                    options.locale,
+                    lockNoteShown(state.answer, options.surface, options.recipeConfirmed),
+                ),
+            );
         },
         reset: () => dispatch({ type: 'reset' }),
     };

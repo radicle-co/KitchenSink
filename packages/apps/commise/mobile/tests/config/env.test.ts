@@ -147,3 +147,31 @@ describe('mobile endpoint configuration', () => {
         });
     });
 });
+
+describe('the optional support address (ADR-0100)', () => {
+    const SUPPORT = 'EXPO_PUBLIC_SUPPORT_URL';
+    const base = {
+        [RECIPE]: 'https://recipe-pr-73.commise.app',
+        [IDENTITY]: 'https://identity.sandbox.commise.app',
+    };
+
+    it('is absent when unset or blank: no build fails for want of it', async () => {
+        expect((await loadEnv({ ...base, [SUPPORT]: undefined })).env[SUPPORT]).toBeUndefined();
+        expect((await loadEnv({ ...base, [SUPPORT]: '' })).env[SUPPORT]).toBeUndefined();
+    });
+
+    it('is read when it is an https address', async () => {
+        expect((await loadEnv({ ...base, [SUPPORT]: 'https://commise.app/support' })).env[SUPPORT]).toBe(
+            'https://commise.app/support',
+        );
+    });
+
+    it.each(['commise.app/support', 'http://commise.app/support', 'javascript:alert(1)'])(
+        'refuses %s',
+        async (value) => {
+            await expect(loadEnv({ ...base, [SUPPORT]: value })).rejects.toThrow(
+                /invalid environment variables[\s\S]*EXPO_PUBLIC_SUPPORT_URL/i,
+            );
+        },
+    );
+});

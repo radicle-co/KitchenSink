@@ -27,7 +27,7 @@
  * literally because only a static `process.env.X` member expression is inlined — a dynamic lookup would be
  * `undefined` on device.
  */
-import { endpointUrl, envValidationError } from '@commise/features-core/config/envScaffolding';
+import { endpointUrl, envValidationError, optionalHttpsUrl } from '@commise/features-core/config/envScaffolding';
 import { findStageIncoherence } from '@commise/features-core/config/stageCoherence';
 import { createEnv } from '@t3-oss/env-core';
 import { z } from 'zod';
@@ -39,6 +39,8 @@ export const env = createEnv({
         EXPO_PUBLIC_RECIPE_API_URL: endpointUrl,
         EXPO_PUBLIC_IDENTITY_API_URL: endpointUrl,
         EXPO_PUBLIC_FOOD_API_URL: endpointUrl,
+        /** The support page a locked source's "Ask us to change it" opens (ADR-0100). Optional: a launch item. */
+        EXPO_PUBLIC_SUPPORT_URL: optionalHttpsUrl,
         /**
          * The Clerk publishable key. It used to be a bare `process.env` presence check in `AppProviders.tsx`,
          * outside this schema, so a binary built with a SANDBOX key and PRODUCTION URLs booted and then 401'd
@@ -54,6 +56,7 @@ export const env = createEnv({
         EXPO_PUBLIC_RECIPE_API_URL: process.env.EXPO_PUBLIC_RECIPE_API_URL,
         EXPO_PUBLIC_IDENTITY_API_URL: process.env.EXPO_PUBLIC_IDENTITY_API_URL,
         EXPO_PUBLIC_FOOD_API_URL: process.env.EXPO_PUBLIC_FOOD_API_URL,
+        EXPO_PUBLIC_SUPPORT_URL: process.env.EXPO_PUBLIC_SUPPORT_URL,
         EXPO_PUBLIC_IDP_PUBLISHABLE_KEY: process.env.EXPO_PUBLIC_IDP_PUBLISHABLE_KEY,
     },
 

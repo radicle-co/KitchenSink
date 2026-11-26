@@ -728,7 +728,7 @@ describe('useRecipeDetailController — where the recipe is from (ADR-0095)', ()
         await act(async () => mounted.result.current.dialogs.statement.onConfirm());
 
         expect(setVisibility).toHaveBeenCalledWith('rec_1', RecipeVisibility.PRIVATE, {
-            statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v1', locale: 'en' } },
+            statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } },
         });
     });
 

@@ -302,7 +302,8 @@ describe('SourceStatementSheet — paid website', () => {
         expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
         fireEvent.change(screen.getByLabelText('Website name or address'), { target: { value: 'S' } });
         expect(dispatch).toHaveBeenCalledWith({ type: 'paidSite', text: 'S' });
-        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+        // Every third-party answer says it locks at Publish or Make public (ADR-0100).
+        expect(screen.getAllByText(/Once you confirm, this answer is locked\./u)).toHaveLength(4);
     });
 
     it('caps the citation field at the length the server takes', () => {
@@ -325,7 +326,8 @@ describe('SourceStatementSheet — paid website', () => {
     it('says the lock on the recipe page too', () => {
         renderSheet({ surface: 'recipePage' });
 
-        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+        // Every third-party answer says it locks at Publish or Make public (ADR-0100).
+        expect(screen.getAllByText(/Once you confirm, this answer is locked\./u)).toHaveLength(4);
     });
 });
 

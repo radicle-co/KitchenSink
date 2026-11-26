@@ -6,11 +6,11 @@
     "coverage": {
         "components": 211,
         "implementations": 357,
-        "props": 2463,
+        "props": 2472,
         "documentedComponents": 211,
         "implementationsWithModuleDoc": 357,
         "implementationsWithComponentDoc": 246,
-        "documentedProps": 1893,
+        "documentedProps": 1902,
         "classifiedComponents": 189,
         "componentsWithPatternTag": 101,
         "crossPlatformComponents": 146
@@ -436,6 +436,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         },
                         {
+                            "name": "failureText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What to say when the last change failed, in place of the general failure (the slots-full refusal, a lock refusal).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
                             "name": "onConfirm",
                             "type": "() => void",
                             "typeDetail": null,
@@ -463,6 +472,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         },
                         {
+                            "name": "recipeConfirmed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The recipe's source is confirmed already, so a web page and a book show the lock note too. Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
                             "name": "state",
                             "type": "StatementSheetState",
                             "typeDetail": null,
@@ -476,11 +494,15 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"editor\"",
-                                "\"recipePage\""
+                                "\"recipePage\"",
+                                "\"recipePageOwn\"",
+                                "\"firstAnswer\"",
+                                "\"change\"",
+                                "\"downgrade\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "Where it is asked: the editor offers five answers and \"Publish\", the recipe page four and \"Make public\".",
+                            "description": "Why it is asked: Publish, Make public, or one of the Source row's three sheets (ADR-0100).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         }
                     ],
@@ -522,6 +544,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         },
                         {
+                            "name": "failureText",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "What to say when the last change failed, in place of the general failure (the slots-full refusal, a lock refusal).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
                             "name": "onConfirm",
                             "type": "() => void",
                             "typeDetail": null,
@@ -549,6 +580,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         },
                         {
+                            "name": "recipeConfirmed",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "The recipe's source is confirmed already, so a web page and a book show the lock note too. Defaults to `false`.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
+                        },
+                        {
                             "name": "state",
                             "type": "StatementSheetState",
                             "typeDetail": null,
@@ -562,11 +602,15 @@
                             "type": "enum",
                             "typeDetail": [
                                 "\"editor\"",
-                                "\"recipePage\""
+                                "\"recipePage\"",
+                                "\"recipePageOwn\"",
+                                "\"firstAnswer\"",
+                                "\"change\"",
+                                "\"downgrade\""
                             ],
                             "required": true,
                             "defaultValue": null,
-                            "description": "Where it is asked: the editor offers five answers and \"Publish\", the recipe page four and \"Make public\".",
+                            "description": "Why it is asked: Publish, Make public, or one of the Source row's three sheets (ADR-0100).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/actions/sourceStatementSheetProps.ts"
                         }
                     ],
@@ -16417,6 +16461,7 @@
                             "typeDetail": [
                                 "\"unrecognised\"",
                                 "\"fromPerson\"",
+                                "\"sourceCorrected\"",
                                 "\"policy.webPage\"",
                                 "\"policy.book\"",
                                 "\"policy.paidSite\"",
@@ -16498,6 +16543,7 @@
                             "typeDetail": [
                                 "\"unrecognised\"",
                                 "\"fromPerson\"",
+                                "\"sourceCorrected\"",
                                 "\"policy.webPage\"",
                                 "\"policy.book\"",
                                 "\"policy.paidSite\"",
@@ -16969,6 +17015,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Where the cook stands on private slots (`useRecipePrivate`), from the server's read.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
+                        },
+                        {
+                            "name": "supportAddress",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The configured support page address (`supportLinkOf` adds the recipe): a locked Source row links to it. Absent, no link.",
                             "declaredIn": "packages/apps/commise/features/recipes/src/editor/RecipeEditorSurface.tsx"
                         }
                     ],
@@ -23495,6 +23550,24 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "askHref",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The support page for THIS recipe (`supportLinkOf`), or `undefined` when no address is configured: the help link is then\nnot drawn, and the locked line still reads true.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onAsk",
+                            "type": "(sheet: SourceRowSheet) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook asked to say, or change, where the recipe is from: open the statement sheet for this purpose.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
                             "name": "onChange",
                             "type": "(text: string) => void",
                             "typeDetail": null,
@@ -23563,6 +23636,24 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "askHref",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The support page for THIS recipe (`supportLinkOf`), or `undefined` when no address is configured: the help link is then\nnot drawn, and the locked line still reads true.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "onAsk",
+                            "type": "(sheet: SourceRowSheet) => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The cook asked to say, or change, where the recipe is from: open the statement sheet for this purpose.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
                         {
                             "name": "onChange",
                             "type": "(text: string) => void",
@@ -23754,6 +23845,7 @@
                                 "\"none\"",
                                 "\"unrecognised\"",
                                 "\"fromPerson\"",
+                                "\"sourceCorrected\"",
                                 "\"policy.webPage\"",
                                 "\"policy.book\"",
                                 "\"policy.paidSite\"",
@@ -23898,6 +23990,7 @@
                                 "\"none\"",
                                 "\"unrecognised\"",
                                 "\"fromPerson\"",
+                                "\"sourceCorrected\"",
                                 "\"policy.webPage\"",
                                 "\"policy.book\"",
                                 "\"policy.paidSite\"",
@@ -27890,7 +27983,7 @@
                         },
                         {
                             "name": "onAction",
-                            "type": "(action: \"search\" | \"retry\" | \"change\" | \"useThis\" | \"keepAsWritten\") => void",
+                            "type": "(action: \"change\" | \"search\" | \"retry\" | \"useThis\" | \"keepAsWritten\") => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -27973,7 +28066,7 @@
                         },
                         {
                             "name": "onAction",
-                            "type": "(action: \"search\" | \"retry\" | \"change\" | \"useThis\" | \"keepAsWritten\") => void",
+                            "type": "(action: \"change\" | \"search\" | \"retry\" | \"useThis\" | \"keepAsWritten\") => void",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

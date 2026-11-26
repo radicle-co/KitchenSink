@@ -148,3 +148,34 @@ describe('stage-coherence coverage is DERIVED, not hand-maintained', () => {
         expect(problems.join(' ')).toContain('NEXT_PUBLIC_AI_API_URL');
     });
 });
+
+describe('the optional support address (ADR-0100)', () => {
+    const base = {
+        [RECIPE]: 'https://recipe-pr-73.commise.app',
+        [IDENTITY]: 'https://identity.sandbox.commise.app',
+        NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: 'pk_test_bmljZS1mb3dsLTYuY2xlcmsuYWNjb3VudHMuZGV2JA',
+    };
+
+    it('is absent when unset or blank: no build fails for want of it', async () => {
+        const { env } = await loadEnv({ ...base, NEXT_PUBLIC_SUPPORT_URL: undefined });
+        expect(env['NEXT_PUBLIC_SUPPORT_URL']).toBeUndefined();
+
+        const blank = await loadEnv({ ...base, NEXT_PUBLIC_SUPPORT_URL: '' });
+        expect(blank.env['NEXT_PUBLIC_SUPPORT_URL']).toBeUndefined();
+    });
+
+    it('is read when it is an https address', async () => {
+        const { env } = await loadEnv({ ...base, NEXT_PUBLIC_SUPPORT_URL: 'https://commise.app/support' });
+
+        expect(env['NEXT_PUBLIC_SUPPORT_URL']).toBe('https://commise.app/support');
+    });
+
+    it.each(['commise.app/support', 'http://commise.app/support', 'javascript:alert(1)'])(
+        'refuses %s, so a mistyped value fails the build and never ships a dead or unsafe link',
+        async (value) => {
+            await expect(loadEnv({ ...base, NEXT_PUBLIC_SUPPORT_URL: value })).rejects.toThrow(
+                /invalid environment variables[\s\S]*NEXT_PUBLIC_SUPPORT_URL/i,
+            );
+        },
+    );
+});

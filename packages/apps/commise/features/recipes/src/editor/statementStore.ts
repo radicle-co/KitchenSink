@@ -7,7 +7,18 @@
  *
  * @pattern Observable store — one state, one writer, subscribers told on change (read by `useSyncExternalStore`)
  */
+import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
+
 import type { StatementWrite } from '../actions/sourceStatement.js';
+
+/**
+ * What the Source row's sheet answered (ADR-0100): the statement the next write carries (`null` clears the stored answer), and
+ * whether confirming it locks the answer, which decides how the row draws it before any write has carried it.
+ */
+export interface RowAnswer {
+    readonly statement: RecipeStatementInput | null;
+    readonly locks: boolean;
+}
 
 /** The source question as it stands. */
 export interface StatementState {
@@ -15,6 +26,8 @@ export interface StatementState {
     readonly asking: boolean;
     /** What the cook answered, held for the session so Publish asks once. */
     readonly answer: StatementWrite | undefined;
+    /** What the Source row's own sheet answered; it rides the next write, and clears when a write carried it. */
+    readonly row?: RowAnswer | undefined;
 }
 
 /** The store {@link createStatementStore} makes. */
@@ -27,6 +40,10 @@ export interface StatementStore {
     readonly answer: (write: StatementWrite) => void;
     /** Forget the answer, so the next write carries none. */
     readonly clearAnswer: () => void;
+    /** Record what the Source row's sheet answered. */
+    readonly rowAnswer: (answer: RowAnswer) => void;
+    /** Forget the row's answer: a write carried it, or the server refused it. */
+    readonly clearRow: () => void;
 }
 
 /**
@@ -37,7 +54,7 @@ export function createStatementStore(): StatementStore {
     const listeners = new Set<() => void>();
 
     const set = (next: StatementState): void => {
-        if (next.asking === state.asking && next.answer === state.answer) {
+        if (next.asking === state.asking && next.answer === state.answer && next.row === state.row) {
             return;
         }
 
@@ -61,10 +78,16 @@ export function createStatementStore(): StatementStore {
             set({ ...state, asking });
         },
         answer: (write) => {
-            set({ asking: false, answer: write });
+            set({ ...state, asking: false, answer: write });
         },
         clearAnswer: () => {
             set({ ...state, answer: undefined });
+        },
+        rowAnswer: (row) => {
+            set({ ...state, row });
+        },
+        clearRow: () => {
+            set({ ...state, row: undefined });
         },
     };
 }

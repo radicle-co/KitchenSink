@@ -21,13 +21,13 @@ import { touchFloor } from '@commise/ui/layout';
 import { PressScale } from '@commise/ui/press-scale';
 import { Text } from '@commise/ui/text';
 import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 import { styled, YStack } from 'tamagui';
 
 import { recipeActionMessages } from '../actions/messages.js';
 import { editorMessages } from '../editor/messages.js';
 import { openExternalUrl } from '../detail/openExternalUrl.native.js';
-import { sourceErrorId, sourceNoteId } from './fieldErrorIds.js';
+import { sourceErrorId, sourceNoteId, sourceWarningId } from './fieldErrorIds.js';
 import { sourceFieldId } from './fieldIds.js';
 import { lockedAnswerLabel } from './sourceLink.js';
 import type { RecipeSourceFieldNativeProps } from './sourceFieldProps.js';
@@ -51,6 +51,8 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     onChange,
     onRemove,
     onTouched,
+    onAsk,
+    askHref,
     onOpen = openExternalUrl,
 }) => {
     const { source: m } = useMessages(editorMessages);
@@ -58,6 +60,61 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
 
     if (row.kind === 'hidden') {
         return null;
+    }
+
+    // The help link of a locked row, and of "I wrote this" (its own words): a link-role press target, never a button.
+    const helpLink = (text: string): ReactNode =>
+        askHref === undefined ? null : (
+            <PressScale accessibilityRole="link" accessibilityLabel={text} onPress={() => onOpen(askHref)}>
+                <LinkTouch>
+                    <LinkText>{text}</LinkText>
+                </LinkTouch>
+            </PressScale>
+        );
+
+    if (row.kind === 'own') {
+        return (
+            <Column>
+                <Text typeRole="label" color="$inkMuted">
+                    {m.label}
+                </Text>
+                <Text typeRole="body" color="$ink">
+                    {answers.answerAuthored}
+                </Text>
+                <YStack alignItems="flex-start">
+                    <Button variant="ghost" onPress={() => onAsk('downgrade')}>
+                        {m.changeOwn}
+                    </Button>
+                </YStack>
+                {helpLink(m.askOtherNative)}
+            </Column>
+        );
+    }
+
+    if (row.kind === 'openAnswered') {
+        return (
+            <Column>
+                <Text typeRole="label" color="$inkMuted">
+                    {m.label}
+                </Text>
+                <Text typeRole="body" color="$ink">
+                    {lockedAnswerLabel(row.answer, answers)}
+                </Text>
+                {row.citation === '' ? null : (
+                    <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
+                        {row.citation}
+                    </Text>
+                )}
+                <Text typeRole="meta" color="$inkMuted">
+                    {m.lockWarning}
+                </Text>
+                <YStack alignItems="flex-start">
+                    <Button variant="ghost" onPress={() => onAsk('change')}>
+                        {m.changeAnswer}
+                    </Button>
+                </YStack>
+            </Column>
+        );
     }
 
     if (row.kind === 'locked') {
@@ -81,6 +138,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 <Text typeRole="meta" color="$inkMuted">
                     {m.locked}
                 </Text>
+                {helpLink(m.askChangeNative)}
             </Column>
         );
     }
@@ -96,7 +154,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                         {lockedAnswerLabel(row.answer, answers)}
                     </Text>
                 )}
-                {row.citation === undefined ? null : (
+                {row.citation === undefined || row.citation === '' ? null : (
                     <Text typeRole="meta" color="$inkMuted" flexShrink={1}>
                         {row.citation}
                     </Text>
@@ -104,6 +162,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 <Text typeRole="meta" color="$inkMuted">
                     {m.locked}
                 </Text>
+                {helpLink(m.askChangeNative)}
             </Column>
         );
     }
@@ -112,6 +171,8 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     const error = row.kind === 'invalid' ? m.invalid : row.kind === 'ownSite' ? m.ownSite : undefined;
     const status = row.kind === 'filled' ? fillTemplate(m.rightsLabel, { site: row.site }) : m.hint;
     const pasted = row.kind === 'filled' && row.fromPaste;
+    const warning = row.kind === 'filled' ? (row.confirmed === true ? m.lockWarningSave : m.lockWarning) : undefined;
+    const hint = [status, pasted ? m.fromPaste : undefined, warning].filter((part) => part !== undefined).join(' ');
 
     return (
         <Column>
@@ -120,7 +181,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                 id={sourceFieldId}
                 value={row.text}
                 label={m.label}
-                hint={pasted ? `${status} ${m.fromPaste}` : status}
+                hint={hint}
                 inputMode="url"
                 maxLength={SOURCE_LINK_INPUT_MAX_LENGTH}
                 autoCapitalize="none"
@@ -135,6 +196,11 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                     {m.fromPaste}
                 </Text>
             ) : null}
+            {warning === undefined ? null : (
+                <Text nativeID={sourceWarningId} typeRole="meta" color="$inkMuted">
+                    {warning}
+                </Text>
+            )}
             {error === undefined ? null : (
                 <Text nativeID={sourceErrorId} accessibilityRole="alert" typeRole="meta" color="$dangerText">
                     {error}
@@ -148,6 +214,11 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                     </Button>
                 </YStack>
             )}
+            <YStack alignItems="flex-start">
+                <Button variant="ghost" onPress={() => onAsk('firstAnswer')}>
+                    {m.sayWhere}
+                </Button>
+            </YStack>
         </Column>
     );
 };

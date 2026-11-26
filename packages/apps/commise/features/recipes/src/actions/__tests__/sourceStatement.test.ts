@@ -112,7 +112,7 @@ describe('statementWriteOf', () => {
     };
 
     it('"I wrote this" states authored, stays public and sends no confirmation', () => {
-        expect(statementWriteOf('authored', FIELDS, 'en')).toEqual({
+        expect(statementWriteOf('authored', FIELDS, 'en', false)).toEqual({
             statement: {
                 kind: 'authored',
                 wording: { version: STATEMENT_WORDINGS_BY_CHOICE.authored[0], locale: 'en' },
@@ -124,7 +124,7 @@ describe('statementWriteOf', () => {
     // The wording's locale is the catalog that served the words, so a request the catalog does not hold falls back to English
     // and records English (review item 10).
     it('a web page states its link and forces Private, and a locale the words fell back from is recorded as en', () => {
-        expect(statementWriteOf('publicWeb', FIELDS, 'fr-CA')).toEqual({
+        expect(statementWriteOf('publicWeb', FIELDS, 'fr-CA', false)).toEqual({
             statement: {
                 kind: 'public_web',
                 citation: 'https://www.allrecipes.com/recipe/1/soup/',
@@ -135,7 +135,7 @@ describe('statementWriteOf', () => {
     });
 
     it('a paid website states its trimmed citation, with its own wording, and forces Private', () => {
-        expect(statementWriteOf('paidSite', FIELDS, 'en')).toEqual({
+        expect(statementWriteOf('paidSite', FIELDS, 'en', false)).toEqual({
             statement: {
                 kind: 'paid_site',
                 citation: 'Sam’s Subscription Kitchen',
@@ -146,7 +146,7 @@ describe('statementWriteOf', () => {
     });
 
     it('a cookbook states its trimmed title as the citation and forces Private', () => {
-        expect(statementWriteOf('book', FIELDS, 'en')).toEqual({
+        expect(statementWriteOf('book', FIELDS, 'en', false)).toEqual({
             statement: {
                 kind: 'book',
                 citation: 'Joy of Cooking, p. 12',
@@ -157,7 +157,7 @@ describe('statementWriteOf', () => {
     });
 
     it('another person states fromPerson and forces Private', () => {
-        expect(statementWriteOf('fromPerson', FIELDS, 'en')).toEqual({
+        expect(statementWriteOf('fromPerson', FIELDS, 'en', false)).toEqual({
             statement: {
                 kind: 'fromPerson',
                 wording: { version: STATEMENT_WORDINGS_BY_CHOICE.fromPerson[0], locale: 'en' },
@@ -167,7 +167,7 @@ describe('statementWriteOf', () => {
     });
 
     it('publishing privately states nothing and is Private', () => {
-        const write = statementWriteOf('publishPrivately', FIELDS, 'en');
+        const write = statementWriteOf('publishPrivately', FIELDS, 'en', false);
 
         expect(write).toEqual({ visibility: RecipeVisibility.PRIVATE });
         expect(write).not.toHaveProperty('statement');

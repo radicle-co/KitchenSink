@@ -21,6 +21,7 @@
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { supportLinkOf } from '@commise/features-core/config/supportLink';
 import { pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -44,6 +45,7 @@ import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { recipeActionMessages } from '../actions/messages.js';
 import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
+import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { publicOfferOf } from './publishBlockedCopy.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
@@ -119,6 +121,8 @@ export interface RecipeEditorSurfaceProps {
     readonly onOpenFood?: (foodId: string) => void;
     /** The app leaves this editor in place when it opens a food (native pushes a screen over it): the refusal then closes first. */
     readonly foodOpensOverEditor?: boolean;
+    /** The configured support page address (`supportLinkOf` adds the recipe): a locked Source row links to it. Absent, no link. */
+    readonly supportAddress?: string;
 }
 
 /** The editor page over its session. */
@@ -137,6 +141,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     leaveAsk,
     onOpenFood,
     foodOpensOverEditor = false,
+    supportAddress,
 }) => {
     const { editor, paste, photos, source } = session;
     const photoCopy = useMessages(photoMessages);
@@ -160,10 +165,30 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
-    const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    const { ingredients: ingredientsCopy, source: sourceCopy } = useMessages(editorMessages);
     const locale = useLocale();
     const { publicConfirm } = useMessages(recipeActionMessages);
-    const statementSheet = useStatementSheet({ locale, onAnswer: editor.answerStatement });
+    const statementSheet = useStatementSheet({
+        locale,
+        surface: 'editor',
+        recipeConfirmed: seed.recipe?.sourceConfirmed === true,
+        onAnswer: editor.answerStatement,
+    });
+    // ADR-0100: the Source row's own sheet. `rowSheet` is which of its three purposes is open; the sheet is the same one.
+    const [rowSheet, setRowSheet] = useState<SourceRowSheet | undefined>(undefined);
+    const rowStatementSheet = useStatementSheet({
+        locale,
+        surface: rowSheet ?? 'firstAnswer',
+        recipeConfirmed: editor.storedRecipe?.sourceConfirmed === true,
+        onAnswer: (write) => {
+            if (rowSheet !== undefined) {
+                editor.answerRowStatement(write, rowSheet);
+            }
+
+            setRowSheet(undefined);
+        },
+    });
+    const askHref = editor.recipeId === undefined ? undefined : supportLinkOf(supportAddress, editor.recipeId);
     // Kept while the sheet closes, so its words do not change under its own animation.
     const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
@@ -322,7 +347,13 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                             onChange={source.onChange}
                             onTouched={source.onTouched}
                             onRemove={() => source.remove()}
+                            onAsk={(sheet) => {
+                                rowStatementSheet.reset();
+                                setRowSheet(sheet);
+                            }}
+                            {...(askHref === undefined ? {} : { askHref })}
                         />
+                        {editor.sourceLockRefused ? <PastedSourceNotice text={sourceCopy.lockedRefused} /> : null}
                         <RecipeVisibilityField
                             values={editor.values}
                             onChange={editor.setValues}
@@ -447,12 +478,25 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             <SourceStatementSheet
                 open={editor.statementAsk}
                 surface="editor"
+                recipeConfirmed={seed.recipe?.sourceConfirmed === true}
                 state={statementSheet.state}
                 dispatch={statementSheet.dispatch}
                 onConfirm={statementSheet.confirm}
                 onDismiss={() => {
                     editor.dismissStatement();
                     statementSheet.reset();
+                }}
+            />
+            <SourceStatementSheet
+                open={rowSheet !== undefined}
+                surface={rowSheet ?? 'firstAnswer'}
+                recipeConfirmed={editor.storedRecipe?.sourceConfirmed === true}
+                state={rowStatementSheet.state}
+                dispatch={rowStatementSheet.dispatch}
+                onConfirm={rowStatementSheet.confirm}
+                onDismiss={() => {
+                    setRowSheet(undefined);
+                    rowStatementSheet.reset();
                 }}
             />
             {blocked === undefined ? null : (

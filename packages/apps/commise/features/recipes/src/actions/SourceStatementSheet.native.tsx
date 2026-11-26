@@ -40,12 +40,20 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
     surface,
     state,
     dispatch,
+    recipeConfirmed = false,
+    failureText,
     onConfirm,
     onDismiss,
 }) => {
     const { sourceStatement: m, visibility } = useMessages(recipeActionMessages);
     const { source } = useMessages(editorMessages);
-    const view = sheetViewOf({ surface, state, messages: m, shared: { source, failure: visibility.error } });
+    const view = sheetViewOf({
+        surface,
+        state,
+        messages: m,
+        shared: { source, failure: failureText ?? visibility.error },
+        recipeConfirmed,
+    });
     const fieldId = useId();
     const { field } = view;
 
@@ -87,9 +95,11 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
             }
         >
             <Body>
-                <Text typeRole="body" color="$ink">
-                    {m.body}
-                </Text>
+                {view.body === undefined ? null : (
+                    <Text typeRole="body" color="$ink">
+                        {view.body}
+                    </Text>
+                )}
                 <RadioList
                     label={m.title}
                     options={view.options}

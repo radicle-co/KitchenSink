@@ -56,6 +56,7 @@ import type { Route } from 'next';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useState, type FC } from 'react';
 
+import { env } from '@/config/env';
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { EditorStateFrame } from '@/components/recipes/EditorStateFrame';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
@@ -399,6 +400,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
             // The page asks before × or "My recipes" would lose a photo not uploaded yet; closing the tab is asked about by
             // the unload guard, and the browser's own Back cannot be held.
             leaveAsk="inPage"
+            {...(env.NEXT_PUBLIC_SUPPORT_URL === undefined ? {} : { supportAddress: env.NEXT_PUBLIC_SUPPORT_URL })}
             // A new tab, so the draft stays where the cook left it (private foods spec D5, D6).
             onOpenFood={(foodId) => {
                 openFoodInNewTab(locale, foodId);

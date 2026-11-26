@@ -11,7 +11,9 @@ import { useStatementSheet } from '../useStatementSheet.js';
 
 function mount() {
     const onAnswer = vi.fn();
-    const { result } = renderHook(() => useStatementSheet({ locale: 'fr', onAnswer }));
+    const { result } = renderHook(() =>
+        useStatementSheet({ locale: 'fr', surface: 'editor', recipeConfirmed: false, onAnswer }),
+    );
 
     return { result, onAnswer };
 }
@@ -42,7 +44,7 @@ describe('useStatementSheet', () => {
             statement: {
                 kind: 'book',
                 citation: 'Joy of Cooking',
-                wording: { version: 'statementBook.v1', locale: 'en' },
+                wording: { version: 'statementBook.v2', locale: 'en' },
             },
             visibility: RecipeVisibility.PRIVATE,
         });

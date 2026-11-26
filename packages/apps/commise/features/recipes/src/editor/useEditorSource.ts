@@ -30,6 +30,7 @@ import {
 } from '../form/sourceLink.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { editorMessages, type EditorMessages } from './messages.js';
+import type { RowAnswer } from './statementStore.js';
 
 /** The paste control a link came in through: the notice is drawn under it, and focus goes back to it. */
 export type PasteOrigin = 'ingredients' | 'steps';
@@ -85,6 +86,8 @@ export interface UseEditorSourceOptions {
     readonly refused: boolean;
     /** The paid website the cook has just confirmed, before any write carries it: the row is locked from the confirm. */
     readonly paidSiteStated?: string;
+    /** What the Source row's own sheet answered and no write has yet carried. */
+    readonly rowAnswer?: RowAnswer;
 }
 
 /**
@@ -113,7 +116,7 @@ function noticeTextOf(note: PastedSourceNote, messages: EditorMessages['source']
  * @returns The row's model, the paste's notice, the draft's rule and the commands.
  */
 export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
-    const { values, dispatch, recipe, refused, paidSiteStated } = options;
+    const { values, dispatch, recipe, refused, paidSiteStated, rowAnswer } = options;
     const { source: messages } = useMessages(editorMessages);
     const [fromPaste, setFromPaste] = useState(false);
     const [removed, setRemoved] = useState<string | undefined>(undefined);
@@ -149,6 +152,7 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
             fromPaste,
             showError: touched || refused,
             ...(paidSiteStated === undefined ? {} : { paidSiteStated }),
+            ...(rowAnswer === undefined ? {} : { rowAnswer }),
         }),
         notice,
         privateRule: draftPrivateRule(values, recipe),

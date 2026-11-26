@@ -940,7 +940,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         });
 
         expect(within(section()).getByRole('textbox', { name: 'Source' })).toBeTruthy();
-        expect(within(section()).queryByText('The source of this recipe can’t be changed.')).toBeNull();
+        expect(within(section()).queryByText('Only Commise can change this source.')).toBeNull();
     });
 
     it('a published clone that inherited a web copy: the Source is read only, with the site as a link', () => {
@@ -964,7 +964,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(
             within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
         ).toBe(LINK);
-        expect(within(section()).getByText('The source of this recipe can’t be changed.')).toBeTruthy();
+        expect(within(section()).getByText('Only Commise can change this source.')).toBeTruthy();
     });
     const stepsSection = () =>
         screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
@@ -1067,6 +1067,41 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
             expect.stringContaining('From another person'),
             expect.stringContaining('Publish privately'),
         ]);
+    });
+
+    it("the Source row's button opens its own sheet, and Confirm hands the editor the answer for that sheet", async () => {
+        const user = userEvent.setup();
+        const answerRowStatement = vi.fn();
+        mount({ editorOver: { answerRowStatement } });
+
+        await user.click(screen.getByRole('button', { name: 'Not from a web page? Say where it’s from' }));
+        const sheet = await screen.findByRole('dialog');
+        await user.click(within(sheet).getByRole('radio', { name: /From another person/u }));
+        await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
+
+        expect(answerRowStatement).toHaveBeenCalledExactlyOnceWith(
+            expect.objectContaining({ statement: expect.objectContaining({ kind: 'fromPerson' }) }),
+            'firstAnswer',
+        );
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('Cancel on the row sheet answers nothing', async () => {
+        const user = userEvent.setup();
+        const answerRowStatement = vi.fn();
+        mount({ editorOver: { answerRowStatement } });
+
+        await user.click(screen.getByRole('button', { name: 'Not from a web page? Say where it’s from' }));
+        await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+        expect(answerRowStatement).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('a refused lock change is told under the row', () => {
+        mount({ editorOver: { sourceLockRefused: true } });
+
+        expect(screen.getByText('That source change wasn’t saved. Only Commise can change this source.')).toBeTruthy();
     });
 
     it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {

@@ -19,6 +19,8 @@ export const stepsErrorId = 'recipe-steps-error';
 export const sourceErrorId = 'recipe-source-error';
 /** The Source row's "added from your paste" caption (ADR-0089). */
 export const sourceNoteId = 'recipe-source-note';
+/** The warning under a filled link: once it is saved or published it can no longer change (ADR-0100). */
+export const sourceWarningId = 'recipe-source-warning';
 
 /**
  * The id of ONE ingredient row's unit note — the `classifyUnit` verdict a non-canonical unit carries (U25).

@@ -12,7 +12,8 @@
         "./boundary": "./src/boundary/index.ts",
         "./boundary/messages": "./src/boundary/messages.ts",
         "./config/stageCoherence": "./src/config/stageCoherence.ts",
-        "./config/envScaffolding": "./src/config/envScaffolding.ts"
+        "./config/envScaffolding": "./src/config/envScaffolding.ts",
+        "./config/supportLink": "./src/config/supportLink.ts"
     },
     "scripts": {
         "build": "tsc -p tsconfig.build.json",

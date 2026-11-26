@@ -78,8 +78,18 @@ export interface SourceStatementMessages {
     readonly bookTitleError: string;
     /** `statementPaidSite.v1`. */
     readonly answerPaidSite: string;
-    /** Says the answer is locked once confirmed, on both surfaces. */
+    /** What a paid website is, said under it. */
     readonly hintPaidSite: string;
+    /** Says the answer is locked once confirmed, drawn after the hint under the answers that lock at that act. */
+    readonly lockNote: string;
+    /** The body of the downgrade sheet: a confirmed "I wrote this" moved to a cookbook or paid website. */
+    readonly bodyDowngrade: string;
+    /** The confirm of the downgrade. */
+    readonly confirmDowngrade: string;
+    /** The confirm in the editor's answer modes: first answer, change and downgrade. */
+    readonly confirmAnswer: string;
+    /** The dismiss in the editor's answer modes: first answer, change and downgrade. */
+    readonly dismissAnswer: string;
     readonly paidSiteLabel: string;
     readonly paidSiteError: string;
     /** `statementFromPerson.v1`. */
@@ -271,8 +281,13 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             bookTitleLabel: 'Book or magazine title',
             bookTitleError: 'Add the book or magazine title.',
             answerPaidSite: 'From a paid website',
-            hintPaidSite:
-                'A recipe from a website you pay for, like a subscription. Stays private to you. Once you confirm, this answer is locked.',
+            hintPaidSite: 'A recipe from a website you pay for, like a subscription. Stays private to you.',
+            lockNote: 'Once you confirm, this answer is locked.',
+            bodyDowngrade:
+                'If it came from a cookbook, magazine or paid website, say so here. It will be private to you, and you can’t change it back.',
+            confirmDowngrade: 'Confirm',
+            confirmAnswer: 'Confirm',
+            dismissAnswer: 'Cancel',
             paidSiteLabel: 'Website name or address',
             paidSiteError: 'Add the website’s name or address.',
             answerPerson: 'From another person',

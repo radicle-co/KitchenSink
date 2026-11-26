@@ -2705,7 +2705,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementPublicWeb.v1"
+                                                "statementPublicWeb.v1",
+                                                "statementPublicWeb.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -2745,7 +2746,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementBook.v1"
+                                                "statementBook.v1",
+                                                "statementBook.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -2822,7 +2824,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementFromPerson.v1"
+                                                "statementFromPerson.v1",
+                                                "statementFromPerson.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -12719,7 +12722,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementPublicWeb.v1"
+                                        "statementPublicWeb.v1",
+                                        "statementPublicWeb.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -12759,7 +12763,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementBook.v1"
+                                        "statementBook.v1",
+                                        "statementBook.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -12836,7 +12841,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementFromPerson.v1"
+                                        "statementFromPerson.v1",
+                                        "statementFromPerson.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -15091,7 +15097,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementPublicWeb.v1"
+                                                "statementPublicWeb.v1",
+                                                "statementPublicWeb.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15131,7 +15138,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementBook.v1"
+                                                "statementBook.v1",
+                                                "statementBook.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15208,7 +15216,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementFromPerson.v1"
+                                                "statementFromPerson.v1",
+                                                "statementFromPerson.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15936,7 +15945,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementPublicWeb.v1"
+                                                        "statementPublicWeb.v1",
+                                                        "statementPublicWeb.v2"
                                                     ],
                                                     "type": "string"
                                                 }
@@ -15976,7 +15986,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementBook.v1"
+                                                        "statementBook.v1",
+                                                        "statementBook.v2"
                                                     ],
                                                     "type": "string"
                                                 }
@@ -16053,7 +16064,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementFromPerson.v1"
+                                                        "statementFromPerson.v1",
+                                                        "statementFromPerson.v2"
                                                     ],
                                                     "type": "string"
                                                 }

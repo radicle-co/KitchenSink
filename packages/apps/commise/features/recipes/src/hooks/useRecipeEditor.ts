@@ -102,9 +102,10 @@ import {
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
 import type { PublicRefusal } from '../actions/publicRefusal.js';
-import { publicWordingOf, type StatementWrite } from '../actions/sourceStatement.js';
+import { publicWordingOf, confirmsAt, type StatementWrite } from '../actions/sourceStatement.js';
+import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
-import { createStatementStore, type StatementStore } from '../editor/statementStore.js';
+import { createStatementStore, type RowAnswer, type StatementStore } from '../editor/statementStore.js';
 import type { ShownWordings } from '../form/wire.js';
 import { toDraftValues, type DraftMemento, type DraftStore } from '../editor/draftStore.js';
 import {
@@ -356,6 +357,18 @@ export interface UseRecipeEditorResult {
      */
     readonly paidSiteStated: string | undefined;
     /**
+     * What the Source row's own sheet answered this session and no write has carried yet: the row draws it from the confirm.
+     * `undefined` until the cook answers, and again once a write carried it.
+     */
+    readonly rowStated: RowAnswer | undefined;
+    /** The recipe as the server holds it now (the row's facts), `undefined` before the first server write. */
+    readonly storedRecipe: RecipeDetail | undefined;
+    /**
+     * The server refused a change to a confirmed source: the answer and the field change were dropped and the rest was sent
+     * again. True until the cook next touches the Source.
+     */
+    readonly sourceLockRefused: boolean;
+    /**
      * Whether the passive line is drawn under the Public card. ⛔ The ONE fact that decides whether a publishing write sends
      * `publicConfirm.v1`: the line and the wording go together or not at all.
      */
@@ -437,6 +450,12 @@ export interface UseRecipeEditorResult {
      * Private, and the Publish runs again. A no-op while no ask stands.
      */
     readonly answerStatement: (write: StatementWrite) => void;
+    /**
+     * The cook confirmed one of the Source row's sheets (ADR-0100): the answer waits for the next write instead of publishing.
+     * A third-party answer or the downgrade moves the draft to Private (the server would force it); a web page becomes the
+     * Source field's link; "I wrote this" in the change sheet clears the stored answer.
+     */
+    readonly answerRowStatement: (write: StatementWrite, sheet: SourceRowSheet) => void;
     /** The cook dismissed the source sheet: nothing is sent and the draft stays as it is. */
     readonly dismissStatement: () => void;
     /** Withdraw the parked write and send the draft again: the cook's consent to a parked record (ADR-0057). */
@@ -516,6 +535,7 @@ interface EditorContext {
     readonly publishBlocked: PublishBlocked | undefined;
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
     readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
+    readonly setSourceLockRefused: Dispatch<SetStateAction<boolean>>;
     /** The source question (ADR-0095): whether the sheet is open, and the answer the cook gave. */
     readonly statement: StatementStore;
     readonly clearResume: () => void;
@@ -774,11 +794,13 @@ function paidSiteCitationOf(answer: StatementWrite | undefined): string | undefi
  */
 function shownWordingsOf(ctx: EditorContext): ShownWordings {
     const { locale } = ctx.opts;
-    const statement = ctx.statement.get().answer?.statement;
+    const { answer, row } = ctx.statement.get();
+    const statement = answer?.statement;
 
     return {
         ...(statementPlanNow(ctx).confirmLineShown ? { publicConfirmation: publicWordingOf(locale) } : {}),
         ...(statement === undefined ? {} : { statement }),
+        ...(row === undefined ? {} : { rowStatement: row.statement }),
     };
 }
 
@@ -1081,6 +1103,8 @@ function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: Outstan
     const wasPublished = lifecycleNow(ctx) === 'published';
 
     adoptServerFacts(ctx, detail, pending.sent);
+    // The server holds the Source row's answer now (and its confirmed fact says whether it locked), so the row reads it there.
+    ctx.statement.clearRow();
 
     if (!pending.finishing) {
         return;
@@ -1207,6 +1231,16 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
     if (event.answer?.kind === 'recipeStatementRequired') {
         ctx.lane.dispatch({ type: 'deferredTaken' });
         statementRefusedByServer(ctx, event);
+
+        return;
+    }
+
+    if (event.answer?.kind === 'recipeSourceLocked') {
+        // The refused write stays parked with the cook's other edits (it is a terminal 403). The answer and the field change
+        // are dropped, and the rest goes again: the refusal is theirs to read, not a Try again that sends it back.
+        dropRefusedSource(ctx);
+        ctx.setSourceLockRefused(true);
+        retry(ctx);
 
         return;
     }
@@ -1527,6 +1561,61 @@ function answerStatement(ctx: EditorContext, write: StatementWrite): void {
     finish(ctx, ctx.gate.entryText, 'publish');
 }
 
+/**
+ * The server refused a change to a confirmed source, so none of the Source's pending changes can go: the answers the cook gave
+ * this session are forgotten and the field returns to the link the server holds. @sideEffect
+ */
+function dropRefusedSource(ctx: EditorContext): void {
+    const stored = storedRecipeOf(ctx.core.get().server);
+
+    ctx.statement.clearAnswer();
+    ctx.statement.clearRow();
+    ctx.core.dispatch({
+        type: 'draftActed',
+        action: {
+            kind: 'setSourceLink',
+            link: stored?.sourceKind === 'public_web' ? (stored.sourceUrl ?? '') : '',
+        },
+    });
+}
+
+/**
+ * The cook confirmed one of the Source row's sheets. The answer rides the next write (a draft saves at its next checkpoint, a
+ * published recipe at Save changes), and the row draws it from now on. @sideEffect
+ */
+function answerRowStatement(ctx: EditorContext, write: StatementWrite, sheet: SourceRowSheet): void {
+    const { statement } = write;
+    const stored = storedRecipeOf(ctx.core.get().server);
+
+    ctx.setSourceLockRefused(false);
+
+    if (statement?.kind === 'public_web') {
+        // A web page is the Source field's own link: the field sends it, and the stored answer it replaces goes with it.
+        ctx.statement.clearRow();
+        ctx.core.dispatch({ type: 'draftActed', action: { kind: 'setSourceLink', link: statement.citation } });
+    } else {
+        const row: RowAnswer = {
+            // "I wrote this" in the change sheet clears the stored answer: it is the absence of one.
+            statement: statement === undefined || statement.kind === 'authored' ? null : statement,
+            locks:
+                statement !== undefined &&
+                statement.kind !== 'authored' &&
+                (confirmsAt(sheet) || stored?.sourceConfirmed === true),
+        };
+
+        ctx.statement.rowAnswer(row);
+    }
+
+    if (write.visibility === RecipeVisibility.PRIVATE) {
+        ctx.core.dispatch({
+            type: 'draftReplaced',
+            draft: { ...ctx.core.get().draft, visibility: RecipeVisibility.PRIVATE },
+        });
+    }
+
+    runCheckpoint(ctx, 'sectionChange');
+}
+
 /** Withdraw the parked write and send the draft again, or run a stopped Save changes again. @sideEffect */
 function retry(ctx: EditorContext): void {
     const { server } = ctx.core.get();
@@ -1550,6 +1639,7 @@ function retry(ctx: EditorContext): void {
     // cook's other edits park behind it for good. The answer is forgotten, so the retry carries the content alone.
     if (ctx.opts.port.failures.some((failure) => failure.seq === parked.seq && failure.status === 403)) {
         ctx.statement.clearAnswer();
+        ctx.statement.clearRow();
     }
 
     void ctx.opts.port.withdraw(parked.seq).then(
@@ -2105,6 +2195,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const [publishBlocked, setPublishBlocked] = useState<PublishBlocked | undefined>(undefined);
     const statementState = useSyncExternalStore(stores.statement.subscribe, stores.statement.get, stores.statement.get);
     const [privateFoodRefusal, setPrivateFoodRefusal] = useState<PrivateFoodRefusal | undefined>(undefined);
+    const [sourceLockRefused, setSourceLockRefused] = useState(false);
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -2119,6 +2210,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishBlocked,
         setPublishBlocked,
         setPrivateFoodRefusal,
+        setSourceLockRefused,
         statement: stores.statement,
         clearResume: () => {
             setResume(undefined);
@@ -2158,6 +2250,11 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     );
     const dispatch = useCallback(
         (action: DraftAction): void => {
+            // The cook is touching the Source again: the refusal they read is stale.
+            if (action.kind === 'setSourceLink') {
+                setSourceLockRefused(false);
+            }
+
             stores.core.dispatch({ type: 'draftActed', action });
         },
         [stores],
@@ -2171,6 +2268,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishBlocked,
         statementAsk: statementState.asking,
         paidSiteStated: paidSiteCitationOf(statementState.answer),
+        rowStated: statementState.row,
+        storedRecipe: storedRecipeOf(core.server),
+        sourceLockRefused,
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
         publicRefusal: publicRefusalInForce(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,
@@ -2213,6 +2313,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         },
         answerStatement: (write) => {
             answerStatement(ctx, write);
+        },
+        answerRowStatement: (write, sheet) => {
+            answerRowStatement(ctx, write, sheet);
         },
         dismissStatement: () => {
             stores.statement.ask(false);

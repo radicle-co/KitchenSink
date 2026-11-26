@@ -12,6 +12,13 @@ import { z } from 'zod';
 /** An absolute http(s) base URL. A relative value would resolve against the page and fail only in a browser. */
 export const endpointUrl = z.url({ protocol: /^https?$/ });
 
+/**
+ * An https address that may be left out: the support page a locked source points to (ADR-0100). Unset is fine, because the
+ * address is a launch item and no build fails on it; a set value must be https, so a mistyped one fails the build instead of
+ * shipping a dead or unsafe link.
+ */
+export const optionalHttpsUrl = z.url({ protocol: /^https$/ }).optional();
+
 /** The slice of a Standard Schema issue the formatter reads (both T3 variants hand over a superset). */
 export interface EnvValidationIssue {
     /** Path segments: a key, or a `{ key }` object. */

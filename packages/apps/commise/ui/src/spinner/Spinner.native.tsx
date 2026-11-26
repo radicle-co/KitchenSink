@@ -2,9 +2,9 @@
  * @module @commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):
  * `Button` draws it in its busy glyph slot.
  *
- * It stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth under
- * the system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with Tamagui
- * only (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.
+ * It stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth
+ * under the system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with
+ * Tamagui only (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.
  *
  * Presentational: props → JSX.
  */

@@ -64,11 +64,14 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !=
  * `Element.prototype.hasPointerCapture` and `releasePointerCapture` — never implemented by jsdom. Radix's menu calls
  * them when it opens, so opening an `ActionMenu` would throw without them. No-ops: jsdom has no pointer to capture.
  */
-if (typeof Element !== 'undefined') {
-    Element.prototype.hasPointerCapture ??= function hasPointerCapture() {
+if (typeof Element !== 'undefined' && typeof Element.prototype.hasPointerCapture !== 'function') {
+    Element.prototype.hasPointerCapture = function hasPointerCapture() {
         return false;
     };
-    Element.prototype.releasePointerCapture ??= function releasePointerCapture() {};
+}
+
+if (typeof Element !== 'undefined' && typeof Element.prototype.releasePointerCapture !== 'function') {
+    Element.prototype.releasePointerCapture = function releasePointerCapture() {};
 }
 
 /**

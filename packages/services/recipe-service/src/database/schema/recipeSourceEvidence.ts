@@ -13,7 +13,13 @@ import { RECIPE_SOURCE_KINDS, type RecipeSourceKind } from '@kitchensink/recipe-
 import { recipes } from './recipes.js';
 
 /** How a statement reached the service, mirrored from the SQL CHECK. */
-export const SOURCE_EVIDENCE_CAPTURES = ['pastedPage', 'editorLink', 'editorCitation', 'importFile'] as const;
+export const SOURCE_EVIDENCE_CAPTURES = [
+    'pastedPage',
+    'editorLink',
+    'editorCitation',
+    'importFile',
+    'staffCorrection',
+] as const;
 
 /**
  * The source kinds an `editorCitation` row may hold: the cook typed a citation for a book or a paid site. Mirrored from

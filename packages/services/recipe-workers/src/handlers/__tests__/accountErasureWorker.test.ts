@@ -379,6 +379,8 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
 
         // The database's own evidence rule (migration 0086), not a copy of it: the same shape as `recipe_holds_private_food`.
         expect(flip?.text).toMatch(/and not recipe_holds_third_party_source\(id\)/i);
+        // …and a recipe a staff correction holds off Public (migration 0092): the CHECK would refuse the flip and roll the erasure back.
+        expect(flip?.text).toMatch(/and not source_correction_hold/i);
         // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
@@ -505,6 +507,25 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
         expect(statements[swapIndex]?.text).not.toMatch(/\bfrom recipes\b|\bjoin\b|\bin \(select/i);
         expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+    });
+
+    // 0092: a staff account's correction records are kept, relabelled to the same token as its statement records.
+    it('moves the actor of every source-correction record to the erasure token BEFORE the recipe delete, and never deletes one', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_source_corrections\s+set actor_account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(statements.findIndex((s) => /^delete from recipes where/i.test(s.text)));
+        expect(statements[swapIndex]?.text).toMatch(/where actor_account_id = \$\d$/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+        expect(statements.some((s) => /delete from recipe_source_corrections/i.test(s.text))).toBe(false);
     });
 
     it('scopes the clone-detach to the REMOVED set and guards SURVIVORS (id NOT IN removed), not owner_id', async () => {
@@ -1605,6 +1626,18 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
         expect(statements[swapIndex]?.text).toMatch(/where account_id = \$\d$/i);
         expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
         expect(statements.some((s) => /delete from recipe_statement_attestations/i.test(s.text))).toBe(false);
+    });
+
+    it('swaps the actor of every source-correction record to one erased token BEFORE the recipe delete', async () => {
+        const control = await purge();
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_source_corrections\s+set actor_account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(indexOf(control, /^delete from recipes\b/i));
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
     });
 
     it('deletes EVERY recipe the principal owns — no public carve-out, no status axis, no tombstone filter', async () => {

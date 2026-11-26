@@ -80,6 +80,8 @@ export interface OwnerStatementView {
     readonly statementKind?: RecipeStatementKind;
     readonly publicNeedsCheck: boolean;
     readonly publicNeedsStatement: boolean;
+    readonly sourceConfirmed: boolean;
+    readonly sourceCorrected: boolean;
 }
 
 /** Optional projection extras layered onto a recipe response by the caller (detail vs. list). */

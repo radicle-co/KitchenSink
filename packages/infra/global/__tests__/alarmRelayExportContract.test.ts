@@ -41,13 +41,14 @@ function exportedName(stage: string): string | undefined {
 
 describe('the alarm relay export contract', () => {
     it('finds a copy in the global app and in every app that owns an alarm topic', () => {
-        // Non-vacuity: a discovery that found one file would compare nothing. The apps are the global app and the five
-        // service apps that build an alarm topic.
+        // Non-vacuity: a discovery that found one file would compare nothing. The apps are the global app and the service
+        // apps that build an alarm topic.
         expect(COPIES.map((file) => file.split('/').slice(0, 3).join('/')).sort()).toEqual([
             'packages/infra/global',
             'packages/services/food-service',
             'packages/services/identity',
             'packages/services/identity-webhooks',
+            'packages/services/recipe-service',
             'packages/services/recipe-workers',
             'packages/services/remote-search',
         ]);

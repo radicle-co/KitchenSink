@@ -132,6 +132,9 @@ describe('recipe-service schema — table contracts (T011–T014, T118, T119, T1
             content_pasted_at: { type: 'timestampwithtimezone', notNull: false },
             source_url: { type: 'text', notNull: false },
             source_attribution: { type: 'text', notNull: false },
+            // 0092 — when the source answer was confirmed, and whether a staff correction holds the recipe off Public.
+            source_confirmed_at: { type: 'timestampwithtimezone', notNull: false },
+            source_correction_hold: { type: 'boolean', notNull: true },
             cloned_from_id: { type: 'uuid', notNull: false },
             has_substantive_edit: { type: 'boolean', notNull: true },
             cuisine: { type: 'text', notNull: false },

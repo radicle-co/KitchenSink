@@ -35,6 +35,7 @@ import {
 } from './domain/sourceEvidence.js';
 import {
     attestationRowsOf,
+    CHOICE_OF_KIND,
     isApiWriterConfirmation,
     publicConfirmationDutyOf,
     type PublishedFacts,
@@ -58,6 +59,8 @@ export interface PublicWrite {
     readonly before: PublishedFacts | undefined;
     /** The status and visibility the write LEAVES. */
     readonly after: PublishedFacts;
+    /** Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`); `false` for a create. REQUIRED. */
+    readonly sourceCorrected: boolean;
     /** The label and kind the write LEAVES. */
     readonly source: { readonly sourceType: RecipeSourceType; readonly sourceKind: RecipeSourceKind | null };
     /** What the cook stated AFTER the write: the correction's, else the stored one. */
@@ -80,6 +83,8 @@ export interface PublicVerdict {
     readonly sourceConflict: boolean;
     /** Whether the cook said the recipe is another person's (`fromPersonOf`). */
     readonly fromPerson: boolean;
+    /** Whether a staff correction holds the recipe off Public. */
+    readonly sourceCorrected: boolean;
     /** Whether the cook still owes a statement (`statementRequiredOf`). */
     readonly statementRequired: boolean;
     /** Whether the write records the confirmation it was sent. */
@@ -107,7 +112,10 @@ export class PublicStatementGate {
         @Inject(RecipeSourceEvidenceDal)
         private readonly evidence: Pick<RecipeSourceEvidenceDal, 'insert' | 'list'>,
         @Inject(RecipeStatementAttestationsDal)
-        private readonly attestations: Pick<RecipeStatementAttestationsDal, 'insertMany' | 'hasFromPerson'>,
+        private readonly attestations: Pick<
+            RecipeStatementAttestationsDal,
+            'insertMany' | 'hasFromPerson' | 'hasWordedAttestation'
+        >,
     ) {}
 
     /**
@@ -148,6 +156,7 @@ export class PublicStatementGate {
             ...write.source,
             sourceConflict,
             fromPerson,
+            sourceCorrected: write.sourceCorrected,
             statementRequired,
             principalKind: write.principal.principalKind,
             containment: write.principal.containment,
@@ -174,6 +183,7 @@ export class PublicStatementGate {
         return {
             sourceConflict,
             fromPerson,
+            sourceCorrected: write.sourceCorrected,
             statementRequired,
             recordsConfirmation: !marker && duty.recordedWhenSupplied,
         };
@@ -209,6 +219,31 @@ export class PublicStatementGate {
                 rows.map((row) => ({ ...row, recipeId: records.recipeId, accountId: records.accountId })),
             );
         }
+    }
+
+    /**
+     * Whether a statement that only RESTATES the stored source still leaves its attestation: it is worded, and the recipe holds no
+     * worded attestation of that answer yet (KTD-2). The case is "paste a link, then Publish with 'From a web page'": the source
+     * and its evidence were written by the paste, and the attestation is written once, by the publish.
+     *
+     * @param tx - The open transaction.
+     * @param recipeId - The stored recipe.
+     * @param statement - The request's statement, already known to restate the stored answer.
+     * @returns The statement to record, or `undefined` when it records nothing.
+     * @sideEffect Reads `recipe_statement_attestations`, and only for a worded statement.
+     */
+    public async restatementToRecord(
+        tx: RecipeTx,
+        recipeId: string,
+        statement: RecipeStatementInput,
+    ): Promise<RecipeStatementInput | undefined> {
+        if (statement.wording === undefined) {
+            return undefined;
+        }
+
+        return (await this.attestations.hasWordedAttestation(tx, recipeId, CHOICE_OF_KIND[statement.kind]))
+            ? undefined
+            : statement;
     }
 
     /**

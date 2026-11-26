@@ -157,6 +157,13 @@ beforeAll(async () => {
                         status: stored.status as RecipeStatus,
                         sourceType: stored.sourceType,
                         sourceKind: stored.sourceKind,
+                        contentPastedAt: stored.contentPastedAt,
+                        sourceAttribution: stored.sourceAttribution,
+                        clonedFromId: stored.clonedFromId,
+                        statementKind: stored.statementKind,
+                        sourceUrl: stored.sourceUrl,
+                        sourceConfirmedAt: stored.sourceConfirmedAt,
+                        sourceCorrectionHold: stored.sourceCorrectionHold,
                     }),
                     // ADR-0029 section 4: the database holds no private food in these suites.
                     privateFoodLines: async () => [],

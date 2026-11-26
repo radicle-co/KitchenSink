@@ -16,6 +16,8 @@ import {
 } from '@radicle-co/infra-shared/alb';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
+import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
+import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
 import { RecipeSchemaStack } from '../lib/RecipeSchemaStack.js';
@@ -132,7 +134,12 @@ function synthSchemaTemplate(stage: string, baseStage: string): Template {
     return Template.fromStack(stack);
 }
 
-function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string): Template {
+function synthTemplate(
+    stage: string,
+    baseStage: string,
+    foodServiceUrl?: string,
+    alarms: { readonly alarmsEnabled: boolean; readonly alertEmail?: string } = { alarmsEnabled: false },
+): Template {
     const app = testApp({ context: { ...VPC_LOOKUP_CONTEXT } });
     const stack = new RecipeServiceStack(app, `Recipe-${stage}`, {
         env: { account: '123456789012', region: 'us-east-1' },
@@ -143,6 +150,7 @@ function synthTemplate(stage: string, baseStage: string, foodServiceUrl?: string
         desiredCount: 1,
         vpcId: 'vpc-12345678',
         foodServiceUrl: foodServiceUrl ?? `https://food-${stage}.example.com`,
+        ...alarms,
     });
 
     return Template.fromStack(stack);
@@ -1194,6 +1202,7 @@ describe('the log drains are attached only when CI resolved a forwarder ARN', ()
         const template = Template.fromStack(
             new RecipeServiceStack(testApp({ context: { ...VPC_LOOKUP_CONTEXT } }), 'RecipeServiceStackDrain', {
                 env: { account: '123456789012', region: 'us-east-1' },
+                alarmsEnabled: false,
                 stage: 'sandbox',
                 baseStage: 'sandbox',
                 vpcId: 'vpc-12345678',
@@ -1250,6 +1259,7 @@ describe('every ECS service and cluster carries the per-PR Environment tag (ADR-
             desiredCount: 1,
             vpcId: 'vpc-12345678',
             foodServiceUrl: 'https://food-pr-1.example.com',
+            alarmsEnabled: false,
         });
 
         // Exactly what `bin/app.ts` does for a `pr-` stage.
@@ -1365,5 +1375,75 @@ describe('media CDN wiring (ADR-0064)', () => {
         expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('distribution/');
         expect(JSON.stringify(invalidation[0]?.['Resource'])).not.toBe('"*"');
         expect(JSON.stringify(invalidation[0]?.['Resource'])).toContain('SsmParameterValue');
+    });
+});
+
+/**
+ * The source-correction volume alarm (ADR-0100, plan everyAnswerSourceLock KTD-11, qse Q-10): an alarm directly on the EMF metric `source.corrected`, no metric filter. A staff
+ * correction is rare and manual, so more than 10 in a day is a leaked grant or a runaway script.
+ */
+describe('the source-correction volume alarm (ADR-0100)', () => {
+    const ENABLED = { alarmsEnabled: true, alertEmail: 'ops@example.com' } as const;
+
+    it('watches Commise/RecipeSource source.corrected on the Stage dimension: Sum over 86400 s, above 10, missing data not breaching', () => {
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: {
+                Namespace: SOURCE_EVENT_NAMESPACE,
+                MetricName: SOURCE_CORRECTED_METRIC,
+                Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'prod' }],
+                AlarmDescription: Match.stringLikeRegexp('^More than 10 staff source corrections'),
+                Statistic: 'Sum',
+                Period: 86400,
+                EvaluationPeriods: 1,
+                Threshold: 10,
+                ComparisonOperator: 'GreaterThanThreshold',
+                TreatMissingData: 'notBreaching',
+            },
+        });
+
+        expect(Object.keys(matching)).toHaveLength(1);
+    });
+
+    it('notifies the stack`s own alarm topic, which lets CloudWatch publish to it and has an email subscription', () => {
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+        const notifying = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { AlarmActions: [{ Ref: topics[0] }] },
+        });
+        const policies = template.findResources('AWS::SNS::TopicPolicy', {
+            Properties: {
+                PolicyDocument: {
+                    Statement: Match.arrayWith([
+                        Match.objectLike({ Sid: 'AllowCloudWatchAlarmPublish', Action: 'sns:Publish' }),
+                    ]),
+                },
+            },
+        });
+        const subscriptions = template.findResources('AWS::SNS::Subscription', {
+            Properties: { Protocol: 'email', Endpoint: 'ops@example.com' },
+        });
+
+        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(1);
+        expect(topics).toHaveLength(1);
+        expect(Object.keys(notifying)).toHaveLength(1);
+        expect(Object.keys(policies)).toHaveLength(1);
+        expect(Object.keys(subscriptions)).toHaveLength(1);
+    });
+
+    it('is keyed to the deploy stage, so a preview watches its own series', () => {
+        const template = synthTemplate('pr-73', 'sandbox', undefined, ENABLED);
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'pr-73' }] },
+        });
+
+        expect(Object.keys(matching)).toHaveLength(1);
+    });
+
+    it('creates NO alarm while the stage switch is off, and the topic stays (a topic nothing publishes to costs nothing)', () => {
+        const template = synthTemplate('prod', 'prod');
+
+        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(0);
+        expect(Object.keys(template.findResources('AWS::SNS::Topic'))).toHaveLength(1);
     });
 });

@@ -21,6 +21,7 @@ import { HealthController } from '../../../health/health.controller.js';
 import { IngredientsController } from '../../../ingredients/ingredients.controller.js';
 import { PhotosController } from '../../../photos/photos.controller.js';
 import { RecipesController } from '../../../recipes/recipes.controller.js';
+import { SourceCorrectionController } from '../../../recipes/sourceCorrection.controller.js';
 import { SearchController } from '../../../search/search.controller.js';
 import { VersionsController } from '../../../versions/versions.controller.js';
 
@@ -44,6 +45,21 @@ type ControllerClass = new (...args: never[]) => object;
 type Handler = (...args: never[]) => unknown;
 
 /** A minimal `ExecutionContext` exposing only what `ThrottlerGuard` reads: the handler, class, and req/res. */
+function isHandler(value: unknown): value is Handler {
+    return typeof value === 'function';
+}
+
+/** A controller's handler read by name from its prototype, so a rename fails here and not as a silent miss. */
+function handlerOf(controllerClass: ControllerClass, name: string): Handler {
+    const handler: unknown = Reflect.get(controllerClass.prototype, name);
+
+    if (!isHandler(handler)) {
+        throw new Error(`${controllerClass.name} has no handler named ${name}`);
+    }
+
+    return handler;
+}
+
 function contextFor(controllerClass: ControllerClass, handler: Handler): ExecutionContext {
     const req = { ip: '203.0.113.7', headers: {} as Record<string, string | undefined> };
     const res = { header: (): void => undefined };
@@ -122,6 +138,18 @@ describe('throttle wiring — effective per-route limits enforced by the real Th
         ['recipes.remove (write)', RecipesController, RecipesController.prototype.remove, writeLimit],
         ['recipes.clone (write)', RecipesController, RecipesController.prototype.clone, writeLimit],
         ['recipes.setVisibility (write)', RecipesController, RecipesController.prototype.setVisibility, writeLimit],
+        [
+            'recipes.correctSource (write)',
+            SourceCorrectionController,
+            handlerOf(SourceCorrectionController, 'correctSource'),
+            writeLimit,
+        ],
+        [
+            'recipes.previewSource (read)',
+            SourceCorrectionController,
+            handlerOf(SourceCorrectionController, 'previewSource'),
+            readLimit,
+        ],
         ['collections.create (write)', CollectionsController, CollectionsController.prototype.create, writeLimit],
         ['collections.update (write)', CollectionsController, CollectionsController.prototype.update, writeLimit],
         ['collections.remove (write)', CollectionsController, CollectionsController.prototype.remove, writeLimit],

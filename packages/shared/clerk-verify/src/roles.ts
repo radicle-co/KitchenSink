@@ -43,6 +43,7 @@ const EVERY_CHECKED_SCOPE: readonly string[] = [
     'recipes:import:public',
     'recipes:mappings:global',
     'recipes:parses:global',
+    'recipes:source:correct',
 ];
 
 /**

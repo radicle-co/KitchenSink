@@ -90,6 +90,7 @@ describe('scopesForRoles', () => {
             'recipes:import:public',
             'recipes:mappings:global',
             'recipes:parses:global',
+            'recipes:source:correct',
         ]);
     });
 
@@ -100,6 +101,7 @@ describe('scopesForRoles', () => {
             'recipes:import:public',
             'recipes:mappings:global',
             'recipes:parses:global',
+            'recipes:source:correct',
         ]);
     });
 

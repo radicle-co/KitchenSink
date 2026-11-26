@@ -168,6 +168,10 @@
             "labelKey": "recipeState.refusal.sourceConflict"
         },
         {
+            "reason": "sourceCorrected",
+            "labelKey": "recipeState.refusal.sourceCorrected"
+        },
+        {
             "reason": "privateSlots",
             "labelKey": "recipeState.refusal.privateSlots"
         },

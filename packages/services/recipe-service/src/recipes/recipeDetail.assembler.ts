@@ -339,6 +339,8 @@ export class RecipeDetailAssembler {
         return {
             ...(recipe.statementKind === null ? {} : { statementKind: recipe.statementKind }),
             publicNeedsCheck: sourceConflictOfEvidence(evidence, { sourceType, sourceKind: recipe.sourceKind }),
+            sourceConfirmed: recipe.sourceConfirmedAt !== null,
+            sourceCorrected: recipe.sourceCorrectionHold,
             publicNeedsStatement: statementRequiredOfEvidence(evidence, {
                 sourceType,
                 statementKind: recipe.statementKind,

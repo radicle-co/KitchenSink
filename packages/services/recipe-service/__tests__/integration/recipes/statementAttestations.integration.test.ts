@@ -132,6 +132,7 @@ const setVisibility = vi.fn(
     },
 );
 const insertMany = vi.fn(async (_tx: unknown, _rows: readonly unknown[]) => undefined);
+const hasWordedAttestation = vi.fn(() => Promise.resolve(false));
 const hasFromPerson = vi.fn(async (_tx: unknown, _recipeId: string) => false);
 
 let evidence: RecipeSourceEvidenceRow[] = [];
@@ -239,6 +240,9 @@ beforeAll(async () => {
                             status: row.status,
                             sourceType: row.sourceType,
                             sourceKind: row.sourceKind,
+                            sourceUrl: row.sourceUrl,
+                            sourceConfirmedAt: row.sourceConfirmedAt,
+                            sourceCorrectionHold: row.sourceCorrectionHold,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
                             firstPublishedAt: row.firstPublishedAt,
@@ -258,7 +262,7 @@ beforeAll(async () => {
                     readConflict: async () => ({ current: aggregateOf(stored) }),
                 },
             },
-            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson } },
+            { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson, hasWordedAttestation } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {
@@ -294,6 +298,7 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
+    hasWordedAttestation.mockImplementation(() => Promise.resolve(false));
     evidence = [];
     writeFindsNoRow = false;
     underLock = undefined;
@@ -683,13 +688,15 @@ describe('PATCH /api/v1/recipes/{id}', () => {
 
     // Rewritten by the 2026-11-15 owner ruling: this case refused a changed statement after the first publish. The statement
     // is editable now, so the lock is proved on a source a clone inherited, and the change itself is recorded.
-    it('records the change of a held statement after the first publish', async () => {
+    /** Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2): the first publish confirms an own answer, so it cannot become "from another person". */
+    it('refuses to change a confirmed own answer to "from another person" and records nothing (KTD-1, AE1)', async () => {
         stored = rowOf({ statementKind: 'authored' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: PERSON });
 
-        expect(response.status).toBe(200);
-        expect(recorded()).toEqual([STATEMENT_ROW('fromPerson', 'statementFromPerson.v1', 'update')]);
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(insertMany).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'private' });
     });
 
     it('records nothing when the statement is refused as locked (403 SOURCE_LOCKED)', async () => {
@@ -944,7 +951,12 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         expect(insertMany).not.toHaveBeenCalled();
     });
 
-    it('the identical paid website again, on PATCH and on set-visibility, is applied as nothing and records nothing', async () => {
+    /**
+     * Re-scoped by P8 (KTD-2; qse TEST-CHANGE batch 2): the same paid website again writes no source and no evidence, and records
+     * nothing WHEN the recipe already holds its worded attestation. The twin below records it once when none is held.
+     */
+    it('the identical paid website again, with its attestation already held, is applied as nothing and records nothing', async () => {
+        hasWordedAttestation.mockImplementation(() => Promise.resolve(true));
         stored = rowOf({
             status: 'draft',
             sourceType: 'imported_paid',
@@ -966,6 +978,25 @@ describe('PATCH /api/v1/recipes/{id}/visibility', () => {
         expect(visibility.status).toBe(200);
         expect(insertEvidence).not.toHaveBeenCalled();
         expect(recorded()).toEqual([]);
+    });
+
+    it('the identical paid website again, with NO worded attestation held, writes no source and no evidence but records it once (KTD-2)', async () => {
+        stored = rowOf({
+            status: 'draft',
+            sourceType: 'imported_paid',
+            sourceKind: 'paid_site',
+            statementKind: 'source',
+            sourceAttribution: PAID_SITE.citation,
+        });
+
+        const patched = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, {
+            expectedVersion: 1,
+            statement: PAID_SITE,
+        });
+
+        expect(patched.status).toBe(200);
+        expect(insertEvidence).not.toHaveBeenCalled();
+        expect(recorded()).toEqual([STATEMENT_ROW('paidSite', 'statementPaidSite.v1', 'update')]);
     });
 
     it('"from another person" with Public is a contradiction: 400 FROM_PERSON_PRIVATE_ONLY, nothing written; with Private it is recorded', async () => {

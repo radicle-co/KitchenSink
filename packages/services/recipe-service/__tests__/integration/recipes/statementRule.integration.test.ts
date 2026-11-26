@@ -233,6 +233,9 @@ beforeAll(async () => {
                             status: row.status,
                             sourceType: row.sourceType,
                             sourceKind: row.sourceKind,
+                            sourceUrl: row.sourceUrl,
+                            sourceConfirmedAt: row.sourceConfirmedAt,
+                            sourceCorrectionHold: row.sourceCorrectionHold,
                             statementKind: row.statementKind,
                             contentPastedAt: row.contentPastedAt,
                             firstPublishedAt: row.firstPublishedAt,
@@ -538,14 +541,15 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
 
     // Rewritten by the 2026-11-15 owner ruling (ADR-0093 section 8): it asserted 403 SOURCE_LOCKED for clearing the statement
     // after the first publish. The statement stays editable, so the clear is written and visibility is left alone.
-    it('clears the statement after the first publish: 200, and visibility is left as it is', async () => {
+    /** Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2): a confirmed own answer is cleared by Commise only. */
+    it('refuses to clear a confirmed own answer after the first publish (KTD-1, AE1)', async () => {
         stored = pasted({ statementKind: 'authored' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: null });
 
-        expect(response.status).toBe(200);
-        expect(stored).toMatchObject({ statementKind: null, visibility: 'private' });
-        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'private' });
     });
 
     // Rewritten by ADR-0095: this case used to assert that a web statement was refused after the first publish, even over a recipe
@@ -565,17 +569,16 @@ describe('PATCH /api/v1/recipes/{id} — the statement rule on update and publis
 
     // Rewritten by the 2026-11-15 owner ruling: it asserted 403 SOURCE_LOCKED for changing a held statement after the first
     // publish. authored to web is now written, forces Private in the same write and appends its evidence.
-    it('CHANGES a held "I wrote this" to a web source after the first publish: 200, forced Private, evidence written', async () => {
+    /** Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2): it asserted authored to web after the first publish. */
+    it('refuses to change a confirmed "I wrote this" to a web source after the first publish (KTD-1, AE1)', async () => {
         stored = pasted({ statementKind: 'authored', visibility: 'public' });
 
         const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: WEB });
 
-        expect(response.status).toBe(200);
-        expect(stored).toMatchObject({ statementKind: 'source', sourceKind: 'public_web', visibility: 'private' });
-        expect(insertEvidence).toHaveBeenCalledWith(
-            expect.anything(),
-            expect.objectContaining({ capture: 'editorLink', sourceKind: 'public_web' }),
-        );
+        expect(await refusalOf(response)).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(update).not.toHaveBeenCalled();
+        expect(insertEvidence).not.toHaveBeenCalled();
+        expect(stored).toMatchObject({ statementKind: 'authored', visibility: 'public' });
     });
 
     it('a locked source (a clone’s inherited web source) is still refused after the first publish: 403 SOURCE_LOCKED', async () => {
@@ -799,7 +802,12 @@ describe('the whole paths a cook walks', () => {
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
-    it('AFTER THE FIRST PUBLISH, web then "I wrote this" still cannot reach Public: the evidence stays, 400 SOURCE_CONFLICT', async () => {
+    /**
+     * Flipped by P8 (ADR-0100, KTD-1; qse TEST-CHANGE batch 2). It walked web, then "I wrote this", then Public after the first
+     * publish. The PATCH is now refused: a published web copy is confirmed. The refusal leaves the web copy as it was, and a
+     * web copy is private only, so Public is refused too (the evidence rule is proved over a cook's own answer by the next case).
+     */
+    it('AFTER THE FIRST PUBLISH, a confirmed web copy cannot be relabelled "I wrote this" and cannot reach Public (KTD-1, AE1)', async () => {
         stored = pasted({
             sourceType: 'imported_public',
             sourceKind: 'public_web',
@@ -810,10 +818,25 @@ describe('the whole paths a cook walks', () => {
         evidence.push(evidenceRow());
 
         expect(
-            (await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED })).status,
-        ).toBe(200);
-        expect(stored).toMatchObject({ statementKind: 'authored', sourceKind: null });
+            await refusalOf(
+                await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, { expectedVersion: 1, statement: AUTHORED }),
+            ),
+        ).toMatchObject({ status: 403, details: { reason: 'SOURCE_LOCKED' } });
+        expect(stored).toMatchObject({ statementKind: 'source', sourceKind: 'public_web', visibility: 'private' });
         expect(evidence).toHaveLength(1);
+
+        const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
+            visibility: 'public',
+            publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+        });
+
+        expect(await refusalOf(asked)).toMatchObject({ status: 400, code: 'INVALID_VISIBILITY' });
+        expect(setVisibility).not.toHaveBeenCalled();
+    });
+
+    it('a confirmed own answer that still holds web evidence cannot reach Public: 400 SOURCE_CONFLICT', async () => {
+        stored = pasted({ statementKind: 'authored' });
+        evidence.push(evidenceRow());
 
         const asked = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, {
             visibility: 'public',

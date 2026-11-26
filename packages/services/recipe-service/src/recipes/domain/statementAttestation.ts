@@ -88,7 +88,7 @@ export type AttestationToWrite = Pick<
 >;
 
 /** The attestation choice of each statement kind a request can carry. */
-const CHOICE_OF_KIND = {
+export const CHOICE_OF_KIND = {
     authored: 'authored',
     public_web: 'publicWeb',
     book: 'book',

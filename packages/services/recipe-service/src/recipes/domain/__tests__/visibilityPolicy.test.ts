@@ -50,6 +50,7 @@ describe('evaluateVisibility — requested public', () => {
                     hasAvailablePrivateSlot: true,
                     sourceConflict: false,
                     fromPerson: false,
+                    sourceCorrected: false,
                 }),
                 true,
             );
@@ -67,6 +68,7 @@ describe('evaluateVisibility — requested public', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
             true,
         );
@@ -82,6 +84,7 @@ describe('evaluateVisibility — requested public', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         });
         const paid = evaluateVisibility({
             ...REAL_ENFORCING,
@@ -92,6 +95,7 @@ describe('evaluateVisibility — requested public', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         });
 
         expectDecision(physical, false);
@@ -143,6 +147,7 @@ describe('evaluateVisibility — requested private (ADR-0073 §6, amended by ADR
             hasAvailablePrivateSlot: row.hasAvailablePrivateSlot,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         });
 
         expectDecision(decision, row.allowed);
@@ -165,6 +170,7 @@ describe('evaluateVisibility — requested private (ADR-0073 §6, amended by ADR
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
             true,
         );
@@ -178,6 +184,7 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
         sourceKind: 'public_web',
         sourceConflict: false,
         fromPerson: false,
+        sourceCorrected: false,
     } as const;
 
     it.each([true, false])('DENIES public as a POLICY denial whatever the tier (premium %s)', (isPremium) => {
@@ -188,6 +195,7 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         });
 
         expectDecision(decision, false);
@@ -206,6 +214,7 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
             evaluateVisibility({
                 ...WEB_COPY,
@@ -216,6 +225,7 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ].map((decision) => decision.reason);
 
@@ -232,6 +242,7 @@ describe('evaluateVisibility — a web copy is private only (ADR-0089)', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
             true,
         );
@@ -258,6 +269,7 @@ describe('evaluatePublishedState — a private-only recipe is never left publish
             visibility: PUBLIC,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
             statementRequired: false,
             ...REAL_ENFORCING,
             sourceType: RecipeSourceType.IMPORTED_PUBLIC,
@@ -292,12 +304,14 @@ describe('defaultCloneVisibility', () => {
             defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PUBLIC);
         expect(
             defaultCloneVisibility(RecipeSourceType.IMPORTED_PUBLIC, null, REAL_ENFORCING, PUBLIC, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PUBLIC);
     });
@@ -307,6 +321,7 @@ describe('defaultCloneVisibility', () => {
             defaultCloneVisibility(RecipeSourceType.IMPORTED_PUBLIC, 'public_web', REAL_ENFORCING, PUBLIC, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PRIVATE);
     });
@@ -317,6 +332,7 @@ describe('defaultCloneVisibility', () => {
                 defaultCloneVisibility(sourceType, null, REAL_ENFORCING, PRIVATE, {
                     sourceConflict: false,
                     fromPerson: false,
+                    sourceCorrected: false,
                 }),
             ).toBe(PRIVATE);
         }
@@ -327,12 +343,14 @@ describe('defaultCloneVisibility', () => {
             defaultCloneVisibility(RecipeSourceType.IMPORTED_PHYSICAL, null, REAL_ENFORCING, PRIVATE, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PRIVATE);
         expect(
             defaultCloneVisibility(RecipeSourceType.IMPORTED_PAID, null, REAL_ENFORCING, PRIVATE, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PRIVATE);
     });
@@ -353,6 +371,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             });
 
             expectDecision(decision, false);
@@ -371,6 +390,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
             requested: PRIVATE,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         } as const;
         const premium = evaluateVisibility({ ...base, isPremium: true, hasAvailablePrivateSlot: false });
         const freeWithSlot = evaluateVisibility({ ...base, isPremium: false, hasAvailablePrivateSlot: true });
@@ -394,6 +414,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
                 hasAvailablePrivateSlot: true,
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
             true,
         );
@@ -409,6 +430,7 @@ describe('evaluateVisibility — test-principal containment (ADR-0040)', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
         });
 
         expect(decision.allowed === false && decision.denial).toBe('policy');
@@ -422,6 +444,7 @@ describe('defaultCloneVisibility — test-principal containment (ADR-0040)', () 
                 defaultCloneVisibility(sourceType, null, { principalKind: 'test', containment: 'enforce' }, PUBLIC, {
                     sourceConflict: false,
                     fromPerson: false,
+                    sourceCorrected: false,
                 }),
             ).toBe(PRIVATE);
         }
@@ -434,7 +457,7 @@ describe('defaultCloneVisibility — test-principal containment (ADR-0040)', () 
                 null,
                 { principalKind: 'test', containment: 'off' },
                 PUBLIC,
-                { sourceConflict: false, fromPerson: false },
+                { sourceConflict: false, fromPerson: false, sourceCorrected: false },
             ),
         ).toBe(PUBLIC);
     });
@@ -455,6 +478,7 @@ describe('evaluateVisibility — sourceConflict', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
             ...over,
         });
 
@@ -499,6 +523,7 @@ describe('evaluatePublishedState — sourceConflict', () => {
             sourceKind: null,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
             statementRequired: false,
             ...REAL_ENFORCING,
             ...over,
@@ -527,12 +552,14 @@ describe('defaultCloneVisibility — sourceConflict', () => {
             defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, {
                 sourceConflict: true,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PRIVATE);
         expect(
             defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, {
                 sourceConflict: false,
                 fromPerson: false,
+                sourceCorrected: false,
             }),
         ).toBe(PUBLIC);
     });
@@ -541,12 +568,13 @@ describe('defaultCloneVisibility — sourceConflict', () => {
 // The statement rule (Option B) and the stored "from another person" rule: the state a write LEAVES is refused, in ONE order.
 describe('evaluatePublishedState — the order of refusals', () => {
     /** The refusals in the policy's order, which is the contract: containment is asked before all of them, separately below. */
-    const REFUSALS = ['privateOnly', 'sourceConflict', 'fromPerson', 'statementRequired'] as const;
+    const REFUSALS = ['privateOnly', 'sourceConflict', 'fromPerson', 'sourceCorrected', 'statementRequired'] as const;
     type Refusal = (typeof REFUSALS)[number];
     const DENIAL_OF = {
         privateOnly: 'policy',
         sourceConflict: 'sourceConflict',
         fromPerson: 'fromPerson',
+        sourceCorrected: 'sourceCorrected',
         statementRequired: 'statementRequired',
     } as const satisfies Record<Refusal, string>;
 
@@ -565,6 +593,7 @@ describe('evaluatePublishedState — the order of refusals', () => {
                 : { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null }),
             sourceConflict: present.includes('sourceConflict'),
             fromPerson: present.includes('fromPerson'),
+            sourceCorrected: present.includes('sourceCorrected'),
             statementRequired: present.includes('statementRequired'),
             ...subject,
         });
@@ -600,9 +629,11 @@ describe('evaluatePublishedState — the order of refusals', () => {
     });
 
     it.each(SUBSETS)(
-        'a DRAFT (public or private) with %j is never refused: only its owner can read it',
+        'a DRAFT (public or private) with %j is never refused, except a PUBLIC draft held by a staff correction',
         (...present) => {
-            expectDecision(leave(RecipeStatus.DRAFT, PUBLIC, present), true);
+            // Only its owner can read a draft, so no refusal applies, with ONE exception: the database refuses a held recipe
+            // that is public whatever its status (`recipes_held_is_not_public`), so the policy answers it first (a typed 400, not a 500).
+            expectDecision(leave(RecipeStatus.DRAFT, PUBLIC, present), !present.includes('sourceCorrected'));
             expectDecision(leave(RecipeStatus.DRAFT, PRIVATE, present), true);
         },
     );
@@ -652,11 +683,12 @@ describe('evaluateVisibility — fromPerson', () => {
             hasAvailablePrivateSlot: true,
             sourceConflict: false,
             fromPerson: false,
+            sourceCorrected: false,
             ...over,
         });
 
     it('denies Public with its own discriminant, even for a DRAFT request (a draft is public by default)', () => {
-        const decision = ask({ fromPerson: true });
+        const decision = ask({ fromPerson: true, sourceCorrected: false });
 
         expect(decision).toMatchObject({ allowed: false, denial: 'fromPerson' });
         expect(decision.reason.length).toBeGreaterThan(0);
@@ -664,19 +696,19 @@ describe('evaluateVisibility — fromPerson', () => {
 
     it('never refuses Private, free or premium', () => {
         for (const isPremium of [false, true]) {
-            expectDecision(ask({ requested: PRIVATE, fromPerson: true, isPremium }), true);
+            expectDecision(ask({ requested: PRIVATE, fromPerson: true, sourceCorrected: false, isPremium }), true);
         }
     });
 
     it('answers after containment, private-only and the evidence rule, and before nothing it shares', () => {
-        const all = { fromPerson: true, sourceConflict: true };
+        const all = { fromPerson: true, sourceCorrected: false, sourceConflict: true };
 
         expect(ask({ ...all, principalKind: 'test', containment: 'enforce' })).toMatchObject({ denial: 'contained' });
         expect(ask({ ...all, sourceType: RecipeSourceType.IMPORTED_PHYSICAL, sourceKind: 'book' })).toMatchObject({
             denial: 'policy',
         });
         expect(ask(all)).toMatchObject({ denial: 'sourceConflict' });
-        expect(ask({ fromPerson: true })).toMatchObject({ denial: 'fromPerson' });
+        expect(ask({ fromPerson: true, sourceCorrected: false })).toMatchObject({ denial: 'fromPerson' });
     });
 });
 
@@ -686,7 +718,41 @@ describe('defaultCloneVisibility — fromPerson', () => {
             defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, {
                 sourceConflict: false,
                 fromPerson: true,
+                sourceCorrected: false,
             }),
         ).toBe(PRIVATE);
+    });
+});
+
+// ADR-0100: a staff correction holds the recipe off Public, at every route to Public.
+describe('the staff-correction hold (migration 0092)', () => {
+    const ASK = {
+        ...REAL_ENFORCING,
+        sourceType: RecipeSourceType.USER_CREATED,
+        sourceKind: null,
+        isPremium: false,
+        hasAvailablePrivateSlot: true,
+        sourceConflict: false,
+        fromPerson: false,
+    } as const;
+
+    it('refuses a request for Public on a held recipe, as the sourceCorrected denial', () => {
+        const decision = evaluateVisibility({ ...ASK, requested: PUBLIC, sourceCorrected: true });
+
+        expectDecision(decision, false);
+        expect(!decision.allowed && decision.denial).toBe('sourceCorrected');
+    });
+
+    it('never refuses Private because of the hold, and allows Public once the hold is gone (the only difference)', () => {
+        expectDecision(evaluateVisibility({ ...ASK, requested: PRIVATE, sourceCorrected: true }), true);
+        expectDecision(evaluateVisibility({ ...ASK, requested: PUBLIC, sourceCorrected: false }), true);
+    });
+
+    it('a clone of a held recipe defaults to Private whoever clones it', () => {
+        const held = { sourceConflict: false, fromPerson: false, sourceCorrected: true };
+        const open = { ...held, sourceCorrected: false };
+
+        expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, held)).toBe(PRIVATE);
+        expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, open)).toBe(PUBLIC);
     });
 });

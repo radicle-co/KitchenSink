@@ -75,6 +75,7 @@ describe('verifyClerkToken — roles from a really signed token', () => {
             'recipes:import:public',
             'recipes:mappings:global',
             'recipes:parses:global',
+            'recipes:source:correct',
         ]);
     });
 

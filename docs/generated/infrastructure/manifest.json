@@ -1159,9 +1159,26 @@
                             "handler": null,
                             "condition": null,
                             "notes": []
+                        },
+                        {
+                            "kind": "topic",
+                            "logicalId": "RecipeServiceAlarmTopic",
+                            "nameTemplate": null,
+                            "handler": null,
+                            "condition": null,
+                            "notes": []
+                        },
+                        {
+                            "kind": "alarm",
+                            "logicalId": "SourceCorrectionVolumeAlarm",
+                            "nameTemplate": "kitchensink-recipe-source-corrected-{stage}",
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
                         }
                     ],
                     "importedExports": [
+                        "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                         "kitchensink-alb-{baseStage}:SharedAlbArn",
                         "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
                         "kitchensink-alb-{baseStage}:SharedAlbDnsName",
@@ -1178,6 +1195,8 @@
                     ],
                     "unclassifiedConstructs": [
                         "aws-cdk-lib.CfnOutput",
+                        "aws-cdk-lib/aws-cloudwatch-actions.SnsAction",
+                        "aws-cdk-lib/aws-cloudwatch.Metric",
                         "aws-cdk-lib/aws-ecs.Cluster",
                         "aws-cdk-lib/aws-ecs.FargateTaskDefinition",
                         "aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule",
@@ -1195,6 +1214,7 @@
                 }
             ],
             "importedExports": [
+                "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn",
                 "kitchensink-alb-{baseStage}:SharedAlbArn",
                 "kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId",
                 "kitchensink-alb-{baseStage}:SharedAlbDnsName",
@@ -2103,6 +2123,14 @@
             "producerPackage": "@kitchensink/infra-global",
             "producerStack": "ServiceLogsStack",
             "exportName": "kitchensink-service-logs-{stage}:IdentityServiceLogGroupName"
+        },
+        {
+            "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",
+            "consumerPackage": "@kitchensink/recipe-service-infra",
+            "producerEntrypoint": "packages/infra/global/bin/app.ts",
+            "producerPackage": "@kitchensink/infra-global",
+            "producerStack": "AlarmRelayStack",
+            "exportName": "kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn"
         },
         {
             "consumerEntrypoint": "packages/services/recipe-service/infra/bin/app.ts",

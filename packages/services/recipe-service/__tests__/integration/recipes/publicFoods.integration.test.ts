@@ -174,6 +174,13 @@ beforeAll(async () => {
                         status: stored.status,
                         sourceType: stored.sourceType,
                         sourceKind: stored.sourceKind,
+                        contentPastedAt: stored.contentPastedAt,
+                        sourceAttribution: stored.sourceAttribution,
+                        clonedFromId: stored.clonedFromId,
+                        statementKind: stored.statementKind,
+                        sourceUrl: stored.sourceUrl,
+                        sourceConfirmedAt: stored.sourceConfirmedAt,
+                        sourceCorrectionHold: stored.sourceCorrectionHold,
                     }),
                     findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
                     // The database's own last check finds nothing: the policy alone must refuse here.

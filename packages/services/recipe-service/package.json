@@ -8,6 +8,7 @@
         "build": "tsc -p tsconfig.build.json",
         "bundle:lambda": "node esbuild.mjs",
         "contract:generate": "tsx contract/generate.ts",
+        "correct-source": "tsx scripts/correctSource.ts",
         "dev": "NODE_ENV=development vite-node --watch src/main.ts",
         "docker:prepare": "node ../../../scripts/prepareProdManifest.mjs",
         "format": "prettier --write .",

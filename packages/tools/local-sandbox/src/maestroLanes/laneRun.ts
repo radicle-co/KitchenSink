@@ -21,6 +21,7 @@ import type { FlowResult } from '@kitchensink/e2e-plan/recordedScreens';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { failureEvidenceDir, pruneFailureRuns } from './failureEvidence.js';
+import { flowResultLines, notPassed } from './flowResultLines.js';
 import type { HostLock } from './hostLock.js';
 import type { StagedOneOffs } from './oneOffStage.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
@@ -141,7 +142,7 @@ const laneName = (lane: LaneSpec): string => `${lane.platform}-${lane.index}`;
  * Plan one platform: its lanes, or none when it has nothing to run. With staged one-off ids the platform runs only
  * those: the selector is not asked, every lane is handed the ids, and the green stamp does not move.
  *
- * @throws When no lane has its Clerk users (refused before anything starts).
+ * @throws When no lane has its Clerk users, or no lane can hold a chosen flow (refused before anything starts).
  */
 async function planPlatform(
     deps: LaneRunDeps,
@@ -192,6 +193,15 @@ async function planPlatform(
         requested: Math.min(request.requested ?? adapter.maxLanes, adapter.maxLanes),
     });
     const count = await fitLaneCount(plan.count, (index, of) => deps.pack(platform, index, of, flows));
+
+    // Flows were chosen and no lane can hold one: ending green here would pass flows that never ran.
+    if (count === 0) {
+        throw new Error(
+            `maestro:lanes: ${platform} has ${String(flows.length)} flow(s) to run and no lane can hold one ` +
+                `(planned ${String(plan.count)}, bound by ${plan.boundBy}) - nothing was started`,
+        );
+    }
+
     deps.log(
         `${platform}: ${count} lane(s) for ${flows.length} flow(s) (planned ${plan.count}, bound by ${plan.boundBy}; ` +
             `caps ${JSON.stringify(plan.caps)})`,
@@ -445,7 +455,23 @@ async function runPlanned(
             return ABORTED;
         }
 
+        const runPlans = plans.filter((plan) => plan.lanes.length > 0);
         const checked = await deps.checkScreens(lanes);
+
+        // A flow passes only on a recorded pass: one line each says how it ended, and any other ending fails the run
+        // even when every lane exited 0 (a lane that stopped quietly leaves no result at all).
+        let unpassed = 0;
+
+        for (const plan of runPlans) {
+            const { platform } = plan.adapter;
+            const results = checked.results.get(platform) ?? new Map<string, FlowResult>();
+
+            for (const line of flowResultLines({ platform, flows: plan.flows, results })) {
+                deps.log(line);
+            }
+
+            unpassed += notPassed(plan.flows, results).length;
+        }
 
         // A one-off is not part of the committed suite, so a run of one-offs earns the stamp nothing.
         for (const plan of plans.filter((candidate) => candidate.oneOffs.length === 0)) {
@@ -460,7 +486,7 @@ async function runPlanned(
             });
         }
 
-        return Math.max(...codes, checked.code);
+        return Math.max(...codes, checked.code, unpassed > 0 ? 1 : 0);
     };
 
     // Every step runs whatever the one before it did. The services stop before the run users go (a lane's reset needs

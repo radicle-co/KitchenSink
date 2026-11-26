@@ -184,7 +184,18 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
 
                 return Promise.resolve();
             },
-            checkScreens: () => Promise.resolve({ code: 0, results: new Map() }),
+            // Every planned flow passed, so a test of something else still sees a clean run. The flows come from the run's
+            // own plan, not from a second list here.
+            checkScreens: (_lanes, planned) =>
+                Promise.resolve({
+                    code: 0,
+                    results: new Map(
+                        [...planned].map(([platform, flows]) => [
+                            platform,
+                            new Map(flows.map((flow) => [flow, 'passed'] as const)),
+                        ]),
+                    ),
+                }),
             settleStamp: () => Promise.resolve(),
             spawnLane: (lane, laneEnv) =>
                 spawnRunner({ script: runner, cwd: state, env: laneEnv, log: path.join(lane.stateDir, 'runner.log') }),
@@ -1316,5 +1327,102 @@ describe('runLaneRun: the preflight of each adapter', () => {
 
         expect(spawned).not.toHaveBeenCalled();
         expect(events).toContain('teardownHost android');
+    });
+});
+
+describe('runLaneRun: a flow passes only on a recorded pass, and the door says so for each flow', () => {
+    const fourFlows = {
+        selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [], owed: [] }),
+        pack: () => Promise.resolve(['a', 'b', 'c', 'd']),
+    };
+
+    const withResults = (android: ReadonlyMap<string, 'passed' | 'failed' | 'skipped'>): Partial<LaneRunDeps> => ({
+        ...fourFlows,
+        checkScreens: () => Promise.resolve({ code: 0, results: new Map([['android', android]]) }),
+    });
+
+    const everyFlowPassed = new Map([
+        ['a', 'passed'],
+        ['b', 'passed'],
+        ['c', 'passed'],
+        ['d', 'passed'],
+    ] as const);
+
+    const resultLines = (events: readonly string[]): string[] =>
+        events.filter((event) => /^log (android|ios) \S+: /u.test(event)).map((event) => event.slice('log '.length));
+
+    it('prints one line per planned flow, once, with its platform and a fixed status word', async () => {
+        const mixed = new Map([
+            ['a', 'passed'],
+            ['b', 'failed'],
+            ['c', 'skipped'],
+        ] as const);
+        const { deps, events } = harness(withResults(mixed));
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 2, selection: 'all' });
+
+        expect(resultLines(events)).toEqual([
+            'android a: passed',
+            'android b: FAILED',
+            'android c: skipped',
+            'android d: NO RESULT',
+        ]);
+    });
+
+    it('prints each platform of a two-platform run under its own name', async () => {
+        const { deps, events } = harness({
+            ...fourFlows,
+            checkScreens: () =>
+                Promise.resolve({
+                    code: 0,
+                    results: new Map([
+                        ['android', everyFlowPassed],
+                        ['ios', new Map()],
+                    ]),
+                }),
+        });
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], requested: 1, selection: 'all' });
+
+        expect(resultLines(events)).toEqual([
+            'android a: passed',
+            'android b: passed',
+            'android c: passed',
+            'android d: passed',
+            'ios a: NO RESULT',
+            'ios b: NO RESULT',
+            'ios c: NO RESULT',
+            'ios d: NO RESULT',
+        ]);
+    });
+
+    it('exits 0 when every planned flow recorded a pass', async () => {
+        const { deps } = harness(withResults(everyFlowPassed));
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).toBe(0);
+    });
+
+    it.each([
+        ['a silent recorder', new Map<string, 'passed' | 'failed' | 'skipped'>()],
+        ['one failed flow', new Map([...everyFlowPassed, ['c', 'failed' as const]])],
+        ['one skipped flow', new Map([...everyFlowPassed, ['c', 'skipped' as const]])],
+        ['one flow with no record', new Map([...everyFlowPassed].filter(([flow]) => flow !== 'd'))],
+    ])('exits non-zero on %s even though every lane exited 0', async (_name, android) => {
+        const { deps } = harness(withResults(android));
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).not.toBe(0);
+    });
+
+    it('says a one-off that did not pass has screenshots that are not evidence, and exits non-zero', async () => {
+        const ids = ['oneOff/run1/shots'];
+        const { deps, events } = harness({
+            stageOneOffs: () => ({ ids, remove: () => undefined }),
+            checkScreens: () => Promise.resolve({ code: 0, results: new Map([['android', new Map()]]) }),
+        });
+
+        const code = await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(resultLines(events)).toEqual(['android oneOff/run1/shots: NO RESULT, screenshots not evidence']);
+        expect(code).not.toBe(0);
     });
 });

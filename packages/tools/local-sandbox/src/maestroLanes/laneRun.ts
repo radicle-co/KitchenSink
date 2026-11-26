@@ -21,6 +21,7 @@ import type { FlowResult } from '@kitchensink/e2e-plan/recordedScreens';
 import type { Env } from '@kitchensink/e2e-plan/stampRun';
 
 import { failureEvidenceDir, pruneFailureRuns } from './failureEvidence.js';
+import { flowResultLines, notPassed } from './flowResultLines.js';
 import type { HostLock } from './hostLock.js';
 import type { StagedOneOffs } from './oneOffStage.js';
 import { fitLaneCount, flowSelector, laneSpecs } from './lanePlanning.js';
@@ -100,7 +101,10 @@ export interface LaneRunDeps {
      * After the lanes exit: checks the screens their flows showed against the registry. Its code folds into the run's
      * exit code; its results say how each flow ended.
      */
-    checkScreens(lanes: readonly LaneSpec[]): Promise<ScreenOutcome>;
+    checkScreens(
+        lanes: readonly LaneSpec[],
+        planned: ReadonlyMap<LanePlatform, readonly string[]>,
+    ): Promise<ScreenOutcome>;
     /**
      * Once per planned platform, after the check, unless the operator stopped the run: moves the green stamp if the run
      * earned it. It must not throw for a stamp that stays: that never changes the exit code.
@@ -445,7 +449,26 @@ async function runPlanned(
             return ABORTED;
         }
 
-        const checked = await deps.checkScreens(lanes);
+        const runPlans = plans.filter((plan) => plan.lanes.length > 0);
+        const checked = await deps.checkScreens(
+            lanes,
+            new Map(runPlans.map((plan) => [plan.adapter.platform, plan.flows] as const)),
+        );
+
+        // A flow passes only on a recorded pass: one line each says how it ended, and any other ending fails the run
+        // even when every lane exited 0 (a lane that stopped quietly leaves no result at all).
+        let unpassed = 0;
+
+        for (const plan of runPlans) {
+            const { platform } = plan.adapter;
+            const results = checked.results.get(platform) ?? new Map<string, FlowResult>();
+
+            for (const line of flowResultLines({ platform, flows: plan.flows, results })) {
+                deps.log(line);
+            }
+
+            unpassed += notPassed(plan.flows, results).length;
+        }
 
         // A one-off is not part of the committed suite, so a run of one-offs earns the stamp nothing.
         for (const plan of plans.filter((candidate) => candidate.oneOffs.length === 0)) {
@@ -460,7 +483,7 @@ async function runPlanned(
             });
         }
 
-        return Math.max(...codes, checked.code);
+        return Math.max(...codes, checked.code, unpassed > 0 ? 1 : 0);
     };
 
     // Every step runs whatever the one before it did. The services stop before the run users go (a lane's reset needs

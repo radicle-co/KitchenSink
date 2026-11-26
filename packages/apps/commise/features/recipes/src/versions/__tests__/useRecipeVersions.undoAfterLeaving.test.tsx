@@ -146,7 +146,7 @@ const undoSettled = async (queryClient: QueryClient): Promise<void> => {
 
 const statusText = (): string => screen.getByRole('status').textContent;
 
-/** What was logged, minus React's act() notice: the Undo settles outside any test act, which is no fault of the code. */
+/** What was logged, minus React's act() notice: the Undo settles outside a test act, which is no code fault. */
 const realErrors = (spy: { mock: { calls: unknown[][] } }): unknown[][] =>
     spy.mock.calls.filter(([first]) => !String(first).includes('not wrapped in act'));
 
@@ -164,7 +164,7 @@ describe('the version restore Undo, after its page unmounted', () => {
         expect(restorePosts[1]).toMatch(/\/versions\/3\/restore$/);
     });
 
-    it('shows the gone message, and does not throw or log, when the server answers 404 with its JSON body', async () => {
+    it('shows the gone message, and does not throw or log, for a 404 with its JSON body', async () => {
         const { consoleError } = await setup(() => json(404, NEST_404));
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));

@@ -49,7 +49,7 @@ const NEST_404 = { statusCode: 404, message: 'Collection not found', error: 'Not
 /** What the server does to the SECOND update, the Undo. The first change always succeeds. */
 type UndoAnswer = () => Response | Promise<Response>;
 
-/** A `fetch` double: reads answer with the collection as it stands, the first update lands, the second answers `undo`. */
+/** A `fetch` double: reads see the collection as it stands, the first update lands, the second answers `undo`. */
 function serverWhere(undo: UndoAnswer) {
     let visibility: RecipeVisibility = RecipeVisibility.PUBLIC;
     let updates = 0;
@@ -143,7 +143,7 @@ async function setup(undo: UndoAnswer) {
     return { calls, consoleError, queryClient };
 }
 
-/** What was logged, minus React's act() notice: the Undo settles outside any test act, which is no fault of the code. */
+/** What was logged, minus React's act() notice: the Undo settles outside a test act, which is no code fault. */
 const realErrors = (spy: { mock: { calls: unknown[][] } }): unknown[][] =>
     spy.mock.calls.filter(([first]) => !String(first).includes('not wrapped in act'));
 
@@ -176,7 +176,7 @@ describe('the collection visibility Undo, after its page unmounted', () => {
         expect(statusText()).not.toContain(GONE);
     });
 
-    it('shows the gone message, and does not throw or log, when the server answers 404 with its JSON body', async () => {
+    it('shows the gone message, and does not throw or log, for a 404 with its JSON body', async () => {
         const { consoleError } = await setup(() => json(404, NEST_404));
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));

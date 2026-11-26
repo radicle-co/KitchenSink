@@ -2,8 +2,8 @@
 
 /**
  * @module @commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),
- * it gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar, its
- * timer and its Undo outlive a page change.
+ * it gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar,
+ * its timer and its Undo outlive a page change.
  *
  * The status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added
  * with its content is not reliably spoken). It is polite and never takes focus, and a page change does not announce
@@ -124,14 +124,14 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children, label, subject }
         <SnackbarContext value={api}>
             {/* The page providers below register their chrome here, and the snackbar follows the current page's. */}
             <PopupInsetsRegistryContext value={placement}>
-                {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}
+                {/* The measured height, or 0 when nothing shows, so the floating create button can rise above it. */}
                 <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>
                     {/* An open sheet draws the snackbar in its outlet: outside it, Radix leaves it unreachable. */}
                     <SnackbarOutletContext value={{ register, top, snackbar }}>{children}</SnackbarOutletContext>
                 </SnackbarClearanceContext>
             </PopupInsetsRegistryContext>
-            {/* Named, the always-mounted status sits in a landmark that follows `main` in the DOM, so Tab from the page's
-                last control reaches the Undo. The snackbar itself never takes focus. */}
+            {/* Named, the always-mounted status sits in a landmark that follows `main` in the DOM, so Tab from the
+                page's last control reaches the Undo. The snackbar itself never takes focus. */}
             {label === undefined ? statusRegion : <section aria-label={label}>{statusRegion}</section>}
         </SnackbarContext>
     );

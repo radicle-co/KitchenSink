@@ -18,8 +18,11 @@ export interface SnackbarOutletEntry {
     readonly depth: number;
 }
 
-/** The open windows' outlets, in the order they registered. */
-export type SnackbarOutletStack = readonly SnackbarOutletEntry[];
+/**
+ * The open windows' outlets, in the order they registered. Generic over the entry, so the page-chrome stack
+ * (`snackbarPlacement.ts`), whose entries also carry a reader, takes the same rule as the outlets do.
+ */
+export type SnackbarOutletStack<E extends SnackbarOutletEntry = SnackbarOutletEntry> = readonly E[];
 
 /** No window is open. */
 export const NO_OUTLETS: SnackbarOutletStack = [];
@@ -31,7 +34,10 @@ export const NO_OUTLETS: SnackbarOutletStack = [];
  * @param entry - The window's token and depth.
  * @returns The stack with the window added last; the same stack when its token is already in it.
  */
-export function registerOutlet(stack: SnackbarOutletStack, entry: SnackbarOutletEntry): SnackbarOutletStack {
+export function registerOutlet<E extends SnackbarOutletEntry>(
+    stack: SnackbarOutletStack<E>,
+    entry: E,
+): SnackbarOutletStack<E> {
     return stack.some((outlet) => outlet.token === entry.token) ? stack : [...stack, entry];
 }
 
@@ -42,8 +48,29 @@ export function registerOutlet(stack: SnackbarOutletStack, entry: SnackbarOutlet
  * @param token - The window's token.
  * @returns The stack without it; the same stack when it was not in it.
  */
-export function unregisterOutlet(stack: SnackbarOutletStack, token: string): SnackbarOutletStack {
+export function unregisterOutlet<E extends SnackbarOutletEntry>(
+    stack: SnackbarOutletStack<E>,
+    token: string,
+): SnackbarOutletStack<E> {
     return stack.some((outlet) => outlet.token === token) ? stack.filter((outlet) => outlet.token !== token) : stack;
+}
+
+/**
+ * The entry on top. Pure.
+ *
+ * @param stack - The entries now.
+ * @returns The deepest entry, the latest to register among equals, or `undefined` while the stack is empty.
+ */
+export function topEntry<E extends SnackbarOutletEntry>(stack: SnackbarOutletStack<E>): E | undefined {
+    let top: E | undefined;
+
+    for (const entry of stack) {
+        if (top === undefined || entry.depth >= top.depth) {
+            top = entry;
+        }
+    }
+
+    return top;
 }
 
 /**
@@ -53,13 +80,5 @@ export function unregisterOutlet(stack: SnackbarOutletStack, token: string): Sna
  * @returns The token of the deepest window, the latest to register among equals, or `undefined` while none is open.
  */
 export function topOutlet(stack: SnackbarOutletStack): string | undefined {
-    let top: SnackbarOutletEntry | undefined;
-
-    for (const outlet of stack) {
-        if (top === undefined || outlet.depth >= top.depth) {
-            top = outlet;
-        }
-    }
-
-    return top?.token;
+    return topEntry(stack)?.token;
 }

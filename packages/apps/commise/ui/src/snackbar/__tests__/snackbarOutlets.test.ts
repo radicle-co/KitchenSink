@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { NO_OUTLETS, registerOutlet, topOutlet, unregisterOutlet } from '../snackbarOutlets.js';
+import { NO_OUTLETS, registerOutlet, topEntry, topOutlet, unregisterOutlet } from '../snackbarOutlets.js';
 
 /**
  * The snackbar outlet stack — the open windows that offer the host a place to draw. The host draws in the top one:
@@ -50,5 +50,34 @@ describe('snackbar outlet stack', () => {
         const stack = registerOutlet(NO_OUTLETS, sheet);
 
         expect(unregisterOutlet(stack, 'dialog')).toBe(stack);
+    });
+});
+
+/**
+ * One rule for two stacks: the page's chrome entries carry a reader beside the token and depth, and the same rule picks
+ * the top of them. The rule returns the whole entry, so the reader comes with it.
+ */
+describe('the top rule over entries that carry more than a token and a depth', () => {
+    const read = (bottom: number) => () => ({ top: 0, bottom });
+    const page = { token: 'page', depth: 1, read: read(64) };
+    const editor = { token: 'editor', depth: 2, read: read(8) };
+
+    it('returns the whole top entry, so its reader comes with it', () => {
+        expect(topEntry([page, editor])).toBe(editor);
+    });
+
+    it('puts the deeper entry on top even when it registered first', () => {
+        expect(topEntry([editor, page])).toBe(editor);
+    });
+
+    it('has no top while the stack is empty', () => {
+        expect(topEntry([])).toBeUndefined();
+    });
+
+    it('keeps the entry type through register and unregister', () => {
+        const stack = registerOutlet(registerOutlet([], page), editor);
+
+        expect(unregisterOutlet(stack, 'editor')).toEqual([page]);
+        expect(topEntry(registerOutlet([], page))?.read().bottom).toBe(64);
     });
 });

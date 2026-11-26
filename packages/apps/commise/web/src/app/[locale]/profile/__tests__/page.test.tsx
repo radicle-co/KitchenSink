@@ -10,6 +10,7 @@ import { cleanup, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { renderWithProviders } from '@commise/test-utils';
 
 // The shell's sidebar opens the editor through the router and its tab bar reads the route (slice 3).
@@ -55,7 +56,10 @@ import { ProfileContent } from '../ProfileContent.js';
 const mount = (): void => {
     renderWithProviders(
         <QueryClientProvider client={new QueryClient()}>
-            <ProfileContent />
+            {/* The app's one host sits above every page (`RecipeProviders`); the page's Undo needs it. */}
+            <SnackbarHost>
+                <ProfileContent />
+            </SnackbarHost>
         </QueryClientProvider>,
     );
 };

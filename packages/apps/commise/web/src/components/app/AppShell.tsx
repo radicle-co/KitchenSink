@@ -26,7 +26,6 @@ import { RecipeCreateButton } from '@commise/features-recipes';
 import { LIVE_CAPABILITIES } from '@commise/features-recipes/widget';
 import type { HomeNavItemId } from '@commise/features-core';
 import { ScrollHost } from '@commise/ui/scroll-host';
-import { SnackbarHost } from '@commise/ui/snackbar';
 import type { Route } from 'next';
 import { useRouter } from 'next/navigation';
 import { useEffect, type FC, type ReactNode } from 'react';
@@ -105,8 +104,7 @@ export const AppShell: FC<AppShellProps> = ({
                     />
                 )}
             >
-                {/* The app's one snackbar host, inside the shell's popup insets so a snackbar sits above the tab bar. */}
-                <SnackbarHost>{children}</SnackbarHost>
+                {children}
             </HomeChrome>
         </ScrollHost>
     );

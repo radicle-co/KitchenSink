@@ -44,6 +44,7 @@ type StoredRecipe = Pick<
     | 'clonedFromId'
     | 'publicNeedsCheck'
     | 'sourceConfirmed'
+    | 'sourceCorrected'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -138,6 +139,7 @@ export function draftPublicFactsOf(
         sourceKind: recipe?.sourceKind ?? null,
         statementKind,
         held,
+        corrected: recipe?.sourceCorrected === true,
     };
 
     // A locked source is the server's, whatever the field holds: judge the stored facts.

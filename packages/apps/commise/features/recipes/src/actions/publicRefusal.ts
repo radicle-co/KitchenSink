@@ -27,6 +27,7 @@ import type { PublicRefusalMessages } from './messages.js';
 /** The reasons a recipe cannot be public, in the state model's names, and `none` when nothing stops it. */
 export const PUBLIC_REFUSALS = [
     'fromPerson',
+    'sourceCorrected',
     'unrecognised',
     'policy.webPage',
     'policy.book',
@@ -50,6 +51,8 @@ export interface PublicRefusalFacts {
     readonly statementKind: RecipeStatementKindView | null;
     /** Whether a recorded source holds the recipe out of Public (ADR-0095): `publicNeedsCheck`, or a source conflict. */
     readonly held: boolean;
+    /** Whether a staff correction holds the recipe off Public for good (`sourceCorrected` on the wire, ADR-0100). */
+    readonly corrected: boolean;
 }
 
 /** The reason for a rule that is private only, from the label and kind that put the recipe under it. */
@@ -75,8 +78,9 @@ function privateOnlyReasonOf(sourceType: RecipeSourceType, sourceKind: RecipeSou
 /**
  * Why a recipe cannot be public.
  *
- * Order: "From another person" first (its line wins over a held recipe); a statement kind this client cannot name; a
- * rule that is private only, split by the source; a held recipe; else nothing.
+ * Order: "From another person" first (its line wins over a held recipe); a staff correction hold (the server reads it right
+ * after "From another person"); a statement kind this client cannot name; a rule that is private only, split by the source; a
+ * held recipe; else nothing.
  *
  * @param facts - The recipe's source and statement, and whether a recorded source holds it.
  * @returns The reason, or `none` when Public may be offered. Pure.
@@ -84,6 +88,10 @@ function privateOnlyReasonOf(sourceType: RecipeSourceType, sourceKind: RecipeSou
 export function publicRefusalOf(facts: PublicRefusalFacts): PublicRefusal {
     if (facts.statementKind === 'fromPerson') {
         return 'fromPerson';
+    }
+
+    if (facts.corrected) {
+        return 'sourceCorrected';
     }
 
     if (facts.statementKind === UNRECOGNISED_STATEMENT_KIND) {
@@ -108,6 +116,7 @@ export function publicRefusalOfStored(
     recipe: Pick<PublicRefusalFacts, 'sourceType'> & {
         readonly sourceKind?: RecipeSourceKindView | null;
         readonly statementKind?: RecipeStatementKindView | null;
+        readonly sourceCorrected?: boolean;
     },
     held: boolean,
 ): PublicRefusal {
@@ -116,6 +125,7 @@ export function publicRefusalOfStored(
         sourceKind: recipe.sourceKind ?? null,
         statementKind: recipe.statementKind ?? null,
         held,
+        corrected: recipe.sourceCorrected === true,
     });
 }
 
@@ -131,6 +141,8 @@ export function publicRefusalLineOf(reason: PublicRefusal, lines: PublicRefusalM
     switch (reason) {
         case 'fromPerson':
             return lines.fromPerson;
+        case 'sourceCorrected':
+            return lines.sourceCorrected;
         case 'unrecognised':
             return lines.unrecognised;
         case 'policy.webPage':

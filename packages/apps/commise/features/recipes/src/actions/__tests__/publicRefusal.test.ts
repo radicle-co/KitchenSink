@@ -36,6 +36,7 @@ const facts = (over: Partial<PublicRefusalFacts>): PublicRefusalFacts => ({
     sourceKind: null,
     statementKind: null,
     held: false,
+    corrected: false,
     ...over,
 });
 
@@ -50,6 +51,27 @@ describe('publicRefusalOf: the decision table', () => {
         [
             'from another person while held (R3: its line wins)',
             { statementKind: 'fromPerson', held: true },
+            'fromPerson',
+        ],
+        [
+            'a staff correction hold (read after "from another person", as the server does)',
+            { corrected: true },
+            'sourceCorrected',
+        ],
+        [
+            'a staff correction hold on a recipe the cook wrote',
+            { corrected: true, statementKind: 'authored' },
+            'sourceCorrected',
+        ],
+        ['a staff correction hold, held too', { corrected: true, held: true }, 'sourceCorrected'],
+        [
+            'a staff correction hold on a book: the hold names the reason',
+            { corrected: true, sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' },
+            'sourceCorrected',
+        ],
+        [
+            'from another person while corrected: its line wins, the server reads it first',
+            { corrected: true, statementKind: 'fromPerson' },
             'fromPerson',
         ],
         ['an unrecognised statement kind', { statementKind: UNRECOGNISED_STATEMENT_KIND }, 'unrecognised'],
@@ -113,7 +135,9 @@ describe('publicRefusalOf: the decision table', () => {
         const combinations: PublicRefusalFacts[] = Object.values(RecipeSourceType).flatMap((sourceType) =>
             kinds.flatMap((sourceKind) =>
                 statements.flatMap((statementKind) =>
-                    [false, true].map((held) => ({ sourceType, sourceKind, statementKind, held })),
+                    [false, true].flatMap((held) =>
+                        [false, true].map((corrected) => ({ sourceType, sourceKind, statementKind, held, corrected })),
+                    ),
                 ),
             ),
         );
@@ -124,6 +148,10 @@ describe('publicRefusalOf: the decision table', () => {
             );
 
             expect(offered).toEqual([]);
+        });
+
+        it('never offers Public for a corrected recipe', () => {
+            expect(combinations.filter((c) => c.corrected && publicRefusalOf(c) === 'none')).toEqual([]);
         });
 
         it('never offers Public for a held recipe', () => {
@@ -145,11 +173,19 @@ describe('publicRefusalOf: the decision table', () => {
 });
 
 describe('publicRefusalOfStored: a stored recipe whose kind and statement may be absent', () => {
+    it('reads the wire’s sourceCorrected, absent as false', () => {
+        const recipe = { sourceType: RecipeSourceType.USER_CREATED };
+
+        expect(publicRefusalOfStored({ ...recipe, sourceCorrected: true }, false)).toBe('sourceCorrected');
+        expect(publicRefusalOfStored({ ...recipe, sourceCorrected: false }, false)).toBe('none');
+        expect(publicRefusalOfStored(recipe, false)).toBe('none');
+    });
+
     it('reads an absent kind and statement as none, as the explicit nulls do', () => {
         for (const sourceType of Object.values(RecipeSourceType)) {
             for (const held of [false, true]) {
                 expect(publicRefusalOfStored({ sourceType }, held)).toBe(
-                    publicRefusalOf({ sourceType, sourceKind: null, statementKind: null, held }),
+                    publicRefusalOf({ sourceType, sourceKind: null, statementKind: null, held, corrected: false }),
                 );
             }
         }

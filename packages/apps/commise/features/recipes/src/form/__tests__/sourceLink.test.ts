@@ -563,6 +563,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'public_web',
             statementKind: null,
             held: false,
+            corrected: false,
         });
     });
 
@@ -572,6 +573,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: false,
+            corrected: false,
         });
     });
 
@@ -581,6 +583,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: true,
+            corrected: false,
         });
     });
 
@@ -590,6 +593,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'paid_site',
             statementKind: 'source',
             held: false,
+            corrected: false,
         });
     });
 
@@ -599,6 +603,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: 'authored',
             held: false,
+            corrected: false,
         });
     });
 
@@ -653,12 +658,14 @@ describe('AE7: the editor and the recipe page give one reason and one line over 
             'policy.webPage',
         ],
         ['a held recipe', stored({ publicNeedsCheck: true }), 'sourceConflict'],
+        ['a staff correction hold', stored({ sourceCorrected: true }), 'sourceCorrected'],
     ] as const)('%s', (_name, recipe, reason) => {
         const page = publicRefusalOf({
             sourceType: recipe.sourceType,
             sourceKind: recipe.sourceKind ?? null,
             statementKind: recipe.statementKind ?? null,
             held: recipe.publicNeedsCheck === true,
+            corrected: recipe.sourceCorrected === true,
         });
         // The draft still holds the stored link (a web copy): taking it off is a different, held reason by design.
         const values =

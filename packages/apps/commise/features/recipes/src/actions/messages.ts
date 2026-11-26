@@ -132,6 +132,8 @@ export interface PublicRefusalMessages {
     readonly policyPaidSite: string;
     /** A source the server holds on record, though the draft may have taken it off (`sourceConflict`). */
     readonly sourceConflict: string;
+    /** Commise corrected the source, so the recipe stays private (`sourceCorrected`, ADR-0100). */
+    readonly sourceCorrected: string;
 }
 
 /** Copy for the "More actions" overflow (C4) that groups the detail header's secondary owner actions. */
@@ -299,6 +301,7 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
             policyBook: 'This recipe stays private because it’s from a cookbook or magazine.',
             policyPaidSite: 'This recipe stays private because it’s from a paid website.',
             sourceConflict: 'This recipe stays private because it was saved with a source.',
+            sourceCorrected: 'This recipe stays private because its source was corrected.',
         },
         moreMenu: {
             triggerFor: 'More actions for {title}',

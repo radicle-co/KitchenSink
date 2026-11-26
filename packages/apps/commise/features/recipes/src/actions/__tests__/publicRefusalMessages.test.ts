@@ -18,6 +18,7 @@ const LINES: Readonly<Record<Exclude<PublicRefusal, 'none'>, string>> = {
     'policy.book': 'This recipe stays private because it’s from a cookbook or magazine.',
     'policy.paidSite': 'This recipe stays private because it’s from a paid website.',
     sourceConflict: 'This recipe stays private because it was saved with a source.',
+    sourceCorrected: 'This recipe stays private because its source was corrected.',
 };
 
 /** AE8, with qse's two additions (H-2): no public path, no invitation to change the answer, nothing to ask for. */
@@ -49,7 +50,15 @@ describe('the reason lines', () => {
 
     it('has one key per reason, and no other', () => {
         expect(new Set(Object.keys(recipeActionMessages.en.publicRefusal))).toEqual(
-            new Set(['fromPerson', 'policyBook', 'policyPaidSite', 'policyWebPage', 'sourceConflict', 'unrecognised']),
+            new Set([
+                'fromPerson',
+                'policyBook',
+                'policyPaidSite',
+                'policyWebPage',
+                'sourceConflict',
+                'sourceCorrected',
+                'unrecognised',
+            ]),
         );
     });
 

@@ -3016,6 +3016,13 @@
             ],
             "type": "string"
         },
+        "forbiddenReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "SOURCE_LOCKED"
+            ],
+            "type": "string"
+        },
         "getImportQuerySchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -11294,6 +11301,18 @@
                         "code": {
                             "const": "FORBIDDEN",
                             "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "SOURCE_LOCKED"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
                         },
                         "message": {
                             "type": "string"

@@ -5559,6 +5559,14 @@ components:
                 - FORBIDDEN
             message:
               type: string
+            details:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - SOURCE_LOCKED
+              additionalProperties: {}
           required:
             - code
             - message

@@ -17,7 +17,7 @@ import {
 } from '@kitchensink/recipe-core';
 
 import { apiError } from '../common/apiError.js';
-import { invalidVisibilityReasonSchema } from '../common/apiError.schema.js';
+import { forbiddenReasonSchema, invalidVisibilityReasonSchema } from '../common/apiError.schema.js';
 import type { VisibilityDecision } from './domain/visibilityPolicy.js';
 
 /** A thrown recipe-domain error carrying a machine-readable {@link RecipeErrorCode}. */
@@ -445,7 +445,7 @@ export function provenanceNotPermitted(reason: string, details?: Record<string, 
 }
 
 /** `details.reason` of the `FORBIDDEN` a locked source answers with: the stable key a client branches on (ADR-0089). */
-const SOURCE_LOCKED_REASON = 'SOURCE_LOCKED';
+const SOURCE_LOCKED_REASON = forbiddenReasonSchema.enum.SOURCE_LOCKED;
 
 /**
  * `FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (→ 403) — a `PATCH` tried to change the source of a recipe whose

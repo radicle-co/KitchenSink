@@ -54,6 +54,7 @@ import {
     FetchUnavailableError,
     SourceUnavailableError,
     ForbiddenError,
+    SourceLockedError,
     GoneError,
     InvalidRequestError,
     NotFoundError,
@@ -144,6 +145,7 @@ import {
     rebindIngredientLineRequestSchema,
     restoreVersionResponseSchema,
     setRatingRequestSchema,
+    forbiddenReasonSchema,
     invalidVisibilityReasonSchema,
     setRecipeVisibilityRequestSchema,
     updateCollectionRequestSchema,
@@ -1759,9 +1761,13 @@ export class RecipeServiceClient {
             case 'PARSE_JOB_NOT_FOUND': // Plan U9: a stranger's job and a missing one are ONE answer on purpose.
             case 'IMPORT_NOT_FOUND': // ADR-0072: likewise a stranger's bulk import.
                 return new NotFoundError(body.message, body.code);
+            // The reason is parsed, not cast: a reason this client does not know reads as a plain refusal, never as a throw.
+            case 'FORBIDDEN':
+                return forbiddenReasonSchema.safeParse(body.details?.reason).data === 'SOURCE_LOCKED'
+                    ? new SourceLockedError(body.message)
+                    : new ForbiddenError(body.message, body.code);
             case 'NOT_OWNER':
             case 'CANNOT_RATE_OWN_RECIPE':
-            case 'FORBIDDEN':
             case 'TEST_PRINCIPAL_CONTAINED': // ADR-0040: a contained test write — its code tells it from a scope gate.
             case 'ACCOUNT_SUSPENDED': // ADR-0081: a suspended account — a 403 whose code tells it from an ownership gate.
                 return new ForbiddenError(body.message, body.code);

@@ -167,6 +167,24 @@ export function isForbiddenError(error: unknown): error is ForbiddenError {
     return error instanceof ForbiddenError;
 }
 
+/**
+ * `403 FORBIDDEN` with `details.reason: 'SOURCE_LOCKED'` (ADR-0100): the write tried to change a recipe's source answer, and only
+ * Commise can. A {@link ForbiddenError}, so every caller that knows only that class (the outbox's terminal 403, the retry
+ * policy) treats it as before: the write is parked, never dropped.
+ */
+export class SourceLockedError extends ForbiddenError {
+    public constructor(message = 'The source of this recipe cannot be changed.') {
+        super(message, 'FORBIDDEN');
+        this.name = 'SourceLockedError';
+        Object.setPrototypeOf(this, SourceLockedError.prototype);
+    }
+}
+
+/** Type guard for {@link SourceLockedError}. */
+export function isSourceLockedError(error: unknown): error is SourceLockedError {
+    return error instanceof SourceLockedError;
+}
+
 /** `404` — no such recipe/collection/version/photo, or a tombstoned recipe on a production read path. */
 export class NotFoundError extends RecipeServiceClientError {
     public constructor(message = 'Resource not found', code?: string) {

@@ -28,6 +28,7 @@ import {
     recipeErrorCodeSchema,
     IDENTITY_SYNC_PENDING_CODE,
     INVALID_VISIBILITY_REASONS,
+    FORBIDDEN_REASONS,
 } from '../apiError.schema.js';
 import { codeForStatus, RECIPE_ERROR_STATUS } from '../apiError.js';
 
@@ -458,5 +459,29 @@ describe('ACCOUNT_SUSPENDED is a published recipe error code (ADR-0081)', () => 
         expect(
             recipeApiErrorSchema.safeParse({ code: ACCOUNT_SUSPENDED_CODE, message: 'Account is suspended' }).success,
         ).toBe(true);
+    });
+});
+
+describe('FORBIDDEN publishes the reason a client branches on', () => {
+    const parse = (details?: Record<string, unknown>) =>
+        recipeApiErrorSchema.safeParse({
+            code: 'FORBIDDEN',
+            message: 'a message',
+            ...(details === undefined ? {} : { details }),
+        }).success;
+
+    it('publishes exactly the one reason the lock answers with', () => {
+        expect([...FORBIDDEN_REASONS]).toEqual(['SOURCE_LOCKED']);
+    });
+
+    it('accepts the reason, a plain refusal with no reason, and other detail keys', () => {
+        expect(parse({ reason: 'SOURCE_LOCKED' })).toBe(true);
+        expect(parse()).toBe(true);
+        expect(parse({ requiredScope: 'recipes:source:correct' })).toBe(true);
+    });
+
+    it('refuses a reason that is not published', () => {
+        expect(parse({ reason: 'SOMETHING_ELSE' })).toBe(false);
+        expect(parse({ reason: 7 })).toBe(false);
     });
 });

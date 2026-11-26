@@ -1,0 +1,1 @@
+IconButton is a round 44 px control that holds one 24 glyph and no text, for a row action such as Pause, Resume or Cancel. Its accessible name is `accessibilityLabel`, which names the thing it acts on ("Pause Roast timer"). The glyph and the target keep their pixel size at every text size. On Android the touch frame is 48 dp around the 44 circle.

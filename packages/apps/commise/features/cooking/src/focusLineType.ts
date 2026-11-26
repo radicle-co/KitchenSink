@@ -1,5 +1,7 @@
 import type { TypeRole } from '@commise/ui/tokens/typography';
 
+import type { CookingLineRowProps } from './cookingViewProps.js';
+
 /**
  * The type of each line of a step, in the one place both platforms read it: the focus line is the `readingLarge` role
  * (Inter regular, a reading role and not a heading) and every other line is `readingBody`.
@@ -14,7 +16,7 @@ export const LINE_TYPE = {
     focus: { nativeTypeRole: 'readingLarge', webClassName: 'text-reading-large' },
     other: { nativeTypeRole: 'readingBody', webClassName: 'text-reading-body' },
 } as const satisfies Readonly<
-    Record<'focus' | 'other', { readonly nativeTypeRole: TypeRole; readonly webClassName: string }>
+    Record<CookingLineRowProps['emphasis'], { readonly nativeTypeRole: TypeRole; readonly webClassName: string }>
 >;
 
 /** The focus line's type, for the screens that set only that line. */

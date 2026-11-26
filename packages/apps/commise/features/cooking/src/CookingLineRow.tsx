@@ -4,7 +4,8 @@
  * @module CookingLineRow — one line of a cooking step, as the web checkbox the cook ticks.
  *
  * The whole row is the control: a `button` with `role="checkbox"`, named by the line's text, at least 44 px tall, as
- * the recipe page's ingredient row is. The focus line is set in the focus-line type seam; every other line in `readingBody`. A ticked line dims to `inkMuted`, never struck through.
+ * the recipe page's ingredient row is. Each line is set in its `LINE_TYPE` entry. A ticked line dims to `inkMuted`,
+ * never struck through.
  *
  * Presentational: props → JSX.
  */

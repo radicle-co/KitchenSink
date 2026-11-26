@@ -43,7 +43,9 @@ import {
     List,
     Menu,
     Minus,
+    Pause,
     PencilLine,
+    Play,
     Plus,
     RefreshCw,
     RotateCcw,
@@ -122,4 +124,7 @@ export const GLYPHS: Readonly<Record<IconName, LucideIcon>> = {
     layoutGrid: LayoutGrid,
     cookingPot: CookingPot,
     listChecks: ListChecks,
+    // The timer row: pause a running timer, and resume a paused one.
+    pause: Pause,
+    play: Play,
 };

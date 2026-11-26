@@ -9,7 +9,13 @@ import { describe, expect, it } from 'vitest';
 
 import { nativeTokens } from '../../tokens/native.js';
 import type { TypeRole } from '../../tokens/typography.js';
-import { CHROME_CAPS, scaledTypeMetrics, scaledTypeSize } from '../scaledType.js';
+import {
+    CHROME_CAPS,
+    leadingGlyphWebStyle,
+    scaledTypeMetrics,
+    scaledTypeSize,
+    showsLeadingGlyph,
+} from '../scaledType.js';
 import { letterLiftOf } from '../letterMetrics.js';
 
 /** Each sized role's ceiling, written out (not read from the code under test). */
@@ -26,6 +32,7 @@ const CEILING = {
     label: 2,
     caption: 2,
     figureStat: 2,
+    figureLarge: 1.5,
 } as const satisfies Record<Exclude<TypeRole, 'figureInline'>, number>;
 
 const SCALES = [0.85, 1, 1.3, 1.5, 2, 2.643, 3.1] as const;
@@ -71,6 +78,13 @@ describe('scaledTypeMetrics', () => {
     it('draws readingLarge at 56 on a 72 px leading at 2x, and stops there at 3x', () => {
         expect(scaledTypeMetrics('readingLarge', 2)).toEqual({ fontSize: 56, lineHeight: '72px' });
         expect(scaledTypeMetrics('readingLarge', 3)).toEqual({ fontSize: 56, lineHeight: '72px' });
+    });
+
+    // figureLarge is the timer row's time, a display-sized figure: it takes the display cap (1.5x), not the reading
+    // cap. 3x is the assertion that tells DISPLAY_FONT_SCALE_CAP from FONT_SCALE_CAP: 28 x 1.5 = 42, 28 x 2 = 56.
+    it('draws figureLarge at 42 on a 48 px leading at 3x, and stops there', () => {
+        expect(scaledTypeMetrics('figureLarge', 3)).toEqual({ fontSize: 42, lineHeight: '48px' });
+        expect(scaledTypeMetrics('figureLarge', 1)).toEqual({ fontSize: 28, lineHeight: '32px' });
     });
 
     it('draws body at 32 on a 48 px leading, and largeTitle at 1.5×, above every cap', () => {
@@ -185,6 +199,29 @@ describe('scaledTypeMetrics — a cap-centred fixed size', () => {
             fontSize: 111,
             lineHeight: '152px',
             transform: [{ translateY: -0 }],
+        });
+    });
+});
+
+/**
+ * The timer row's leading glyph gives way to the time above 1.3x text (designer ruling). Native reads the system text
+ * scale; web writes the same rule in CSS, keyed to the root font size, so browser zoom (which scales the viewport and
+ * not the root font size) never hides it and the browser's text-size setting does. Mutation lens: `<` for `<=` fails
+ * the
+ * 1.3 row; a different threshold fails the 1.31 row; a width that does not read the root font size fails the style row.
+ */
+describe('the leading glyph hide rule', () => {
+    it('hides above 1.3x and not at or below it', () => {
+        expect(showsLeadingGlyph(1)).toBe(true);
+        expect(showsLeadingGlyph(1.3)).toBe(true);
+        expect(showsLeadingGlyph(1.31)).toBe(false);
+        expect(showsLeadingGlyph(2)).toBe(false);
+    });
+
+    it('states the web rule as a width that reaches zero once the root font size passes 1.3 x 16 px', () => {
+        expect(leadingGlyphWebStyle()).toEqual({
+            width: 'clamp(0px, calc((20.8001px - 1rem) * 1000), 1.5rem)',
+            overflow: 'hidden',
         });
     });
 });

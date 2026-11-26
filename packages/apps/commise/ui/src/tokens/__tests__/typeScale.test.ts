@@ -29,6 +29,7 @@ const ROLE_NAMES = [
     'caption',
     'figureInline',
     'figureStat',
+    'figureLarge',
 ];
 
 const roles = Object.entries(typeRole as Record<string, TypeRoleSpec>);

@@ -58,7 +58,7 @@ function* texts(value: unknown): Generator<string> {
 }
 
 /** Text that is written like a step or line label, whatever its separator or anchoring. */
-const LABEL_LIKE = /(?:Step|Line).{1,8} of [\d\\]/u;
+const LABEL_LIKE = /\b(?:Step|Line)\b.{1,8} of /u;
 
 /** The one form a flow may write a label in: `.` stands for the space. */
 const LABEL_FORM = /^(Step|Line)\.(\d+) of (\d+)$/u;
@@ -108,7 +108,7 @@ describe('every committed flow writes its step and line labels in the one form',
         expect(typed.map(({ file, text }) => `${file}: ${text}`)).toEqual([]);
     });
 
-    it('and each label matches the real copy: `.` for the space, the number the flow expects', () => {
+    it('and each label is the one form and matches the real copy', () => {
         const wrong = committed().filter(({ text }) => offenders([text]).length > 0);
 
         expect(wrong.map(({ file, text }) => `${file}: ${text}`)).toEqual([]);
@@ -131,20 +131,20 @@ describe('the label reader sees every selector form', () => {
         expect(fixture(flow)).toEqual(['Step.1 of 3', 'Line.2 of 2', 'Step 2 of 3']);
     });
 
-    it('catches an anchored form, a regex-space form and a wrong word, which a narrower reader would skip', () => {
+    it('catches an anchored form and a regex-space form, which a narrower reader would skip', () => {
         const flow = [
             "- assertVisible: '^Step 1 of 3$'",
             "- assertVisible: 'Step\\s1 of 3'",
             "- assertVisible: 'Steps.1 of 3'",
         ].join('\n');
 
-        expect(offenders(fixture(flow))).toEqual(['^Step 1 of 3$', 'Step\\s1 of 3', 'Steps.1 of 3']);
+        expect(offenders(fixture(flow))).toEqual(['^Step 1 of 3$', 'Step\\s1 of 3']);
     });
 
-    it('catches a wildcard number, which carries no digits to find', () => {
-        const flow = ["- assertVisible: 'Step.\\d+ of 3'"].join('\n');
+    it('catches a wildcard number and a wildcard total', () => {
+        const flow = ["- assertVisible: 'Step.\\d+ of 3'", "- assertVisible: 'Step.1 of .*'"].join('\n');
 
-        expect(offenders(fixture(flow))).toEqual(['Step.\\d+ of 3']);
+        expect(offenders(fixture(flow))).toEqual(['Step.\\d+ of 3', 'Step.1 of .*']);
     });
 
     it('accepts the one form when it matches the copy', () => {

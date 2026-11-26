@@ -51,13 +51,6 @@ const inertHost: ScrollHostApi = {
     handle: createRef<ScrollTarget | null>(),
 };
 
-if (typeof Element !== 'undefined') {
-    // jsdom implements neither pointer capture nor scrollIntoView, which Radix's menu calls on open.
-    Element.prototype.hasPointerCapture ??= (): boolean => false;
-    Element.prototype.releasePointerCapture ??= (): void => undefined;
-    Element.prototype.scrollIntoView ??= (): void => undefined;
-}
-
 const noop = (): void => undefined;
 
 /** The declared widths of every glyph in the container. */

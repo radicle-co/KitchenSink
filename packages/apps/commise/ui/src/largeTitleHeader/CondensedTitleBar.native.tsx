@@ -25,6 +25,7 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ChromeSurface } from '../chromeSurface/ChromeSurface.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import type { IconProps } from '../icon/props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { Text } from '../text/Text.native.js';
@@ -41,6 +42,10 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
     const showsParent = useContainerClass() !== 'narrow';
     const floor = touchFloor();
     const frame = { minWidth: floor, height: floor };
+    // Alone on a phone the chevron is icon-only and stays fixed; beside the parent name it grows.
+    const chevronScale: Pick<IconProps, 'scaleWith'> = showsParent
+        ? { scaleWith: { role: BACK_LABEL_ROLE, chromeCap: BACK_CHROME_CAP } }
+        : {};
 
     return (
         // The bar's start padding and the control's own leading room together put the chevron's box on the 16 pt content
@@ -60,13 +65,7 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
                             : { width: floor },
                     ]}
                 >
-                    <Icon
-                        name="chevronLeft"
-                        size={24}
-                        tone="actionText"
-                        // Alone on a phone the chevron is icon-only and stays fixed; beside the parent name it grows.
-                        {...(showsParent ? { scaleWith: { role: BACK_LABEL_ROLE, chromeCap: BACK_CHROME_CAP } } : {})}
-                    />
+                    <Icon name="chevronLeft" size={24} tone="actionText" {...chevronScale} />
                     {showsParent ? (
                         <Text
                             typeRole={BACK_LABEL_ROLE}

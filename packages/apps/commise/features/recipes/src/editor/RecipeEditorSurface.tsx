@@ -379,6 +379,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                                 setRowSheet(sheet);
                             }}
                             {...(askHref === undefined ? {} : { askHref })}
+                            focusSignal={downgraded?.n ?? 0}
                         />
                         {editor.sourceLockRefused ? <PastedSourceNotice text={sourceCopy.lockedRefused} /> : null}
                         <RecipeVisibilityField

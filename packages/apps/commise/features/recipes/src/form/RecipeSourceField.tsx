@@ -15,6 +15,7 @@
 import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
+import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { FieldLabel, Input, fieldHintId } from '@commise/ui/input';
 import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 import type { FC, ReactNode } from 'react';
@@ -34,7 +35,9 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
     onTouched,
     onAsk,
     askHref,
+    focusSignal = 0,
 }) => {
+    const answer = useFocusOnSignal<HTMLSpanElement>(focusSignal);
     const { source: m } = useMessages(editorMessages);
     const { sourceStatement: answers } = useMessages(recipeActionMessages);
 
@@ -113,7 +116,9 @@ export const RecipeSourceField: FC<RecipeSourceFieldProps> = ({
             <div className="flex flex-col gap-1">
                 <span className="text-label text-ink-muted">{m.label}</span>
                 {row.answer === undefined ? null : (
-                    <span className="text-body-sm font-medium text-ink">{lockedAnswerLabel(row.answer, answers)}</span>
+                    <span ref={answer} tabIndex={-1} className="text-body-sm font-medium text-ink outline-none">
+                        {lockedAnswerLabel(row.answer, answers)}
+                    </span>
                 )}
                 {row.citation === undefined || row.citation === '' ? null : (
                     <span className="min-w-0 break-words text-caption text-ink-muted">{row.citation}</span>

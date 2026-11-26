@@ -154,6 +154,17 @@ describe('RecipeSourceField (web)', () => {
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
     });
 
+    it('after a downgrade the answer takes focus, which the closed sheet left nowhere (SC 2.4.3)', () => {
+        const row: SourceRowModel = { kind: 'lockedAnswer', answer: 'book', citation: 'Joy' };
+        const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn(), onAsk: vi.fn() };
+        const { rerender } = render(<RecipeSourceField row={row} {...handlers} focusSignal={0} />);
+
+        expect(document.activeElement).toBe(document.body);
+        rerender(<RecipeSourceField row={row} {...handlers} focusSignal={1} />);
+
+        expect(document.activeElement?.textContent).toBe(a.answerBook);
+    });
+
     it('hidden: nothing at all', () => {
         const { container } = render(
             <RecipeSourceField

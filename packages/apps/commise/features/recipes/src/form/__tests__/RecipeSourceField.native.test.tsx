@@ -11,6 +11,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { recordedTextInput, recordedTextInputs } from '@commise/ui/testing/record-text-inputs';
 import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
 
+const focus = vi.hoisted(() => ({ moved: vi.fn() }));
+
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: focus.moved } };
+});
+
 // react-native-web drops `accessibilityHint`, so the field is wrapped to record the accessibility props a screen reader is
 // actually given (`recordedTextInput`).
 vi.mock('@commise/ui/text-input', async (importOriginal) => {
@@ -53,6 +61,18 @@ function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSo
 const field = () => screen.getByRole<HTMLInputElement>('textbox', { name: m.label });
 
 describe('RecipeSourceField (native)', () => {
+    it('after a downgrade the screen reader moves to the answer, which the closed sheet left nowhere', () => {
+        const row: SourceRowModel = { kind: 'lockedAnswer', answer: 'book', citation: 'Joy' };
+        const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onOpen: vi.fn(), onTouched: vi.fn(), onAsk: vi.fn() };
+        const { rerender } = render(<RecipeSourceField row={row} {...handlers} focusSignal={0} />);
+
+        expect(focus.moved).not.toHaveBeenCalled();
+        rerender(<RecipeSourceField row={row} {...handlers} focusSignal={1} />);
+
+        expect(focus.moved).toHaveBeenCalledTimes(1);
+        expect(focus.moved.mock.calls[0]?.[1]).toBe('focus');
+    });
+
     it('empty: a labelled URL field with the hint, and no Remove', () => {
         renderRow({ kind: 'empty', text: '' });
 

@@ -24,6 +24,8 @@ export interface RecipeSourceFieldProps {
      * not drawn, and the locked line still reads true.
      */
     readonly askHref?: string;
+    /** A counter the host advances when the sheet that changed this row closed: the answer takes focus (it was the sheet's trigger's neighbour). */
+    readonly focusSignal?: number;
 }
 
 /** The native row's extra: React Native has no declarative link, so opening the locked site is injected. */

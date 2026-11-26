@@ -438,7 +438,7 @@ test.describe('a recipe stored as "From another person" reopens with its Source 
         const section = editorSection(page, 'Photos & publish');
 
         await expect(section.getByText('From another person', { exact: true })).toBeVisible();
-        await expect(section.getByText('The source of this recipe can’t be changed.')).toBeVisible();
+        await expect(section.getByText('Only Commise can change this source.')).toBeVisible();
         await expect(section.getByRole('textbox', { name: 'Source' })).toHaveCount(0);
         await expect(section.getByRole('button', { name: 'Remove source' })).toHaveCount(0);
     });

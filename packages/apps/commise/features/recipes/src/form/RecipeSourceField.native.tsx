@@ -19,9 +19,10 @@ import { Button } from '@commise/ui/button';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { touchFloor } from '@commise/ui/layout';
 import { PressScale } from '@commise/ui/press-scale';
+import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { Text } from '@commise/ui/text';
 import { SOURCE_LINK_INPUT_MAX_LENGTH } from '@kitchensink/recipe-core';
-import type { FC, ReactNode } from 'react';
+import type { ComponentRef, FC, ReactNode } from 'react';
 import { styled, YStack } from 'tamagui';
 
 import { recipeActionMessages } from '../actions/messages.js';
@@ -53,8 +54,10 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
     onTouched,
     onAsk,
     askHref,
+    focusSignal = 0,
     onOpen = openExternalUrl,
 }) => {
+    const answer = useScreenReaderFocusOnSignal<ComponentRef<typeof Text>>(focusSignal);
     const { source: m } = useMessages(editorMessages);
     const { sourceStatement: answers } = useMessages(recipeActionMessages);
 
@@ -150,7 +153,7 @@ export const RecipeSourceField: FC<RecipeSourceFieldNativeProps> = ({
                     {m.label}
                 </Text>
                 {row.answer === undefined ? null : (
-                    <Text typeRole="body" color="$ink">
+                    <Text ref={answer} typeRole="body" color="$ink">
                         {lockedAnswerLabel(row.answer, answers)}
                     </Text>
                 )}

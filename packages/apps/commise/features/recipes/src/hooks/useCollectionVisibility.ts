@@ -100,7 +100,8 @@ export function useCollectionVisibility(collection: {
     /**
      * The compensating change. The snackbar outlives this screen, so Undo can run after it unmounted: it awaits the
      * mutation (TanStack skips callbacks passed to one `mutate` call after unmount) and reports a collection that is
-     * gone in a snackbar of its own, and a failure a later try can fix in another. Every other refusal takes the hook-level rollback and is not raised again.
+     * gone in a snackbar of its own, and a failure a later try can fix in another. Every other refusal takes the
+     * hook-level rollback and is not raised again.
      */
     const undo = (change: VisibilityChange): void => {
         mutation.mutateAsync(change).catch((error: unknown) => {

@@ -68,6 +68,92 @@ function previewLine(id: string, preview: SourceCorrectionPreview): string {
 }
 
 /**
+ * Read one recipe's preview and print its line.
+ *
+ * @returns `true` when the recipe holds an answer that can be corrected; `false` when it was skipped, with the reason printed.
+ * @sideEffect Calls the API and prints.
+ */
+async function previewOne(id: string, input: CorrectionInput, deps: CorrectionDeps): Promise<boolean> {
+    const response = await deps.fetch(
+        `${endpointOf(input, id)}?ownerAccountId=${encodeURIComponent(input.ownerAccountId)}`,
+        {
+            headers: headersOf(input),
+        },
+    );
+
+    if (!response.ok) {
+        deps.print(`${id}: preview failed (${await failureOf(response)}), skipped`);
+
+        return false;
+    }
+
+    const parsed = sourceCorrectionPreviewSchema.safeParse(await response.json().catch(() => undefined));
+
+    if (!parsed.success) {
+        deps.print(`${id}: preview unreadable, skipped`);
+
+        return false;
+    }
+
+    deps.print(previewLine(id, parsed.data));
+
+    if (parsed.data.answer === null) {
+        deps.print(`${id}: skipped, it holds no source answer to correct`);
+
+        return false;
+    }
+
+    return true;
+}
+
+/**
+ * Send one correction and print its result line.
+ *
+ * @returns `true` when the service answered with a readable result.
+ * @sideEffect Calls the API and prints.
+ */
+async function sendOne(id: string, input: CorrectionInput, deps: CorrectionDeps): Promise<boolean> {
+    const response = await deps.fetch(endpointOf(input, id), {
+        method: 'POST',
+        headers: headersOf(input),
+        body: JSON.stringify({
+            ownerAccountId: input.ownerAccountId,
+            answer: input.answer,
+            ground: input.ground,
+            reason: input.reason,
+        } satisfies SourceCorrectionRequest),
+    });
+
+    if (!response.ok) {
+        deps.print(`${id}: failed (${await failureOf(response)})`);
+
+        return false;
+    }
+
+    const reply = sourceCorrectionResponseSchema.safeParse(await response.json().catch(() => undefined));
+
+    if (!reply.success) {
+        deps.print(`${id}: reply unreadable`);
+
+        return false;
+    }
+
+    deps.print(`${id}: ${reply.data.result === 'applied' ? 'applied' : 'already so'}`);
+
+    return true;
+}
+
+/** The request headers: the staff token and JSON. */
+function headersOf(input: CorrectionInput): Record<string, string> {
+    return { authorization: `Bearer ${input.token}`, 'content-type': 'application/json' };
+}
+
+/** The correction endpoint of one recipe. */
+function endpointOf(input: CorrectionInput, id: string): string {
+    return `${input.baseUrl}/api/v1/recipes/${id}/source-correction`;
+}
+
+/**
  * Run a correction.
  *
  * @param input - The ids, the confirmed owner and the new answer.
@@ -76,45 +162,15 @@ function previewLine(id: string, preview: SourceCorrectionPreview): string {
  * @sideEffect Calls the API and prints; sends a correction only after `confirm` answers yes.
  */
 export async function runCorrection(input: CorrectionInput, deps: CorrectionDeps): Promise<CorrectionResult> {
-    const { baseUrl, token, ownerAccountId, recipeIds } = input;
-    const headers = { authorization: `Bearer ${token}`, 'content-type': 'application/json' };
-    const endpoint = (id: string) => `${baseUrl}/api/v1/recipes/${id}/source-correction`;
     const correctable: string[] = [];
     let failed = false;
 
-    for (const id of recipeIds) {
-        const response = await deps.fetch(`${endpoint(id)}?ownerAccountId=${encodeURIComponent(ownerAccountId)}`, {
-            headers,
-        });
-
-        if (!response.ok) {
+    for (const id of input.recipeIds) {
+        if (await previewOne(id, input, deps)) {
+            correctable.push(id);
+        } else {
             failed = true;
-            deps.print(`${id}: preview failed (${await failureOf(response)}), skipped`);
-
-            continue;
         }
-
-        const parsed = sourceCorrectionPreviewSchema.safeParse(await response.json().catch(() => undefined));
-
-        if (!parsed.success) {
-            failed = true;
-            deps.print(`${id}: preview unreadable, skipped`);
-
-            continue;
-        }
-
-        const preview = parsed.data;
-
-        deps.print(previewLine(id, preview));
-
-        if (preview.answer === null) {
-            failed = true;
-            deps.print(`${id}: skipped, it holds no source answer to correct`);
-
-            continue;
-        }
-
-        correctable.push(id);
     }
 
     if (correctable.length === 0) {
@@ -123,45 +179,18 @@ export async function runCorrection(input: CorrectionInput, deps: CorrectionDeps
         return { exitCode: 1 };
     }
 
-    if (
-        !(await deps.confirm(
-            `Correct ${String(correctable.length)} recipe(s) to "${input.answer.kind}"? Check each line above against the owner's reply.`,
-        ))
-    ) {
+    const question = `Correct ${String(correctable.length)} recipe(s) to "${input.answer.kind}"? Check each line above against the owner's reply.`;
+
+    if (!(await deps.confirm(question))) {
         deps.print('Nothing was sent.');
 
         return { exitCode: failed ? 1 : 0 };
     }
 
     for (const id of correctable) {
-        const response = await deps.fetch(endpoint(id), {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({
-                ownerAccountId,
-                answer: input.answer,
-                ground: input.ground,
-                reason: input.reason,
-            } satisfies SourceCorrectionRequest),
-        });
-
-        if (!response.ok) {
+        if (!(await sendOne(id, input, deps))) {
             failed = true;
-            deps.print(`${id}: failed (${await failureOf(response)})`);
-
-            continue;
         }
-
-        const reply = sourceCorrectionResponseSchema.safeParse(await response.json().catch(() => undefined));
-
-        if (!reply.success) {
-            failed = true;
-            deps.print(`${id}: reply unreadable`);
-
-            continue;
-        }
-
-        deps.print(`${id}: ${reply.data.result === 'applied' ? 'applied' : 'already so'}`);
     }
 
     return { exitCode: failed ? 1 : 0 };

@@ -665,7 +665,7 @@ export class RecipeServiceStack extends Stack {
             // directly on it, no metric filter. Sum over a day.
             new cloudwatch.Alarm(this, 'SourceCorrectionVolumeAlarm', {
                 alarmName: `kitchensink-recipe-source-corrected-${stage}`,
-                alarmDescription: `More than ${SOURCE_CORRECTED_DAILY_THRESHOLD} staff source corrections in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).`,
+                alarmDescription: `More than ${String(SOURCE_CORRECTED_DAILY_THRESHOLD)} staff source corrections in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).`,
                 metric: new cloudwatch.Metric({
                     namespace: SOURCE_EVENT_NAMESPACE,
                     metricName: SOURCE_CORRECTED_METRIC,

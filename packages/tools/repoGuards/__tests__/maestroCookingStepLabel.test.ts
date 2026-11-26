@@ -58,7 +58,7 @@ function* texts(value: unknown): Generator<string> {
 }
 
 /** Text that is written like a step or line label, whatever its separator or anchoring. */
-const LABEL_LIKE = /\b(?:Step|Line)\b.{1,8} of /u;
+const LABEL_LIKE = /\b(?:Step|Line).{1,8} of /u;
 
 /** The one form a flow may write a label in: `.` stands for the space. */
 const LABEL_FORM = /^(Step|Line)\.(\d+) of (\d+)$/u;
@@ -131,14 +131,14 @@ describe('the label reader sees every selector form', () => {
         expect(fixture(flow)).toEqual(['Step.1 of 3', 'Line.2 of 2', 'Step 2 of 3']);
     });
 
-    it('catches an anchored form and a regex-space form, which a narrower reader would skip', () => {
+    it('catches an anchored form, a regex-space form and a wrong word, which a narrower reader would skip', () => {
         const flow = [
             "- assertVisible: '^Step 1 of 3$'",
             "- assertVisible: 'Step\\s1 of 3'",
             "- assertVisible: 'Steps.1 of 3'",
         ].join('\n');
 
-        expect(offenders(fixture(flow))).toEqual(['^Step 1 of 3$', 'Step\\s1 of 3']);
+        expect(offenders(fixture(flow))).toEqual(['^Step 1 of 3$', 'Step\\s1 of 3', 'Steps.1 of 3']);
     });
 
     it('catches a wildcard number and a wildcard total', () => {

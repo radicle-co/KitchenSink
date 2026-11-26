@@ -184,8 +184,8 @@ function harness(overrides: Partial<LaneRunDeps> = {}, env: Readonly<Record<stri
 
                 return Promise.resolve();
             },
-            // Every planned flow passed, so a test of something else still sees a clean run. The flows come from the run's
-            // own plan, not from a second list here.
+            // Every planned flow passed, so a test of something else still sees a clean run. The flows come from the
+            // run's own plan, not from a second list here.
             checkScreens: (_lanes, planned) =>
                 Promise.resolve({
                     code: 0,

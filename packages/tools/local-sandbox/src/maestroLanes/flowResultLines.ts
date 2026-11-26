@@ -27,8 +27,8 @@ export const notPassed = (flows: readonly string[], results: ReadonlyMap<string,
     planned(flows).filter((flow) => results.get(flow) !== 'passed');
 
 /**
- * One line per planned flow: `<platform> <flow>: passed|FAILED|skipped|NO RESULT`. A one-off flow that did not pass also
- * says its screenshots are not evidence. Pure.
+ * One line per planned flow: `<platform> <flow>: passed|FAILED|skipped|NO RESULT`. A one-off flow that did not pass
+ * also says its screenshots are not evidence. Pure.
  *
  * @param input - The platform, the flows its lanes were given, and each flow's recorded result.
  * @returns The lines, in plan order.

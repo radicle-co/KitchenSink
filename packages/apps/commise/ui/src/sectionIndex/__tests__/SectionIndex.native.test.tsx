@@ -355,7 +355,7 @@ describe('SectionIndex (native) glyphs grow with their labels', () => {
         return sizes;
     };
 
-    it.each(['wide', 'regular'] as const)(
+    it.each(['wide', 'regular', 'narrow'] as const)(
         'every glyph in the %s presentation is larger at 1.5x than at 1x',
         (width) => {
             const base = glyphSizesAt(width, 1);

@@ -10,7 +10,7 @@
 import { commonMessages } from '@commise/features-core/common';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { makeRecipeDetail, makeRecipeVersion } from '@kitchensink/recipe-core/testing';
 import { RecipeServiceClient } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider, recipeServiceKeys } from '@kitchensink/recipe-service-client/hooks';
@@ -120,6 +120,14 @@ async function setup(undo: UndoAnswer) {
     return { restorePosts, consoleError, queryClient };
 }
 
+/** The Undo has been sent and its mutation settled, with a turn for the `.catch` that follows to have run. */
+const undoSettled = async (queryClient: QueryClient): Promise<void> => {
+    await vi.waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+};
+
 const statusText = (): string => screen.getByRole('status').textContent ?? '';
 
 /** What was logged, minus React's act() notice: the Undo settles outside any test act, which is no fault of the code. */
@@ -166,12 +174,12 @@ describe('the version restore Undo, after its page unmounted', () => {
         ['a 500', () => json(500, { statusCode: 500, message: 'Internal server error' })],
         ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
     ] as const)('never shows the gone message for %s, and does not log or throw', async (_name, answer) => {
-        const { consoleError, restorePosts } = await setup(answer);
+        const { consoleError, restorePosts, queryClient } = await setup(answer);
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
         await vi.waitFor(() => expect(restorePosts).toHaveLength(2));
-        await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
+        await undoSettled(queryClient);
         expect(statusText()).not.toContain(GONE);
         expect(realErrors(consoleError)).toEqual([]);
     });

@@ -12,7 +12,7 @@
 import { commonMessages } from '@commise/features-core/common';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { RecipeServiceClient, collectionQueries, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import {
@@ -136,6 +136,14 @@ async function setup(undo: UndoAnswer) {
 const realErrors = (spy: { mock: { calls: unknown[][] } }): unknown[][] =>
     spy.mock.calls.filter(([first]) => !String(first).includes('not wrapped in act'));
 
+/** The Undo has been sent and its mutation settled, with a turn for the `.catch` that follows to have run. */
+const undoSettled = async (queryClient: QueryClient): Promise<void> => {
+    await vi.waitFor(() => expect(queryClient.isMutating()).toBe(0));
+    await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+};
+
 const statusText = (): string => screen.getByRole('status').textContent ?? '';
 
 describe('the collection visibility Undo, after its page unmounted', () => {
@@ -168,11 +176,12 @@ describe('the collection visibility Undo, after its page unmounted', () => {
         ['a 409', () => json(409, { statusCode: 409, message: 'Conflict', error: 'Conflict' })],
         ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
     ] as const)('never shows the gone message for %s, and does not log or throw', async (_name, answer) => {
-        const { consoleError } = await setup(answer);
+        const { calls, consoleError, queryClient } = await setup(answer);
 
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
-        await vi.waitFor(() => expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull());
+        await vi.waitFor(() => expect(calls.filter((method) => method !== 'GET')).toHaveLength(2));
+        await undoSettled(queryClient);
         expect(statusText()).not.toContain(GONE);
         expect(realErrors(consoleError)).toEqual([]);
     });

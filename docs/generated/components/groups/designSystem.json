@@ -17402,7 +17402,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx",
                     "dir": "packages/apps/commise/ui/src/spinner",
-                    "moduleDoc": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):\n`Button` draws it in its busy glyph slot.\n\nIt stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth under\nthe system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with Tamagui\nonly (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):\n`Button` draws it in its busy glyph slot.\n\nIt stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth\nunder the system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with\nTamagui only (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

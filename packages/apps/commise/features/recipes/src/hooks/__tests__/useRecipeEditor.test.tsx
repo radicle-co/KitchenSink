@@ -4769,6 +4769,33 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         expect(view.result.current.sourceLockRefused).toBe(false);
     });
 
+    it('⛔ a background draft save that succeeds does not clear the lock notice: only the cook’s next Publish or Save does', async () => {
+        const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
+        const view = mount({ recipe: stored });
+
+        typeTitle(view.result, 'Renamed soup');
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+        });
+        await settle();
+        await settle();
+        expect(view.result.current.sourceLockRefused).toBe(true);
+
+        typeTitle(view.result, 'Renamed soup again');
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+        await settle();
+
+        expect(view.port.submitted.length).toBeGreaterThan(1);
+        expect(view.result.current.sourceLockRefused).toBe(true);
+    });
+
     it('⛔ a Save on a published recipe refused for the lock stays published: the resend is no draft write and the editor stays open', async () => {
         const published = makeRecipeDetail({
             id: 'rec_1',

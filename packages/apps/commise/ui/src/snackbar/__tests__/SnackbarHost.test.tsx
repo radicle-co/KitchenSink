@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, within } from '@testing-librar
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useContext, useState, type FC, type JSX } from 'react';
 
+import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { PopupInsetsProvider } from '../../popupInsets/PopupInsetsProvider.js';
 import { SnackbarClearanceContext } from '../snackbarClearanceContext.js';
 import { SnackbarHost } from '../SnackbarHost.js';
@@ -229,11 +230,13 @@ describe('SnackbarHost (web)', () => {
         expect(regionOf().style.bottom).toBe('136px');
     });
 
-    it('sits at the 16px base when no page provides chrome', () => {
+    it('sits at the 16px base when no page provides chrome, and ignores a reader that is only above the host', () => {
         render(
-            <SnackbarHost>
-                <Screen input={{ message: 'Removed Pasta' }} />
-            </SnackbarHost>,
+            <PopupInsetsContext value={reader(64)}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
         );
 
         showFrom('Removed Pasta');

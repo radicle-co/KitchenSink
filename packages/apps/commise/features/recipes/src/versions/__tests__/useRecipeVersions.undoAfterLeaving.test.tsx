@@ -37,6 +37,7 @@ function serverWhere(undo: UndoAnswer) {
     const restorePosts: string[] = [];
     const fetchDouble = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
         const url = input instanceof Request ? input.url : String(input);
+
         if (/\/versions\/\d+\/restore$/.test(url)) {
             restores += 1;
             restorePosts.push(url);

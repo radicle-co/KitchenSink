@@ -358,6 +358,7 @@ describe('SnackbarHost (web): above the pages', () => {
 
     it('lets a show captured before its page unmounted still show, and the snackbar stay', () => {
         const held: { show?: (input: SnackbarInput) => SnackbarHandle } = {};
+
         const Capture: FC<{ readonly onShow: (show: (input: SnackbarInput) => SnackbarHandle) => void }> = ({
             onShow,
         }) => {
@@ -369,6 +370,7 @@ describe('SnackbarHost (web): above the pages', () => {
 
             return null;
         };
+
         const { rerender } = render(
             <SnackbarHost>
                 <Capture

@@ -145,7 +145,7 @@ const laneName = (lane: LaneSpec): string => `${lane.platform}-${lane.index}`;
  * Plan one platform: its lanes, or none when it has nothing to run. With staged one-off ids the platform runs only
  * those: the selector is not asked, every lane is handed the ids, and the green stamp does not move.
  *
- * @throws When no lane has its Clerk users (refused before anything starts).
+ * @throws When no lane has its Clerk users, or no lane can hold a chosen flow (refused before anything starts).
  */
 async function planPlatform(
     deps: LaneRunDeps,
@@ -196,6 +196,14 @@ async function planPlatform(
         requested: Math.min(request.requested ?? adapter.maxLanes, adapter.maxLanes),
     });
     const count = await fitLaneCount(plan.count, (index, of) => deps.pack(platform, index, of, flows));
+
+    // Flows were chosen and no lane can hold one: ending green here would pass flows that never ran.
+    if (count === 0) {
+        throw new Error(
+            `maestro:lanes: ${platform} has ${flows.length} flow(s) to run and no lane can hold one ` +
+                `(planned ${plan.count}, bound by ${plan.boundBy}) - nothing was started`,
+        );
+    }
     deps.log(
         `${platform}: ${count} lane(s) for ${flows.length} flow(s) (planned ${plan.count}, bound by ${plan.boundBy}; ` +
             `caps ${JSON.stringify(plan.caps)})`,

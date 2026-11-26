@@ -415,6 +415,25 @@ describe('runLaneRun — a lane run over fakes', () => {
         expect(events.filter((event) => !event.startsWith('log'))).toEqual(['lock', 'unlock']);
     });
 
+    it('refuses, and starts nothing, when flows are planned but no packing gives any lane a flow', async () => {
+        const settled: unknown[] = [];
+        const { events, deps } = harness({
+            selectFlows: () => Promise.resolve({ flows: ['p'], notes: [], owed: [] }),
+            pack: () => Promise.resolve([]),
+            settleStamp: (input) => {
+                settled.push(input);
+
+                return Promise.resolve();
+            },
+        });
+
+        await expect(runLaneRun(deps, { platforms: ['android'], selection: 'all' })).rejects.toThrow(
+            /android.*1 flow.*no lane can hold/u,
+        );
+        expect(events.filter((event) => !event.startsWith('log'))).toEqual(['lock', 'unlock']);
+        expect(settled).toEqual([]);
+    });
+
     it('names a lane device through the adapter, so a class adapter that reads this still answers', async () => {
         const { events, deps } = harness();
 

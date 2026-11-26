@@ -7,32 +7,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-const platform = vi.hoisted(() => ({ os: undefined as 'android' | undefined }));
-
-vi.mock('react-native', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('react-native')>();
-
-    return {
-        ...actual,
-        Platform: {
-            ...actual.Platform,
-            get OS() {
-                return platform.os ?? actual.Platform.OS;
-            },
-        },
-    };
-});
-
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { present } from '../../testing/present.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { CookingTimerRow } from '../CookingTimerRow.native.js';
 import { CookingTimerSummary } from '../CookingTimerSummary.native.js';
 import type { CookingTimerRowState } from '../props.js';
 
-afterEach(() => {
-    cleanup();
-    platform.os = undefined;
-});
+afterEach(cleanup);
 
 const summary = (
     <CookingTimerSummary
@@ -118,24 +100,19 @@ describe('CookingTimerRow (native), the frame', () => {
         expect(row?.getAttribute('role')).toBeNull();
     });
 
-    it('keeps the two actions apart: 48 dp frames on Android with a 4 dp gap, 44 on iOS with an 8 dp gap', () => {
-        const widths = (): number[] =>
-            screen
-                .getAllByRole('button')
-                .map((b) => parseFloat(getComputedStyle(present(b.firstElementChild, 'the frame')).width));
+    it.each([
+        ['ios', 44, '8px'],
+        ['android', 48, '4px'],
+    ] as const)('keeps the two actions apart on %s: %i dp frames and a %s gap', (os, frame, gap) => {
+        const { container } = withPlatformOs(os, () =>
+            renderWithTamagui(<CookingTimerRow state={running()} body={summary} />, 'light'),
+        );
+        const widths = screen
+            .getAllByRole('button')
+            .map((b) => parseFloat(getComputedStyle(present(b.firstElementChild, 'the frame')).width));
 
-        const gap = (container: HTMLElement): string =>
-            resolvedStyle(present(container.querySelector('[name="CookingTimerRow"]'), 'the row'), 'gap');
-
-        const ios = renderWithTamagui(<CookingTimerRow state={running()} body={summary} />, 'light');
-        expect(widths()).toEqual([44, 44]);
-        expect(gap(ios.container)).toBe('8px');
-        cleanup();
-
-        platform.os = 'android';
-        const android = renderWithTamagui(<CookingTimerRow state={running()} body={summary} />, 'light');
-        expect(widths()).toEqual([48, 48]);
-        expect(gap(android.container)).toBe('4px');
+        expect(widths).toEqual([frame, frame]);
+        expect(resolvedStyle(present(container.querySelector('[name="CookingTimerRow"]'), 'the row'), 'gap')).toBe(gap);
     });
 });
 

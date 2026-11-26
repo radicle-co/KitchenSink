@@ -59,6 +59,9 @@ export const TAB_LABEL_CHROME_CAP = '1.3' satisfies ChromeCap;
  */
 const GLYPH_HIDE_ABOVE_SCALE = 1.3;
 
+/** Added to the threshold in px so that exactly 1.3x still shows the glyph, as native's `<=` does. */
+const GLYPH_HIDE_MARGIN_PX = 0.0001;
+
 /**
  * Whether a leading glyph shows at a system text scale. Native only; web states the same rule in CSS
  * ({@link leadingGlyphWebStyle}). Pure.
@@ -83,9 +86,12 @@ const GLYPH_BOX_MAX = '1.5rem';
  * px margin, so that exactly 1.3x still shows the glyph, as native does. Pure.
  */
 export function leadingGlyphWebStyle(): { readonly width: string; readonly overflow: 'hidden' } {
-    const thresholdPx = Math.round((ROOT_FONT_PX * GLYPH_HIDE_ABOVE_SCALE + 0.0001) * 10_000) / 10_000;
+    const thresholdPx = Math.round((ROOT_FONT_PX * GLYPH_HIDE_ABOVE_SCALE + GLYPH_HIDE_MARGIN_PX) * 10_000) / 10_000;
 
-    return { width: `clamp(0px, calc((${thresholdPx}px - 1rem) * 1000), ${GLYPH_BOX_MAX})`, overflow: 'hidden' };
+    return {
+        width: `clamp(0px, calc((${String(thresholdPx)}px - 1rem) * 1000), ${GLYPH_BOX_MAX})`,
+        overflow: 'hidden',
+    };
 }
 
 /** A sized role's size and leading, in px numbers, for a React Native text that cannot be the design-system Text. */

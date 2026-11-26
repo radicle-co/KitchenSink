@@ -6,30 +6,12 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
 
-const platform = vi.hoisted(() => ({ os: undefined as 'android' | undefined }));
-
-vi.mock('react-native', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('react-native')>();
-
-    return {
-        ...actual,
-        Platform: {
-            ...actual.Platform,
-            get OS() {
-                return platform.os ?? actual.Platform.OS;
-            },
-        },
-    };
-});
-
+import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { present } from '../../testing/present.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { IconButton } from '../IconButton.native.js';
 
-afterEach(() => {
-    cleanup();
-    platform.os = undefined;
-});
+afterEach(cleanup);
 
 const glyph = (): HTMLElement =>
     present(document.querySelector<HTMLElement>('[data-commise-stub="icon"]'), 'the glyph');
@@ -56,24 +38,20 @@ describe('IconButton (native)', () => {
         expect(glyph().dataset['iconSize']).toBe('24');
     });
 
-    it.each([1, 2])('keeps its 44 target at text scale %s on iOS', (scale) => {
-        renderWithTamagui(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />, 'light', scale);
-        const frame = getComputedStyle(
-            present(screen.getByRole('button', { name: 'Cancel' }).firstElementChild, 'the frame'),
+    it.each([
+        ['ios', 1, 44],
+        ['ios', 2, 44],
+        ['android', 1, 48],
+        ['android', 2, 48],
+    ] as const)('on %s at text scale %s the touch frame is %i and the 44 circle sits inside it', (os, scale, side) => {
+        withPlatformOs(os, () =>
+            renderWithTamagui(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />, 'light', scale),
         );
+        const frame = present(screen.getByRole('button', { name: 'Cancel' }).firstElementChild, 'the frame');
+        const circle = present(frame.firstElementChild, 'the circle');
 
-        expect(frame.width).toBe('44px');
-        expect(frame.height).toBe('44px');
-    });
-
-    it('is a 48 dp frame on Android, with the 44 circle inside it and no hit slop', () => {
-        platform.os = 'android';
-        renderWithTamagui(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />, 'light');
-        const frame = getComputedStyle(
-            present(screen.getByRole('button', { name: 'Cancel' }).firstElementChild, 'the frame'),
-        );
-
-        expect(frame.width).toBe('48px');
-        expect(frame.height).toBe('48px');
+        expect(getComputedStyle(frame).width).toBe(`${String(side)}px`);
+        expect(getComputedStyle(frame).height).toBe(`${String(side)}px`);
+        expect(getComputedStyle(circle).width).toBe('44px');
     });
 });

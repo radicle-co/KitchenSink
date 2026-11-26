@@ -27,6 +27,7 @@ import {
     isPrivateFoodsOnPublicRecipeError,
     isInvalidVisibilityError,
     isPrivateSlotsFullError,
+    isSourceLockedError,
     isRecipeNotFoundError,
     isRecipeServiceClientError,
     isSourceUnavailableError,
@@ -200,6 +201,13 @@ function failureFor(error: unknown): RecipeSendResult {
     // the answer, where a bare 400 would park behind a Try again that sends the same refusal. Dropped, never parked.
     if (isInvalidVisibilityError(error) && error.reason === 'STATEMENT_REQUIRED') {
         return { outcome: 'failed', status: 400, answer: { kind: 'recipeStatementRequired' }, drop: true };
+    }
+
+    // ⛔ A CHANGE TO A CONFIRMED SOURCE travels as data, and the write stays PARKED (a terminal 403 with the cook's other edits
+    // held, never dropped, never re-sent by the drain): the editor reads the answer, drops the refused source change and sends
+    // the rest.
+    if (isSourceLockedError(error)) {
+        return { outcome: 'failed', status: 403, answer: { kind: 'recipeSourceLocked' } };
     }
 
     if (isInvalidRequestError(error)) {

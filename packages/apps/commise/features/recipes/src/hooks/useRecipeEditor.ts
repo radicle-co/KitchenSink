@@ -174,7 +174,9 @@ export type EditorWriteAnswer =
     /** The server refused a public recipe that holds foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the lines. */
     | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] }
     /** The server refused a write until the cook says where the recipe is from (`400 STATEMENT_REQUIRED`, ADR-0095). */
-    | { readonly kind: 'recipeStatementRequired' };
+    | { readonly kind: 'recipeStatementRequired' }
+    /** The server refused a change to the recipe's confirmed source answer (`403 SOURCE_LOCKED`, ADR-0100); the write stays parked. */
+    | { readonly kind: 'recipeSourceLocked' };
 
 /** The server's refusal of a private food in a public recipe, as the editor holds it for its sheet. */
 export interface PrivateFoodRefusal {

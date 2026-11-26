@@ -25,4 +25,6 @@ export type SyncAnswer =
     /** A write the server refused because a public recipe would hold foods only its author can see (`400 PRIVATE_FOODS_ON_PUBLIC_RECIPE`): the refused lines. */
     | { readonly kind: 'recipePrivateFoods'; readonly lines: readonly PrivateFoodLine[] }
     /** A write the server refused until the cook says where the recipe is from (`400 INVALID_VISIBILITY`, `STATEMENT_REQUIRED`, ADR-0095). */
-    | { readonly kind: 'recipeStatementRequired' };
+    | { readonly kind: 'recipeStatementRequired' }
+    /** A write the server refused because it changed a recipe's confirmed source answer (`403 FORBIDDEN`, `SOURCE_LOCKED`, ADR-0100). The write stays parked. */
+    | { readonly kind: 'recipeSourceLocked' };

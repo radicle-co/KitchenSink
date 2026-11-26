@@ -14,11 +14,12 @@
  * @pattern Policy — `privateChoice` and `canUndoVisibilityChange` decide the change, the sheet and the Undo
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { commonMessages } from '@commise/features-core/common';
 import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import type { CollectionWithRecipes } from '@kitchensink/recipe-service-client';
+import { isNotFoundError, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import {
     invalidateCollections,
     recipeServiceKeys,
@@ -64,6 +65,7 @@ export function useCollectionVisibility(collection: {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const [upsellOpen, setUpsellOpen] = useState(false);
+    const undoGone = useMessages(commonMessages).undoGone;
     const detailKey = recipeServiceKeys.collection(collection.id);
     const mutationKey = ['recipe-service', 'mutations', 'collectionVisibility', collection.id] as const;
 
@@ -88,6 +90,19 @@ export function useCollectionVisibility(collection: {
             }
         },
     });
+
+    /**
+     * The compensating change. The snackbar outlives this screen, so Undo can run after it unmounted: it awaits the
+     * mutation (TanStack skips callbacks passed to one `mutate` call after unmount) and reports a collection that is
+     * gone in a snackbar of its own. Every other failure takes the hook-level rollback and is not raised again.
+     */
+    const undo = (change: VisibilityChange): void => {
+        mutation.mutateAsync(change).catch((error: unknown) => {
+            if (isNotFoundError(error)) {
+                snackbar.show({ message: undoGone });
+            }
+        });
+    };
 
     return {
         // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
@@ -121,7 +136,7 @@ export function useCollectionVisibility(collection: {
                         to === RecipeVisibility.PRIVATE ? copy.visibilityPrivateWord : copy.visibilityPublicWord,
                 }),
                 ...(canUndoVisibilityChange({ from, state: collection.paidFeatures })
-                    ? { action: { label: copy.undo, onAction: () => mutation.mutate({ to: from, from: to }) } }
+                    ? { action: { label: copy.undo, onAction: () => undo({ to: from, from: to }) } }
                     : {}),
             });
         },

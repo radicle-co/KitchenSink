@@ -19,16 +19,22 @@
  *
  * @pattern Headless hook — three prop bags (list, preview, compare) the platforms render
  */
+import { commonMessages } from '@commise/features-core/common';
 import { fillTemplate } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import {
+    isNotFoundError,
     isPrivateFoodsOnPublicRecipeError,
     isVersionConflictError,
     recipeQueries,
 } from '@kitchensink/recipe-service-client';
-import { useRecipeServiceClient, useRestoreRecipeVersion } from '@kitchensink/recipe-service-client/hooks';
-import { useSuspenseQueries } from '@tanstack/react-query';
+import {
+    recipeServiceKeys,
+    useRecipeServiceClient,
+    useRestoreRecipeVersion,
+} from '@kitchensink/recipe-service-client/hooks';
+import { useQueryClient, useSuspenseQueries } from '@tanstack/react-query';
 import { useState } from 'react';
 
 import { refusedLinesOf } from '../editor/refusedLinesOf.js';
@@ -88,6 +94,7 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
     const [versionsQuery, recipeQuery] = useSuspenseQueries({
         queries: [recipeQueries(client).versions(recipeId), recipeQueries(client).detail(recipeId)],
     });
+    const queryClient = useQueryClient();
     const restore = useRestoreRecipeVersion();
     // Preview: which version (by number) is being previewed, or `null` when the modal is closed.
     const [previewTarget, setPreviewTarget] = useState<number | null>(null);
@@ -98,6 +105,7 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
     const snackbar = useSnackbar();
     const { versionList } = useMessages(recipeVersionMessages);
     const { ingredientLineName } = useMessages(recipeMessages);
+    const { undoGone } = useMessages(commonMessages);
 
     const versions = versionsQuery.data;
     const recipe = recipeQuery.data;
@@ -116,31 +124,32 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
         const { onRestored, undoable = true } = options;
         const wasCurrent = recipe.currentVersion;
 
-        restore.mutate(
-            { id: recipeId, versionNumber },
-            {
-                onSuccess: () => {
-                    onRestored?.();
-                    snackbar.show({
-                        message: fillTemplate(versionList.restored, { version: versionNumber }),
-                        ...(undoable
-                            ? {
-                                  action: {
-                                      label: versionList.undo,
-                                      onAction: () => restoreVersion(wasCurrent, { undoable: false }),
-                                  },
-                              }
-                            : {}),
-                    });
-                },
-                // On a conflict the local history and current version are stale — refetch so the viewer sees the
-                // version that landed before they retry.
-                onError: (error) => {
-                    if (isVersionConflictError(error)) {
-                        void versionsQuery.refetch();
-                        void recipeQuery.refetch();
-                    }
-                },
+        // `mutateAsync`, not callbacks on `mutate`: the snackbar's Undo can run after this screen unmounted, and
+        // TanStack skips a `mutate` call's own callbacks then. A failure is not raised again: the observer's `error`
+        // already feeds `restoreError`, so the rejection is handled here and nowhere else.
+        restore.mutateAsync({ id: recipeId, versionNumber }).then(
+            () => {
+                onRestored?.();
+                snackbar.show({
+                    message: fillTemplate(versionList.restored, { version: versionNumber }),
+                    ...(undoable
+                        ? {
+                              action: {
+                                  label: versionList.undo,
+                                  onAction: () => restoreVersion(wasCurrent, { undoable: false }),
+                              },
+                          }
+                        : {}),
+                });
+            },
+            (error: unknown) => {
+                // On a conflict the local history and current version are stale: mark the recipe and its history stale
+                // by id (the history's key sits under the recipe's), so it also works once this screen is gone.
+                if (isVersionConflictError(error)) {
+                    void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
+                } else if (!undoable && isNotFoundError(error)) {
+                    snackbar.show({ message: undoGone });
+                }
             },
         );
     };

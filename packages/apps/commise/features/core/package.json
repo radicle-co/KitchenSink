@@ -8,6 +8,7 @@
     "exports": {
         ".": "./src/index.ts",
         "./offline": "./src/offline/messages.ts",
+        "./common": "./src/common/messages.ts",
         "./home": "./src/home/index.ts",
         "./boundary": "./src/boundary/index.ts",
         "./boundary/messages": "./src/boundary/messages.ts",

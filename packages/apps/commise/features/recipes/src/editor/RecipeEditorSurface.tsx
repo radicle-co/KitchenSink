@@ -381,7 +381,11 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                             {...(askHref === undefined ? {} : { askHref })}
                             focusSignal={downgraded?.n ?? 0}
                         />
-                        {editor.sourceLockRefused ? <PastedSourceNotice text={sourceCopy.lockedRefused} /> : null}
+                        {/* Kept mounted: the first refusal is a change of its signal, so it takes focus and the scroll. */}
+                        <PastedSourceNotice
+                            text={editor.sourceLockRefused ? sourceCopy.lockedRefused : ''}
+                            focusSignal={editor.sourceLockRefusals}
+                        />
                         <RecipeVisibilityField
                             values={editor.values}
                             onChange={editor.setValues}
@@ -400,6 +404,10 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 {/* What a paste did to the Source, spoken once per paste (the occurrence changes for a repeat). */}
                 <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
                     {source.notice?.text ?? ''}
+                </LiveRegion>
+                {/* A lock refusal, spoken once for each (the occurrence changes for a repeat). */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={editor.sourceLockRefusals}>
+                    {editor.sourceLockRefused ? sourceCopy.lockedRefused : ''}
                 </LiveRegion>
                 {/* Said once after a confirmed "I wrote this" became a cookbook or paid website. */}
                 <LiveRegion politeness="polite" visuallyHidden occurrence={downgraded?.n ?? 0}>

@@ -34,4 +34,23 @@ describe('PastedSourceNotice (web)', () => {
         expect(screen.getByText(/Left out a Commise link/u)).toBeTruthy();
         expect(screen.queryByRole('button')).toBeNull();
     });
+
+    it('takes focus when the host advances its signal (a refusal the cook must read)', () => {
+        const { rerender } = render(<PastedSourceNotice text={TEXT} focusSignal={0} />);
+
+        expect(document.activeElement).toBe(document.body);
+        rerender(<PastedSourceNotice text={TEXT} focusSignal={1} />);
+
+        expect(document.activeElement).not.toBe(document.body);
+        expect(document.activeElement?.textContent).toBe(TEXT);
+    });
+
+    it('shows nothing while it has no text, and takes focus when the first refusal brings its text', () => {
+        const { container, rerender } = render(<PastedSourceNotice text="" focusSignal={0} />);
+
+        expect(container.textContent).toBe('');
+        rerender(<PastedSourceNotice text={TEXT} focusSignal={1} />);
+
+        expect(document.activeElement?.textContent).toBe(TEXT);
+    });
 });

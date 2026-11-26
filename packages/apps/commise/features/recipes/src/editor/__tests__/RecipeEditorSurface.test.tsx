@@ -1161,7 +1161,10 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
     it('a refused lock change is told under the row', () => {
         mount({ editorOver: { sourceLockRefused: true } });
 
-        expect(screen.getByText('That source change wasn’t saved. Only Commise can change this source.')).toBeTruthy();
+        // The notice under the row, and the polite live region that speaks it once.
+        expect(
+            screen.getAllByText('That source change wasn’t saved. Only Commise can change this source.'),
+        ).toHaveLength(2);
     });
 
     it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {

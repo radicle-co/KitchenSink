@@ -6,13 +6,13 @@
     "coverage": {
         "components": 211,
         "implementations": 357,
-        "props": 2474,
+        "props": 2476,
         "documentedComponents": 211,
         "implementationsWithModuleDoc": 357,
         "implementationsWithComponentDoc": 246,
-        "documentedProps": 1904,
+        "documentedProps": 1906,
         "classifiedComponents": 189,
-        "componentsWithPatternTag": 101,
+        "componentsWithPatternTag": 102,
         "crossPlatformComponents": 146
     },
     "components": [
@@ -22005,7 +22005,10 @@
             "layer": "feature",
             "dir": "packages/apps/commise/features/recipes/src/form",
             "kind": "presentational",
-            "patterns": [],
+            "patterns": [
+                "Adapter over `useFocusOnSignal` — the DOM focus move the host's signal asks for",
+                "Adapter over `useScreenReaderFocusOnSignal` — the accessibility focus event the host's signal asks for"
+            ],
             "platforms": [
                 "web",
                 "native"
@@ -22019,11 +22022,15 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a\npasted link did (ADR-0089), so a sighted cook sees what the live region speaks: the Source it set and that the recipe is\nprivate now, the link it kept or left out. When the paste made the recipe private, a ghost Remove undoes it in place.\n\nPresentational: text and an optional command in, markup out. The native leaf is `./PastedSourceNotice.native.tsx`.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a\npasted link did (ADR-0089), so a sighted cook sees what the live region speaks: the Source it set and that the recipe is\nprivate now, the link it kept or left out. When the paste made the recipe private, a ghost Remove undoes it in place.\n\nPresentational: text and an optional command in, markup out. It holds a ref only so a refusal the cook must read can take\nfocus (SC 2.4.3). With no text it shows nothing, so a host can keep it mounted and the first refusal still counts as a\nchange of its signal. The native leaf is `./PastedSourceNotice.native.tsx`.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/form — `PastedSourceNotice` (web): the caption under a paste control that says what a"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `useFocusOnSignal` — the DOM focus move the host's signal asks for"
                         }
                     ],
                     "description": "What a paste did to the Source, under the paste control.",
@@ -22031,6 +22038,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook must be taken to this notice (a refusal): it takes focus. Inert on mount.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
                         {
                             "name": "onRemove",
                             "type": "(() => void)",
@@ -22062,11 +22078,15 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/recipes/src/form/PastedSourceNotice.native.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/form",
-                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it.",
+                    "moduleDoc": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of\n`./PastedSourceNotice.tsx`, on the same props and words. Styled with Tamagui only (ADR-0080). The Remove hugs its label\nat the start of the row rather than stretching across it. It holds a ref only so a refusal the cook must read can take the\nscreen reader's focus.",
                     "moduleTags": [
                         {
                             "name": "module",
                             "text": "@commise/features-recipes/form — `PastedSourceNotice` (native): the presentational React Native leaf of"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over `useScreenReaderFocusOnSignal` — the accessibility focus event the host's signal asks for"
                         }
                     ],
                     "description": "What a paste did to the Source, under the paste control.",
@@ -22074,6 +22094,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the cook must be taken to this notice (a refusal): it takes focus. Inert on mount.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/pastedSourceNoticeProps.ts"
+                        },
                         {
                             "name": "onRemove",
                             "type": "(() => void)",

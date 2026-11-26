@@ -25,6 +25,7 @@ export function makeEditorResult(over: Partial<UseRecipeEditorResult> = {}): Use
         rowStated: undefined,
         storedRecipe: undefined,
         sourceLockRefused: false,
+        sourceLockRefusals: 0,
         confirmLineShown: false,
         publicRefusal: 'none',
         answerStatement: noop,

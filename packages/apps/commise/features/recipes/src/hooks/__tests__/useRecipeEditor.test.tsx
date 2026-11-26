@@ -4686,6 +4686,116 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         expect(result.current.values.visibility).toBe(RecipeVisibility.PRIVATE);
     });
 
+    it('⛔ an answer on a stored draft the cook changed nothing else in is still sent at the next checkpoint (it is not lost)', async () => {
+        const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
+        const view = mount({ recipe: stored });
+
+        act(() => {
+            view.result.current.answerRowStatement(fromPerson, 'firstAnswer');
+        });
+        await settle();
+
+        expect(view.port.submitted[0]).toMatchObject({
+            intentKind: 'update',
+            payload: { input: { statement: { kind: 'fromPerson' } } },
+        });
+    });
+
+    it('⛔ a Publish refused for the lock does not finish: the cook stays, the rest is saved as a draft, nothing publishes behind their back', async () => {
+        const stored = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.DRAFT,
+            visibility: RecipeVisibility.PRIVATE,
+        });
+        const view = mount({ recipe: stored });
+
+        typeTitle(view.result, 'Renamed soup');
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        expect(view.port.submitted[0]).toMatchObject({ payload: { input: { status: 'published' } } });
+        const sentBefore = view.port.submitted.length;
+
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.sourceLockRefused).toBe(true);
+        expect(view.result.current.rowStated).toBeUndefined();
+        expect(view.onExit).not.toHaveBeenCalled();
+        // The rest of the draft went again, with no step toward Published or Public, and nobody left.
+        const resent = view.port.submitted.slice(sentBefore);
+
+        expect(resent).toHaveLength(1);
+        expect(resent[0]).toMatchObject({ payload: { input: { title: 'Renamed soup' } } });
+        expect(JSON.stringify(resent[0]?.payload)).not.toMatch(/"status":"published"|"visibility":"public"/u);
+
+        // The refused answer is forgotten: a later checkpoint does not send it again.
+        typeTitle(view.result, 'Renamed again');
+        act(() => {
+            view.result.current.checkpoint('sectionChange');
+        });
+        await settle();
+
+        expect(JSON.stringify(view.port.submitted.slice(sentBefore + 1))).not.toContain('statement');
+    });
+
+    it('⛔ the lock notice stays through the automatic resend and clears at the cook’s next Publish', async () => {
+        const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
+        const view = mount({ recipe: stored });
+
+        typeTitle(view.result, 'Renamed soup');
+        act(() => {
+            view.result.current.publish('');
+        });
+        await settle();
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.sourceLockRefused).toBe(true);
+        expect(view.result.current.sourceLockRefusals).toBe(1);
+
+        act(() => {
+            view.result.current.publish('');
+        });
+
+        expect(view.result.current.sourceLockRefused).toBe(false);
+    });
+
+    it('⛔ a Save on a published recipe refused for the lock stays published: the resend is no draft write and the editor stays open', async () => {
+        const published = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: '2026-11-01T00:00:00.000Z',
+        });
+        const view = mount({ recipe: published });
+
+        typeTitle(view.result, 'Renamed soup');
+        act(() => {
+            view.result.current.saveChanges('');
+        });
+        await settle();
+        const sentBefore = view.port.submitted.length;
+
+        act(() => {
+            view.port.park(view.port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+        });
+        await settle();
+        await settle();
+
+        expect(view.result.current.sourceLockRefused).toBe(true);
+        expect(view.onExit).not.toHaveBeenCalled();
+        expect(JSON.stringify(view.port.submitted.slice(sentBefore))).not.toContain('"status":"draft"');
+    });
+
     it('"I wrote this" in the change sheet clears the stored answer: it is held as the absence of one', () => {
         const { result } = mount();
 

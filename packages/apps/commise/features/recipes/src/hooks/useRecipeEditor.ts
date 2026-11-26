@@ -368,6 +368,8 @@ export interface UseRecipeEditorResult {
      * again. True until the cook next touches the Source.
      */
     readonly sourceLockRefused: boolean;
+    /** How many lock refusals this session has had: the view moves focus to the notice and speaks it for each. */
+    readonly sourceLockRefusals: number;
     /**
      * Whether the passive line is drawn under the Public card. ⛔ The ONE fact that decides whether a publishing write sends
      * `publicConfirm.v1`: the line and the wording go together or not at all.
@@ -536,6 +538,7 @@ interface EditorContext {
     readonly setPublishBlocked: Dispatch<SetStateAction<PublishBlocked | undefined>>;
     readonly setPrivateFoodRefusal: Dispatch<SetStateAction<PrivateFoodRefusal | undefined>>;
     readonly setSourceLockRefused: Dispatch<SetStateAction<boolean>>;
+    readonly countSourceLockRefusal: () => void;
     /** The source question (ADR-0095): whether the sheet is open, and the answer the cook gave. */
     readonly statement: StatementStore;
     readonly clearResume: () => void;
@@ -812,7 +815,11 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         trigger,
         lifecycle: lifecycleNow(ctx),
         draftFloorMet: meetsDraftFloor(draft),
-        changedSinceServerWrite: serverValues === undefined || !recipeFormValuesEqual(draft, serverValues),
+        // A Source answer the row's sheet gave is a change the server does not hold yet, whatever the draft says.
+        changedSinceServerWrite:
+            serverValues === undefined ||
+            !recipeFormValuesEqual(draft, serverValues) ||
+            ctx.statement.get().row !== undefined,
         pastePending: pasteHeld(ctx),
         rowEditHeld: ctx.opts.rowEditHold?.get() === true,
     });
@@ -1240,7 +1247,8 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         // are dropped, and the rest goes again: the refusal is theirs to read, not a Try again that sends it back.
         dropRefusedSource(ctx);
         ctx.setSourceLockRefused(true);
-        retry(ctx);
+        ctx.countSourceLockRefusal();
+        retry(ctx, { stay: true });
 
         return;
     }
@@ -1503,6 +1511,9 @@ function finish(ctx: EditorContext, entryText: string, trigger: CheckpointTrigge
         return { kind: 'busy' };
     }
 
+    // The cook is acting again: the refusal they read is answered by this press.
+    ctx.setSourceLockRefused(false);
+
     const outcome = checkGate(ctx, entryText, trigger);
 
     ctx.core.dispatch({ type: 'drainReset' });
@@ -1617,7 +1628,7 @@ function answerRowStatement(ctx: EditorContext, write: StatementWrite, sheet: So
 }
 
 /** Withdraw the parked write and send the draft again, or run a stopped Save changes again. @sideEffect */
-function retry(ctx: EditorContext): void {
+function retry(ctx: EditorContext, options: { readonly stay?: boolean } = {}): void {
     const { server } = ctx.core.get();
 
     if (server.kind === 'stored' && server.drainFailed) {
@@ -1632,7 +1643,8 @@ function retry(ctx: EditorContext): void {
         return;
     }
 
-    const trigger = parked.finishing ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
+    // `stay`: the cook has a refusal to read (the lock), so the rest is saved and the editor does not finish and leave.
+    const trigger = parked.finishing && options.stay !== true ? finishingTrigger(lifecycleNow(ctx)) : 'sectionChange';
 
     // ⛔ A 403 is the service refusing the statement this session sent (the recipe's source is locked, `SOURCE_LOCKED`: another
     // device stored "From another person" since this editor read the recipe). Sent again it meets the same refusal, and the
@@ -2196,6 +2208,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
     const statementState = useSyncExternalStore(stores.statement.subscribe, stores.statement.get, stores.statement.get);
     const [privateFoodRefusal, setPrivateFoodRefusal] = useState<PrivateFoodRefusal | undefined>(undefined);
     const [sourceLockRefused, setSourceLockRefused] = useState(false);
+    const [sourceLockRefusals, setSourceLockRefusals] = useState(0);
     const ctx: EditorContext = {
         core: stores.core,
         lane: stores.lane,
@@ -2211,6 +2224,9 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         setPublishBlocked,
         setPrivateFoodRefusal,
         setSourceLockRefused,
+        countSourceLockRefusal: () => {
+            setSourceLockRefusals((count) => count + 1);
+        },
         statement: stores.statement,
         clearResume: () => {
             setResume(undefined);
@@ -2271,6 +2287,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         rowStated: statementState.row,
         storedRecipe: storedRecipeOf(core.server),
         sourceLockRefused,
+        sourceLockRefusals,
         confirmLineShown: statementPlanNow(ctx).confirmLineShown,
         publicRefusal: publicRefusalInForce(core.draft, storedRecipeOf(core.server)),
         privateFoodRefusal,

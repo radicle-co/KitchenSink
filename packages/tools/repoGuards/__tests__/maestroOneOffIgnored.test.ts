@@ -11,10 +11,11 @@
 import { execFileSync } from 'node:child_process';
 import { resolve } from 'node:path';
 
+import { MAESTRO_DIR, ONE_OFF_DIR } from '@kitchensink/e2e-plan/maestroFlows';
 import { describe, expect, it } from 'vitest';
 
 const REPO_ROOT = resolve(import.meta.dirname, '../../../..');
-const ONE_OFF_ROOT = 'packages/apps/commise/mobile/.maestro/oneOff';
+const ONE_OFF_ROOT = `${MAESTRO_DIR}/${ONE_OFF_DIR}`;
 
 /** Absolute, so the guard does not depend on which `git` a writable PATH folder offers. */
 const GIT = '/usr/bin/git';

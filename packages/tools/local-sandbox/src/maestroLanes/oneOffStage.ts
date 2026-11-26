@@ -16,10 +16,7 @@
 import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, rmdirSync } from 'node:fs';
 import path from 'node:path';
 
-import { flowReferences } from '@kitchensink/e2e-plan/maestroFlows';
-
-/** The folder under `.maestro/` that holds staged one-offs. */
-const ONE_OFF_DIR = 'oneOff';
+import { ONE_OFF_DIR, flowReferences } from '@kitchensink/e2e-plan/maestroFlows';
 
 /** A file name that is one plain word, so it is safe in a flow id, a runner selector and a Mac path. */
 const PLAIN_FLOW_FILE = /^[A-Za-z0-9][A-Za-z0-9_.-]*\.yaml$/u;

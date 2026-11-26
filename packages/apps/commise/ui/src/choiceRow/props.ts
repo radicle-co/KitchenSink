@@ -10,6 +10,7 @@
  */
 import type { ReactNode } from 'react';
 
+import type { TypeRole } from '../tokens/typography.js';
 /** Props for the `ChoiceRow` leaves (web and native). */
 export interface ChoiceRowProps {
     /** The row's label: an `OptionLabel`, or the caller's own text. Display only; the row owns the press. */
@@ -32,3 +33,8 @@ export interface ChoiceRowProps {
     /** Called once the row has taken a requested focus; the host clears its request here. */
     readonly onFocusRequestHandled?: () => void;
 }
+
+/**
+ * The type role of a choice row's label, which the caller sets in body text. The glyph (`Icon`'s `scaleWith`) reads it.
+ */
+export const CHOICE_ROW_LABEL_ROLE = 'body' satisfies TypeRole;

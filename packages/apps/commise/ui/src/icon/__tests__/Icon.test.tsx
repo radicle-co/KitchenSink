@@ -105,3 +105,35 @@ describe('Icon (web)', () => {
         expect(svgOf(container).classList.contains('rtl:-scale-x-100')).toBe(false);
     });
 });
+
+/**
+ * A glyph that is part of a labelled control follows its label's text (`scaleWith`), and one that is not stays a fixed
+ * pixel size. jsdom resolves no `rem`, so this pins the declared sizes: a `rem` size moves with the browser text
+ * size, and 1 rem is 16 px at 1x, so every 1x size is the same number of pixels as before.
+ */
+describe('Icon (web) scaleWith', () => {
+    it('without scaleWith keeps its size in pixels, as before (icon-only controls and decorations stay fixed)', () => {
+        const { container } = render(<Icon name="x" size={20} />);
+
+        expect(svgOf(container).getAttribute('width')).toBe('20');
+        expect(svgOf(container).style.width).toBe('');
+    });
+
+    it('with a tone but without scaleWith still keeps its pixel size', () => {
+        const { container } = render(<Icon name="x" size={20} tone="ink" />);
+
+        expect(svgOf(container).style.width).toBe('');
+        expect(svgOf(container).style.height).toBe('');
+    });
+
+    it.each([
+        [16, '1rem'],
+        [20, '1.25rem'],
+        [24, '1.5rem'],
+    ] as const)('with scaleWith draws a %i px glyph as %s, so browser text size moves it', (size, rem) => {
+        const { container } = render(<Icon name="x" size={size} scaleWith={{ role: 'body' }} />);
+
+        expect(svgOf(container).style.width).toBe(rem);
+        expect(svgOf(container).style.height).toBe(rem);
+    });
+});

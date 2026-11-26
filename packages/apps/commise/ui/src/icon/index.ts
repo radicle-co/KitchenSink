@@ -4,4 +4,4 @@
  */
 export { Icon } from './Icon.js';
 export { ICON_NAMES, MIRROR_IN_RTL } from './props.js';
-export type { IconName, IconProps, IconSize } from './props.js';
+export type { IconName, IconProps, IconScaleWith, IconSize } from './props.js';

@@ -16,6 +16,8 @@
  */
 import type { ReactNode } from 'react';
 
+import type { TypeRole } from '../tokens/typography.js';
+
 import type { IconName } from '../icon/props.js';
 import type { PressScaleWidth } from '../pressScale/props.js';
 
@@ -201,3 +203,6 @@ export function glyphToneOf(props: ButtonProps): ButtonGlyphTone {
 
     return props.glyphTone === 'action' && !dimmed ? 'action' : 'label';
 }
+
+/** The type role of a button's label. The label and its glyph (`Icon`'s `scaleWith`) both read it. */
+export const BUTTON_LABEL_ROLE = 'cardTitle' satisfies TypeRole;

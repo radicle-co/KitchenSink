@@ -34,7 +34,13 @@ import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
 import { Icon } from '../icon/Icon.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
-import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
+import {
+    actionNamed,
+    MENU_ITEM_LABEL_ROLE,
+    type ActionMenuItem,
+    type ActionMenuProps,
+    type ActionMenuSnapshot,
+} from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
@@ -79,7 +85,9 @@ const MenuItem: FC<{
             }}
             className={`${ITEM} ${tone}${reason === undefined ? '' : ' opacity-70'}`}
         >
-            {item.icon === undefined ? null : <Icon name={item.icon} size={20} />}
+            {item.icon === undefined ? null : (
+                <Icon name={item.icon} size={20} scaleWith={{ role: MENU_ITEM_LABEL_ROLE }} />
+            )}
             {reason === undefined ? (
                 item.label
             ) : (

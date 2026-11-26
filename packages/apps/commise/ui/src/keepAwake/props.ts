@@ -7,6 +7,8 @@
  * lock with `useKeepAwake`.
  */
 
+import type { TypeRole } from '../tokens/typography.js';
+
 /** Props for the `KeepAwakeToggle` leaves (web and native). */
 export interface KeepAwakeToggleProps {
     /** Whether the screen is being kept awake. */
@@ -21,3 +23,6 @@ export interface KeepAwakeToggleProps {
      */
     readonly hint?: string;
 }
+
+/** The type role of the keep-awake toggle's label. Its label and its glyph (`Icon`'s `scaleWith`) both read it. */
+export const KEEP_AWAKE_LABEL_ROLE = 'label' satisfies TypeRole;

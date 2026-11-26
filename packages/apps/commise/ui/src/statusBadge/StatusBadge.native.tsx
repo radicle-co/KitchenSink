@@ -20,7 +20,7 @@ import { styled, XStack } from 'tamagui';
 import { BADGE_BOX } from '../badgeBox/badgeBox.js';
 import { Icon } from '../icon/Icon.native.js';
 import { Text } from '../text/Text.native.js';
-import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
+import { BADGE_GLYPH, STATUS_BADGE_LABEL_ROLE, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
 /** The three paint jobs a badge has (`componentFixes.md` §7). */
 type BadgeTone = 'pro' | 'attention' | 'neutral';
@@ -63,7 +63,7 @@ const Badge = styled(XStack, {
 
 const Label = styled(Text, {
     name: 'StatusBadgeLabel',
-    typeRole: 'caption',
+    typeRole: STATUS_BADGE_LABEL_ROLE,
     flexShrink: 1,
 
     variants: {
@@ -82,7 +82,9 @@ export const StatusBadge: FC<StatusBadgeProps> = ({ status, children, onPicture 
 
     return (
         <Badge tone={tone}>
-            {glyph === null ? null : <Icon name={glyph} size={16} tone="inkMuted" />}
+            {glyph === null ? null : (
+                <Icon name={glyph} size={16} tone="inkMuted" scaleWith={{ role: STATUS_BADGE_LABEL_ROLE }} />
+            )}
             <Label tone={tone} pictorial={onPicture}>
                 {children}
             </Label>

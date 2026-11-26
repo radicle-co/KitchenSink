@@ -35,7 +35,7 @@ import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/index.js';
 import { Spinner } from '../spinner/Spinner.js';
 import { busyControlProps } from './busyControlProps.js';
-import { glyphToneOf, surfaceOf, type ButtonProps } from './props.js';
+import { BUTTON_LABEL_ROLE, glyphToneOf, surfaceOf, type ButtonProps } from './props.js';
 import { buttonGlyphClass, buttonSurfaceClass } from './surfaceClass.js';
 
 /** The Commise design-system button — the meaning's glyph + label, one surface per tier and size. */
@@ -68,7 +68,11 @@ export const Button: FC<ButtonProps> = (props) => {
     const glyph =
         busy || icon !== undefined ? (
             <span aria-hidden="true" className={`inline-flex shrink-0 items-center ${glyphClass}`.trimEnd()}>
-                {busy || icon === undefined ? <Spinner className="animate-spin" /> : <Icon name={icon} size={20} />}
+                {busy || icon === undefined ? (
+                    <Spinner className="animate-spin" scaleWith={{ role: BUTTON_LABEL_ROLE }} />
+                ) : (
+                    <Icon name={icon} size={20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
+                )}
             </span>
         ) : null;
 

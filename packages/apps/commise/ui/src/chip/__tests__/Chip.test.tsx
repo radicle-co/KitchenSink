@@ -462,3 +462,23 @@ describe('chip row geometry — the scroller room follows the chip overlay', () 
         expect(SCROLL_BOX_CLASS.split(/\s+/u)).toContain(`pointer-coarse:-my-${overlay ?? ''}`);
     });
 });
+
+/** A chip's own glyph (the filter check, the input remove) is part of its label, so it is in `rem` like the label. */
+describe('Chip (web) glyph follows its label', () => {
+    it('draws the selected filter check and the input remove in rem, 1 rem at 1x', () => {
+        const filter = render(<Chip kind="filter" label="Vegan" selected onPress={vi.fn()} />);
+
+        expect(filter.container.querySelector<SVGElement>('svg.lucide')?.style.width).toBe('1rem');
+        cleanup();
+
+        const input = render(<Chip kind="input" label="Vegan" removeLabel="Remove Vegan" onRemove={vi.fn()} />);
+
+        expect(input.container.querySelector<SVGElement>('svg.lucide')?.style.width).toBe('1rem');
+    });
+
+    it('draws the ChipRow choice check in rem too', () => {
+        const { container } = render(<Choice initial="easy" />);
+
+        expect(container.querySelector<SVGElement>('svg.lucide')?.style.width).toBe('1rem');
+    });
+});

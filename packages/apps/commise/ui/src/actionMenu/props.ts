@@ -18,6 +18,7 @@
  * item, so no caller can put it anywhere else or draw two.
  */
 import type { IconName } from '../icon/props.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 /** One action in the menu. */
 export interface ActionMenuItem {
@@ -102,3 +103,6 @@ export function actionNamed(
 ): ActionMenuItem | undefined {
     return [...items, ...(destructiveItem === undefined ? [] : [destructiveItem])].find((item) => item.id === id);
 }
+
+/** The type role of a menu item's label. Its label and its glyph (`Icon`'s `scaleWith`) both read it. */
+export const MENU_ITEM_LABEL_ROLE = 'body' satisfies TypeRole;

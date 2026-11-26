@@ -15,6 +15,7 @@
  */
 import type { IconName } from '../icon/props.js';
 import { statusTone } from '../tokens/tones.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 /** Every status a badge can state. */
 export const BADGE_STATUSES = ['draft', 'private', 'public', 'pro', 'soon', 'note', 'attention'] as const;
@@ -46,3 +47,6 @@ export interface StatusBadgeProps {
      */
     readonly onPicture?: boolean;
 }
+
+/** The type role of a status badge's label. Its label and its glyph (`Icon`'s `scaleWith`) both read it. */
+export const STATUS_BADGE_LABEL_ROLE = 'caption' satisfies TypeRole;

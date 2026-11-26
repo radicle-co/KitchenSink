@@ -6,11 +6,11 @@
     "coverage": {
         "components": 211,
         "implementations": 357,
-        "props": 2472,
+        "props": 2474,
         "documentedComponents": 211,
         "implementationsWithModuleDoc": 357,
         "implementationsWithComponentDoc": 246,
-        "documentedProps": 1902,
+        "documentedProps": 1904,
         "classifiedComponents": 189,
         "componentsWithPatternTag": 101,
         "crossPlatformComponents": 146
@@ -23559,6 +23559,15 @@
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the sheet that changed this row closed: the answer takes focus (it was the sheet's trigger's neighbour).",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
                             "name": "onAsk",
                             "type": "(sheet: SourceRowSheet) => void",
                             "typeDetail": null,
@@ -23643,6 +23652,15 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The support page for THIS recipe (`supportLinkOf`), or `undefined` when no address is configured: the help link is then\nnot drawn, and the locked line still reads true.",
+                            "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
+                        },
+                        {
+                            "name": "focusSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "A counter the host advances when the sheet that changed this row closed: the answer takes focus (it was the sheet's trigger's neighbour).",
                             "declaredIn": "packages/apps/commise/features/recipes/src/form/sourceFieldProps.ts"
                         },
                         {

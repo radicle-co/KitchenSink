@@ -61,6 +61,7 @@ import { PhotosController } from '../../src/photos/photos.controller.js';
 import { ParseJobsController } from '../../src/recipes/parseJobs.controller.js';
 import { RatingsController } from '../../src/ratings/ratings.controller.js';
 import { RecipesController } from '../../src/recipes/recipes.controller.js';
+import { SourceCorrectionController } from '../../src/recipes/sourceCorrection.controller.js';
 import { SearchController } from '../../src/search/search.controller.js';
 import { RECIPE_SEARCH_SORT_BY, recipeSearchQuerySchema } from '../../src/search/search.schema.js';
 import { VersionsController } from '../../src/versions/versions.controller.js';
@@ -70,6 +71,7 @@ import { buildRecipeOpenApiDocument } from '../openapi.js';
 const CONTROLLERS: readonly NewableFunction[] = [
     HealthController,
     RecipesController,
+    SourceCorrectionController,
     ParseJobsController,
     RatingsController,
     VersionsController,

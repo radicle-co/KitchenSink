@@ -22,7 +22,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { formatRgb } from 'culori';
 
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
 import { ActionMenu } from '../ActionMenu.native.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
@@ -536,5 +536,31 @@ describe('ActionMenu (native) — an unavailable item', () => {
         fireEvent.click(screen.getByRole('menuitem', { name: 'Discard draft' }));
 
         expect(onSelect).toHaveBeenCalledTimes(1);
+    });
+});
+
+describe('ActionMenu (native) item glyph grows with its label', () => {
+    it('draws the item glyph larger at a larger text scale', () => {
+        const sizeAt = (scale: number): number => {
+            const { unmount } = renderWithTamagui(
+                <ActionMenu
+                    triggerLabel="Actions for Saffron"
+                    title="Saffron"
+                    closeLabel="Close actions for Saffron"
+                    items={[{ id: 'tryAgain', label: 'Try again', icon: 'rotateCcw', onSelect: vi.fn() }]}
+                />,
+                'light',
+                scale,
+            );
+            fireEvent.click(screen.getByRole('button', { name: 'Actions for Saffron' }));
+            const item = screen.getByRole('menuitem', { name: 'Try again' });
+            const size = Number(item.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconSize']);
+            unmount();
+
+            return size;
+        };
+
+        expect(sizeAt(1)).toBe(20);
+        expect(sizeAt(1.5)).toBe(30);
     });
 });

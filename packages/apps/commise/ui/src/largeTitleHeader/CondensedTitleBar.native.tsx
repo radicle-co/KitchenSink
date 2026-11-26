@@ -25,11 +25,12 @@ import { Pressable, StyleSheet, View } from 'react-native';
 
 import { ChromeSurface } from '../chromeSurface/ChromeSurface.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import type { IconProps } from '../icon/props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { useContainerClass } from '../layout/useContainerClass.native.js';
 import { Text } from '../text/Text.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { PINNED_BAR_HEIGHT, backGlyphInset, barStartPadding } from './barGeometry.js';
+import { BACK_CHROME_CAP, BACK_LABEL_ROLE, PINNED_BAR_HEIGHT, backGlyphInset, barStartPadding } from './barGeometry.js';
 import type { CondensedTitleBarProps } from './props.js';
 
 /** How much of the bar the back control's parent name may take, as a share of its width: a judgement, not a cited figure. */
@@ -41,6 +42,10 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
     const showsParent = useContainerClass() !== 'narrow';
     const floor = touchFloor();
     const frame = { minWidth: floor, height: floor };
+    // Alone on a phone the chevron is icon-only and stays fixed; beside the parent name it grows.
+    const chevronScale: Pick<IconProps, 'scaleWith'> = showsParent
+        ? { scaleWith: { role: BACK_LABEL_ROLE, chromeCap: BACK_CHROME_CAP } }
+        : {};
 
     return (
         // The bar's start padding and the control's own leading room together put the chevron's box on the 16 pt content
@@ -60,11 +65,11 @@ export const CondensedTitleBar: FC<CondensedTitleBarProps> = ({ title, back, men
                             : { width: floor },
                     ]}
                 >
-                    <Icon name="chevronLeft" size={24} tone="actionText" />
+                    <Icon name="chevronLeft" size={24} tone="actionText" {...chevronScale} />
                     {showsParent ? (
                         <Text
-                            typeRole="label"
-                            chromeCap="1.5"
+                            typeRole={BACK_LABEL_ROLE}
+                            chromeCap={BACK_CHROME_CAP}
                             color="$actionText"
                             numberOfLines={1}
                             // The control's own label names it in full; this is the parent's name for sight only.

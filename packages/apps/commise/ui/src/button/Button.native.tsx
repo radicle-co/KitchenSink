@@ -31,18 +31,26 @@
  *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { useRef, type FC, type ReactNode } from 'react';
-import { ActivityIndicator, StyleSheet, View, type ViewStyle } from 'react-native';
+import { StyleSheet, View, type ViewStyle } from 'react-native';
 
 import { useSurfaceTone } from '../surfaceTone/surfaceToneContext.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
+import { Spinner } from '../spinner/Spinner.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import type { Role } from '../tokens/colors.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { PressScale } from '../pressScale/index.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
-import { BUTTON_VISUAL_HEIGHT, glyphToneOf, surfaceOf, type ButtonProps, type ButtonSize } from './props.js';
+import {
+    BUTTON_LABEL_ROLE,
+    BUTTON_VISUAL_HEIGHT,
+    glyphToneOf,
+    surfaceOf,
+    type ButtonProps,
+    type ButtonSize,
+} from './props.js';
 import { BUTTON_PILL_LAYOUT, buttonSurfacePaint, type ButtonSurface } from './surfacePaint.native.js';
 import { ButtonLabel } from './ButtonLabel.native.js';
 
@@ -119,9 +127,9 @@ export const Button: FC<ButtonProps> = (props) => {
         busy || icon !== undefined ? (
             <View style={styles.glyph} aria-hidden>
                 {busy || icon === undefined ? (
-                    <ActivityIndicator color={theme.colors[glyphRole]} />
+                    <Spinner color={theme.colors[glyphRole]} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 ) : (
-                    <Icon name={icon} size={20} tone={glyphRole} />
+                    <Icon name={icon} size={20} tone={glyphRole} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
                 )}
             </View>
         ) : null;

@@ -32,14 +32,15 @@
  */
 import {
     fromPersonOf,
-    sourceIsCorrectable,
+    sourceLockOf,
     type CorrectableSourceFacts,
     type RecipeSourceKind,
     type RecipeStatementKind,
 } from '@kitchensink/recipe-core';
 
 import type { RecipeStatementInput } from '../recipes.schema.js';
-import { evaluateProvenance, type ResolvedProvenance } from './provenancePolicy.js';
+import { evaluateProvenance, type ResolvedProvenance, type StatementAnswer } from './provenancePolicy.js';
+import { sourceKeyOf } from './sourceEvidence.js';
 
 /**
  * The facts of the stored recipe the decision reads: exactly what `sourceIsCorrectable` reads, the one lock rule. The
@@ -51,6 +52,8 @@ export type StoredSource = CorrectableSourceFacts & {
     readonly statementKind: RecipeStatementKind | null;
     /** The stored citation (`recipes.source_attribution`), or `null`: what a paid site stated again is compared with. */
     readonly sourceAttribution: string | null;
+    /** The stored link (`recipes.source_url`), or `null`: a web link stated again is compared with it by its source key. */
+    readonly sourceUrl: string | null;
     /**
      * Whether the recipe holds a past "from another person" attestation while it stores NO statement (a recipe cleared before the lock existed). It is read in
      * the write's transaction and only when a statement is sent and none is stored; everywhere else it is `false`. Such a
@@ -76,17 +79,58 @@ export type SourceCorrection =
     | { readonly kind: 'unusable' };
 
 /**
+ * Whether a source-bearing statement says what the recipe already holds (KTD-2): the same kind and the same citation. A web link
+ * is compared by its source key (the address without its `#fragment`), a book title and a paid-site citation exactly as stored,
+ * because the write stores them as sent. Pure.
+ */
+export function restatesStored(statement: StatementAnswer, stored: StoredSource): boolean {
+    switch (statement.kind) {
+        case 'paid_site':
+            return stored.sourceKind === 'paid_site' && stored.sourceAttribution === statement.citation;
+        case 'book':
+            return stored.sourceKind === 'book' && stored.sourceAttribution === statement.citation;
+        case 'public_web':
+            return (
+                stored.sourceKind === 'public_web' &&
+                stored.sourceUrl !== null &&
+                sourceKeyOf(statement.citation) === sourceKeyOf(stored.sourceUrl)
+            );
+        default:
+            return false;
+    }
+}
+
+/**
  * Whether a statement would leave the recipe exactly as stored: the provenance it resolves to states no source and names the
  * statement the recipe already holds. Such a statement took no effect, so it is neither written nor recorded. A statement that
- * states a source is never "already held": a second link is a new fact, and its evidence is appended.
+ * states a source is never "already held" here: restating the same link or title is `restatesStored`'s case, and a different link or title is a new fact whose evidence is appended.
  */
-function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
+export function holdsAlready(provenance: ResolvedProvenance, stored: StoredSource): boolean {
     return (
         provenance.sourceKind === null &&
         stored.sourceKind === null &&
         provenance.sourceType === stored.sourceType &&
         provenance.statementKind === stored.statementKind
     );
+}
+
+/** The routes that write a recipe's source or visibility, as {@link confirmsSource} tells them apart. */
+export type SourceWriteRoute = 'create' | 'update' | 'setVisibility';
+
+/**
+ * Whether a request CONFIRMS the source answer (KTD-3, ADR-0100): the one act the database cannot see. Only Make public with a
+ * statement does. A PATCH or a create carrying a statement never confirms: the editor's draft checkpoints state the source
+ * before the cook has decided, and a first publish confirms it in the database anyway (migration 0092). Pure.
+ *
+ * @param route - The route the request came by.
+ * @param request.statement - The request's statement: `undefined` (absent), `null` (a clear) or a statement.
+ * @returns Whether the write sets `source_confirmed_at`.
+ */
+export function confirmsSource(
+    route: SourceWriteRoute,
+    request: { readonly statement: RecipeStatementInput | null | undefined },
+): boolean {
+    return route === 'setVisibility' && request.statement !== undefined && request.statement !== null;
 }
 
 /**
@@ -123,13 +167,9 @@ export function evaluateSourceCorrection(input: {
 
     // 2. A write that changes nothing is `unchanged` BEFORE the lock, for every kind: it writes nothing, so it can never break a
     // lock. That is what lets a resend (a lost response, a retry after a 409) through, and "from another person" over itself.
-    // An unusable statement never stops here, so it still meets the lock.
-    // The same paid site stated again is such a write: a paid-site answer rides every write until the server holds it.
-    if (
-        statement?.kind === 'paid_site' &&
-        stored.sourceKind === 'paid_site' &&
-        stored.sourceAttribution === statement.citation
-    ) {
+    // An unusable statement never stops here, so it still meets the lock. KTD-2 (ADR-0100): a restatement is compared by kind and
+    // citation, so the same link (by its source key), book title or paid-site citation stated again is such a write.
+    if (statement !== null && restatesStored(statement, stored)) {
         return { kind: 'unchanged' };
     }
 
@@ -143,15 +183,24 @@ export function evaluateSourceCorrection(input: {
         return { kind: 'unchanged' };
     }
 
-    // 3. ONE lock rule, shared with the editor (`sourceIsCorrectable`, recipe-core): not stated by the cook, inherited by a
-    // clone, "from another person" (only Commise changes it), or an unknown kind. The first publish is not part of it.
-    if (!sourceIsCorrectable(stored)) {
+    // 3. ONE lock rule, shared with the editor (`sourceLockOf`, recipe-core): not stated by the cook, inherited by a clone, "from
+    // another person", an unknown kind, or a confirmed answer (ADR-0100). A confirmed own answer can only be downgraded to a book or
+    // a paid site. The first publish is not part of it.
+    // The one move the lock lets through over a past "from another person" attestation: stating it again.
+    const restatesFromPerson = stored.attestedFromPerson && statement?.kind === 'fromPerson';
+    const lock = restatesFromPerson ? sourceLockOf({ ...stored, attestedFromPerson: false }) : sourceLockOf(stored);
+
+    if (lock === 'locked') {
         return { kind: 'locked' };
     }
 
-    // 4. The attestation arm: a recipe with no stored statement but a past "from another person" attestation. A clear over it was
-    // `unchanged` above; every move except stating "from another person" again is locked, an unusable one included.
-    if (stored.attestedFromPerson && statement?.kind !== 'fromPerson') {
+    if (
+        lock === 'downgradeOnly' &&
+        !(
+            decision.allowed &&
+            (decision.provenance.sourceKind === 'book' || decision.provenance.sourceKind === 'paid_site')
+        )
+    ) {
         return { kind: 'locked' };
     }
 

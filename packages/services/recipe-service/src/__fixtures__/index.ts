@@ -51,6 +51,8 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         // Coherent with `recipes_published_has_first_published_at` (ADR-0058): a published row has a first-publish
         // instant, and a draft defaults to never published. A suite wanting a re-drafted recipe overrides it.
         firstPublishedAt: status === 'published' ? BASE_DATE : null,
+        sourceConfirmedAt: status === 'published' ? BASE_DATE : null,
+        sourceCorrectionHold: false,
         sourceType: 'user_created',
         sourceKind: null,
         statementKind: null,

@@ -67,6 +67,7 @@ export const INVALID_VISIBILITY_REASONS = [
     'PUBLIC_CONFIRMATION_REQUIRED',
     'FROM_PERSON_PRIVATE_ONLY',
     'API_WRITER_CONFIRMATION_FORBIDDEN',
+    'SOURCE_CORRECTED',
 ] as const;
 
 /** The same set as a schema, so a sender names a reason as `.enum.STATEMENT_REQUIRED` and a reordered list cannot swap two. */

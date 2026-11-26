@@ -254,6 +254,12 @@ const CONTAINMENT_DISPOSITION: {
             ownerScoped: 'Writes nothing: a batched nutrition read issued as POST so the id list travels in the body.',
         },
         'RecipesController.update': { reaches: ['requestVerification'] },
+        // ADR-0100: a staff correction rewrites the source answer and makes the recipe private and held. It publishes nothing and
+        // requests no verification; the grant (`recipes:source:correct`) is its authorization.
+        'SourceCorrectionController.correctSource': {
+            ownerScoped:
+                'Staff-granted rewrite of one recipe’s source answer, decided by the correction policy: it makes the recipe private, never public.',
+        },
         // Plan 002 U5: runs through the recipe update (verification) and records a correction for an unmatched
         // phrase through the corrections writer, which decides promotion containment from the principal. A `name`
         // target also writes the shared by-name binding, which ruling 1 accepts as food (see `addByName`).

@@ -14,6 +14,9 @@
  */
 import type { ReactNode } from 'react';
 
+import type { ChromeCap } from '../text/scaledType.js';
+import type { TypeRole } from '../tokens/typography.js';
+
 /**
  * How an item's status is drawn. Never colour alone (SC 1.4.1): each tone has a glyph or words.
  *
@@ -92,3 +95,12 @@ export interface SectionIndexProps {
      */
     readonly narrowHidden?: boolean;
 }
+
+/** The type role of an item's label: the current one reads as a `label`, the others as `meta`. */
+export const itemLabelRoleOf = (current: boolean): Extract<TypeRole, 'label' | 'meta'> => (current ? 'label' : 'meta');
+
+/** The type role of a status reason under an item's label. */
+export const REASON_ROLE = 'caption' satisfies TypeRole;
+
+/** The chrome cap of the bar's words on native: navigation chrome, so 1.5x. The bar's glyph stops at it too. */
+export const BAR_CHROME_CAP = '1.5' satisfies ChromeCap;

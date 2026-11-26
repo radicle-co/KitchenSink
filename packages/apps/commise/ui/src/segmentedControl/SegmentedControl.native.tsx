@@ -11,7 +11,7 @@ import type { FC } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
-import type { IconName } from '../icon/props.js';
+import type { IconName, IconProps } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
@@ -77,6 +77,12 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                   onPress: () => props.onChange(segment.id),
               }));
 
+    // A view switch can hide its labels: its glyphs are then the only face, an icon-only control, which stays fixed.
+    const labelHidden = props.form === 'view' && props.labelVisibility === 'hidden';
+    const glyphScale: Pick<IconProps, 'scaleWith'> = labelHidden
+        ? {}
+        : { scaleWith: { role: SEGMENT_LABEL_ROLE, chromeCap: SEGMENT_CHROME_CAP } };
+
     return (
         <Surface
             tone="muted"
@@ -104,9 +110,14 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     ]}
                 >
                     {face.icon === undefined ? null : (
-                        <Icon name={face.icon} size={SEGMENT_ICON} tone={face.selected ? 'ink' : 'inkMuted'} />
+                        <Icon
+                            name={face.icon}
+                            size={SEGMENT_ICON}
+                            tone={face.selected ? 'ink' : 'inkMuted'}
+                            {...glyphScale}
+                        />
                     )}
-                    {props.form === 'view' && props.labelVisibility === 'hidden' ? null : (
+                    {labelHidden ? null : (
                         <Text
                             typeRole={SEGMENT_LABEL_ROLE}
                             chromeCap={SEGMENT_CHROME_CAP}

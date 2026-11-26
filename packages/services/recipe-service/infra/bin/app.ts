@@ -140,7 +140,16 @@ new RecipeSchemaStack(app, `kitchensink-recipe-schema-${stage}`, {
     vpcId,
 });
 
+// ⛔ THE ALARM SWITCH, RESOLVED AT SYNTH TIME, DEFAULT OFF (ADR-0062): the deploy pipeline reads the per-stage SSM flag
+// `/kitchensink/{stage}/observability/alarms-enabled` and exports
+// `ALARMS_ENABLED`; absent or malformed is `false`, so it fails CLOSED. Never `valueForStringParameter`, which resolves at deploy
+// time and leaves a flag that compiles and does nothing. Enforced by `packages/tools/repoGuards/__tests__/alarmFeatureFlag.test.ts`.
+const alarmsEnabled = process.env['ALARMS_ENABLED'] === 'true';
+
 new RecipeServiceStack(app, `RecipeService-${stage}`, {
+    alarmsEnabled,
+    // The alarm recipient, per-stage config and never a committed literal.
+    alertEmail: process.env['COST_ALERT_EMAIL'],
     // ⚠️ OPTIONAL BY DESIGN, and resolved by CI rather than imported. `Fn.importValue` on the webhooks
     // app's `LogForwarderArn` export deadlocked every importer against the stack that publishes it — the
     // schema stacks ADR-0035 deploys FIRST imported a stack the same pipeline deploys LAST. Empty or unset

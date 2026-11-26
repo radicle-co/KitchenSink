@@ -75,6 +75,11 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
      * Public, not only the request that stated it.
      */
     readonly fromPerson: boolean;
+    /**
+     * Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`, migration 0092, ADR-0100).
+     * REQUIRED, never defaulted. It refuses a request for Public only. It is a stored fact, so it holds at every route to Public.
+     */
+    readonly sourceCorrected: boolean;
 }
 
 /**
@@ -88,6 +93,7 @@ export interface VisibilityPolicyInput extends ContainmentSubject {
  *   `400 INVALID_VISIBILITY`, told apart by `details.reason: 'SOURCE_CONFLICT'`);
  * - `fromPerson` — the cook said the recipe is another person's, so it may not be public (→ the same `400`,
  *   `details.reason: 'FROM_PERSON_PRIVATE_ONLY'`);
+ * - `sourceCorrected` — a staff correction holds the recipe off Public (→ the same `400`, `details.reason: 'SOURCE_CORRECTED'`);
  * - `statementRequired` — the cook has not said "I wrote this" for a recipe whose content was pasted or that has evidence, so it
  *   may not be left published and Public (→ the same `400`, `details.reason: 'STATEMENT_REQUIRED'`). It is a SEPARATE rule from
  *   `sourceConflict` on purpose: the feature-020 hold replaces that one and not this.
@@ -99,7 +105,13 @@ export type VisibilityDecision =
     | {
           readonly allowed: false;
           readonly denial:
-              'policy' | 'contained' | 'privateSlots' | 'sourceConflict' | 'fromPerson' | 'statementRequired';
+              | 'policy'
+              | 'contained'
+              | 'privateSlots'
+              | 'sourceConflict'
+              | 'fromPerson'
+              | 'sourceCorrected'
+              | 'statementRequired';
           readonly reason: string;
       };
 
@@ -136,6 +148,15 @@ function denyFromPerson(): Refusal {
         allowed: false,
         denial: 'fromPerson',
         reason: 'A recipe from another person stays private.',
+    };
+}
+
+/** Build the staff-correction hold's deny decision. Pure. */
+function denySourceCorrected(): Refusal {
+    return {
+        allowed: false,
+        denial: 'sourceCorrected',
+        reason: 'A recipe whose source Commise corrected stays private.',
     };
 }
 
@@ -178,6 +199,7 @@ function publicRefusalOf(
         readonly sourceKind: RecipeSourceKind | null;
         readonly sourceConflict: boolean;
         readonly fromPerson: boolean;
+        readonly sourceCorrected: boolean;
     },
 ): Refusal | undefined {
     const containment = evaluateContainment({
@@ -198,7 +220,11 @@ function publicRefusalOf(
         return denySourceConflict();
     }
 
-    return input.fromPerson ? denyFromPerson() : undefined;
+    if (input.fromPerson) {
+        return denyFromPerson();
+    }
+
+    return input.sourceCorrected ? denySourceCorrected() : undefined;
 }
 
 /**
@@ -207,7 +233,7 @@ function publicRefusalOf(
  * state by a race is still refused at publish. An owner-only public DRAFT is allowed, because no one else can read it.
  *
  * ⛔ The ORDER of refusals is the contract, and each route's composition meets it: containment (a contained test principal
- * never publishes, ADR-0040), then private-only, then `sourceConflict` (the feature-020 seam), then `fromPerson`, then
+ * never publishes, ADR-0040), then private-only, then `sourceConflict` (the feature-020 seam), then `fromPerson`, then `sourceCorrected`, then
  * `statementRequired` (which survives 020). One call asks all five, so no route can ask them in another order. Pure.
  *
  * @param input - The status and visibility after the write, the source, the caller's containment, and the two evidence-derived facts.
@@ -223,10 +249,31 @@ export function evaluatePublishedState(
         readonly sourceConflict: boolean;
         /** Whether the cook said the recipe is another person's (`fromPersonOf`). REQUIRED. */
         readonly fromPerson: boolean;
+        /** Whether a staff correction holds the recipe off Public (`recipes.source_correction_hold`). REQUIRED. */
+        readonly sourceCorrected: boolean;
         /** Whether the cook must still say "I wrote this" (`statementRequiredOf`). REQUIRED. */
         readonly statementRequired: boolean;
     },
 ): VisibilityDecision {
+    // ⛔ The one refusal that does not wait for a published recipe: the database refuses a held recipe that is public whatever its
+    // status (`recipes_held_is_not_public`, migration 0092), so a PUBLIC DRAFT of one is answered here, as a typed refusal, and
+    // never reaches the CHECK as a 500. Containment is asked first, as everywhere.
+    if (
+        input.sourceCorrected &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        input.status !== RecipeStatus.PUBLISHED
+    ) {
+        const containment = evaluateContainment({
+            principalKind: input.principalKind,
+            containment: input.containment,
+            action: 'publish',
+        });
+
+        return containment.allowed
+            ? denySourceCorrected()
+            : { allowed: false, denial: 'contained', reason: containment.reason };
+    }
+
     if (input.status !== RecipeStatus.PUBLISHED || input.visibility !== RecipeVisibility.PUBLIC) {
         return allow('The recipe is not left published and public.');
     }
@@ -286,13 +333,14 @@ export function defaultCloneVisibility(
     sourceKind: RecipeSourceKind | null,
     cloner: ContainmentSubject,
     sourceVisibility: RecipeVisibility,
-    held: { readonly sourceConflict: boolean; readonly fromPerson: boolean },
+    held: { readonly sourceConflict: boolean; readonly fromPerson: boolean; readonly sourceCorrected: boolean },
 ): RecipeVisibility {
     if (
         isContained(cloner) ||
         sourceVisibility === RecipeVisibility.PRIVATE ||
         held.sourceConflict ||
-        held.fromPerson
+        held.fromPerson ||
+        held.sourceCorrected
     ) {
         return RecipeVisibility.PRIVATE;
     }

@@ -147,3 +147,17 @@ describe('CondensedTitleBar (web)', () => {
         expect(barRef).toHaveBeenCalledWith(container.firstElementChild);
     });
 });
+
+describe('CondensedTitleBar (web) back chevron follows its parent name', () => {
+    it('grows the chevron from the same breakpoint that shows the parent name, and is 24 px alone below it', () => {
+        render(<CondensedTitleBar surfaceShown={false} titleShown={false} back={back()} />);
+        const control = screen.getByRole('button', { name: 'Back to Collections' });
+        const name = screen.getByText('Collections');
+
+        expect(name.className).toContain('medium:inline');
+        expect(control.className).toContain('medium:[&>svg]:size-[1.5rem]');
+        // Below the breakpoint no rule applies, so the glyph keeps its 24 px attribute.
+        expect(control.querySelector('svg')?.getAttribute('width')).toBe('24');
+        expect(control.querySelector('svg')?.style.width).toBe('');
+    });
+});

@@ -3,15 +3,15 @@
     "generatedBy": "@kitchensink/docgen-components",
     "totals": {
         "components": 486,
-        "implementations": 717,
-        "props": 4200,
+        "implementations": 718,
+        "props": 4205,
         "documentedComponents": 482,
-        "implementationsWithModuleDoc": 693,
-        "implementationsWithComponentDoc": 550,
-        "documentedProps": 3352,
+        "implementationsWithModuleDoc": 694,
+        "implementationsWithComponentDoc": 551,
+        "documentedProps": 3357,
         "classifiedComponents": 390,
         "componentsWithPatternTag": 276,
-        "crossPlatformComponents": 232
+        "crossPlatformComponents": 233
     },
     "groups": [
         {
@@ -22,15 +22,15 @@
             "catalogue": "docs/generated/components/groups/designSystem.json",
             "coverage": {
                 "components": 100,
-                "implementations": 161,
-                "props": 1244,
+                "implementations": 162,
+                "props": 1249,
                 "documentedComponents": 100,
-                "implementationsWithModuleDoc": 161,
-                "implementationsWithComponentDoc": 147,
-                "documentedProps": 1052,
+                "implementationsWithModuleDoc": 162,
+                "implementationsWithComponentDoc": 148,
+                "documentedProps": 1057,
                 "classifiedComponents": 93,
                 "componentsWithPatternTag": 100,
-                "crossPlatformComponents": 61
+                "crossPlatformComponents": 62
             }
         },
         {

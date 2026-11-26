@@ -77,6 +77,8 @@ export function visibilityRefusedFor(
         sourceConflict: sourceConflictOfEvidence(evidenceListOf(provenance, 'importFile'), provenance),
         // `attestedFromPerson: false` — an import makes a new recipe, which has no past attestation to count.
         fromPerson: fromPersonOf({ statementKind: provenance.statementKind, attestedFromPerson: false }),
+        // A new recipe holds no staff correction.
+        sourceCorrected: false,
     });
 
     return !decision.allowed;

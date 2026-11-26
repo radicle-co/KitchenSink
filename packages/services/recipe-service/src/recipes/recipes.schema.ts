@@ -35,6 +35,8 @@
 import { z } from 'zod';
 
 import {
+    SOURCE_CORRECTION_GROUNDS,
+    SOURCE_CORRECTION_REASON_MAX_LENGTH,
     ingredientQuantitySchema,
     paginatedResponseSchema,
     recipeCuisineSchema,
@@ -577,6 +579,82 @@ export const setRecipeVisibilityRequestSchema = z.strictObject({
     statement: recipeOwnStatementSchema.optional(),
     publicConfirmation: publicConfirmationSchema.optional(),
 });
+
+/**
+ * The grant that lets a staff caller correct a confirmed source answer (ADR-0100). Granted out of band in Clerk, like
+ * {@link CURATOR_IMPORT_SCOPE}, and a different string on purpose: a curator is not staff.
+ */
+export const SOURCE_CORRECT_SCOPE = 'recipes:source:correct';
+
+/**
+ * The answer a staff correction writes: the five answers of {@link recipeOwnStatementSchema} WITHOUT a wording, because staff
+ * state no wording to anyone (no attestation is recorded for a correction; the correction record is the record). A strict union
+ * of strict members, so "I wrote this" with a citation is a state the wire cannot say. A web link must be a usable source.
+ */
+export const sourceCorrectionAnswerSchema = z.discriminatedUnion('kind', [
+    authoredStatementSchema.strict(),
+    z.strictObject({ kind: z.literal('fromPerson') }),
+    recipeStatementSchema,
+    bookStatementSchema.strict(),
+    paidSiteStatementSchema.strict(),
+]);
+
+/**
+ * Request body of `POST /api/v1/recipes/{id}/source-correction` (ADR-0100): staff, who hold {@link SOURCE_CORRECT_SCOPE}, change
+ * the source answer of a recipe whose answer is confirmed. `ownerAccountId` is the owner staff confirmed with the cook by the
+ * mailbox challenge of the runbook; a recipe of any other owner answers as if it did not exist. `reason` is kept for audit and is
+ * never logged.
+ */
+export const sourceCorrectionRequestSchema = z.strictObject({
+    ownerAccountId: z.string().min(1).max(255),
+    answer: sourceCorrectionAnswerSchema,
+    ground: z.enum(SOURCE_CORRECTION_GROUNDS),
+    reason: z
+        .string()
+        .min(1)
+        .max(SOURCE_CORRECTION_REASON_MAX_LENGTH)
+        .refine((value) => value.trim() !== '', { message: 'reason is blank' }),
+});
+
+/** Request body for a staff source correction. */
+export type SourceCorrectionRequest = z.infer<typeof sourceCorrectionRequestSchema>;
+
+/** Response of the correction (loose, like every response, so a client tolerates a newer server's field): `applied` when the answer changed, `unchanged` when the recipe already held it (nothing written). */
+export const sourceCorrectionResponseSchema = z.object({ result: z.enum(['applied', 'unchanged']) });
+
+/** The correction's answer. */
+export type SourceCorrectionResponse = z.infer<typeof sourceCorrectionResponseSchema>;
+
+/**
+ * Query of `GET /api/v1/recipes/{id}/source-correction`: the owner staff confirmed, as on the correction itself. Open like every
+ * read query (`contract.test.ts` pins the set), so a tracking parameter a proxy adds is not a `400`.
+ */
+export const sourceCorrectionPreviewQuerySchema = z.object({ ownerAccountId: z.string().min(1).max(255) });
+
+/** Query of the correction preview. */
+export type SourceCorrectionPreviewQuery = z.infer<typeof sourceCorrectionPreviewQuerySchema>;
+
+/**
+ * What staff see before they apply a correction (ADR-0100 runbook): the recipe's title, owner, current answer and visibility.
+ * `answer` is `null` for a recipe that holds none, which cannot be corrected. `citation` is the link for a web page, the cook's
+ * citation for a book or a paid site, and `null` for "I wrote this" and "from another person". Read-only; the grant decides who
+ * may ask, and a missing recipe and a wrong owner answer alike.
+ */
+export const sourceCorrectionPreviewSchema = z.object({
+    title: z.string(),
+    ownerAccountId: z.string(),
+    visibility: recipeVisibilitySchema,
+    answer: z
+        .object({
+            kind: z.enum(['own', 'person', 'webPage', 'book', 'paidSite']),
+            citation: z.string().nullable(),
+        })
+        .nullable(),
+    sourceCorrected: z.boolean(),
+});
+
+/** The correction preview. */
+export type SourceCorrectionPreview = z.infer<typeof sourceCorrectionPreviewSchema>;
 
 /** Request body for setting a recipe's visibility. */
 export type SetRecipeVisibilityRequest = z.infer<typeof setRecipeVisibilityRequestSchema>;

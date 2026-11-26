@@ -5,15 +5,15 @@
     "layer": "design-system",
     "coverage": {
         "components": 100,
-        "implementations": 161,
-        "props": 1244,
+        "implementations": 162,
+        "props": 1249,
         "documentedComponents": 100,
-        "implementationsWithModuleDoc": 161,
-        "implementationsWithComponentDoc": 147,
-        "documentedProps": 1052,
+        "implementationsWithModuleDoc": 162,
+        "implementationsWithComponentDoc": 148,
+        "documentedProps": 1057,
         "classifiedComponents": 93,
         "componentsWithPatternTag": 100,
-        "crossPlatformComponents": 61
+        "crossPlatformComponents": 62
     },
     "components": [
         {
@@ -6874,6 +6874,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
                         },
                         {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows\nwith that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at\nevery text size, which is right for an icon-only control and a decoration.",
+                            "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
+                        },
+                        {
                             "name": "size",
                             "type": "enum",
                             "typeDetail": [
@@ -7035,6 +7044,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The meaning to draw.",
+                            "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows\nwith that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at\nevery text size, which is right for an icon-only control and a decoration.",
                             "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
                         },
                         {
@@ -17931,10 +17949,11 @@
                 "Strategy — the caller picks the spin class (always, or `motion-safe:` only); the arc is the same"
             ],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
-            "propsDiverge": false,
+            "crossPlatform": true,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -17966,6 +17985,58 @@
                             "defaultValue": null,
                             "description": "Utility classes for the `svg`: the spin animation, and any text colour.",
                             "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The label this spinner stands beside: it then grows with that label's text, as a glyph does (see `Icon`).",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "Spinner",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/spinner",
+                    "moduleDoc": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):\n`Button` draws it in its busy glyph slot.\n\nIt stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth\nunder the system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with\nTamagui only (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):"
+                        }
+                    ],
+                    "description": "The spinning indicator in a box that grows with its label.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The indicator's colour.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label this spinner stands beside: it grows with that label's text.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

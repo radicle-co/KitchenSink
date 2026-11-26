@@ -71,6 +71,7 @@ nothing in CloudFormation can order two `cdk deploy` invocations (ADR-0022 §5).
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{stage}:LambdaSecurityGroupId` |
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`NetworkStack`) | `kitchensink-network-{stage}:ServiceSecurityGroupId` |
 | `@kitchensink/identity-infra` | `@kitchensink/infra-global` (`ServiceLogsStack`) | `kitchensink-service-logs-{stage}:IdentityServiceLogGroupName` |
+| `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`AlarmRelayStack`) | `kitchensink-alarm-relay-{baseStage}:AlarmRelayFunctionArn` |
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbArn` |
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbCanonicalHostedZoneId` |
 | `@kitchensink/recipe-service-infra` | `@kitchensink/infra-global` (`SharedAlbStack`) | `kitchensink-alb-{baseStage}:SharedAlbDnsName` |
@@ -388,9 +389,11 @@ Construct `RecipeServiceStack` — `packages/services/recipe-service/infra/lib/R
 
 | kind | logical id | handler / name template | only when |
 | --- | --- | --- | --- |
+| alarm | `SourceCorrectionVolumeAlarm` | `kitchensink-recipe-source-corrected-{stage}` | `props.alarmsEnabled` |
 | ecsService | `RecipeApiService` | `—` | — |
+| topic | `RecipeServiceAlarmTopic` | `—` | — |
 
-Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`.
+Not summarised here (out of this manifest's scope): `aws-cdk-lib.CfnOutput`, `aws-cdk-lib/aws-cloudwatch-actions.SnsAction`, `aws-cdk-lib/aws-cloudwatch.Metric`, `aws-cdk-lib/aws-ecs.Cluster`, `aws-cdk-lib/aws-ecs.FargateTaskDefinition`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationListenerRule`, `aws-cdk-lib/aws-elasticloadbalancingv2.ApplicationTargetGroup`, `aws-cdk-lib/aws-iam.PolicyStatement`, `aws-cdk-lib/aws-iam.Role`, `aws-cdk-lib/aws-iam.ServicePrincipal`, `aws-cdk-lib/aws-logs-destinations.LambdaDestination`, `aws-cdk-lib/aws-logs.LogGroup`, `aws-cdk-lib/aws-logs.SubscriptionFilter`, `aws-cdk-lib/aws-route53-targets.LoadBalancerTarget`, `aws-cdk-lib/aws-route53.ARecord`.
 
 ## @kitchensink/recipe-workers-infra
 

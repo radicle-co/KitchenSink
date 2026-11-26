@@ -30,7 +30,14 @@ import { Sheet } from '../sheet/Sheet.native.js';
 import { Text } from '../text/Text.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import type { SectionIndexItem, SectionIndexProps, SectionIndexTone } from './props.js';
+import {
+    BAR_CHROME_CAP,
+    itemLabelRoleOf,
+    REASON_ROLE,
+    type SectionIndexItem,
+    type SectionIndexProps,
+    type SectionIndexTone,
+} from './props.js';
 import {
     TONE_GLYPH,
     TONE_ROLE,
@@ -142,17 +149,19 @@ const ListRow: FC<ListRowProps> = ({ item, current, height, colors, onChoose }) 
         >
             {current ? <View style={[styles.startBar, { backgroundColor: colors.hereBar }]} /> : null}
             <View style={styles.line}>
-                {item.tone === 'complete' && glyph !== undefined ? <Icon name={glyph} size={16} tone="ink" /> : null}
-                <Text numberOfLines={2} typeRole={current ? 'label' : 'meta'} color={current ? '$ink' : '$inkMuted'}>
+                {item.tone === 'complete' && glyph !== undefined ? (
+                    <Icon name={glyph} size={16} tone="ink" scaleWith={{ role: itemLabelRoleOf(current) }} />
+                ) : null}
+                <Text numberOfLines={2} typeRole={itemLabelRoleOf(current)} color={current ? '$ink' : '$inkMuted'}>
                     {item.label}
                 </Text>
             </View>
             {item.reason !== undefined ? (
                 <View style={styles.line}>
                     {item.tone !== 'complete' && glyph !== undefined ? (
-                        <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} />
+                        <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} scaleWith={{ role: REASON_ROLE }} />
                     ) : null}
-                    <ToneText tone={item.tone} typeRole="caption" numberOfLines={2}>
+                    <ToneText tone={item.tone} typeRole={REASON_ROLE} numberOfLines={2}>
                         {item.reason}
                     </ToneText>
                 </View>
@@ -180,10 +189,17 @@ const StripItem: FC<StripItemProps> = ({ item, current, colors, onChoose }) => {
 
     return (
         <Pressable {...linkProps(item, current, false)} onPress={onChoose} style={styles.stripItem}>
-            {glyph !== undefined ? <Icon name={glyph} size={16} tone={TONE_ROLE[item.tone]} /> : null}
+            {glyph !== undefined ? (
+                <Icon
+                    name={glyph}
+                    size={16}
+                    tone={TONE_ROLE[item.tone]}
+                    scaleWith={{ role: itemLabelRoleOf(current) }}
+                />
+            ) : null}
             <Text
                 numberOfLines={1}
-                typeRole={current ? 'label' : 'meta'}
+                typeRole={itemLabelRoleOf(current)}
                 color={current ? '$ink' : '$inkMuted'}
                 flexShrink={1}
                 minWidth={0}
@@ -289,10 +305,17 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                 }}
                 style={styles.bar}
             >
-                <Text numberOfLines={1} typeRole="label" chromeCap="1.5" color="$ink" flexShrink={1} minWidth={0}>
+                <Text
+                    numberOfLines={1}
+                    typeRole="label"
+                    chromeCap={BAR_CHROME_CAP}
+                    color="$ink"
+                    flexShrink={1}
+                    minWidth={0}
+                >
                     {barItem?.label}
                     {barSuffix !== undefined ? (
-                        <Text typeRole="meta" chromeCap="1.5" color="$inkMuted">
+                        <Text typeRole="meta" chromeCap={BAR_CHROME_CAP} color="$inkMuted">
                             {barSuffix}
                         </Text>
                     ) : null}
@@ -301,13 +324,13 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                     <Text
                         aria-hidden
                         typeRole="label"
-                        chromeCap="1.5"
+                        chromeCap={BAR_CHROME_CAP}
                         color={barCountRoleOf(items) === TONE_ROLE.fix ? '$dangerText' : '$attention'}
                     >
                         {barCount}
                     </Text>
                 ) : null}
-                <Icon name="chevronDown" size={20} />
+                <Icon name="chevronDown" size={20} scaleWith={{ role: 'label', chromeCap: BAR_CHROME_CAP }} />
             </Pressable>
             <View aria-hidden style={styles.progress}>
                 {items.map((item) => {

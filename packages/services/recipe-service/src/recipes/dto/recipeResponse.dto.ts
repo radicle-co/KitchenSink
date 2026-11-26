@@ -119,6 +119,10 @@ export interface RecipeResponse {
     publicNeedsCheck?: boolean;
     /** Whether the cook must still say "I wrote this" (`statementRequiredOf`). ⛔ OWNER-ONLY, DETAIL only. */
     publicNeedsStatement?: boolean;
+    /** Whether the source answer is confirmed, so the cook can no longer change it (`source_confirmed_at`, ADR-0100). ⛔ OWNER-ONLY, DETAIL only. */
+    sourceConfirmed?: boolean;
+    /** Whether a staff correction holds the recipe off Public (`source_correction_hold`, ADR-0100). ⛔ OWNER-ONLY, DETAIL only. */
+    sourceCorrected?: boolean;
     steps: RecipeStepResponse[];
     servings: number;
     prepTimeMinutes: number;
@@ -190,6 +194,8 @@ export type RecipeSummaryResponse = Omit<
     | 'statementKind'
     | 'publicNeedsCheck'
     | 'publicNeedsStatement'
+    | 'sourceConfirmed'
+    | 'sourceCorrected'
 >;
 
 /** A paginated list of recipes (`PaginatedResponse<Recipe>` in the contract). */

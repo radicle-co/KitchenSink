@@ -27,7 +27,13 @@ import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenRead
 import { Sheet } from '../sheet/Sheet.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
+import {
+    actionNamed,
+    MENU_ITEM_LABEL_ROLE,
+    type ActionMenuItem,
+    type ActionMenuProps,
+    type ActionMenuSnapshot,
+} from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
@@ -66,7 +72,9 @@ const MenuItem: FC<{
             }}
             style={({ pressed }) => [styles.item, inactive && styles.unavailable, pressed && { backgroundColor: wash }]}
         >
-            {item.icon === undefined ? null : <Icon name={item.icon} size={20} tone={tone} />}
+            {item.icon === undefined ? null : (
+                <Icon name={item.icon} size={20} tone={tone} scaleWith={{ role: MENU_ITEM_LABEL_ROLE }} />
+            )}
             <View style={styles.itemText}>
                 <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>
                 {unavailable && <Text style={[styles.reason, { color: colors.inkMuted }]}>{reason}</Text>}
@@ -226,7 +234,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
     },
     itemText: { flexShrink: 1 },
-    itemLabel: nativeTokens.type.body,
+    itemLabel: nativeTokens.type[MENU_ITEM_LABEL_ROLE],
     reason: nativeTokens.type.caption,
     divider: { height: 1, marginVertical: nativeTokens.spacing[1] },
 });

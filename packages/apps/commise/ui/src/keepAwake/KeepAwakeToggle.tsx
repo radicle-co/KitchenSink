@@ -20,7 +20,7 @@ import type { FC } from 'react';
 import { buttonSurfaceClass } from '../button/surfaceClass.js';
 import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/PressScale.js';
-import type { KeepAwakeToggleProps } from './props.js';
+import { KEEP_AWAKE_LABEL_ROLE, type KeepAwakeToggleProps } from './props.js';
 import { useKeepAwakeAvailable } from './useKeepAwakeAvailable.js';
 
 /** The web "Screen on" switch. */
@@ -41,7 +41,7 @@ export const KeepAwakeToggle: FC<KeepAwakeToggleProps> = ({ on, onChange, label,
                 onClick={() => onChange(!on)}
                 className={buttonSurfaceClass('quiet', { size: 'md' })}
             >
-                <Icon name="sun" size={20} filled={on} />
+                <Icon name="sun" size={20} filled={on} scaleWith={{ role: KEEP_AWAKE_LABEL_ROLE }} />
                 <span>{label}</span>
             </button>
         </PressScale>

@@ -22,7 +22,11 @@ const CLOSED = 'http://127.0.0.1:9';
  */
 const DEFAULT_ATTESTATIONS_DOUBLE = {
     provide: RecipeStatementAttestationsDal,
-    useValue: { insertMany: async (): Promise<void> => undefined, hasFromPerson: async (): Promise<boolean> => false },
+    useValue: {
+        insertMany: (): Promise<void> => Promise.resolve(undefined),
+        hasFromPerson: (): Promise<boolean> => Promise.resolve(false),
+        hasWordedAttestation: (): Promise<boolean> => Promise.resolve(false),
+    },
 };
 
 /** Options for {@link bootMockedRecipeApp}. */

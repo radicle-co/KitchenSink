@@ -7920,7 +7920,8 @@
                 "STATEMENT_REQUIRED",
                 "PUBLIC_CONFIRMATION_REQUIRED",
                 "FROM_PERSON_PRIVATE_ONLY",
-                "API_WRITER_CONFIRMATION_FORBIDDEN"
+                "API_WRITER_CONFIRMATION_FORBIDDEN",
+                "SOURCE_CORRECTED"
             ],
             "type": "string"
         },
@@ -10950,7 +10951,8 @@
                                         "STATEMENT_REQUIRED",
                                         "PUBLIC_CONFIRMATION_REQUIRED",
                                         "FROM_PERSON_PRIVATE_ONLY",
-                                        "API_WRITER_CONFIRMATION_FORBIDDEN"
+                                        "API_WRITER_CONFIRMATION_FORBIDDEN",
+                                        "SOURCE_CORRECTED"
                                     ],
                                     "type": "string"
                                 }
@@ -11918,6 +11920,12 @@
                 "sourceAttribution": {
                     "minLength": 1,
                     "type": "string"
+                },
+                "sourceConfirmed": {
+                    "type": "boolean"
+                },
+                "sourceCorrected": {
+                    "type": "boolean"
                 },
                 "sourceKind": {
                     "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
@@ -14735,6 +14743,12 @@
                             "minLength": 1,
                             "type": "string"
                         },
+                        "sourceConfirmed": {
+                            "type": "boolean"
+                        },
+                        "sourceCorrected": {
+                            "type": "boolean"
+                        },
                         "sourceKind": {
                             "description": "unrecognised is client-side only: what a client reads for a kind newer than it knows. The server never sends it.",
                             "enum": [
@@ -15205,6 +15219,305 @@
             },
             "required": [
                 "visibility"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionAnswerSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "oneOf": [
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "authored",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "kind": {
+                            "const": "fromPerson",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "format": "uri",
+                            "maxLength": 2000,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "public_web",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "book",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": false,
+                    "properties": {
+                        "citation": {
+                            "maxLength": 2000,
+                            "minLength": 1,
+                            "type": "string"
+                        },
+                        "kind": {
+                            "const": "paid_site",
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "kind",
+                        "citation"
+                    ],
+                    "type": "object"
+                }
+            ]
+        },
+        "sourceCorrectionPreviewQuerySchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "ownerAccountId": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ownerAccountId"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionPreviewSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "answer": {
+                    "anyOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "type": [
+                                        "string",
+                                        "null"
+                                    ]
+                                },
+                                "kind": {
+                                    "enum": [
+                                        "own",
+                                        "person",
+                                        "webPage",
+                                        "book",
+                                        "paidSite"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "ownerAccountId": {
+                    "type": "string"
+                },
+                "sourceCorrected": {
+                    "type": "boolean"
+                },
+                "title": {
+                    "type": "string"
+                },
+                "visibility": {
+                    "enum": [
+                        "public",
+                        "private"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "title",
+                "ownerAccountId",
+                "visibility",
+                "answer",
+                "sourceCorrected"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "answer": {
+                    "oneOf": [
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "authored",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "kind": {
+                                    "const": "fromPerson",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "format": "uri",
+                                    "maxLength": 2000,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "public_web",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "book",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        },
+                        {
+                            "additionalProperties": false,
+                            "properties": {
+                                "citation": {
+                                    "maxLength": 2000,
+                                    "minLength": 1,
+                                    "type": "string"
+                                },
+                                "kind": {
+                                    "const": "paid_site",
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "kind",
+                                "citation"
+                            ],
+                            "type": "object"
+                        }
+                    ]
+                },
+                "ground": {
+                    "enum": [
+                        "ownerConfirmedByAccountEmail"
+                    ],
+                    "type": "string"
+                },
+                "ownerAccountId": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "reason": {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ownerAccountId",
+                "answer",
+                "ground",
+                "reason"
+            ],
+            "type": "object"
+        },
+        "sourceCorrectionResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "result": {
+                    "enum": [
+                        "applied",
+                        "unchanged"
+                    ],
+                    "type": "string"
+                }
+            },
+            "required": [
+                "result"
             ],
             "type": "object"
         },

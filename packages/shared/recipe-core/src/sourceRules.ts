@@ -4,6 +4,7 @@
  * DESIGN PATTERN: **Specification**. Each is one authoritative, pure statement: the service policy, the editor and the
  * erasure worker import it, so none of them keeps its own copy.
  */
+import { fromPersonOf } from './fromPerson.js';
 import {
     RECIPE_SOURCE_KINDS,
     RecipeSourceType,
@@ -24,31 +25,46 @@ export interface CorrectableSourceFacts {
     readonly statementKind: RecipeStatementKindView | null;
     /** The recipe this one was cloned from, or `null`/`undefined` for an original. */
     readonly clonedFromId: string | null | undefined;
+    /** Whether the answer is confirmed (`recipes.source_confirmed_at` is set, migration 0092): the lock the cook cannot lift. */
+    readonly sourceConfirmed: boolean;
+    /**
+     * Whether the recipe holds a past "from another person" attestation while it stores no statement (a recipe cleared before the
+     * lock existed, P7). The service reads it under the lock. The wire carries no attestation fact, so a client leaves it out and
+     * the server's refusal is the answer there.
+     */
+    readonly attestedFromPerson?: boolean;
 }
 
 /**
- * Whether the cook can still set, replace or remove this recipe's source by pasting a link or stating a book. Pure.
+ * What the cook may still do to a recipe's source (ADR-0100).
  *
- * The first publish does not lock it: the cook's statement of where a recipe is from stays editable after it (ADR-0093
- * section 8, owner ruling 2026-11-15), except "From another person", which only Commise can change (owner ruling
- * 2026-11-19). Detected source evidence is append-only and is never changed by a statement.
+ * - `open`: set, replace or clear it.
+ * - `downgradeOnly`: a confirmed "I wrote this", which may only become a book or a paid site (the recipe is then private).
+ * - `locked`: only Commise changes it.
+ */
+export type SourceLock = 'open' | 'downgradeOnly' | 'locked';
+
+/**
+ * How far the cook can still change this recipe's source. Pure, and the one rule the service policy and the editor both read.
  *
- * `false` when ANY of these holds:
- * - the stored statement is "From another person", or one this client does not know (it fails closed);
- * - the stored source is one the cook did not state in the editor: the curator's public-domain text, a paid site;
- * - the source was INHERITED by a clone (a clone with a kind): otherwise cloning a public recipe would be a way to relabel it;
- * - the kind is one this client does not know: it fails closed.
+ * Locked whatever `sourceConfirmed` says (the locks that came before the confirmation): "From another person" or a statement
+ * this client does not know (it fails closed), a source the cook did not state in the editor (the curator's public-domain
+ * text, a paid site), a source INHERITED by a clone (a clone with a kind: otherwise cloning a public recipe would relabel it), and
+ * a kind this client does not know.
+ *
+ * Then, by the confirmation: an unconfirmed answer is `open`, and so is a confirmed recipe with no answer at all. A confirmed
+ * answer is `locked`, except a confirmed "I wrote this", which is `downgradeOnly`.
  *
  * @param recipe - The stored recipe's source facts.
- * @returns Whether a statement may change the source.
+ * @returns How far the source can change.
  */
-export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
+export function sourceLockOf(recipe: CorrectableSourceFacts): SourceLock {
     if (
         recipe.sourceKind === UNRECOGNISED_SOURCE_KIND ||
-        recipe.statementKind === 'fromPerson' ||
+        fromPersonOf({ statementKind: recipe.statementKind, attestedFromPerson: recipe.attestedFromPerson === true }) ||
         recipe.statementKind === UNRECOGNISED_STATEMENT_KIND
     ) {
-        return false;
+        return 'locked';
     }
 
     // A book is the cook's statement too, whether stated in the editor or saved by an import. A paid-site source is locked whoever stated it.
@@ -59,7 +75,23 @@ export function sourceIsCorrectable(recipe: CorrectableSourceFacts): boolean {
     const inheritedByClone =
         recipe.clonedFromId !== null && recipe.clonedFromId !== undefined && recipe.sourceKind !== null;
 
-    return statedInTheEditorOrNone && !inheritedByClone;
+    if (!statedInTheEditorOrNone || inheritedByClone) {
+        return 'locked';
+    }
+
+    if (!recipe.sourceConfirmed) {
+        return 'open';
+    }
+
+    if (recipe.sourceKind !== null) {
+        return 'locked';
+    }
+
+    if (recipe.statementKind === null) {
+        return 'open';
+    }
+
+    return recipe.statementKind === 'authored' ? 'downgradeOnly' : 'locked';
 }
 
 /**
@@ -87,3 +119,16 @@ export const PRIVATE_ONLY_SOURCE_KEYS: readonly string[] = Object.values(RecipeS
         .filter((sourceKind) => privateRuleOf(sourceType, sourceKind) === 'privateOnly')
         .map((sourceKind) => privateOnlySourceKey(sourceType, sourceKind)),
 );
+
+/**
+ * The grounds a staff correction may name (ADR-0100). One value now: staff confirmed the owner's request through a challenge to
+ * the account's verified email, which is a staff assertion and not something code can check. Spec 016 adds third-party grounds.
+ * The service's wire, the `recipe_source_corrections` CHECK and the runbook read this one list.
+ */
+export const SOURCE_CORRECTION_GROUNDS = ['ownerConfirmedByAccountEmail'] as const;
+
+/** One correction ground. */
+export type SourceCorrectionGround = (typeof SOURCE_CORRECTION_GROUNDS)[number];
+
+/** The longest reason a correction records. The reason is stored for audit and never logged. */
+export const SOURCE_CORRECTION_REASON_MAX_LENGTH = 1000;

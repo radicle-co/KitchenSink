@@ -13,7 +13,7 @@ import { createRef, type ComponentProps } from 'react';
 import type { Pressable as PressableType } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
+import { render, renderWithTamagui, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import type { ContainerClass } from '../../layout/containerClass.js';
 import type { ScrollHostApi, ScrollTarget } from '../../scrollHost/props.js';
 import { ScrollHostContext } from '../../scrollHost/scrollHostContext.js';
@@ -326,4 +326,46 @@ describe('SectionIndex (native): every tone’s text colour is its TONE_ROLE', (
 
         expect(resolvedColour(screen.getByText(`reason ${tone}`), 'color')).toBe(formatRgb(role[TONE_ROLE[tone]]));
     });
+});
+
+describe('SectionIndex (native) glyphs grow with their labels', () => {
+    /** Every glyph size the index draws at a system text scale, by presentation. */
+    const glyphSizesAt = (containerClass: ContainerClass, scale: number): readonly number[] => {
+        state.containerClass = containerClass;
+        const { container, unmount } = renderWithTamagui(
+            <ScrollHostContext.Provider value={fakeHost(vi.fn())}>
+                <SectionIndex
+                    label={NAV}
+                    sheetTitle="Sections"
+                    sheetCloseLabel="Close sections"
+                    items={ITEMS}
+                    currentId="ingredients"
+                    barName={BAR_NAME}
+                    barCount="⚠ 3"
+                />
+            </ScrollHostContext.Provider>,
+            'light',
+            scale,
+        );
+        const sizes = [...container.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')].map((glyph) =>
+            Number(glyph.dataset['iconSize']),
+        );
+        unmount();
+
+        return sizes;
+    };
+
+    it.each(['wide', 'regular', 'narrow'] as const)(
+        'every glyph in the %s presentation is larger at 1.5x than at 1x',
+        (width) => {
+            const base = glyphSizesAt(width, 1);
+            const grown = glyphSizesAt(width, 1.5);
+
+            expect(base.length).toBeGreaterThan(0);
+            expect(grown).toHaveLength(base.length);
+            grown.forEach((size, index) => {
+                expect(size).toBeGreaterThan(base[index] ?? Number.POSITIVE_INFINITY);
+            });
+        },
+    );
 });

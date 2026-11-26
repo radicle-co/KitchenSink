@@ -308,6 +308,8 @@ export function policyRefusal(
             return sourceConflictRefused(reason, details);
         case 'fromPerson':
             return fromPersonPrivateOnly(reason, details);
+        case 'sourceCorrected':
+            return sourceCorrectedRefused(reason, details);
         case 'statementRequired':
             return statementRequiredRefused(reason, details);
         case 'policy':
@@ -405,6 +407,21 @@ export function fromPersonPrivateOnly(reason: string, details: Record<string, un
     return invalidVisibility(reason, { ...details, reason: FROM_PERSON_PRIVATE_ONLY_REASON });
 }
 
+/** `details.reason` of the `INVALID_VISIBILITY` a staff-corrected recipe answers with when asked to be public. */
+const SOURCE_CORRECTED_REASON = invalidVisibilityReasonSchema.enum.SOURCE_CORRECTED;
+
+/**
+ * `INVALID_VISIBILITY` with `details.reason: 'SOURCE_CORRECTED'` (→ 400): a staff correction holds the recipe off Public
+ * (ADR-0100). The same shape as {@link fromPersonPrivateOnly}: no new published code.
+ *
+ * @param reason - The policy's deny-reason, surfaced as the error message.
+ * @param details - The attempted visibility and source type, as {@link invalidVisibility} carries.
+ * @returns The error to throw.
+ */
+export function sourceCorrectedRefused(reason: string, details: Record<string, unknown> = {}): RecipeDomainError {
+    return invalidVisibility(reason, { ...details, reason: SOURCE_CORRECTED_REASON });
+}
+
 /**
  * `FORBIDDEN` — the caller declared a provenance it is not granted to declare (004-FR-025, ADR-0023).
  *
@@ -488,4 +505,17 @@ export function privateSlotsFull(used: number, limit: number): RecipeDomainError
         used,
         limit,
     });
+}
+
+/**
+ * `VALIDATION_FAILED` (→ 400) — a staff correction named a recipe that holds no source
+ * answer to correct (nothing stated, or the curator's public-domain text), or a web link that is not a usable source. NOTHING was
+ * written. A 400 and not a 404: the recipe exists and is the owner's, so this is about what the request asks for.
+ *
+ * @returns The exception to throw.
+ */
+export function sourceCorrectionInvalidTarget(): HttpException {
+    const message = 'This recipe holds no source answer that can be corrected to that.';
+
+    return apiError('VALIDATION_FAILED', message, { fields: [`answer: ${message}`] });
 }

@@ -55,6 +55,8 @@ export function makeRecipeRow(overrides: Partial<RecipeRow> = {}): RecipeRow {
         visibility: 'public',
         status: 'published',
         firstPublishedAt: FIXED_DATE,
+        sourceConfirmedAt: FIXED_DATE,
+        sourceCorrectionHold: false,
         sourceType: 'user_created',
         sourceKind: null,
         statementKind: null,

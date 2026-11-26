@@ -11,6 +11,7 @@
         "./testing": "./src/testing/index.ts",
         "./database-name": "./src/recipeDatabaseName.ts",
         "./queue-names": "./src/recipeQueueNames.ts",
+        "./source-event-names": "./src/sourceEventNames.ts",
         "./food-name": "./src/foodName.ts",
         "./resolution/normalized-key": "./src/resolution/normalizedKey.ts",
         "./resolution/ranking-terms": "./src/resolution/rankingTerms.ts",

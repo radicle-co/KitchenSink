@@ -41,7 +41,7 @@ const NO_VERIFIED_SITE_CLAIMS: readonly string[] = [];
  * @param address - The proved web address (`parseSourceLink`'s `url`).
  * @returns The key. Pure.
  */
-function sourceKeyOf(address: string): string {
+export function sourceKeyOf(address: string): string {
     const page = new URL(address);
 
     page.hash = '';

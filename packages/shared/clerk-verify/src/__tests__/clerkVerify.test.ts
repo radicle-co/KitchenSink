@@ -218,6 +218,7 @@ describe('verifyClerkToken', () => {
                 'recipes:import:public',
                 'recipes:mappings:global',
                 'recipes:parses:global',
+                'recipes:source:correct',
             ]);
         });
 
@@ -236,6 +237,7 @@ describe('verifyClerkToken', () => {
                 'recipes:import:public',
                 'recipes:mappings:global',
                 'recipes:parses:global',
+                'recipes:source:correct',
                 'recipes:write',
             ]);
         });

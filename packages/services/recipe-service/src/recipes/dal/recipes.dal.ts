@@ -199,6 +199,12 @@ export interface LockedRecipeFacts extends SlotFacts {
     readonly clonedFromId: RecipeRow['clonedFromId'];
     /** The cook's citation (`source_attribution`), under the same lock: a paid site stated again is judged against it. */
     readonly sourceAttribution: RecipeRow['sourceAttribution'];
+    /** The stored link (`source_url`), under the same lock: a web link stated again is judged against it. */
+    readonly sourceUrl: RecipeRow['sourceUrl'];
+    /** When the source answer was confirmed (migration 0092), under the same lock: the lock the cook cannot lift. */
+    readonly sourceConfirmedAt: RecipeRow['sourceConfirmedAt'];
+    /** Whether a staff correction holds the recipe off Public (migration 0092), under the same lock. */
+    readonly sourceCorrectionHold: RecipeRow['sourceCorrectionHold'];
 }
 
 /**
@@ -318,6 +324,9 @@ export class RecipesDal {
                 contentPastedAt: recipes.contentPastedAt,
                 clonedFromId: recipes.clonedFromId,
                 sourceAttribution: recipes.sourceAttribution,
+                sourceUrl: recipes.sourceUrl,
+                sourceConfirmedAt: recipes.sourceConfirmedAt,
+                sourceCorrectionHold: recipes.sourceCorrectionHold,
             })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
@@ -803,6 +812,8 @@ export class RecipesDal {
      *   lock in a transaction, and a write that fell back to the base client would commit outside it.
      * @param provenance - A statement the same request made (the source correction, ADR-0089): its columns are written in this
      *   same UPDATE, so "I wrote this" and Make public are one write. ABSENT leaves the source alone.
+     * @param confirmsSource - Whether this request confirms the source answer (`confirmsSource`, KTD-3): `source_confirmed_at` is
+     *   set in this same UPDATE, once, and the database refuses any later change.
      * @returns The updated aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Updates the `recipes` row's `visibility` + `updated_at` (and the four source columns, when stated).
      */
@@ -811,11 +822,17 @@ export class RecipesDal {
         visibility: RecipeVisibility,
         enlistIn: RecipeTx,
         provenance?: UpdateRecipeInput['provenance'],
+        confirmsSource = false,
     ): Promise<RecipeAggregate | undefined> {
         const writer = enlistIn;
         const [recipe] = await writer
             .update(recipes)
-            .set({ ...(provenance ?? {}), visibility, updatedAt: new Date() })
+            .set({
+                ...(provenance ?? {}),
+                ...(confirmsSource ? { sourceConfirmedAt: sql`COALESCE(${recipes.sourceConfirmedAt}, now())` } : {}),
+                visibility,
+                updatedAt: new Date(),
+            })
             .where(and(eq(recipes.id, id), activeRecipe()))
             .returning();
 

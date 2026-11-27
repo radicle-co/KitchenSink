@@ -22,6 +22,8 @@
  * `preventDefault()`ing Radix's own no-op default so there is one focus-restore path, not a silently-losing
  * second one. Its module doc carries the rest, including why the edge latch must not be a ref.
  *
+ * A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the action row.
+ *
  * The Cancel and Pull actions sit in the design-system `DialogActions`, which stacks them full width on a phone, Pull on
  * top, so the pair cannot overflow a 320 px dialog.
  *
@@ -42,9 +44,11 @@ import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { DialogActions, dialogActionSlotClass } from '@commise/ui/dialog-actions';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { useRenderedHeight } from '@commise/ui/rendered-height';
+import { WindowScope } from '@commise/ui/window-scope';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
-import { type FC } from 'react';
+import { useState, type FC } from 'react';
 
 import { fillTemplate } from '@commise/i18n';
 import { collectionMessages } from './messages.js';
@@ -57,6 +61,14 @@ import type { PullUpdatesDialogProps } from './model.js';
  * a translation, measured at about 407 px (see `DialogActionsSideBySideFrom`). A phone stacks them, Pull on top.
  */
 const SIDE_BY_SIDE_FROM = 440;
+
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
+    'flex-col gap-4 rounded-xl',
+    surfaceToneClass('paper'),
+    'px-6 pt-6 shadow-lg',
+].join(' ');
 
 export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     open,
@@ -76,6 +88,10 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     // Snapshot whatever had focus right before this dialog opened, and restore it on close — see the module
     // doc. The edge guard is inside the hook, so a preview/commit state change cannot re-snapshot.
     const onCloseAutoFocus = useReturnFocusOnClose(open);
+
+    // The action row and the dialog's bottom padding under it are the snackbar's foot: it sits 16 above the buttons.
+    const [foot, setFoot] = useState<HTMLElement | null>(null);
+    const footHeight = useRenderedHeight(foot, 0);
 
     const owner = sourceOwnerBylineText(
         {
@@ -101,59 +117,64 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content
-                    onCloseAutoFocus={onCloseAutoFocus}
-                    className={`fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg`}
-                >
-                    <div className="flex flex-col gap-1">
-                        <Dialog.Title className="text-section-title text-ink">{pull.title}</Dialog.Title>
-                        {attribution !== undefined && <p className="text-body-sm text-ink-muted">{attribution}</p>}
-                    </div>
-
-                    {showLoading && (
-                        <p role="status" aria-label={pull.loadingLabel} className="text-body-md text-ink-muted">
-                            {pull.loadingLabel}
-                        </p>
-                    )}
-
-                    {!showLoading && error !== undefined && (
-                        <p role="alert" className="text-body-md text-danger-text">
-                            {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
-                        </p>
-                    )}
-
-                    {showDiff && diff !== undefined && (
-                        <div className="flex flex-col gap-2 text-body-md text-ink-muted">
-                            <p>{fillTemplate(pull.addedCount, { count: diff.added.length })}</p>
-                            <p>{fillTemplate(pull.removedCount, { count: diff.removed.length })}</p>
-                            <p>{fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}</p>
-                            <p className="text-body-sm italic">{pull.ownMembersNote}</p>
-                            {diff.added.length === 0 && <p>{pull.upToDate}</p>}
+                <Dialog.Content onCloseAutoFocus={onCloseAutoFocus} className={CONTENT_CLASS}>
+                    <WindowScope footHeight={footHeight}>
+                        <div className="flex flex-col gap-1">
+                            <Dialog.Title className="text-section-title text-ink">{pull.title}</Dialog.Title>
+                            {attribution === undefined ? null : (
+                                <p className="text-body-sm text-ink-muted">{attribution}</p>
+                            )}
                         </div>
-                    )}
 
-                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                        {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
-                        <Dialog.Close
-                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
-                        >
-                            <Icon name="x" size={20} />
-                            {pull.cancel}
-                        </Dialog.Close>
-                        {showDiff && diff !== undefined && (
-                            // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to pull is a
-                            // rule the press did not cause, so it disables natively.
-                            <Button
-                                icon="check"
-                                busy={isCommitting}
-                                disabled={diff.added.length === 0}
-                                width="fill"
-                                onPress={onConfirm}
-                            >
-                                {fillTemplate(pull.confirm, { count: diff.added.length })}
-                            </Button>
-                        )}
-                    </DialogActions>
+                        {showLoading ? (
+                            <p role="status" aria-label={pull.loadingLabel} className="text-body-md text-ink-muted">
+                                {pull.loadingLabel}
+                            </p>
+                        ) : null}
+
+                        {!showLoading && error !== undefined ? (
+                            <p role="alert" className="text-body-md text-danger-text">
+                                {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
+                            </p>
+                        ) : null}
+
+                        {showDiff ? (
+                            <div className="flex flex-col gap-2 text-body-md text-ink-muted">
+                                <p>{fillTemplate(pull.addedCount, { count: diff.added.length })}</p>
+                                <p>{fillTemplate(pull.removedCount, { count: diff.removed.length })}</p>
+                                <p>{fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}</p>
+                                <p className="text-body-sm italic">{pull.ownMembersNote}</p>
+                                {diff.added.length === 0 ? <p>{pull.upToDate}</p> : null}
+                            </div>
+                        ) : null}
+
+                        <div ref={setFoot} className="pb-6">
+                            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                                {/* A Radix slot, so it wears the Button surface rather than being one: the
+                                    ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's
+                                    fill class. */}
+                                <Dialog.Close
+                                    className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
+                                >
+                                    <Icon name="x" size={20} />
+                                    {pull.cancel}
+                                </Dialog.Close>
+                                {showDiff ? (
+                                    // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to
+                                    // pull is a rule the press did not cause, so it disables natively.
+                                    <Button
+                                        icon="check"
+                                        busy={isCommitting}
+                                        disabled={diff.added.length === 0}
+                                        width="fill"
+                                        onPress={onConfirm}
+                                    >
+                                        {fillTemplate(pull.confirm, { count: diff.added.length })}
+                                    </Button>
+                                ) : null}
+                            </DialogActions>
+                        </div>
+                    </WindowScope>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

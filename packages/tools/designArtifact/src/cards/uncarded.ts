@@ -63,6 +63,10 @@ export const UNCARDED: Readonly<Record<string, string>> = {
     SheetEngine:
         "Native-only engine of the Sheet (Tamagui's Sheet inside the host's window). Screens place Sheet, which the Sheet card covers.",
     Text: "Native-only text primitive with no web sibling: web sets type with Tailwind's role utilities. A screen names a type role, and the roles are defined in `typography.ts`.",
+    WindowScope:
+        'The web window frame: it deepens the overlay depth and mounts the snackbar outlet where the snackbar ' +
+        'draws while that window is open. It adds no element and has no look of its own. The web twin of ' +
+        'OverlayHost; the SnackbarHost card covers the placement it feeds.',
     ToneScope:
         "Native-only scope that states a surface's tone to Tamagui's theme and to the JS tone context. It draws nothing of its own; Surface and every self-painting root state their tone through it.",
 };

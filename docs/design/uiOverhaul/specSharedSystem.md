@@ -415,7 +415,8 @@ interface UndoSnackbarProps {
 - One at a time. A new one replaces the old one, and the old one commits.
 - `role="status"` (polite). Undo is reachable by keyboard: the snackbar does not steal focus, and its timer
   pauses while it has focus or hover, so a keyboard user can reach it in time (SC 2.2.1).
-- Message wrap:2. The Undo label never wraps (control).
+- Message wrap: web wraps the message whole and never clamps it; Undo moves to its own row under it, at the end,
+  when the row is too narrow. Native still clamps to two lines. The Undo label never wraps (control).
 
 ## 13. Recipe-and-wizard pass (reserved)
 

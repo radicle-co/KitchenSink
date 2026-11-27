@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 32,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 108,
+        "platform-singleton": 110,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -775,6 +775,16 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
+            "component": "designSystem/overlay/WindowScope",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/WindowScope.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "designSystem/photo/Photo",
             "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
@@ -1190,7 +1200,7 @@
             "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: depth",
+                "web: depth footHeight",
                 "native: depth footHeight presenting"
             ]
         },
@@ -1318,6 +1328,16 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/testing/SnackbarProbe",
+            "sourcePath": "packages/apps/commise/ui/src/testing/windowSnackbar.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

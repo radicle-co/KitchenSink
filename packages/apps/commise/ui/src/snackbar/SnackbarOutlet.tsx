@@ -5,16 +5,16 @@
  *
  * While a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen
  * readers, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts
- * one outlet inside its content. While mounted, the outlet registers with the host and keeps a polite `status` region
- * in place, empty until the host hands it the snackbar, so the change is announced. Only the outlet on top draws, and
- * the host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.
+ * one outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet
+ * registers with the host and keeps a polite `status` region in place, empty until the host hands it the snackbar, so
+ * the change is announced. Only the outlet on top draws, and the host draws in its own place only while no outlet is
+ * registered, so the snackbar is in one place at a time.
  *
  * It sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills
  * it, and the dialog's foot from `sm`, where the sheet is a centred dialog.
  *
- * A sheet with a pinned footer sets `--sheet-footer-inset` to the footer's height on the panel around the outlet, so
- * the snackbar sits 16 above the footer and the footer's actions stay clear. With no footer, or once the footer scrolls
- * with the content, the variable is unset and the offset is the 16 above.
+ * A window with a pinned foot passes its height as `footHeight`, so the snackbar sits 16 above the foot and the foot's
+ * actions stay clear. With no foot, or once the foot scrolls with the content, it is unset and the offset is the 16.
  *
  * @pattern Mediator — a drawing slot the snackbar host's Mediator fills; the queue, the timer and the pause stay in the
  *     host
@@ -27,16 +27,22 @@ import { SnackbarOutletContext } from './snackbarOutletContext.js';
 export interface SnackbarOutletProps {
     /** How many windows deep this sheet is: 1 when opened from the page, 2 inside another sheet, and so on. */
     readonly depth: number;
+    /**
+     * How tall the window's pinned foot is in px; the snackbar sits 16 above it. Unset: 16 above the window's foot.
+     * Not a dependency of the registration: a foot that re-measures must not make this outlet the latest one at
+     * its own depth.
+     */
+    readonly footHeight?: number;
 }
 
 /**
  * The snackbar's place in one open sheet.
  *
- * @param props - How deep the sheet is nested.
+ * @param props - How deep the window is nested, and how tall its pinned foot is.
  * @returns The sheet's status region, holding the snackbar when this outlet is on top; nothing outside a host.
  * @sideEffect Registers the outlet with the host while it is mounted.
  */
-export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ depth }) => {
+export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ depth, footHeight }) => {
     const outlets = useContext(SnackbarOutletContext);
     const token = useId();
     const register = outlets?.register;
@@ -57,7 +63,8 @@ export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ depth }) => {
     return (
         <div
             role="status"
-            className="pointer-events-none absolute inset-x-4 bottom-[calc(var(--sheet-footer-inset,0px)+1rem)] z-10 flex justify-center"
+            className="pointer-events-none absolute inset-x-4 bottom-4 z-10 flex justify-center"
+            style={footHeight === undefined ? undefined : { bottom: `calc(${String(footHeight)}px + 1rem)` }}
         >
             {outlets.top === token ? outlets.snackbar : null}
         </div>

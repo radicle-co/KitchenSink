@@ -646,7 +646,8 @@ describe('RecipeVersionsContainer', () => {
                 expect(dialog.getByRole('alert')).toHaveTextContent('We couldn’t load that version.');
                 // The defect: with `error` never wired, this state rendered the preview's progress affordance
                 // — an unrecoverable spinner the modal had no way to escape into a failure.
-                expect(dialog.queryByRole('status')).not.toBeInTheDocument();
+                // Only the snackbar's empty outlet may be a status in the dialog: a spinner with any label fails.
+                expect(dialog.queryAllByRole('status').map((region) => region.textContent)).toEqual(['']);
             });
 
             it('still offers a way OUT — Keep current version closes the modal', async () => {

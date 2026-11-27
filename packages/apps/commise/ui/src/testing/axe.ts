@@ -1,7 +1,8 @@
 /**
  * @module testing/axe — the ONE axe check every web component test runs: the WCAG 2.1 A and AA rules, with colour
  * contrast off because jsdom cannot compute colour (the browser spec checks it). The tags are `testing/axeTags`, which
- * the browser spec reads too, so a test never copies the rule set. {@link toHaveNoViolations} is registered by `testing/axeSetup`.
+ * the browser spec reads too, so a test never copies the rule set. {@link toHaveNoViolations} is registered by
+ * `testing/axeSetup`.
  */
 import { configureAxe, toHaveNoViolations } from 'jest-axe';
 

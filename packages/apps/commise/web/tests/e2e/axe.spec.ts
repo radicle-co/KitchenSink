@@ -1,3 +1,15 @@
+/**
+ * Automated accessibility check of the pages people use most, in a real browser: home, a recipe and the collections
+ * list. Every page must show no WCAG 2.1 A or AA violation, colour contrast included (jsdom cannot judge it, so the
+ * component tier turns it off and this spec owns it).
+ *
+ * Rules that already fail on a page are listed in `KNOWN`, one entry per rule per page, each with the issue that
+ * tracks the fix. The list can only shrink: a new violation anywhere fails the spec, and an entry whose rule no longer
+ * fails fails it too, so a fixed page cannot keep its exemption.
+ *
+ * Known limit: an entry names a rule, not an element, so a second element that breaks the same rule on the same page
+ * passes. Narrow the entry to the element when a page has more than one.
+ */
 import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
@@ -7,19 +19,6 @@ import { AXE_TAGS } from '@commise/ui/testing/axe-tags';
 import { route } from './utils/basePath';
 import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
-
-/**
- * Automated accessibility check of the pages people use most, in a real browser: home, a recipe and the collections
- * list. Every page must show no WCAG 2.1 A or AA violation, colour contrast included (jsdom cannot judge it, so the
- * component tier turns it off and this spec owns it).
- *
- * Rules that already fail on a page are listed in {@link KNOWN}, one entry per rule per page, each with the issue that
- * tracks the fix. The list can only shrink: a new violation anywhere fails the spec, and an entry whose rule no longer
- * fails fails it too, so a fixed page cannot keep its exemption.
- *
- * Known limit: an entry names a rule, not an element, so a second element that breaks the same rule on the same page
- * passes. Narrow the entry to the element when a page has more than one.
- */
 
 /** A rule that fails today on one page: the rule id, the page's path, and the issue that tracks the fix. */
 interface KnownViolation {

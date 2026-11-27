@@ -33,7 +33,7 @@ import { useContext, useId, useRef, useState, type FC } from 'react';
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
 import { Icon } from '../icon/Icon.js';
-import { ICON_BUTTON_CLASS, ICON_BUTTON_TONE_CLASS } from '../iconButton/IconButton.js';
+import { ICON_BUTTON_CLASS, ICON_BUTTON_DISABLED_CLASS, ICON_BUTTON_TONE_CLASS } from '../iconButton/IconButton.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import {
     actionNamed,
@@ -138,10 +138,11 @@ export const ActionMenu: FC<ActionMenuProps> = ({
             ref={triggerNode}
             aria-label={triggerLabel}
             aria-disabled={unavailable || undefined}
-            className={[
-                appearance === 'disc' ? HERO_DISC_CLASS : `${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS.ink}`,
-                BUSY_CONTROL_CLASS,
-            ].join(' ')}
+            className={
+                appearance === 'disc'
+                    ? `${HERO_DISC_CLASS} ${BUSY_CONTROL_CLASS}`
+                    : `${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS.ink} ${ICON_BUTTON_DISABLED_CLASS}`
+            }
         >
             <Icon name="ellipsis" size={24} />
         </DropdownMenu.Trigger>

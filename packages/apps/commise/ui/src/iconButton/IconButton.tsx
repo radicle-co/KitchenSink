@@ -38,7 +38,7 @@ export const ICON_BUTTON_TONE_CLASS: Readonly<Record<IconButtonTone, string>> = 
 };
 
 /** The unavailable look: 40% like every disabled control, and a cursor that says so. */
-const DISABLED_CLASS = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
+export const ICON_BUTTON_DISABLED_CLASS = 'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
 
 /** The design-system icon button. */
 export const IconButton: FC<IconButtonProps> = ({
@@ -52,7 +52,7 @@ export const IconButton: FC<IconButtonProps> = ({
         <button
             type="button"
             aria-label={accessibilityLabel}
-            className={`${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS[tone]} ${DISABLED_CLASS}`}
+            className={`${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS[tone]} ${ICON_BUTTON_DISABLED_CLASS}`}
             {...refusedPressProps({
                 unavailable: disabled,
                 onClick: () => {

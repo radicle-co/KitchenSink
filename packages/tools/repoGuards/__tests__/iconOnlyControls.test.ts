@@ -66,6 +66,7 @@ describe('iconOnlyControls', () => {
             FEATURE,
         ],
         ['a Close member holding a symbol', `const A = () => <Dialog.Close>×</Dialog.Close>;`, FEATURE],
+        ['a button holding a two-character symbol', `const A = () => <button onClick={go}>««</button>;`, FEATURE],
         [
             'a Pressable holding a wrapped icon',
             `${ICON}${RN('Pressable, View')}const A = () => <Pressable><View><Icon name="x" /></View></Pressable>;`,
@@ -137,6 +138,20 @@ describe('iconOnlyControls', () => {
     });
 
     it.each([
+        ['a button with no content', `const A = () => <button onClick={go}></button>;`, FEATURE],
+        [
+            'a button with two glyphs, which is not one glyph alone',
+            `const A = () => <button onClick={go}>{'‹'}{'›'}</button>;`,
+            FEATURE,
+        ],
+        [
+            'a render function whose block does more than return a glyph',
+            lines(
+                `${ICON}${RN('Pressable')}`,
+                `const A = () => <Pressable>{() => { log(); return <Icon name="x" />; }}</Pressable>;`,
+            ),
+            FEATURE_NATIVE,
+        ],
         [
             'an IconButton',
             lines(

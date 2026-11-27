@@ -41,4 +41,44 @@ describe('UndoSnackbar (web)', () => {
         expect(tokens).toEqual(expect.arrayContaining(FOCUS_RING_CLASS.inverse.split(' ')));
         expect(tokens.some((token) => token.includes('bg-inverse-ink/'))).toBe(false);
     });
+
+    describe('message wrap', () => {
+        const LONG = 'Can\u2019t undo. The recipe changed since. Open its versions to check.';
+
+        const renderLong = (): HTMLElement => {
+            render(
+                <UndoSnackbar
+                    message={LONG}
+                    action={{ label: 'Undo', onAction: vi.fn() }}
+                    onPause={vi.fn()}
+                    onResume={vi.fn()}
+                />,
+            );
+
+            return screen.getByText(LONG);
+        };
+
+        it('shows a long message whole and never clamps, truncates or stops it wrapping', () => {
+            const message = renderLong();
+
+            expect(message.textContent).toBe(LONG);
+            // Kills: the two-line clamp, truncation and nowrap, each of which cuts a message at large text.
+            expect(message.className).not.toMatch(/line-clamp|truncate|nowrap|overflow-hidden|text-ellipsis/u);
+            // A message may shrink below its content so it wraps by words, and a word wider than the row breaks.
+            expect(message.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-w-0', 'break-words']));
+        });
+
+        it('wraps the row, so Undo moves under a message that has no room beside it, at the end', () => {
+            const message = renderLong();
+            const undo = screen.getByRole('button', { name: 'Undo' });
+
+            // Kills: a row that cannot wrap, which squeezes the message instead of moving Undo.
+            expect(message.parentElement?.className.split(/\s+/u)).toContain('flex-wrap');
+            // Kills: a message with no basis in text units, which never leaves Undo without room to move down.
+            expect(message.className).toMatch(/basis-\[\d+rem\]|flex-\[1_1_\d+rem\]/u);
+            expect(undo.className.split(/\s+/u)).toContain('ml-auto');
+            // Undo keeps its 44 px target on its own row.
+            expect(undo.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']));
+        });
+    });
 });

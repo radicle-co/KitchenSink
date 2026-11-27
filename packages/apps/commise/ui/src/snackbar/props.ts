@@ -26,7 +26,7 @@ export interface SnackbarAction {
 
 /** What a screen asks a snackbar to say and do. */
 export interface SnackbarInput {
-    /** The localised message, at most two lines. */
+    /** The localised message. The web snackbar wraps it whole; the native one still clamps it to two lines. */
     readonly message: string;
     /** The one action, if any. */
     readonly action?: SnackbarAction;

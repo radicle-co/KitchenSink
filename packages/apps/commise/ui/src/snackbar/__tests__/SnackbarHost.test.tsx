@@ -445,7 +445,7 @@ describe('SnackbarHost (web): above the pages', () => {
 describe('UndoSnackbar (web)', () => {
     const tokensOf = (element: Element | null): readonly string[] => element?.className.split(/\s+/u) ?? [];
 
-    it('is ink with a paper message of at most two lines, at most 36rem wide', () => {
+    it('is ink with a paper message that wraps whole, at most 36rem wide', () => {
         render(
             <SnackbarHost>
                 <Screen input={{ message: 'Removed Pasta' }} />
@@ -456,7 +456,9 @@ describe('UndoSnackbar (web)', () => {
         const message = screen.getByText('Removed Pasta');
 
         // The inverse roles (`darkTheme.md` §1), so the bar inverts in BOTH themes rather than baking light `ink`.
-        expect(tokensOf(message)).toEqual(expect.arrayContaining(['line-clamp-2', 'text-inverse-ink']));
+        expect(tokensOf(message)).toEqual(expect.arrayContaining(['min-w-0', 'break-words', 'text-inverse-ink']));
+        // Kills: the two-line clamp coming back, which cuts a message mid-word at large text.
+        expect(tokensOf(message)).not.toContain('line-clamp-2');
         expect(tokensOf(message.parentElement)).toEqual(expect.arrayContaining(['bg-inverse', 'max-w-[36rem]']));
     });
 

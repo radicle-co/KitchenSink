@@ -14,11 +14,19 @@
  * `mobile/tests/components/home/SubscriptionNudge.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
 
 import { SubscriptionNudge } from '../SubscriptionNudge';
 
@@ -67,8 +75,17 @@ describe('SubscriptionNudge (web) — open', () => {
         // bottom padding is `2rem` (the sheet's `p-8` foot) PLUS the safe-area inset, so with `env(...)` = 0
         // the base padding equals the foot and only real devices see the extra inset. The two must stay in
         // lockstep — the literal `2rem` here and the `p-8` utility are the same length spelled two ways.
+        //
+        // REWRITTEN for the snackbar's outlet: the bottom padding moved from the dialog to the box that wraps the action
+        // row, because the row and that padding together are the snackbar's foot (it sits 16 above the buttons). The
+        // dialog keeps its side and top padding.
         const dialog = screen.getByRole('dialog', { name: 'Unlock Commise Pro' });
-        expect(dialog.className).toContain('pb-[calc(2rem+env(safe-area-inset-bottom))]');
+        const foot = screen.getByRole('button', { name: 'Maybe later' }).parentElement?.parentElement;
+
+        expect(foot?.className).toContain('pb-[calc(2rem+env(safe-area-inset-bottom))]');
+        expect(dialog.className).toContain('px-8 pt-8');
+        // No bottom padding of its own, so the inset is not counted twice.
+        expect(dialog.className).not.toMatch(/\b(p|pb)-/u);
     });
 });
 
@@ -168,5 +185,44 @@ describe('SubscriptionNudge — the design-system Button (UI overhaul slice 2)',
         expect(upgrade.querySelector('svg.lucide-chevron-right')).not.toBeNull();
         expect(tokensOf(dismiss.className)).toEqual(expect.arrayContaining(tokensOf(buttonSurfaceClass('secondary'))));
         expect(dismiss.querySelector('svg.lucide-clock')).not.toBeNull();
+    });
+});
+
+describe('SubscriptionNudge (web) — offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }) {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <SubscriptionNudge open={open} onDismiss={() => undefined} />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('sits the snackbar 16 above the action row: the row and the sheet padding under it are its foot', () => {
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+            const holdsButtons = this.querySelector('button') !== null && this.querySelector('h2') === null;
+
+            return new DOMRect(0, 0, 320, holdsButtons ? 104 : 0);
+        });
+        render(<WithHost open />);
+
+        // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole sheet.
+        expect(within(screen.getByRole('dialog')).getByRole('status').style.bottom).toBe('calc(104px + 1rem)');
     });
 });

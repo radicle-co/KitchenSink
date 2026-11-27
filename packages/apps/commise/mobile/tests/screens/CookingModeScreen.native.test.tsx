@@ -84,6 +84,17 @@ describe('CookingModeScreen: the read outcomes', () => {
         expect(await screen.findByText(stepOf(1, 4))).toBeTruthy();
     });
 
+    it('hands the route its leave when the cook presses Exit (mutant: onLeave dropped)', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
+        renderWithRecipeClient(screenOf(), client);
+        await screen.findByText(stepOf(1, 4));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(onLeave).toHaveBeenCalledTimes(1);
+    });
+
     it('shows a 404 as not available', async () => {
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError('Recipe not found'));

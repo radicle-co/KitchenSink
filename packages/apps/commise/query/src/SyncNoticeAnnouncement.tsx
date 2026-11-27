@@ -1,8 +1,8 @@
 /**
  * @module @commise/query/sync-notice-announcement — the text the open windows speak for the offline notice.
  *
- * It sits beside `SyncNoticeHost` and reads the same Specification (`cookingNoticeStateOf`), so the spoken words are the
- * notice's own words.
+ * It sits beside `SyncNoticeHost` and reads the same Specification (`cookingNoticeStateOf`), so the spoken words
+ * are the notice's own words.
  *
  * Orchestration: it reads whether the app is offline and hands the title down a context; it draws nothing.
  *

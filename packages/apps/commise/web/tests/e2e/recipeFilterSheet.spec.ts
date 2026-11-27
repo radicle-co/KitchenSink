@@ -23,7 +23,9 @@ const WIDE = { width: 1440, height: 900 };
 
 /** The Sheet's apply button: "Show 3 recipes", "Show 1 recipe", or "Show recipes" while the count is unknown. */
 const SHOW = /^Show (?:\d+ )?recipes?$/u;
-/** The Sheet's title, which also names its dialog. */ const SHEET_TITLE = 'Filters';
+
+/** The Sheet's title, which also names its dialog. */
+const SHEET_TITLE = 'Filters';
 
 /** One vegan and one non-vegan public recipe, both matching the query `e`, so a facet visibly narrows the list. */
 async function seed(page: Page): Promise<void> {

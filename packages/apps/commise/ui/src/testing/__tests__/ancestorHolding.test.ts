@@ -23,24 +23,22 @@ describe('nearestAncestorHolding', () => {
     });
 
     it('returns the nearer box when two ancestors hold it', () => {
-        const { outer, inner, from } = tree();
+        const { inner, from } = tree();
         const alsoInner = document.createElement('span');
 
         inner.append(alsoInner);
 
         expect(nearestAncestorHolding(from, alsoInner, 'the row')).toBe(inner);
-        expect(outer.contains(inner)).toBe(true);
     });
 
     it('does not return the start itself', () => {
-        const { outer, from } = tree();
+        const { from } = tree();
         const child = document.createElement('i');
 
         from.append(child);
 
         expect(nearestAncestorHolding(from, child, 'the row')).not.toBe(from);
         expect(nearestAncestorHolding(from, child, 'the row')).toBe(from.parentElement);
-        expect(outer).toBeDefined();
     });
 
     it('names what it was looking for when no ancestor holds the other element', () => {

@@ -96,7 +96,7 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
         expect(style.overflow).not.toBe('hidden');
     });
 
-    it('wraps the row, so Undo moves under a message with no room beside it, at the end (mutant: row cannot wrap)', () => {
+    it('wraps the row, so Undo drops under a message with no room, at the end (mutant: no wrap)', () => {
         const message = renderLong();
         const undo = screen.getByRole('button', { name: 'Undo' });
 
@@ -112,7 +112,7 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
         [2, '256px'],
         [3, '256px'],
     ])(
-        'asks for 8 text units of room at system text size %s, capped at 2x, so Undo moves down as text grows (basis %s)',
+        'asks for 8 text units of room at text size %s, capped at 2x, so Undo drops as text grows (%s)',
         (scale, basis) => {
             text.scale = scale;
 

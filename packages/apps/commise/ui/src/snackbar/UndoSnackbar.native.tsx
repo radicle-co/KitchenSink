@@ -7,7 +7,8 @@
  * `useTheme()`, so the bar inverts in either theme. The row wraps: the message asks for 8 text units of room, which
  * grow with the system text size up to the cap, so when it has no room beside the action the action drops to its own
  * row under it, at the end (the web bar's rule, owner ruling for issue 409). At most 36 rem (576 pt) wide. Native has
- * no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not wired here: the host pauses while a screen reader runs.
+ * no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not wired here: the host pauses
+ * while a screen reader runs.
  *
  * @pattern Command (invoker) — its action is the `{ label, onAction }` command the queue carries; pressing it invokes
  *     that command and nothing else.

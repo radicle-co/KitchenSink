@@ -34,7 +34,6 @@ import { useState, type FC, type UIEvent } from 'react';
 import { fillTemplate } from '@commise/i18n';
 import { recipeMessages } from '../messages.js';
 import { pageAt } from './photoPaging.js';
-import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
 import { WindowScope } from '@commise/ui/window-scope';
 
@@ -169,14 +168,15 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                     className="max-h-full max-w-full rounded-lg object-contain"
                                 />
                             )}
-                            <Dialog.Close
-                                aria-label={detail.lightboxClose}
-                                // Touch floor: `TOUCH_TARGET_CLASS.fixed` (44px) everywhere — this is overlay chrome
-                                // on a full-screen image, so there is no desktop-density reason to shrink it.
-                                className={`absolute right-4 top-4 flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper ${FOCUS_RING_CLASS.floating}`}
-                            >
-                                <span aria-hidden>×</span>
-                            </Dialog.Close>
+                            <span className="absolute right-4 top-4">
+                                <HeroButton
+                                    icon="x"
+                                    label={detail.lightboxClose}
+                                    onPress={() => {
+                                        setActiveIndex(null);
+                                    }}
+                                />
+                            </span>
                         </WindowScope>
                     </Dialog.Content>
                 </Dialog.Portal>

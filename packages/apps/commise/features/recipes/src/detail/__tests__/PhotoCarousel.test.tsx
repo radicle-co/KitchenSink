@@ -90,6 +90,23 @@ describe('PhotoCarousel (web)', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 
+    // CL-ICONBTN: the lightbox Close is the hero button, a photo chip over the scrim, not a hand-built paper disc.
+    it('draws the lightbox Close as the hero button over the photo', async () => {
+        const user = userEvent.setup();
+        render(
+            <PhotoCarousel
+                title="Grilled Lamb"
+                photos={[makePhoto({ id: 'pho_1', order: 1 }), makePhoto({ id: 'pho_2', order: 2 })]}
+            />,
+        );
+
+        await user.click(screen.getByRole('button', { name: 'Open Grilled Lamb photo 2 full screen' }));
+        const close = within(screen.getByRole('dialog')).getByRole('button', { name: 'Close photo' });
+
+        expect(close.className.split(' ')).toEqual(expect.arrayContaining(['bg-photo-chip', 'size-[44px]']));
+        expect(close.className).not.toContain('bg-paper');
+    });
+
     it('dismisses the lightbox on Escape (Radix focus-modal behavior)', async () => {
         const user = userEvent.setup();
         render(<PhotoCarousel title="Grilled Lamb" photos={[makePhoto({ id: 'pho_1', order: 1 })]} />);

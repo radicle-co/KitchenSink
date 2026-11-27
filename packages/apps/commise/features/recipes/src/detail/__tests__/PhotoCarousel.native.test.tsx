@@ -25,7 +25,7 @@ import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { render, rendersNothing, resolvedColour } from '@commise/ui/testing/tamagui';
 import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
-import type { Modal as ModalType } from 'react-native';
+import { Platform, type Modal as ModalType } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
@@ -197,6 +197,24 @@ describe('PhotoCarousel (native)', () => {
         });
     });
 
+    /** The lightbox's photo: the last one with this alt, since the slide's image shares it. */
+    const lightboxPhoto = (): Element => screen.getAllByLabelText('Grilled Lamb photo 2').at(-1) as Element;
+
+    /** The nearest element that holds both: the frame the lightbox is drawn in. */
+    function commonFrame(first: Element, second: Element): Element {
+        let frame = first.parentElement;
+
+        while (frame !== null && !frame.contains(second)) {
+            frame = frame.parentElement;
+        }
+
+        if (frame === null) {
+            throw new Error('The two elements share no ancestor.');
+        }
+
+        return frame;
+    }
+
     describe('the lightbox', () => {
         async function openLightbox(): Promise<ReturnType<typeof userEvent.setup>> {
             const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
@@ -219,11 +237,13 @@ describe('PhotoCarousel (native)', () => {
                 const colours = rolesFor(scheme);
                 await openLightbox();
                 const close = screen.getByLabelText('Close photo');
+                const disc = close.firstElementChild;
 
-                expect(getComputedStyle(close).backgroundColor).toBe(rgb(colours.paper));
-                expect(getComputedStyle(close.parentElement as Element).backgroundColor).toBe(colours.scrim);
-                // REWRITTEN: the close mark was a 24 px `×` text glyph (a hard-coded size, retired by the type-scale ruling); it is
-                // now the Registry's `x` Icon, so the colour is read off the icon the control draws.
+                // TEST-CHANGE (decisions/0118 addendum 2): the Close is the hero button, whose disc is the photoChip
+                // role under an ink glyph (it was a paper disc), and the scrim is on the frame the Close and the lightbox
+                // photo share.
+                expect(disc === null ? '' : getComputedStyle(disc).backgroundColor).toBe(rgb(colours.photoChip));
+                expect(getComputedStyle(commonFrame(close, lightboxPhoto())).backgroundColor).toBe(colours.scrim);
                 expect(close.querySelector('[data-icon-name="x"]')?.getAttribute('data-icon-color')).toBe(colours.ink);
 
                 const [current, ...others] = screen.getAllByLabelText(/^Go to Grilled Lamb photo/);
@@ -252,16 +272,41 @@ describe('PhotoCarousel (native)', () => {
             expect(state.modal).toMatchObject({ statusBarTranslucent: true, navigationBarTranslucent: true });
         });
 
-        it('gives Close a 48 dp square inside the safe area, clear of a side navigation bar', async () => {
-            await openLightbox();
+        // TEST-CHANGE (decisions/0118 addendum 2): the Close is the hero button, whose frame is the 48 dp target; the
+        // safe-area offsets sit on the absolute slot that places it.
+        it.each([
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const)(
+            'gives Close the touch floor on %s inside the safe area, clear of a side navigation bar',
+            async (os, side) => {
+                // The lightbox mounts after a press, so the platform is held for the whole test, not one synchronous call.
+                const original = Platform.OS;
+                Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 
-            const close = screen.getByLabelText('Close photo');
+                try {
+                    await openLightbox();
 
-            expect(appliedStyle(close, 'width')).toBe('48px');
-            expect(appliedStyle(close, 'height')).toBe('48px');
-            expect(appliedStyle(close, 'top')).toBe('8px');
-            expect(appliedStyle(close, 'right')).toBe('56px');
-        });
+                    const close = screen.getByLabelText('Close photo');
+                    let slot = close.parentElement;
+
+                    while (slot !== null && appliedStyle(slot, 'position') !== 'absolute') {
+                        slot = slot.parentElement;
+                    }
+
+                    if (slot === null) {
+                        throw new Error('No absolute slot holds the Close.');
+                    }
+
+                    expect(appliedStyle(close, 'width')).toBe(side);
+                    expect(appliedStyle(close, 'height')).toBe(side);
+                    expect(appliedStyle(slot, 'top')).toBe('8px');
+                    expect(appliedStyle(slot, 'right')).toBe('56px');
+                } finally {
+                    Object.defineProperty(Platform, 'OS', { value: original, configurable: true });
+                }
+            },
+        );
 
         it('keeps the photo inside the safe area too', async () => {
             await openLightbox();

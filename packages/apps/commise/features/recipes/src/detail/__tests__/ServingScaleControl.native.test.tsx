@@ -17,6 +17,21 @@ import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-co
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { ServingScaleControl } from '../ServingScaleControl.js';
 
+/** The step frame: the nearest ancestor of a step button with a 1px border, which must not hold the other button. */
+function stepFrameOf(button: Element, other: Element): Element {
+    let frame = button.parentElement;
+
+    while (frame !== null && getComputedStyle(frame).borderTopWidth !== '1px') {
+        frame = frame.parentElement;
+    }
+
+    if (frame === null || frame.contains(other)) {
+        throw new Error('The step button has no frame of its own.');
+    }
+
+    return frame;
+}
+
 vi.mock('react-native', async (importOriginal) => {
     const { withSystemScheme } = await import('@commise/ui/testing/system-color-scheme');
 
@@ -142,14 +157,27 @@ describe('ServingScaleControl (native)', () => {
         expect(fontVariantClass(count)).toBe(fontVariantClass(reference.getByText('ref')));
     });
 
+    // TEST-CHANGE (decisions/0118 addendum 6): each button is the shared icon button inside the stepper's bordered frame,
+    // so the floor is read on that frame and on the icon button's own frame.
     it('clears the 44pt touch floor on every control', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
 
-        for (const name of ['Fewer servings', 'More servings']) {
-            const style = getComputedStyle(screen.getByRole('button', { name }));
+        for (const [name, other] of [
+            ['Fewer servings', 'More servings'],
+            ['More servings', 'Fewer servings'],
+        ] as const) {
+            const button = screen.getByRole('button', { name });
+            const inner = button.firstElementChild;
+            const frame = stepFrameOf(button, screen.getByRole('button', { name: other }));
 
-            expect(Number.parseFloat(style.minWidth)).toBeGreaterThanOrEqual(44);
-            expect(Number.parseFloat(style.minHeight)).toBeGreaterThanOrEqual(44);
+            if (inner === null) {
+                throw new Error(`${name} has no frame.`);
+            }
+
+            for (const element of [inner, frame]) {
+                expect(Number.parseFloat(getComputedStyle(element).width)).toBeGreaterThanOrEqual(44);
+                expect(Number.parseFloat(getComputedStyle(element).height)).toBeGreaterThanOrEqual(44);
+            }
         }
     });
 });
@@ -162,7 +190,10 @@ describe.each(['light', 'dark'] as const)('ServingScaleControl (native) — the 
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);
         const more = screen.getByRole('button', { name: 'More servings' });
 
-        expect(getComputedStyle(more).borderTopColor).toBe(rgb(colours.lineControl));
+        // `resolvedColour`, because Tamagui paints the edge as a theme variable that jsdom does not resolve.
+        expect(
+            resolvedColour(stepFrameOf(more, screen.getByRole('button', { name: 'Fewer servings' })), 'borderTopColor'),
+        ).toBe(rgb(colours.lineControl));
         expect(more.querySelector('[data-commise-stub="icon"]')?.getAttribute('data-icon-name')).toBe('plus');
         // REWRITTEN for #265 (decisions/0037): the count's colour is the `$ink` variable now, so it is read through the
         // theme it sits under, in this scheme, not as a literal rgb on the node.

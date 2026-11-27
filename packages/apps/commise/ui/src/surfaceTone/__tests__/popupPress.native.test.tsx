@@ -171,7 +171,8 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        expect(background(screen.getByRole('button', { name: 'More servings' }))).toBe(rgb(theme.press.muted));
+        // TEST-CHANGE (decisions/0118 addendum 7): the press fill is painted on the icon button's circle inside the button.
+        expect(paintedUnder(screen.getByRole('button', { name: 'More servings' }))).toBe(rgb(theme.press.muted));
     });
 
     it('a ChipRow’s chips on the muted surface rest on paper, not surfaceMuted, and press to the paper row', () => {

@@ -1662,7 +1662,14 @@ describe('runLaneRun: the rerun limit', () => {
 
         // The operator's stop ends the fake lane, as the signal handler does.
         await setImmediate();
-        const code = await Promise.race([run, new Promise<number>((resolve) => setTimeout(() => resolve(-1), 3000))]);
+        const code = await Promise.race([
+            run,
+            new Promise<number>((resolve) => {
+                setTimeout(() => {
+                    resolve(-1);
+                }, 3000);
+            }),
+        ]);
 
         expect(record).not.toHaveBeenCalled();
         expect(code).not.toBe(RERUN_REFUSED_EXIT);

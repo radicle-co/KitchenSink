@@ -129,14 +129,14 @@ export interface LaneRunDeps {
      * flow the limit refuses; any line refuses the whole run with {@link RERUN_REFUSED_EXIT}. Absent when there is
      * no limit.
      */
-    checkRerun?(planned: readonly PlannedFlows[]): readonly string[];
+    checkRerun?: (planned: readonly PlannedFlows[]) => readonly string[];
     /**
      * How each planned flow ended, called once and only when a lane started (a refusal or a failure before any lane
      * is not an attempt) and the operator did not stop the run. A lane that ended before its flow gave a result is a
      * failure.
      * It must not throw for a history that cannot be written: that never changes the exit code.
      */
-    recordRerun?(outcomes: readonly FlowOutcome[]): void;
+    recordRerun?: (outcomes: readonly FlowOutcome[]) => void;
     /**
      * `--one-off` runs: copy the flows into `.maestro/oneOff/<runId>/` and answer their ids. Called once, under the
      * host lock, before any adapter step (the iOS flows sync to the Mac in `prepareHost`). It throws when a one-off is
@@ -365,7 +365,9 @@ async function runPlanned(
     }
 
     // A lane that started is an attempt; a failure before it is not.
-    let laneStarted = false;
+    // A field of an object, not a `let`: TypeScript narrows a `let` that only a closure assigns, so the catch below
+    // would read it as always false.
+    const attempt = { laneStarted: false };
     let recorded = false;
 
     /** Tell the rerun limit how every planned flow ended, once. */
@@ -475,7 +477,7 @@ async function runPlanned(
 
                 const startedAt = Date.now();
                 const child = deps.spawnLane(lane, envOf(lane));
-                laneStarted = true;
+                attempt.laneStarted = true;
                 children.push(child);
                 deps.log(
                     `lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`,
@@ -581,7 +583,7 @@ async function runPlanned(
         code = await runLanes();
     } catch (error) {
         // Lanes that ran and ended without a result (a crash, a kill, a lost tunnel) failed every flow they were given.
-        if (laneStarted && !deps.aborted()) {
+        if (attempt.laneStarted && !deps.aborted()) {
             recordRerun(() => true);
         }
 

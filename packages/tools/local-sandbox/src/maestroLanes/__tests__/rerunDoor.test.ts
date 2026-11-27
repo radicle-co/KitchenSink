@@ -35,7 +35,7 @@ function door(overrides: Partial<RerunDoorPorts> = {}): Door {
     const ports: RerunDoorPorts = {
         historyFile: file,
         head: HEAD,
-        blobOf: (flow) => `blob-of-${flow}`,
+        digestOf: (flow) => `digest-of-${flow}`,
         iosDevice: 'iphone',
         now: () => '2026-11-27T10:00:00.000Z',
         report: (line) => reports.push(line),
@@ -129,7 +129,7 @@ describe('the rerun door', () => {
         failedRun('recipes/detailCooking');
 
         expect(door({ head: '9999999999999999999999999999999999999999' }).check(['recipes/detailCooking'])).toEqual([]);
-        expect(door({ blobOf: () => 'a-fixed-flow' }).check(['recipes/detailCooking'])).toEqual([]);
+        expect(door({ digestOf: () => 'a-fixed-flow' }).check(['recipes/detailCooking'])).toEqual([]);
         expect(door({ iosDevice: 'ipad' }).check(['recipes/detailCooking'])).toEqual([]);
         expect(door().check(['recipes/detailCooking'], 'android')).toEqual([]);
     });
@@ -142,8 +142,8 @@ describe('the rerun door', () => {
     });
 
     it('keys a one-off by its name, not its run folder, so a rerun of the same one-off counts', () => {
-        // The blob is of the file's content, which is the same in every run's folder.
-        const sameFile = { blobOf: () => 'the-one-off-file' };
+        // The digest is of the file's content, which is the same in every run's folder.
+        const sameFile = { digestOf: () => 'the-one-off-file' };
 
         failedRun('oneOff/2026-11-27T10-00-00-000Z/shots', sameFile);
         failedRun('oneOff/2026-11-27T10-05-00-000Z/shots', sameFile);
@@ -158,7 +158,7 @@ describe('the rerun door', () => {
         const run = createRerunDoor({
             historyFile: file,
             head: HEAD,
-            blobOf: (flow) => `blob-of-${flow}`,
+            digestOf: (flow) => `digest-of-${flow}`,
             iosDevice: 'iphone',
             now: () => '2026-11-27T10:00:00.000Z',
             report: () => undefined,

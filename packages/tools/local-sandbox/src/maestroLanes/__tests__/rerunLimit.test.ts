@@ -25,7 +25,7 @@ const KEY = {
     device: 'iphone',
     flowId: 'recipes/detailCooking',
     head: '1a2b3c4',
-    blob: 'blobX',
+    digest: 'digestX',
 } as const;
 const F = rerunKey(KEY);
 const G = rerunKey({ ...KEY, flowId: 'recipes/home' });
@@ -42,14 +42,14 @@ const fail = (key: string) => ({ key, failed: true });
 const pass = (key: string) => ({ key, failed: false });
 
 describe('rerunKey', () => {
-    it('names the platform, device, flow, head and blob, each one (mutant: a part left out)', () => {
+    it('names the platform, device, flow, head and digest, each one (mutant: a part left out)', () => {
         const keys = [
             F,
             rerunKey({ ...KEY, platform: 'android' }),
             rerunKey({ ...KEY, device: 'ipad' }),
             rerunKey({ ...KEY, flowId: 'recipes/home' }),
             rerunKey({ ...KEY, head: '9z9z9z9' }),
-            rerunKey({ ...KEY, blob: 'blobY' }),
+            rerunKey({ ...KEY, digest: 'digestY' }),
         ];
 
         expect(new Set(keys).size).toBe(keys.length);
@@ -114,8 +114,8 @@ describe('rerunDecision', () => {
         expect(decide(historyOf({ [F]: 2 }), [elsewhere])).toMatchObject({ allowed: true });
     });
 
-    it('a fixed flow file is a new key (mutant: blob left out of the key)', () => {
-        const fixed = rerunKey({ ...KEY, blob: 'blobY' });
+    it('a fixed flow file is a new key (mutant: digest left out of the key)', () => {
+        const fixed = rerunKey({ ...KEY, digest: 'digestY' });
 
         expect(decide(historyOf({ [F]: 2 }), [fixed])).toMatchObject({ allowed: true });
     });
@@ -153,13 +153,16 @@ describe('rerunDecision', () => {
     it('trims a reference before it keeps it', () => {
         const decision = decide(historyOf({ [F]: 2 }), [F], '  REPORT-0042 ');
 
-        expect(decision.allowed && decision.history.entries[F]?.references).toEqual(['REPORT-0042']);
+        expect(decision).toMatchObject({
+            allowed: true,
+            history: { entries: { [F]: { references: ['REPORT-0042'] } } },
+        });
     });
 
     it('keeps a reference only on the keys it released, not on a key under its limit', () => {
         const decision = decide(historyOf({ [F]: 2, [G]: 1 }), [F, G], 'REPORT-0042');
 
-        expect(decision.allowed && decision.history.entries[G]?.references).toEqual([]);
+        expect(decision).toMatchObject({ allowed: true, history: { entries: { [G]: { references: [] } } } });
     });
 });
 

@@ -16,6 +16,7 @@
  * @sideEffect Boots emulators, starts the queue consumers and the parse worker, resets the local pool, runs Maestro.
  */
 import { execFile, spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -63,17 +64,6 @@ const RUN_USERS = 'packages/tools/e2e-fixtures/src/runUsers.ts';
 
 /** The run's record of the users it made: beside the lock, and the file `localMaestro.sh`'s door uses too. */
 const runUserRecord = (platform: LanePlatform): string => path.join(STATE_DIR, `runUsers.${platform}.json`);
-
-/** One line of `git` output in this checkout. */
-function gitOutput(args: readonly string[]): string {
-    const result = spawnSync('git', [...args], { cwd: REPO_ROOT, encoding: 'utf8' });
-
-    if (result.status !== 0) {
-        throw new Error(`maestro:lanes: git ${args.join(' ')} failed: ${result.stderr.trim()}`);
-    }
-
-    return result.stdout.trim();
-}
 
 /**
  * The environment every lane starts from: `localMaestro.sh`'s toolchain, Clerk keys, LocalStack pin and seed settings,
@@ -467,13 +457,20 @@ async function main(argv: readonly string[]): Promise<number> {
         log(`MAESTRO_PROBLEM=${reference}`);
     }
 
+    const headRun = await run('git', ['rev-parse', 'HEAD']);
+
+    if (headRun.code !== 0) {
+        throw new Error(`maestro:lanes: git rev-parse HEAD failed: ${headRun.stderr.trim()}`);
+    }
+
+    const head = headRun.stdout.trim();
     const rerun = createRerunDoor({
         historyFile: path.join(STATE_DIR, 'rerunHistory.json'),
-        head: gitOutput(['rev-parse', 'HEAD']),
-        blobOf: (flow) => {
+        head,
+        digestOf: (flow) => {
             const file = path.join(REPO_ROOT, MAESTRO_DIR, `${flow}.yaml`);
 
-            return existsSync(file) ? gitOutput(['hash-object', file]) : 'no-file';
+            return existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : 'no-file';
         },
         iosDevice: args.iosDevice,
         ...(reference === '' ? {} : { reference }),

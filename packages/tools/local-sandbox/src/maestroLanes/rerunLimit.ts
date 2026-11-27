@@ -2,9 +2,9 @@
  * The rerun limit of `maestro:lanes`: a flow gets one rerun after a failed run, then a
  * problem report is filed. The door enforces it so nobody has to remember it.
  *
- * A key names one attempt target: platform, iOS device, flow id, HEAD sha and the blob of the flow's own file. A fixed
- * flow or a new commit is a new key, so the limit never blocks work that changed something. Both functions are pure:
- * the door reads and writes the history file (`rerunHistoryStore.ts`) and says what ran.
+ * A key names one attempt target: platform, iOS device, flow id, HEAD sha and the digest of the flow's own file. A
+ * fixed flow or a new commit is a new key, so the limit never blocks work that changed something. Both functions are
+ * pure: the door reads and writes the history file (`rerunHistoryStore.ts`) and says what ran.
  *
  * @pattern Specification — `rerunDecision` is one pure predicate over the history that says whether a run may start
  */
@@ -39,23 +39,23 @@ export const EMPTY_RERUN_HISTORY: RerunHistory = { version: 1, entries: {} };
 /** The parts of a key. `device` matters on iOS only. */
 interface RerunKeyParts {
     readonly platform: string;
-    readonly device?: string | undefined;
+    readonly device: string | undefined;
     readonly flowId: string;
     readonly head: string;
-    /** The blob sha of the flow's own YAML file. */
-    readonly blob: string;
+    /** The digest of the flow's own YAML file. */
+    readonly digest: string;
 }
 
 /**
  * The key of one attempt target. Pure.
  *
- * @param parts - The platform, the iOS device, the flow id, the HEAD sha and the flow file's blob sha.
+ * @param parts - The platform, the iOS device, the flow id, the HEAD sha and the flow file's content digest.
  * @returns One string, equal for equal parts. The device is read for iOS only.
  */
 export function rerunKey(parts: RerunKeyParts): string {
     const device = parts.platform === 'ios' ? (parts.device ?? '') : '';
 
-    return [parts.platform, device, parts.flowId, parts.head, parts.blob].join('|');
+    return [parts.platform, device, parts.flowId, parts.head, parts.digest].join('|');
 }
 
 const isFresh = (lastAt: string, now: string): boolean =>
@@ -68,13 +68,19 @@ const prune = (history: RerunHistory, now: string): RerunHistory => ({
 });
 
 /**
+ * The entry of a key. A search, not an index read: a lookup by key on a record types as present.
+ */
+const entryOf = (history: RerunHistory, key: string) =>
+    Object.entries(history.entries).find(([name]) => name === key)?.[1];
+
+/**
  * The failed runs of a key still on record. Pure.
  *
  * @param history - The history.
  * @param key - The key.
  * @returns The count, 0 for a key with no entry.
  */
-export const failuresOf = (history: RerunHistory, key: string): number => history.entries[key]?.failures ?? 0;
+export const failuresOf = (history: RerunHistory, key: string): number => entryOf(history, key)?.failures ?? 0;
 
 /** What {@link rerunDecision} is asked. */
 interface RerunRequest {
@@ -108,7 +114,7 @@ export function rerunDecision(history: RerunHistory, request: RerunRequest): Rer
     const reference = request.reference?.trim() ?? '';
     const atLimit = [...new Set(request.keys)].filter((key) => failuresOf(fresh, key) >= RERUN_LIMIT);
     const refused = atLimit.filter(
-        (key) => reference === '' || (fresh.entries[key]?.references ?? []).includes(reference),
+        (key) => reference === '' || entryOf(fresh, key)?.references.includes(reference) === true,
     );
 
     if (refused.length > 0) {
@@ -146,21 +152,21 @@ interface RerunOutcome {
  * @returns The next history.
  */
 export function recordOutcomes(history: RerunHistory, outcomes: readonly RerunOutcome[], now: string): RerunHistory {
-    const entries = { ...prune(history, now).entries };
+    const entries = new Map(Object.entries(prune(history, now).entries));
 
     for (const outcome of outcomes) {
         if (!outcome.failed) {
-            delete entries[outcome.key];
+            entries.delete(outcome.key);
             continue;
         }
 
-        const before = entries[outcome.key];
-        entries[outcome.key] = {
+        const before = entries.get(outcome.key);
+        entries.set(outcome.key, {
             failures: (before?.failures ?? 0) + 1,
             lastAt: now,
             references: before?.references ?? [],
-        };
+        });
     }
 
-    return { version: 1, entries };
+    return { version: 1, entries: Object.fromEntries(entries) };
 }

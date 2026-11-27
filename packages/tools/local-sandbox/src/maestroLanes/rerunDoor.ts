@@ -1,8 +1,8 @@
 /**
- * The rerun limit as the door uses it: keys from the platform, the iOS device, the flow, HEAD and the flow file's blob;
- * one line for each refused flow; and the history file, read once after the lanes are planned and written once when
- * they are done. The host lock the door already holds serialises two doors, so a read, a run and a write never
- * interleave.
+ * The rerun limit as the door uses it: keys from the platform, the iOS device, the flow, HEAD and the digest of the
+ * flow file; one line for each refused flow; and the history file, read once after the lanes are planned and
+ * written once when they are done. The host lock the door already holds serialises two doors, so a read, a run and a
+ * write never interleave.
  *
  * A one-off is keyed by its name alone: its staged folder is named for the run, so a rerun of the same file would
  * otherwise be a new key every time.
@@ -21,21 +21,21 @@ export interface RerunDoorPorts {
     readonly historyFile: string;
     /** `git rev-parse HEAD` of the tree the door runs from. */
     readonly head: string;
-    /** The blob sha of a flow's own YAML file in the working tree. */
-    blobOf(flow: string): string;
+    /** The digest of a flow's own YAML file in the working tree. */
+    digestOf: (flow: string) => string;
     readonly iosDevice: string;
     /** `MAESTRO_PROBLEM`: the reference a problem report was filed under. */
     readonly reference?: string;
     /** The time now, ISO 8601. */
-    now(): string;
+    now: () => string;
     /** A history file that cannot be used: said once, then read as empty. */
-    report(line: string): void;
+    report: (line: string) => void;
 }
 
 /** The two hooks `laneRun.ts` takes. */
 interface RerunDoor {
-    checkRerun(planned: readonly PlannedFlows[]): readonly string[];
-    recordRerun(outcomes: readonly FlowOutcome[]): void;
+    checkRerun: (planned: readonly PlannedFlows[]) => readonly string[];
+    recordRerun: (outcomes: readonly FlowOutcome[]) => void;
 }
 
 const ONE_OFF_RUN_FOLDER = new RegExp(`^${ONE_OFF_DIR}/[^/]+/`, 'u');
@@ -60,9 +60,10 @@ export function createRerunDoor(ports: RerunDoorPorts): RerunDoor {
             device: ports.iosDevice,
             flowId: keyedFlow(flow),
             head: ports.head,
-            blob: ports.blobOf(flow),
+            digest: ports.digestOf(flow),
         });
-        labels.set(key, `${flow} (${platform}${platform === 'ios' ? ` ${ports.iosDevice}` : ''})`);
+        const device = platform === 'ios' ? ` ${ports.iosDevice}` : '';
+        labels.set(key, `${flow} (${platform}${device})`);
 
         return key;
     };

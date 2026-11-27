@@ -285,7 +285,18 @@ function FooteredSheet(): JSX.Element {
 /** Give the sheet, its title row and its footer their heights, and report a resize to every observer. */
 function layOut(heights: { readonly sheet: number; readonly titleRow: number; readonly footer: number }): void {
     const panel = screen.getByRole('dialog').firstElementChild as HTMLElement;
-    const titleRow = screen.getByRole('button', { name: 'Close Ingredients' }).parentElement as HTMLElement;
+    const heading = screen.getByRole('heading', { name: 'Ingredients' });
+    let titleRow = screen.getByRole('button', { name: 'Close Ingredients' }).parentElement;
+
+    // The title row is the nearest ancestor of Close that also holds the title, wherever the icon button nests it.
+    while (titleRow !== null && !titleRow.contains(heading)) {
+        titleRow = titleRow.parentElement;
+    }
+
+    if (titleRow === null) {
+        throw new Error('Expected an ancestor of Close to hold the title.');
+    }
+
     const footer = screen.getByRole('button', { name: 'Clear ticks' }).parentElement as HTMLElement;
 
     for (const [node, height] of [

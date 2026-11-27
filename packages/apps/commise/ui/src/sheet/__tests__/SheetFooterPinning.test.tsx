@@ -97,8 +97,25 @@ async function openHost(element: JSX.Element): Promise<ReturnType<typeof userEve
 
 /** The sheet's own box: the panel that fills the dialog. */
 const sheetBox = (): HTMLElement => screen.getByRole('dialog').firstElementChild as HTMLElement;
-/** The title row: the row that holds the title and Close. */
-const titleRow = (): HTMLElement => screen.getByRole('button', { name: 'Close filters' }).parentElement as HTMLElement;
+/**
+ * The title row: the nearest ancestor of Close that also holds the title. It is found by what it holds, so it does not
+ * depend on how many boxes the icon button nests its button in.
+ */
+const titleRow = (): HTMLElement => {
+    const heading = screen.getByRole('heading', { name: 'Filter recipes' });
+
+    for (
+        let box = screen.getByRole('button', { name: 'Close filters' }).parentElement;
+        box !== null;
+        box = box.parentElement
+    ) {
+        if (box.contains(heading)) {
+            return box;
+        }
+    }
+
+    throw new Error('Expected an ancestor of Close to hold the title.');
+};
 /** The footer: the box that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 

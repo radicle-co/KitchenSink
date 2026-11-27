@@ -289,6 +289,12 @@ describe('Sheet (native)', () => {
 
             expect(getComputedStyle(frame).width, os).toBe(size);
             expect(getComputedStyle(frame).height, os).toBe(size);
+            // The glyph is drawn in the muted ink, and not the ink one.
+            const glyph = screen
+                .getByRole('button', { name: 'Close filters' })
+                .querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+            expect(glyph?.dataset['iconColor'], os).toBe(role.inkMuted);
             cleanup();
         }
 

@@ -102,6 +102,7 @@
         "./window-scope": "./src/overlay/WindowScope.tsx",
         "./layout": "./src/layout/index.ts",
         "./pinned-footer": "./src/layout/usePinnedFooter.ts",
+        "./rendered-height": "./src/layout/useRenderedHeight.ts",
         "./text-input": "./src/textInput/TextInput.native.tsx",
         "./variant-parts-line": "./src/variantPartsLine/index.ts",
         "./chip": "./src/chip/index.ts",

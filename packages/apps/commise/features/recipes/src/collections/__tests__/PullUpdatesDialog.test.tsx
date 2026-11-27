@@ -8,10 +8,18 @@
  * in-flight commit (disabled + busy, no double-fire), Cancel, and Escape/focus-return.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
 import type { PullDiff } from '@kitchensink/recipe-service-client';
 
 import { PullUpdatesDialog } from '../PullUpdatesDialog.js';
@@ -240,5 +248,47 @@ describe('PullUpdatesDialog (web) — the action row', () => {
         expect(screen.getByRole('button', { name: 'Pull 2 Recipes' }).parentElement?.className).toContain(
             'self-stretch',
         );
+    });
+});
+
+describe('PullUpdatesDialog (web) — offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }) {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <PullUpdatesDialog {...baseProps({ open, diff: populatedDiff })} />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('sits the snackbar 16 above the action row: the row and the dialog padding under it are its foot', () => {
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+            const holdsActions =
+                this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
+
+            return new DOMRect(0, 0, 320, holdsActions && this.querySelector('h2') === null ? 96 : 0);
+        });
+        render(<WithHost open />);
+
+        // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole dialog.
+        const regions = within(screen.getByRole('dialog')).getAllByRole('status', { hidden: true });
+
+        expect(regions.some((region) => region.style.bottom === 'calc(96px + 1rem)')).toBe(true);
     });
 });

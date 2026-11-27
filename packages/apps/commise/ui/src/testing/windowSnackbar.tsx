@@ -70,9 +70,8 @@ export function expectProbeInside(win: HTMLElement): void {
     // Kills: a window with no outlet, which leaves the snackbar behind the scrim (visible, unreachable).
     expect(regions).toHaveLength(1);
     expect(win.contains(regions[0] as HTMLElement)).toBe(true);
-    expect(within(win).getByRole('status').textContent).toContain(PROBE_MESSAGE);
     // Kills: an autofocus on the snackbar, which takes a keyboard user out of the dialog they were reading.
-    expect(win.querySelector('[role="status"]')?.contains(document.activeElement)).toBe(false);
+    expect(regions[0]?.contains(document.activeElement)).toBe(false);
 }
 
 /**

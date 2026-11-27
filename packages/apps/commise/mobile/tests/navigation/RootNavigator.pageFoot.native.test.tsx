@@ -28,7 +28,7 @@ vi.mock('../../src/navigation/TabsNavigator.js', async () => {
 /** The height each stub dock reports, by recipe id. */
 const dockHeights = vi.hoisted(() => new Map<string, number>());
 vi.mock('../../src/navigation/tasks.js', async () => {
-    const { DockProbe } = await import('./pageFootProbe.js');
+    const { DockProbe } = await import('./dockProbe.js');
     const { useRoute } = await import('@react-navigation/native');
 
     function Cooking(): JSX.Element {

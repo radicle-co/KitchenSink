@@ -57,19 +57,19 @@ export function RootNavigator(): JSX.Element {
     const { colors, scheme } = useTheme();
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
-    const [dockHeights, setDockHeights] = useState<Readonly<Record<string, number>>>({});
+    const [dockHeights, setDockHeights] = useState<ReadonlyMap<string, number>>(new Map());
     const [focused, setFocused] = useState<FocusedRoute>({ name: 'Tabs' });
     const onTabs = focused.name === 'Tabs';
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
     // One height per route, so a screen covered by another keeps its own, and a report of 0 forgets the route.
     const reportDock = useCallback(({ routeKey, height }: PageFootReport) => {
         setDockHeights((heights) => {
-            const next = { ...heights };
+            const next = new Map(heights);
 
             if (height > 0) {
-                next[routeKey] = height;
+                next.set(routeKey, height);
             } else {
-                delete next[routeKey];
+                next.delete(routeKey);
             }
 
             return next;
@@ -79,7 +79,7 @@ export function RootNavigator(): JSX.Element {
     // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the
     // task's own bottom bar (the cooking dock) while the route that reported it is the focused one. The dock's number
     // already includes the home indicator it pads for, so the larger of the two is the foot.
-    const dockHeight = (focused.key === undefined ? undefined : dockHeights[focused.key]) ?? 0;
+    const dockHeight = (focused.key === undefined ? undefined : dockHeights.get(focused.key)) ?? 0;
     const footHeight = onTabs ? tabBarHeight : Math.max(insets.bottom, dockHeight);
 
     // Transparent scenes, so the root `AppCanvas` wash shows through (issue #145); the rest from the theme's roles.

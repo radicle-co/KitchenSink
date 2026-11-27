@@ -20,7 +20,7 @@ import { useAuth } from '@clerk/expo';
 import { DefaultTheme, NavigationContainer, type Theme as NavigationTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { PageFootContext } from '@commise/ui/popup-insets';
+import { PageFootContext, ReportPageFootContext } from '@commise/ui/popup-insets';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { useTheme } from '@commise/ui/theme';
 import { useContext, useMemo, useState, type JSX } from 'react';
@@ -52,11 +52,14 @@ export function RootNavigator(): JSX.Element {
     const { colors, scheme } = useTheme();
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
+    const [dockHeight, setDockHeight] = useState(0);
     const [onTabs, setOnTabs] = useState(true);
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
 
-    // The snackbar keeps clear of the tab bar while the tabs show, and of the home indicator on a task.
-    const footHeight = onTabs ? tabBarHeight : insets.bottom;
+    // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the
+    // task's own bottom bar (the cooking dock) once that reports a height. The dock's number already includes the home
+    // indicator it pads for, so the larger of the two is the foot.
+    const footHeight = onTabs ? tabBarHeight : Math.max(insets.bottom, dockHeight);
 
     // Transparent scenes, so the root `AppCanvas` wash shows through (issue #145); the rest from the theme's roles.
     const theme = useMemo<NavigationTheme>(
@@ -89,23 +92,25 @@ export function RootNavigator(): JSX.Element {
                 }}
             >
                 <PageFootContext value={footHeight}>
-                    <SnackbarHost subject={userId}>
-                        <RootStack.Navigator
-                            screenOptions={{
-                                headerShown: false,
-                                presentation: 'card',
-                                gestureEnabled: true,
-                                contentStyle: { backgroundColor: 'transparent' },
-                            }}
-                        >
-                            <RootStack.Screen name="Tabs">
-                                {() => <TabsNavigator onTabBarHeight={setTabBarHeight} />}
-                            </RootStack.Screen>
-                            <RootStack.Group screenLayout={(props) => <TaskLayout>{props.children}</TaskLayout>}>
-                                {taskScreens(RootStack)}
-                            </RootStack.Group>
-                        </RootStack.Navigator>
-                    </SnackbarHost>
+                    <ReportPageFootContext value={setDockHeight}>
+                        <SnackbarHost subject={userId}>
+                            <RootStack.Navigator
+                                screenOptions={{
+                                    headerShown: false,
+                                    presentation: 'card',
+                                    gestureEnabled: true,
+                                    contentStyle: { backgroundColor: 'transparent' },
+                                }}
+                            >
+                                <RootStack.Screen name="Tabs">
+                                    {() => <TabsNavigator onTabBarHeight={setTabBarHeight} />}
+                                </RootStack.Screen>
+                                <RootStack.Group screenLayout={(props) => <TaskLayout>{props.children}</TaskLayout>}>
+                                    {taskScreens(RootStack)}
+                                </RootStack.Group>
+                            </RootStack.Navigator>
+                        </SnackbarHost>
+                    </ReportPageFootContext>
                 </PageFootContext>
             </NavigationContainer>
         </BackInterceptProvider>

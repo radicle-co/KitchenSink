@@ -33,7 +33,10 @@ vi.mock('../../src/navigation/tasks.js', async () => {
 
     return {
         taskScreens: (stack: { Screen: ComponentType<{ name: string; children: () => JSX.Element }> }) => (
-            <stack.Screen name="CookingMode">{() => <TaskProbe name="task" />}</stack.Screen>
+            <>
+                <stack.Screen name="CookingMode">{() => <TaskProbe name="task" />}</stack.Screen>
+                <stack.Screen name="FoodDetail">{() => <TaskProbe name="other" />}</stack.Screen>
+            </>
         ),
     };
 });
@@ -85,5 +88,23 @@ describe('the foot the navigator provides', () => {
         press('Report 10');
 
         expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
+    });
+
+    it('drops a reported dock height when another task opens above, and takes the dock again when it returns', () => {
+        renderWithProviders(<RootNavigator />);
+        openTask();
+        press('Report 90');
+        expect(foot('task')).toBe('task foot 90');
+
+        act(() => {
+            navigationRef.navigate('FoodDetail', { foodId: 'f1', from: 'recipe' });
+        });
+        expect(foot('other')).toBe(`other foot ${String(HOME_INDICATOR)}`);
+
+        act(() => {
+            navigationRef.goBack();
+        });
+        press('Report 90');
+        expect(foot('task')).toBe('task foot 90');
     });
 });

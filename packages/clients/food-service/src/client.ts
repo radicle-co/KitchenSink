@@ -90,6 +90,7 @@ import {
     FoodServiceClientError,
     InvalidRequestError,
     NotFoundError,
+    ServiceUnreachableError,
     RateLimitedError,
     PublicationNotApprovableError,
     PublicationNotRequestableError,
@@ -1480,8 +1481,14 @@ export class FoodServiceClient {
                 return new UnauthorizedError(message);
             case 403:
                 return new ForbiddenError(message);
+            // ⛔ Food always answers a 404 in JSON. The shared ALB's own 404 (no rule for the host, ADR-0003) is a fixed
+            // text/plain page (`packages/infra/global/lib/platform/SharedAlbStack.ts`), so a body that did not parse as
+            // JSON is the balancer, not a missing food. The envelope
+            // is not the test: Nest's default 404 body has no `code` and is still the service.
             case 404:
-                return new NotFoundError(id);
+                return typeof res.body === 'object' && res.body !== null
+                    ? new NotFoundError(id)
+                    : new ServiceUnreachableError();
             case 409:
                 return new ConflictError(message);
             // A per-caller limit whose body did not carry the published code, so it is not read as the requester limit.

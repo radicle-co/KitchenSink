@@ -29,12 +29,20 @@ import { FieldLabel, Input } from '@commise/ui/input';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import { WindowScope } from '@commise/ui/window-scope';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, confirmsErasurePhrase } from '../erasure.js';
 import { useMessages } from '@commise/i18n/react';
 import { accountDangerMessages } from './messages.js';
 import type { AccountEraseDialogProps } from './model.js';
+
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg',
+    '-translate-x-1/2 -translate-y-1/2 flex-col rounded-lg',
+    surfaceToneClass('paperOverlay'),
+    'shadow-lg',
+].join(' ');
 
 export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     open,
@@ -55,15 +63,46 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     const canConfirm = confirmsErasurePhrase(phrase) && !submitting;
     const selected = new Set(selectedRecipeIds);
 
+    let donateBody: ReactNode;
+
+    if (recipesLoading) {
+        donateBody = (
+            <p role="status" className="text-meta text-ink-muted">
+                {erase.recipesLoadingLabel}
+            </p>
+        );
+    } else if (recipesError) {
+        donateBody = <p className="text-meta text-ink-muted">{erase.recipesError}</p>;
+    } else if (donatableRecipes.length === 0) {
+        donateBody = <p className="text-meta text-ink-muted">{erase.donateEmpty}</p>;
+    } else {
+        donateBody = (
+            <ul className="flex flex-col gap-1">
+                {donatableRecipes.map((recipe) => (
+                    <li key={recipe.id}>
+                        <label className="flex items-center gap-2 text-body text-ink">
+                            <input
+                                type="checkbox"
+                                checked={selected.has(recipe.id)}
+                                onChange={() => {
+                                    onToggleRecipe(recipe.id);
+                                }}
+                            />
+                            {recipe.title}
+                        </label>
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+
     return (
         // ⛔ No dismissal while `submitting`: the caller's erasure is still in flight, and dismissing unmounts the
         // caller that finishes it.
         <Dialog.Root open={open} onOpenChange={(next) => (next || submitting ? undefined : onCancel())}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content
-                    className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg ${surfaceToneClass('paperOverlay')} shadow-lg`}
-                >
+                <Dialog.Content className={CONTENT_CLASS}>
                     {/* The dialog does not scroll itself, so the snackbar's outlet, which is absolute in it, stays
                         put while this box scrolls. The container query sits here: its content box is what the buttons
                         fill. */}
@@ -85,30 +124,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                                     {erase.donateHeading}
                                 </h3>
                                 <p className="text-meta text-ink-muted">{erase.donateHelp}</p>
-                                {recipesLoading ? (
-                                    <p role="status" className="text-meta text-ink-muted">
-                                        {erase.recipesLoadingLabel}
-                                    </p>
-                                ) : recipesError ? (
-                                    <p className="text-meta text-ink-muted">{erase.recipesError}</p>
-                                ) : donatableRecipes.length === 0 ? (
-                                    <p className="text-meta text-ink-muted">{erase.donateEmpty}</p>
-                                ) : (
-                                    <ul className="flex flex-col gap-1" role="list">
-                                        {donatableRecipes.map((recipe) => (
-                                            <li key={recipe.id}>
-                                                <label className="flex items-center gap-2 text-body text-ink">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selected.has(recipe.id)}
-                                                        onChange={() => onToggleRecipe(recipe.id)}
-                                                    />
-                                                    {recipe.title}
-                                                </label>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                )}
+                                {donateBody}
                             </section>
 
                             {blockedRecipes.length === 0 ? null : (
@@ -117,7 +133,7 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                                         {erase.privateFoodsHeading}
                                     </h4>
                                     <p className="text-meta text-ink-muted">{erase.privateFoodsHelp}</p>
-                                    <ul className="flex flex-col gap-1" role="list">
+                                    <ul className="flex flex-col gap-1">
                                         {blockedRecipes.map((recipe) => (
                                             <li key={recipe.id} className="text-meta text-ink">
                                                 {recipe.title}
@@ -165,12 +181,12 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                                 </Button>
                             </div>
 
-                            {submitting && <p className="text-meta text-ink-muted">{erase.busyLabel}</p>}
-                            {submitError && !submitting && (
+                            {submitting ? <p className="text-meta text-ink-muted">{erase.busyLabel}</p> : null}
+                            {submitError && !submitting ? (
                                 <p role="alert" className="text-meta text-danger-text">
                                     {erase.error}
                                 </p>
-                            )}
+                            ) : null}
                         </div>
                     </WindowScope>
                 </Dialog.Content>

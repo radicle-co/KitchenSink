@@ -16,9 +16,8 @@
  * own panel. The bar copy and the panel share one frame capped at half the window (`pinnedOverlayLimit`), so the panel
  * takes what the bar leaves and the list scrolls inside it. Radix owns Escape, the scroll lock, hiding the page
  * behind, the Tab loop and the focus return to the trigger. A snackbar shown while it is open is drawn inside the
- * frame,
- * over the last rows of the list at its foot (`WindowScope`); the panel is focused by id, because the outlet follows
- * it.
+ * frame, over the last rows of the list at its foot (`WindowScope`); the panel is focused by id,
+ * because the outlet follows it.
  *
  * @pattern Adapter over @radix-ui/react-dialog — the bar is the trigger and, open, the close button of the same dialog.
  */
@@ -88,8 +87,8 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
         <div className="@min-[45rem]/detail:hidden">
             <Dialog.Root open={open} onOpenChange={onOpenChange}>
                 <Dialog.Trigger asChild>
-                    {/* Open: the dialog draws its own copy; this one stays (Radix returns focus to it) but transparent.
-                     */}
+                    {/* Open: the dialog draws its own copy; this one stays (Radix returns focus to it) but
+                        transparent. */}
                     <button
                         type="button"
                         aria-label={facts.name}
@@ -103,9 +102,8 @@ export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, ope
                     <Dialog.Content
                         aria-label={facts.dialogName}
                         aria-describedby={undefined}
-                        // Focus goes to the panel itself, by id, not to the close button Radix would pick first. It is
-                        // not
-                        // the content's last child: the snackbar's outlet follows it.
+                        // Focus goes to the panel itself, by id, not to the close button Radix would pick first. It
+                        // is not the content's last child: the snackbar's outlet follows it.
                         onOpenAutoFocus={(event) => {
                             event.preventDefault();
                             document.getElementById(panelId)?.focus();

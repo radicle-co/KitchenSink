@@ -11,8 +11,8 @@
  * is a window that can forget one of them.
  *
  * It renders no element of its own: its children, then the outlet, last, so Undo follows the window's own controls in
- * the focus order. The outlet is `absolute`, so the box around the scope must be the window's `fixed` box and must not
- * scroll itself.
+ * the focus order. The outlet is `absolute`, so the box around the scope must be the window's `fixed` box, and that
+ * box must not scroll itself.
  *
  * @pattern Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills
  */
@@ -25,8 +25,7 @@ import { OverlayDepthContext } from './overlayDepthContext.js';
 export interface WindowScopeProps {
     /** The window's content. */
     readonly children?: ReactNode;
-    /** How tall the window's pinned foot is in px, so the snackbar sits 16 above it. Unset: 16 above the window's foot.
-    /** */
+    /** The window's pinned foot, px: the snackbar sits 16 above it. Unset: 16 above the window's own foot. */
     readonly footHeight?: number;
 }
 

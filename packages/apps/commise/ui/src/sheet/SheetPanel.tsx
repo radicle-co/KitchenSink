@@ -96,20 +96,20 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                     </div>
                 )}
                 {/* A column that fills the region, so a short sheet still puts its footer at the bottom. While the
-                    footer is
-                pinned, its height is the region's scroll padding, so the browser scrolls a focused row clear of it
-                (SC 2.4.11, technique C43). It reserves its scrollbar gutter when it holds a `DialogActions` row (the row's marker,
-                `:has()`), so a scrollbar arriving or leaving never changes the row's width and never flips the actions. */}
+                    footer is pinned, its height is the region's scroll padding, so the browser scrolls a focused row
+                    clear of it (SC 2.4.11, technique C43). It reserves its scrollbar gutter when it holds a
+                    `DialogActions` row (the row's marker, `:has()`), so a scrollbar arriving or leaving never changes
+                    the row's width and never flips the actions. */}
                 <div
                     className="flex min-h-0 flex-1 flex-col overflow-y-auto has-[[data-dialog-actions]]:[scrollbar-gutter:stable]"
                     style={footerShown && !unpinned ? { scrollPaddingBottom: `${String(footerHeight)}px` } : undefined}
                 >
                     <div className="shrink-0 grow px-6 py-4">{children}</div>
-                    {footerShown && (
+                    {footerShown ? (
                         <div ref={footerRef} className={unpinned ? FOOTER : `${FOOTER} sticky bottom-0`}>
                             {footer}
                         </div>
-                    )}
+                    ) : null}
                 </div>
             </div>
         </WindowScope>

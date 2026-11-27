@@ -4,8 +4,7 @@
  * reaches Undo and Undo works, and closing the window hands the same snackbar back.
  *
  * Each window's test file mounts `<SnackbarHost><SnackbarProbe /><TheWindow /></SnackbarHost>`, so the shape of the
- * three
- * checks lives once and a window cannot pass with a weaker one.
+ * three checks lives once and a window cannot pass with a weaker one.
  *
  * @pattern Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press
  */

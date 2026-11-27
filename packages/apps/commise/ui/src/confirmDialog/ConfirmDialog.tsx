@@ -33,6 +33,14 @@ import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 /** The dialog width from which the two buttons sit side by side: short verb labels, so the narrow threshold. */
 const SIDE_BY_SIDE_FROM = 400;
 
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    '@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md',
+    '-translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl',
+    surfaceToneClass('paperOverlay'),
+    'px-6 pt-6 shadow-lg',
+].join(' ');
+
 export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     open,
     title,
@@ -57,11 +65,7 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
         <AlertDialog.Root open={open} onOpenChange={(next) => (next ? undefined : onKeep())}>
             <AlertDialog.Portal>
                 <AlertDialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <AlertDialog.Content
-                    aria-modal="true"
-                    onCloseAutoFocus={onCloseAutoFocus}
-                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paperOverlay')} px-6 pt-6 shadow-lg`}
-                >
+                <AlertDialog.Content aria-modal="true" onCloseAutoFocus={onCloseAutoFocus} className={CONTENT_CLASS}>
                     <WindowScope footHeight={footHeight}>
                         <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
                         {note === undefined ? (

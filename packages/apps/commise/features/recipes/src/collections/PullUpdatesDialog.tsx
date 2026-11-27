@@ -62,6 +62,14 @@ import type { PullUpdatesDialogProps } from './model.js';
  */
 const SIDE_BY_SIDE_FROM = 440;
 
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2',
+    'flex-col gap-4 rounded-xl',
+    surfaceToneClass('paper'),
+    'px-6 pt-6 shadow-lg',
+].join(' ');
+
 export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
     open,
     diff,
@@ -109,37 +117,36 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content
-                    onCloseAutoFocus={onCloseAutoFocus}
-                    className={`fixed left-1/2 top-1/2 z-50 flex w-full max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} px-6 pt-6 shadow-lg`}
-                >
+                <Dialog.Content onCloseAutoFocus={onCloseAutoFocus} className={CONTENT_CLASS}>
                     <WindowScope footHeight={footHeight}>
                         <div className="flex flex-col gap-1">
                             <Dialog.Title className="text-section-title text-ink">{pull.title}</Dialog.Title>
-                            {attribution !== undefined && <p className="text-body-sm text-ink-muted">{attribution}</p>}
+                            {attribution === undefined ? null : (
+                                <p className="text-body-sm text-ink-muted">{attribution}</p>
+                            )}
                         </div>
 
-                        {showLoading && (
+                        {showLoading ? (
                             <p role="status" aria-label={pull.loadingLabel} className="text-body-md text-ink-muted">
                                 {pull.loadingLabel}
                             </p>
-                        )}
+                        ) : null}
 
-                        {!showLoading && error !== undefined && (
+                        {!showLoading && error !== undefined ? (
                             <p role="alert" className="text-body-md text-danger-text">
                                 {error === 'drift' ? pull.driftMessage : pull.genericErrorMessage}
                             </p>
-                        )}
+                        ) : null}
 
-                        {showDiff && diff !== undefined && (
+                        {showDiff ? (
                             <div className="flex flex-col gap-2 text-body-md text-ink-muted">
                                 <p>{fillTemplate(pull.addedCount, { count: diff.added.length })}</p>
                                 <p>{fillTemplate(pull.removedCount, { count: diff.removed.length })}</p>
                                 <p>{fillTemplate(pull.unchangedCount, { count: diff.unchanged.length })}</p>
                                 <p className="text-body-sm italic">{pull.ownMembersNote}</p>
-                                {diff.added.length === 0 && <p>{pull.upToDate}</p>}
+                                {diff.added.length === 0 ? <p>{pull.upToDate}</p> : null}
                             </div>
-                        )}
+                        ) : null}
 
                         <div ref={setFoot} className="pb-6">
                             <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
@@ -152,10 +159,9 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                                     <Icon name="x" size={20} />
                                     {pull.cancel}
                                 </Dialog.Close>
-                                {showDiff && diff !== undefined && (
+                                {showDiff ? (
                                     // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to
-                                    // pull is a
-                                    // rule the press did not cause, so it disables natively.
+                                    // pull is a rule the press did not cause, so it disables natively.
                                     <Button
                                         icon="check"
                                         busy={isCommitting}
@@ -165,7 +171,7 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                                     >
                                         {fillTemplate(pull.confirm, { count: diff.added.length })}
                                     </Button>
-                                )}
+                                ) : null}
                             </DialogActions>
                         </div>
                     </WindowScope>

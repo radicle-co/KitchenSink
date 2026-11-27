@@ -35,7 +35,8 @@
  * a `userCalories` override — never fabricated), plus the "Changed from current" summary when
  * `diffFromCurrent` was supplied, and the count-templated Restore action.
  *
- * A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the pinned actions.
+ * A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the pinned actions: the actions' box
+ * carries the dialog's bottom padding, so its height is the whole foot.
  *
  * @pattern Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —
  *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
@@ -72,8 +73,13 @@ import {
  */
 const SIDE_BY_SIDE_FROM = 600;
 
-/** The dialog's own padding, px: `p-6` on its content. The pinned actions sit this far above its foot. */
-const DIALOG_PADDING_PX = 24;
+/** The dialog's box, in pieces so no line runs past 120 characters. Its bottom padding is the actions' own. */
+const CONTENT_CLASS = [
+    'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)]',
+    '-translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl',
+    surfaceToneClass('paper'),
+    'px-6 pt-6 shadow-lg md:max-w-2xl',
+].join(' ');
 
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
@@ -117,7 +123,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
             : preview.titleLoading;
 
     const actions = (
-        <div ref={footerRef}>
+        <div ref={footerRef} className="pb-6">
             <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
                 {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
                 <Dialog.Close
@@ -142,39 +148,34 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     // Only a loaded body has a scroller to drop into.
     const actionsInBody = unpinned && showContent;
 
-    // The snackbar sits 16 above the pinned actions: their height and the dialog's own bottom padding under them. Once
-    // the actions drop into the scroller there is nothing pinned to clear, so it sits 16 above the dialog's foot.
-    const footHeight = actionsInBody ? undefined : footerHeight + DIALOG_PADDING_PX;
+    // The snackbar sits 16 above the pinned actions: their box, which carries the padding under the buttons, is the
+    // foot. Once they drop into the scroller there is nothing pinned to clear, so it sits 16 above the dialog's foot.
+    const footHeight = actionsInBody ? undefined : footerHeight;
 
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content
-                    ref={frameRef}
-                    onCloseAutoFocus={onCloseAutoFocus}
-                    className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
-                >
+                <Dialog.Content ref={frameRef} onCloseAutoFocus={onCloseAutoFocus} className={CONTENT_CLASS}>
                     <WindowScope footHeight={footHeight}>
                         <div ref={topRef} className="flex flex-col gap-4">
                             <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
-                            {showLoading && (
+                            {showLoading ? (
                                 <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
                                     {preview.loading}
                                 </p>
-                            )}
+                            ) : null}
 
-                            {showError && (
+                            {showError ? (
                                 <p role="alert" className="text-body-md text-danger-text">
                                     {preview.error}
                                 </p>
-                            )}
+                            ) : null}
 
                             {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only
-                                in
-                            the list behind the dialog (`namelessLineCopy.md` §5). */}
-                            {restoreErrorText !== undefined && (
+                                in the list behind the dialog (`namelessLineCopy.md` §5). */}
+                            {restoreErrorText === undefined ? null : (
                                 <p
                                     role="alert"
                                     className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text"
@@ -184,16 +185,15 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                             )}
 
                             {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a
-                                preview
-                            with, what a restore changes. */}
-                            {showContent && diffFromCurrent !== undefined && (
+                                preview with, what a restore changes. */}
+                            {showContent && diffFromCurrent !== undefined ? (
                                 <p className="text-body-sm italic text-ink-muted">
                                     {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
                                 </p>
-                            )}
+                            ) : null}
                         </div>
 
-                        {showContent && version !== undefined && (
+                        {showContent ? (
                             // The only part that scrolls: the dialog is capped at 85vh, so a long recipe scrolls here
                             // while the title, the summary and the actions stay on screen.
                             <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
@@ -288,7 +288,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
                                 {actionsInBody ? actions : null}
                             </div>
-                        )}
+                        ) : null}
 
                         {actionsInBody ? null : actions}
                     </WindowScope>

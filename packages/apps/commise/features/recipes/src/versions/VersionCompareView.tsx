@@ -24,6 +24,13 @@ import { fillTemplate } from '@commise/i18n';
 import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
 import { recipeVersionMessages } from './messages.js';
 
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col',
+    surfaceToneClass('paperOverlay'),
+    'shadow-lg',
+].join(' ');
+
 /** The web compare panel. */
 export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version, diff, onClose }) => {
     const { compare, conflict } = useMessages(recipeVersionMessages);
@@ -38,10 +45,10 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
                     aria-describedby={undefined}
-                    className={`fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col ${surfaceToneClass('paperOverlay')} shadow-lg`}
+                    className={CONTENT_CLASS}
                 >
-                    {/* The panel does not scroll itself, so the snackbar's outlet, which is absolute in it, stays put.
-                     */}
+                    {/* The panel does not scroll itself, so the snackbar's outlet, which is absolute in it,
+                        stays put. */}
                     <WindowScope>
                         <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
                             <div className="flex items-start justify-between gap-3">

@@ -16,9 +16,8 @@
  *   follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);
  * - `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus
  *   is back on the opener;
- * - the snackbar's outlet inside the content (`SheetPanel` mounts a `WindowScope`), so a snackbar shown while the sheet
- * is
- *   open can be reached.
+ * - the snackbar's outlet inside the content (`SheetPanel` mounts a `WindowScope`), so a snackbar shown while the
+ *   sheet is open can be reached.
  *
  * A presentational component: controlled by `open`, it fetches nothing and holds no domain state.
  *

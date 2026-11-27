@@ -825,7 +825,8 @@ describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
     });
 
     it('sits the snackbar 16 above the pinned action row, past the dialog padding under it', () => {
-        // jsdom lays nothing out: the box that holds the dialog reports 600, the pinned top row 100, the action row 80.
+        // jsdom lays nothing out: the box that holds the dialog reports 600, the pinned top row 100, and
+        // the actions' box 104.
         vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
             const holdsActions =
                 this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
@@ -833,7 +834,7 @@ describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
             const heights = [
                 [this.getAttribute('role') === 'dialog', 600],
                 [holdsTitle, 100],
-                [holdsActions, 80],
+                [holdsActions, 104],
             ] as const;
             const height = heights.find(([matches]) => matches)?.[1] ?? 0;
 
@@ -850,12 +851,12 @@ describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
 
             public disconnect(): void {}
         };
+
         try {
             render(<WithHost open />);
 
-            // 80 (the row) + 24 (the dialog's own bottom padding) + 16, as `calc(104px + 1rem)`.
-            // Kills: no footHeight (covers the buttons) and forgetting the padding (sits 24 too low, over the buttons'
-            // edge).
+            // The actions' box (the buttons and the padding under them) reports 104, so the snackbar sits 104 + 16 up.
+            // Kills: no footHeight, which covers the buttons, and a foot that leaves the padding out.
             const regions = within(screen.getByRole('dialog')).getAllByRole('status', { hidden: true });
 
             expect(regions.some((region) => region.style.bottom === 'calc(104px + 1rem)')).toBe(true);

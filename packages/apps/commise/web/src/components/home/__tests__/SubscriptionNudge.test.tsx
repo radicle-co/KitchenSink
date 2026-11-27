@@ -77,9 +77,8 @@ describe('SubscriptionNudge (web) — open', () => {
         // lockstep — the literal `2rem` here and the `p-8` utility are the same length spelled two ways.
         //
         // REWRITTEN for the snackbar's outlet: the bottom padding moved from the dialog to the box that wraps the
-        // action
-        // row, because the row and that padding together are the snackbar's foot (it sits 16 above the buttons). The
-        // dialog keeps its side and top padding.
+        // action row, because the row and that padding together are the snackbar's foot (it sits 16 above the
+        // buttons). The dialog keeps its side and top padding.
         const dialog = screen.getByRole('dialog', { name: 'Unlock Commise Pro' });
         const foot = screen.getByRole('button', { name: 'Maybe later' }).parentElement?.parentElement;
 

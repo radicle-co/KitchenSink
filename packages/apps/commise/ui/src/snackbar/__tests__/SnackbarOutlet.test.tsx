@@ -302,9 +302,8 @@ function layOut(heights: { readonly sheet: number; readonly titleRow: number; re
 
 /**
  * The status region of the open sheet, and where its foot sits. REWRITTEN: the sheet used to hand the footer's height
- * to
- * the outlet through a CSS variable on the panel, which these rows read back. The outlet now takes it as `footHeight`
- * and sets its own `bottom`, so the rows read that.
+ * to the outlet through a CSS variable on the panel, which these rows read back. The outlet now takes it as
+ * `footHeight` and sets its own `bottom`, so the rows read that.
  */
 const sheetRegion = (): HTMLElement => within(screen.getByRole('dialog')).getByRole('status');
 const bottomOf = (region: HTMLElement): string => region.style.bottom;
@@ -383,8 +382,8 @@ describe('SnackbarOutlet (web) footHeight', () => {
 
         rerender(<Two foot={96} />);
 
-        // Kills: footHeight in the registration effect's deps, which re-registers the first outlet as latest and steals
-        // it.
+        // Kills: footHeight in the registration effect's deps, which re-registers the first outlet as latest and
+        // steals the snackbar.
         expect(regionsHolding('Ticks cleared', screen.getByTestId('second'))).toHaveLength(1);
         expect(regionsHolding('Ticks cleared', screen.getByTestId('first'))).toHaveLength(0);
         expect(within(screen.getByTestId('first')).getByRole('status', { hidden: true }).style.bottom).toBe(

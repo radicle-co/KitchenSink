@@ -247,6 +247,25 @@ describe('drain — backoff', () => {
         expect(after.log.records).toStrictEqual([]);
     });
 
+    // Both ends of the draw: the shortest wait is none, and the longest stays just under the doubling ceiling
+    // (500 ms, then 1 s).
+    it.each([
+        ['no jitter', 0, [0, 0]],
+        ['the largest draw', 0.999, [499, 999]],
+    ])('draws %s from zero up to the doubling ceiling', async (_name, draw, expected) => {
+        const { sleep, waits } = recordingSleep();
+        const sender = scripted(
+            { outcome: 'failed', status: 503 },
+            { outcome: 'failed', status: 503 },
+            { outcome: 'ok', serverId: 'srv-1' },
+        );
+        const log = appendIntent(EMPTY, intent({ entity: 'recipe', intentKind: 'update', localId: 'r1' }));
+
+        await drain(log, sender, { sleep, random: () => draw });
+
+        expect(waits).toStrictEqual(expected);
+    });
+
     it('waits at least as long as the server’s Retry-After', async () => {
         const { sleep, waits } = recordingSleep();
         const sender = scripted(

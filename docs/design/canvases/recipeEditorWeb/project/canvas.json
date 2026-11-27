@@ -1017,6 +1017,48 @@
       "w": 390,
       "h": 516,
       "title": "Recipe editor, copy of a public recipe (web, 390)"
+    },
+    "RecipeEditorTooCloseSavedPrivateWeb1280.dc.html": {
+      "x": 0,
+      "y": 28408,
+      "w": 1280,
+      "h": 799,
+      "title": "Recipe editor, saved as private after a check (web, 1280)"
+    },
+    "RecipeEditorTooCloseNoSlotWeb1280.dc.html": {
+      "x": 1360,
+      "y": 28408,
+      "w": 1280,
+      "h": 878,
+      "title": "Recipe editor, not saved, no private slot (web, 1280)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateWeb1280.dc.html": {
+      "x": 2720,
+      "y": 28408,
+      "w": 1280,
+      "h": 378,
+      "title": "Recipe editor, saved as private, source hold (web, 1280)"
+    },
+    "RecipeEditorTooCloseSavedPrivateWeb390.dc.html": {
+      "x": 0,
+      "y": 29786,
+      "w": 390,
+      "h": 821,
+      "title": "Recipe editor, saved as private after a check (web, 390)"
+    },
+    "RecipeEditorTooCloseNoSlotWeb390.dc.html": {
+      "x": 470,
+      "y": 29786,
+      "w": 390,
+      "h": 900,
+      "title": "Recipe editor, not saved, no private slot (web, 390)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateWeb390.dc.html": {
+      "x": 940,
+      "y": 29786,
+      "w": 390,
+      "h": 516,
+      "title": "Recipe editor, saved as private, source hold (web, 390)"
     }
   },
   "order": [
@@ -1163,7 +1205,13 @@
     "RecipeEditorRefusalNoticeWeb1280.dc.html",
     "RecipeEditorRefusalNoticeWeb390.dc.html",
     "RecipeEditorPublicCopyWeb1280.dc.html",
-    "RecipeEditorPublicCopyWeb390.dc.html"
+    "RecipeEditorPublicCopyWeb390.dc.html",
+    "RecipeEditorTooCloseSavedPrivateWeb1280.dc.html",
+    "RecipeEditorTooCloseNoSlotWeb1280.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateWeb1280.dc.html",
+    "RecipeEditorTooCloseSavedPrivateWeb390.dc.html",
+    "RecipeEditorTooCloseNoSlotWeb390.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1198,6 +1246,20 @@
       "x": 0,
       "y": 27132,
       "text": "Recipe editor, copy of a public recipe: web, 1280 and 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes0": {
+      "x": 0,
+      "y": 28148,
+      "text": "Recipe editor, state boxes after a save: web, 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes1": {
+      "x": 0,
+      "y": 29526,
+      "text": "Recipe editor, state boxes after a save: web, 390",
       "kind": "title1",
       "maxW": 2400
     }

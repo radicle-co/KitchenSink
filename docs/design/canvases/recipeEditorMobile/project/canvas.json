@@ -1535,6 +1535,48 @@
       "w": 384,
       "h": 832,
       "title": "Recipe editor, copy of a public recipe (mobile, Android 384)"
+    },
+    "RecipeEditorTooCloseSavedPrivateIphone390.dc.html": {
+      "x": 0,
+      "y": 24909,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, saved as private after a check (mobile, iPhone 390)"
+    },
+    "RecipeEditorTooCloseNoSlotIphone390.dc.html": {
+      "x": 470,
+      "y": 24909,
+      "w": 390,
+      "h": 915,
+      "title": "Recipe editor, not saved, no private slot (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateIphone390.dc.html": {
+      "x": 940,
+      "y": 24909,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, saved as private, source hold (mobile, iPhone 390)"
+    },
+    "RecipeEditorTooCloseSavedPrivateAndroid384.dc.html": {
+      "x": 0,
+      "y": 26324,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, saved as private after a check (mobile, Android 384)"
+    },
+    "RecipeEditorTooCloseNoSlotAndroid384.dc.html": {
+      "x": 464,
+      "y": 26324,
+      "w": 384,
+      "h": 914,
+      "title": "Recipe editor, not saved, no private slot (mobile, Android 384)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateAndroid384.dc.html": {
+      "x": 928,
+      "y": 26324,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, saved as private, source hold (mobile, Android 384)"
     }
   },
   "order": [
@@ -1755,7 +1797,13 @@
     "RecipeEditorRefusalNoticeAndroid384.dc.html",
     "RecipeEditorRefusalNoticeIpad820.dc.html",
     "RecipeEditorPublicCopyIphone390.dc.html",
-    "RecipeEditorPublicCopyAndroid384.dc.html"
+    "RecipeEditorPublicCopyAndroid384.dc.html",
+    "RecipeEditorTooCloseSavedPrivateIphone390.dc.html",
+    "RecipeEditorTooCloseNoSlotIphone390.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateIphone390.dc.html",
+    "RecipeEditorTooCloseSavedPrivateAndroid384.dc.html",
+    "RecipeEditorTooCloseNoSlotAndroid384.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateAndroid384.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1783,6 +1831,20 @@
       "x": 0,
       "y": 23305,
       "text": "Recipe editor, copy of a public recipe: mobile, iPhone 390 and Android 384",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes0": {
+      "x": 0,
+      "y": 24649,
+      "text": "Recipe editor, state boxes after a save: mobile, iPhone 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes1": {
+      "x": 0,
+      "y": 26064,
+      "text": "Recipe editor, state boxes after a save: mobile, Android 384",
       "kind": "title1",
       "maxW": 2400
     }

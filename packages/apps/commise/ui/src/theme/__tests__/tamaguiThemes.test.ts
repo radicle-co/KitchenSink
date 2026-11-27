@@ -16,9 +16,13 @@ import {
 } from '../../surfaceTone/surfaceTone.js';
 import { mixOver, role, roleDark, type Role } from '../../tokens/colors.js';
 import { COVER_TINT_NAMES, coverTint, coverTintDark } from '../../tokens/covers.js';
+import { nativeTokens } from '../../tokens/native.js';
 import { proTone, proToneDark } from '../../tokens/tones.js';
 import {
     coverThemeKeys,
+    ELEVATION_LEVELS,
+    elevationThemeKeyOf,
+    elevationThemeKeys,
     engineThemeKeys,
     proThemeKeys,
     surfaceToneThemeKeys,
@@ -74,6 +78,7 @@ describe('tamaguiThemes', () => {
                 ...engineThemeKeys,
                 ...toneKeys,
                 ...coverThemeKeys,
+                ...elevationThemeKeys,
             ].sort(),
         );
     });
@@ -136,6 +141,32 @@ describe('tamaguiThemes', () => {
  * The sub-themes are partial: Tamagui 3 merges a sub-theme with its parents (`proxyThemeToParents`), so a tone theme
  * holds only the five keys that differ by tone and the role list is stated once, in the parent.
  */
+describe('the elevation shadow keys', () => {
+    it('names one key per level that draws a shadow, and none for the focus halo', () => {
+        expect([...ELEVATION_LEVELS]).toEqual(['sm', 'md', 'lg', 'xl']);
+        expect(elevationThemeKeys).toEqual([
+            'elevationSmShadow',
+            'elevationMdShadow',
+            'elevationLgShadow',
+            'elevationXlShadow',
+        ]);
+        expect(elevationThemeKeyOf('lg')).toBe('elevationLgShadow');
+    });
+
+    it.each(['light', 'dark'] as const)(
+        '%s: each key holds its level shadow colour (mutant: a re-typed or scrim colour)',
+        (scheme) => {
+            for (const level of ELEVATION_LEVELS) {
+                expect(tamaguiThemes[scheme][elevationThemeKeyOf(level)]).toBe(
+                    nativeTokens.elevation[level].shadowColor,
+                );
+            }
+
+            expect(tamaguiThemes[scheme].elevationLgShadow).not.toBe(role.scrim);
+        },
+    );
+});
+
 describe('the surface-tone sub-themes (audit H3)', () => {
     const reserved = ['light', 'dark', 'primary', 'secondary', 'quiet', 'danger', 'selected'];
 

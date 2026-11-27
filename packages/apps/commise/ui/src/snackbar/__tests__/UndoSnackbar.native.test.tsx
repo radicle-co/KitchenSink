@@ -6,7 +6,9 @@
  * renders its `pressed` branch.
  */
 import { cleanup, screen } from '@testing-library/react';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { elevationBoxShadow } from '../../testing/elevationShadow.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { snackbarBarOf, undoFrameOf } from '../../testing/undoSnackbarParts.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false }));
@@ -39,32 +41,51 @@ afterEach(() => {
 describe.each(['light', 'dark'] as const)('UndoSnackbar (native), %s theme', (scheme) => {
     it('paints the inverse fill on the bar', () => {
         systemScheme.current = scheme;
-        render(
+        renderWithTamagui(
             <UndoSnackbar
                 message="Recipe deleted"
                 action={{ label: 'Undo', onAction: vi.fn() }}
                 onPause={vi.fn()}
                 onResume={vi.fn()}
             />,
+            scheme,
         );
-        const bar = screen.getByText('Recipe deleted').parentElement as HTMLElement;
 
-        expect(getComputedStyle(bar).backgroundColor).toBe(rgb(rolesFor(scheme).inverse));
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedColour(bar, 'backgroundColor')).toBe(rgb(rolesFor(scheme).inverse));
+    });
+
+    it('lifts the bar with the lg level of the elevation table whole (mutant: no level, or another one)', () => {
+        systemScheme.current = scheme;
+        renderWithTamagui(
+            <UndoSnackbar
+                message="Recipe deleted"
+                action={{ label: 'Undo', onAction: vi.fn() }}
+                onPause={vi.fn()}
+                onResume={vi.fn()}
+            />,
+            scheme,
+        );
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedStyle(bar, 'boxShadow')).toBe(elevationBoxShadow('lg'));
     });
 
     it('presses the Undo action to the inverse row of the press table', () => {
         systemScheme.current = scheme;
         press.pressed = true;
-        render(
+        renderWithTamagui(
             <UndoSnackbar
                 message="Recipe deleted"
                 action={{ label: 'Undo', onAction: vi.fn() }}
                 onPause={vi.fn()}
                 onResume={vi.fn()}
             />,
+            scheme,
         );
 
-        expect(getComputedStyle(screen.getByRole('button', { name: 'Undo' })).backgroundColor).toBe(
+        expect(resolvedColour(undoFrameOf(screen.getByRole('button', { name: 'Undo' })), 'backgroundColor')).toBe(
             rgb(themeFor(scheme).press.inverse),
         );
     });
@@ -74,13 +95,14 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
     const LONG = 'Can\u2019t undo. The recipe changed since. Open its versions to check.';
 
     const renderLong = (): HTMLElement => {
-        render(
+        renderWithTamagui(
             <UndoSnackbar
                 message={LONG}
                 action={{ label: 'Undo', onAction: vi.fn() }}
                 onPause={vi.fn()}
                 onResume={vi.fn()}
             />,
+            'light',
         );
 
         return screen.getByText(LONG);
@@ -100,10 +122,11 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
         const message = renderLong();
         const undo = screen.getByRole('button', { name: 'Undo' });
 
-        expect(getComputedStyle(message.parentElement as HTMLElement).flexWrap).toBe('wrap');
-        expect(getComputedStyle(undo).marginLeft).toBe('auto');
+        expect(resolvedStyle(snackbarBarOf(message, undo), 'flexWrap')).toBe('wrap');
+        expect(resolvedStyle(undo.parentElement as HTMLElement, 'marginLeft')).toBe('auto');
         // Undo keeps its touch target on its own row.
-        expect(getComputedStyle(undo).minHeight).not.toBe('');
+        expect(resolvedStyle(undoFrameOf(undo), 'minHeight')).toBe('44px');
+        expect(resolvedStyle(undoFrameOf(undo), 'minWidth')).toBe('44px');
     });
 
     it.each([
@@ -116,15 +139,15 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
         (scale, basis) => {
             text.scale = scale;
 
-            expect(getComputedStyle(renderLong()).flexBasis).toBe(basis);
+            expect(resolvedStyle(renderLong().parentElement as HTMLElement, 'flexBasis')).toBe(basis);
         },
     );
 
     it('lets the message shrink and grow so it wraps by words (mutant: no shrink)', () => {
-        const style = getComputedStyle(renderLong());
+        const box = renderLong().parentElement as HTMLElement;
 
-        expect(style.flexGrow).toBe('1');
-        expect(style.flexShrink).toBe('1');
-        expect(style.minWidth).toBe('0px');
+        expect(resolvedStyle(box, 'flexGrow')).toBe('1');
+        expect(resolvedStyle(box, 'flexShrink')).toBe('1');
+        expect(resolvedStyle(box, 'minWidth')).toBe('0px');
     });
 });

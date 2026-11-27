@@ -69,6 +69,9 @@ export function installMissingCdkDependencies(apps: readonly CdkApp[]): {
     const failed: { packageDir: string; stderr: string }[] = [];
 
     for (const app of appsMissingCdkLib(apps, REPO_ROOT, existsSync)) {
+        // npm is the developer's own toolchain, found on their PATH as it was for the
+        // `npm run local:up` that started this process.
+        // eslint-disable-next-line sonarjs/no-os-command-from-path -- the developer's own npm
         const result = spawnSync('npm', cdkInstallArgs(path.join(REPO_ROOT, app.packageDir)), {
             encoding: 'utf8',
             env: cdkInstallEnv(process.env),

@@ -46,11 +46,15 @@ describe('installMissingCdkDependencies', () => {
         const result = installMissingCdkDependencies([app]);
 
         expect(spawnSync).toHaveBeenCalledTimes(1);
-        expect(spawnSync).toHaveBeenCalledWith(
+
+        const call: unknown[] = spawnSync.mock.calls[0] ?? [];
+
+        expect(call.slice(0, 2)).toEqual([
             'npm',
             ['ci', '--prefix', path.join(REPO_ROOT, app.packageDir), '--no-audit', '--no-fund'],
-            { encoding: 'utf8', env: expect.objectContaining({ npm_config_allow_scripts: '' }) },
-        );
+        ]);
+        // The install sees the allow-scripts variable empty. Mutation: pass `process.env` and it holds the user's list.
+        expect(call[2]).toMatchObject({ encoding: 'utf8', env: { npm_config_allow_scripts: '' } });
         expect(result).toEqual({ installed: [app.packageDir], failed: [] });
     });
 

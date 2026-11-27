@@ -318,6 +318,7 @@ describe('web tokens — generated theme.css artifact', () => {
               --container-page: 90rem;
               --pinned-bar-height: 3.5rem;
               --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));
+              --snackbar-message-basis: 12rem;
               --color-cover-steel: #E1EDFA;
               --color-cover-cream: #F7E9D7;
               --color-cover-sky: #DDEEFC;

@@ -141,7 +141,6 @@
         "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx": 3,
         "packages/apps/commise/ui/src/sheet/FullScreenSheet.native.tsx": 1,
         "packages/apps/commise/ui/src/sheet/Sheet.native.tsx": 1,
-        "packages/apps/commise/ui/src/snackbar/UndoSnackbar.native.tsx": 2,
         "packages/apps/commise/ui/src/standIn/StandIn.native.tsx": 4,
         "packages/apps/commise/ui/src/stateNotice/StateNotice.native.tsx": 2,
         "packages/apps/commise/ui/src/surfaceTone/Surface.native.tsx": 1,

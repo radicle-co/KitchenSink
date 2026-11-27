@@ -28,13 +28,13 @@
  * @pattern Template Method — the fixed chrome, with host-supplied steps (heading, controls, children, footer)
  */
 import { useEffect, useRef, useState, type FC, type ReactNode } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
+import { Animated, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
 import type { TamaguiTextElement } from 'tamagui';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
 import { DialogActionsWidthContext, useDialogActionsWidthMemento } from '../dialogActions/dialogActionsWidth.js';
-import { Icon } from '../icon/Icon.native.js';
+import { IconButton } from '../iconButton/IconButton.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Text } from '../text/Text.native.js';
 import { surfaceFill } from '../surfaceTone/surfaceFill.js';
@@ -195,14 +195,7 @@ export const BottomSheetPanel: FC<BottomSheetPanelProps> = ({
                                 </Text>
                                 {collapsed ? toolbar.heading : null}
                             </View>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={closeLabel}
-                                onPress={onClose}
-                                style={styles.close}
-                            >
-                                <Icon name="x" size={24} tone="inkMuted" />
-                            </Pressable>
+                            <IconButton icon="x" tone="inkMuted" accessibilityLabel={closeLabel} onPress={onClose} />
                         </View>
                     </View>
                     {toolbar === undefined ? null : (
@@ -248,7 +241,6 @@ const styles = StyleSheet.create({
         paddingRight: spacing[1],
     },
     titleBox: { flex: 1, minWidth: 0, paddingTop: spacing[3] },
-    close: { minWidth: 48, minHeight: 48, alignItems: 'center', justifyContent: 'center' },
     toolbar: { paddingHorizontal: SHEET_EDGE_PADDING_DP, paddingTop: spacing[2], gap: spacing[2] },
     scrollContent: {
         paddingHorizontal: SHEET_EDGE_PADDING_DP,

@@ -4,7 +4,7 @@
  *
  * The React Native twin of `DataSourcesPage.tsx` for a host with no stack to push a page onto: the recipe detail opens
  * it over itself, and a sheet returns the cook to the same place. Profile pushes `DataSourcesPushedPage` instead (A-026).
- * The page is a `FullScreenSheet` here: its title and a 48 × 48 Close at the top end, then the two intro sentences and
+ * The page is a `FullScreenSheet` here: its title and a Close (the shared icon button) at the top end, then the two intro sentences and
  * the read's state, which the host passes as `children`, in one scrolling column. Close and Android back both reach
  * `onRequestClose`, the sheet's one way out.
  *
@@ -15,14 +15,14 @@
  * @pattern Adapter over `FullScreenSheet` — the title takes the reading cursor on `Modal.onShow`, the one moment a
  *     native modal is on screen (a mount effect runs before it is)
  */
-import { Icon } from '@commise/ui/icon';
 import { useMessages } from '@commise/i18n/react';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
+import { IconButton } from '@commise/ui/icon-button';
 import { nativeTokens } from '@commise/ui/native';
 import { useScreenReaderFocusOnSignal } from '@commise/ui/screen-reader-focus';
 import { useTheme } from '@commise/ui/theme';
 import { useState, type FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { dataSourcesMessages } from './messages.js';
 import type { DataSourcesPageNativeProps } from './model.js';
@@ -50,14 +50,7 @@ export const DataSourcesPage: FC<DataSourcesPageNativeProps> = ({ onRequestClose
                 <Text ref={titleRef} accessibilityRole="header" style={[styles.title, { color: colors.ink }]}>
                     {messages.title}
                 </Text>
-                <Pressable
-                    accessibilityRole="button"
-                    accessibilityLabel={messages.close}
-                    onPress={onRequestClose}
-                    style={styles.close}
-                >
-                    <Icon name="x" size={24} tone="ink" />
-                </Pressable>
+                <IconButton icon="x" accessibilityLabel={messages.close} onPress={onRequestClose} />
             </View>
             <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.body}>
                 <Text style={[styles.intro, { color: colors.ink }]}>{messages.intro}</Text>
@@ -76,7 +69,6 @@ const styles = StyleSheet.create({
         fontFamily: nativeTokens.fontFace.display.semibold,
     },
     // 48 × 48 dp: the sheet's only visible exit must be easy to hit (§S16).
-    close: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     body: { gap: nativeTokens.spacing[3], paddingBottom: nativeTokens.spacing[4] },
     intro: { ...nativeTokens.type.body },
     note: { ...nativeTokens.type.body },

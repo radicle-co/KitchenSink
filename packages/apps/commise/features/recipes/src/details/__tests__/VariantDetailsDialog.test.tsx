@@ -353,9 +353,28 @@ describe('the long list', () => {
         expect(combobox.getAttribute('aria-expanded')).toBe('false');
         expect(combobox.getAttribute('aria-controls')).toBeNull();
 
-        fireEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        // The button holds focus first, as it does for a person; a click event alone moves nothing. Mutation: drop the
+        // focus call in the dialog and focus stays on the button (and is lost when it unmounts).
+        const clear = screen.getByRole('button', { name: 'Clear search' });
+
+        clear.focus();
+        expect(document.activeElement).toBe(clear);
+        fireEvent.click(clear);
         expect(details.onClearQuery).toHaveBeenCalledTimes(1);
         expect(document.activeElement).toBe(combobox);
+    });
+
+    // New: Clear search is the shared icon button: its 44 px target, muted ink and a 24 glyph.
+    it('draws Clear search as the shared icon button: a 44 px target, muted ink and a 24 glyph', () => {
+        renderDialog(makeDetailsModel({ read: loadedRead(BEEF_BRISKET), entry: ADD, query: 'zzz' }));
+
+        const clear = screen.getByRole('button', { name: 'Clear search' });
+        const tokens = clear.className.split(/\s+/u);
+
+        expect(tokens).toContain('size-[44px]');
+        expect(tokens).toContain('text-ink-muted');
+        expect(tokens).not.toContain('text-ink');
+        expect(clear.querySelector('svg')?.getAttribute('width')).toBe('24');
     });
 
     // Shown at once, said once typing stops (§S8.5, `docs/design/readSurfacesEvaluation.md` D4).

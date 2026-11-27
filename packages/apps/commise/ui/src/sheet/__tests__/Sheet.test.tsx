@@ -12,6 +12,7 @@ import userEvent from '@testing-library/user-event';
 import { useState, type JSX, type ReactNode } from 'react';
 import { afterEach, describe, expect, expectTypeOf, it, vi } from 'vitest';
 
+import { ICON_BUTTON_CLASS } from '../../iconButton/IconButton.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.js';
 
@@ -109,13 +110,15 @@ describe('Sheet (web)', () => {
         expect(screen.getByRole('dialog').hasAttribute('aria-describedby')).toBe(false);
     });
 
-    it('closes through Close, named by closeLabel and 48 px square', async () => {
+    // Rewritten for owner ruling D98: Close is the shared icon button, so its target is the icon button's 44 px square
+    // (every token of `ICON_BUTTON_CLASS`) and no longer a 48 px one.
+    it('closes through Close, named by closeLabel and the icon button target (44 px square)', async () => {
         const onOpenChange = vi.fn();
         const user = await openHost(<Host onOpenChange={onOpenChange} />);
         const close = screen.getByRole('button', { name: 'Close details' });
 
-        expect(close.className).toContain('h-12');
-        expect(close.className).toContain('w-12');
+        expect(close.className.split(/\s+/u)).toEqual(expect.arrayContaining(ICON_BUTTON_CLASS.split(' ')));
+        expect(close.className).not.toContain('h-12');
         // The house focus ring (`Wizard.tsx`): the browser's outline is replaced, never removed without one.
         expect(close.className).toContain('focus-visible:ring-2');
         expect(close.className).toContain('focus-visible:ring-focus-ring');

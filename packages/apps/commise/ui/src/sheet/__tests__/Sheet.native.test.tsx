@@ -15,6 +15,7 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 import { createElement, useState, type ComponentProps, type JSX, type ReactNode } from 'react';
 import { AccessibilityInfo, Pressable, Text, type Modal as ModalType } from 'react-native';
+import { present } from '../../testing/present.js';
 import { expectWindowIsTheModal } from '../../testing/windowModal.native.js';
 import { render, renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { scaledTypeSize } from '../../text/scaledType.js';
@@ -271,12 +272,28 @@ describe('Sheet (native)', () => {
         expectWindowIsTheModal(dialog());
     });
 
-    it('closes through Close, named by closeLabel and at least 48 dp square', () => {
+    // Rewritten for owner ruling D98: Close is the shared icon button, so its target is the icon button's frame (the
+    // button's first element child): 44pt on iOS and 48dp on Android, and no longer a 48 dp minimum on both.
+    it('closes through Close, named by closeLabel and the icon button target: 44pt on iOS, 48dp on Android', () => {
+        for (const [os, size] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            state.os = os;
+            renderSheet();
+
+            const frame = present(
+                screen.getByRole('button', { name: 'Close filters' }).firstElementChild,
+                'the Close frame',
+            );
+
+            expect(getComputedStyle(frame).width, os).toBe(size);
+            expect(getComputedStyle(frame).height, os).toBe(size);
+            cleanup();
+        }
+
         const { onOpenChange } = renderSheet();
         const close = screen.getByRole('button', { name: 'Close filters' });
-
-        expect(appliedStyle(close, 'min-width')).toBe('48px');
-        expect(appliedStyle(close, 'min-height')).toBe('48px');
 
         fireEvent.click(close);
 

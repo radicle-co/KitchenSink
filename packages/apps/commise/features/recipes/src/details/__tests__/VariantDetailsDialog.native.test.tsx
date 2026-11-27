@@ -253,6 +253,30 @@ describe('the long list', () => {
         expect(details.onClearQuery).toHaveBeenCalledTimes(1);
     });
 
+    // New: Clear search is the shared icon button, so its 44pt (iOS) and 48dp (Android) target is the frame inside the
+    // press target, the button's first element child.
+    it('gives Clear search the icon button target: 44pt on iOS and 48dp on Android', () => {
+        for (const [os, size] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            device.os = os;
+
+            const { unmount } = renderDialog(
+                makeDetailsModel({ read: loadedRead(BEEF_BRISKET), entry: ADD, query: 'zzz' }),
+            );
+            const frame = screen.getByRole('button', { name: 'Clear search' }).firstElementChild;
+
+            if (frame === null) {
+                throw new Error('Expected the Clear search button to hold a frame.');
+            }
+
+            expect(getComputedStyle(frame).width, os).toBe(size);
+            expect(getComputedStyle(frame).height, os).toBe(size);
+            unmount();
+        }
+    });
+
     // Shown at once, said once typing stops (§S8.5, `docs/design/readSurfacesEvaluation.md` D4).
     it('noMatches, still typing: shows the text, and the polite region says nothing yet', () => {
         renderDialog(makeDetailsModel({ read: loadedRead(BEEF_BRISKET), entry: ADD, query: 'zzz' }));

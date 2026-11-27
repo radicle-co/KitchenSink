@@ -198,7 +198,7 @@ describe('RecipeBrowseRails (web) — browse by cuisine', () => {
 });
 
 /**
- * Previous and Next (`buildSpec.md` §4.4): two 36 px round ghost buttons for a fine pointer only (the swipe cue serves
+ * Previous and Next (`buildSpec.md` §4.4): two 44 px icon buttons for a fine pointer only (the swipe cue serves
  * touch), at the end of the heading row before "See all". They scroll the track by one view less one card and disable at
  * the ends. jsdom has no layout, so the track's geometry is stubbed.
  */
@@ -216,27 +216,50 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
         return track;
     }
 
+    // Rewritten for owner ruling D98: the buttons are the shared icon button, which has no class of its own for
+    // visibility, so the box that holds them carries `hidden pointer-fine:inline-flex`. The row finds that box by what it
+    // holds: the nearest ancestor of Next whose classes hold `pointer-fine:inline-flex`, and it holds no Previous.
     it('are drawn for a fine pointer only, named Previous and Next, in the Trending heading row', () => {
         renderRails();
         const next = screen.getAllByRole('button', { name: 'Next' })[0];
+        let visibility: HTMLElement | null = next?.parentElement ?? null;
 
-        expect(next?.className).toContain('pointer-fine:inline-flex');
-        expect(next?.className).toContain('hidden');
+        while (visibility !== null && !visibility.className.split(/\s+/u).includes('pointer-fine:inline-flex')) {
+            visibility = visibility.parentElement;
+        }
+
+        expect(visibility, 'a box around Next that shows it for a fine pointer').not.toBeNull();
+        expect(visibility?.className.split(/\s+/u)).toContain('hidden');
+        expect(within(visibility as HTMLElement).queryByRole('button', { name: 'Previous' })).toBeNull();
         expect(screen.getAllByRole('button', { name: 'Previous' })).toHaveLength(3);
     });
 
+    // New: Previous and Next are the shared icon button: a 44 px target, ink, a 24 glyph.
+    it('draws Previous and Next as the shared icon button: a 44 px target and a 24 glyph', () => {
+        renderRails();
+
+        for (const name of ['Previous', 'Next']) {
+            const button = screen.getAllByRole('button', { name })[0];
+
+            expect(button?.className.split(/\s+/u), name).toContain('size-[44px]');
+            expect(button?.querySelector('svg')?.getAttribute('width'), name).toBe('24');
+        }
+    });
+
+    // Rewritten for owner ruling D98: the shared icon button sets `aria-disabled` only while unavailable and leaves it off
+    // otherwise, so an available button reads no attribute where it once read "false". The unavailable rows are unchanged.
     it('disable Previous at the start and Next at the end', () => {
         renderRails();
         const track = geometry(0);
         const row = track.closest('section') as HTMLElement;
 
         expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('true');
-        expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBe('false');
+        expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBeNull();
 
         Object.defineProperty(track, 'scrollLeft', { configurable: true, writable: true, value: 800 });
         fireEvent.scroll(track);
 
-        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBe('false');
+        expect(within(row).getByRole('button', { name: 'Previous' }).getAttribute('aria-disabled')).toBeNull();
         expect(within(row).getByRole('button', { name: 'Next' }).getAttribute('aria-disabled')).toBe('true');
     });
 

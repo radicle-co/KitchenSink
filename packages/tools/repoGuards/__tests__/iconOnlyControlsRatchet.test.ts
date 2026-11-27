@@ -51,7 +51,8 @@ const counts: FileCounts = Object.fromEntries(
 
 describe('icon-only controls only fall', () => {
     it('reads real uses, so an empty baseline cannot pass by reading nothing', () => {
-        expect(counts[`${UI}/sheet/SheetPanel.tsx`]).toBeGreaterThan(0);
+        // A file that still holds one: SheetPanel moved onto `IconButton`, so it no longer reads as one.
+        expect(counts['packages/apps/commise/features/recipes/src/discovery/DiscoveryFooter.tsx']).toBeGreaterThan(0);
     });
 
     it('registers primitives that exist, and the detector sees a primitive when it is read', () => {

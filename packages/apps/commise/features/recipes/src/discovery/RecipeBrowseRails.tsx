@@ -21,11 +21,9 @@ import { Button } from '@commise/ui/button';
 import { Chip, ChipRow } from '@commise/ui/chip';
 import { useFocusOnSignal } from '@commise/ui/dialog-focus';
 import { UNMEASURED_EXTENT, type ScrollExtent } from '@commise/ui/horizontal-scroller';
-import { Icon } from '@commise/ui/icon';
+import { IconButton } from '@commise/ui/icon-button';
 import { EnterTransition } from '@commise/ui/motion';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import { PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import { useState, type FC } from 'react';
 
 import { fillTemplate } from '@commise/i18n';
@@ -54,11 +52,8 @@ const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
  */
 const SECTION_STAGGER_MS = 80;
 
-/** A 36 px round ghost button, for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
-const ROUND =
-    `hidden size-9 shrink-0 items-center justify-center rounded-full text-ink ${PRESS_FILL_CLASS.pointer} pointer-fine:inline-flex ` +
-    `${FOCUS_RING_CLASS.offset} aria-disabled:opacity-40 ` +
-    'aria-disabled:hover:bg-transparent';
+/** The box round Previous or Next: they show for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
+const FINE_POINTER_ONLY = 'hidden shrink-0 pointer-fine:inline-flex';
 
 /** One curated rail: its heading, Previous and Next, and "see all" over its body. */
 const Rail: FC<{
@@ -86,32 +81,22 @@ const Rail: FC<{
                 <h2 ref={headingRef} tabIndex={-1} className="min-w-0 flex-auto text-section-title text-ink">
                     {title}
                 </h2>
-                <button
-                    type="button"
-                    aria-label={discovery.previous}
-                    aria-disabled={scroll.atStart}
-                    onClick={() => {
-                        if (!scroll.atStart) {
-                            scroll.by(-1);
-                        }
-                    }}
-                    className={ROUND}
-                >
-                    <Icon name="chevronLeft" size={20} />
-                </button>
-                <button
-                    type="button"
-                    aria-label={discovery.next}
-                    aria-disabled={scroll.atEnd}
-                    onClick={() => {
-                        if (!scroll.atEnd) {
-                            scroll.by(1);
-                        }
-                    }}
-                    className={ROUND}
-                >
-                    <Icon name="chevronRight" size={20} />
-                </button>
+                <span className={FINE_POINTER_ONLY}>
+                    <IconButton
+                        icon="chevronLeft"
+                        accessibilityLabel={discovery.previous}
+                        disabled={scroll.atStart}
+                        onPress={() => scroll.by(-1)}
+                    />
+                </span>
+                <span className={FINE_POINTER_ONLY}>
+                    <IconButton
+                        icon="chevronRight"
+                        accessibilityLabel={discovery.next}
+                        disabled={scroll.atEnd}
+                        onPress={() => scroll.by(1)}
+                    />
+                </span>
                 {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box is
                     pulled back by the button's padding so its text sits on the title's start edge. */}
                 <span

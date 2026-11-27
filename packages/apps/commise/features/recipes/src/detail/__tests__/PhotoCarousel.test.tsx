@@ -12,6 +12,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
+
 import { makePhoto } from '../../__fixtures__/index.js';
 import { PhotoCarousel } from '../PhotoCarousel.js';
 
@@ -248,5 +257,36 @@ describe('PhotoCarousel (web) — paging chevrons and tracking dots', () => {
         scrollTo(400 + 150);
 
         expect(dot(2).getAttribute('aria-current')).toBe('true');
+    });
+});
+
+describe('PhotoCarousel (web) lightbox — offers the snackbar an outlet', () => {
+    async function openLightbox() {
+        const user = userEvent.setup();
+        render(
+            <SnackbarHost>
+                <SnackbarProbe />
+                <PhotoCarousel title="Grilled Lamb" photos={[makePhoto({ id: 'pho_1', order: 1 })]} />
+            </SnackbarHost>,
+        );
+        await user.click(screen.getByRole('button', { name: 'Open Grilled Lamb photo 1 full screen' }));
+
+        return user;
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        await openLightbox();
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', async () => {
+        const user = await openLightbox();
+        showProbe();
+        await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Close photo' }));
+
+        expectProbeHandedBack();
     });
 });

@@ -346,6 +346,7 @@ describe('FoodServiceClient — a body that is not JSON maps by its status', () 
             isNotFoundError,
         ],
         ['a 404 whose body is a JSON array', 404, 'application/json', '[]', isNotFoundError],
+        ['a 404 whose body is a JSON string', 404, 'application/json', '"Not Found"', isServiceUnreachableError],
         ['a 404 whose body is JSON null', 404, 'application/json', 'null', isServiceUnreachableError],
         [
             'a 404 in the food envelope',

@@ -80,7 +80,8 @@ fourth vocabulary.
    source kind with its type, the rule that a web page needs its link (0071), and the rules that "I wrote this" and
    "from another person" carry no source (0087).
 4. **`publicDomain` is written only with the grant `recipes:import:public`.** Only the column it is stored in changes.
-5. **`commiseWritten` is written only by the 003B publish.** The value is added by the expand change (Decision 2), and the 003B plan (#511) names only `origin`.
+5. **`commiseWritten` is written only by the 003B publish.** The value is added by the expand change (Decision 2),
+   and the 003B plan (#511) names only `origin`.
 6. **These stay as they are:** the attestation `choice` (`authored`, `publicWeb`, `book`, `paidSite`, `fromPerson`,
    `cleared`, `publicConfirm`), the import item's `statement_kind` and the evidence `source_kind`. They are answer
    words, or facts about one piece of evidence. One codec in recipe-core maps an answer to an origin.

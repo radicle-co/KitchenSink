@@ -46,7 +46,7 @@ Contents:
   tables between markers are already in the generator's format. If the document and the JSON differ, the document is
   right and the JSON is wrong.
 - A planned item is marked `pending` with the work that builds it. Nothing at runtime reads a planned item.
-- In the JSON, the `reason` of a refusal is the name main uses today. Its `name` is the `REFUSAL_*` name (4.5). The
+- In the JSON, a refusal has a `reason` and a `name`, the `REFUSAL_*` name (4.5). Only the seven `PUBLIC_REFUSALS` values (`fromPerson`, `unrecognised`, `policy.webPage`, `policy.book`, `policy.paidSite`, `sourceConflict` and `none`) are names main uses today. The other `reason` values, such as `statementRequired`, `privateSlots` and `sourceLocked`, are new names. The
   `reason` values move to the `REFUSAL_*` names when the code does.
 
 ## 3. Open items
@@ -106,7 +106,9 @@ Contents:
   own decision.
 - `publicDomain` is written only with the grant `recipes:import:public` (DD18, ADR-0023). Only the column it is
   stored in changes.
-- `commiseWritten` is written only by the 003B publish (5.7). PR 3 owns the value: it adds `commiseWritten` to the origin values, adds `commise_written` to the old `source_type` CHECK (only so the sync trigger can mirror it), and adds it to the sync mapping, the codec and the parity table. The 003B plan (#511) names only `origin`.
+- `commiseWritten` is written only by the 003B publish (5.7). PR 3 owns the value: it adds `commiseWritten` to the
+  origin values, adds `commise_written` to the old `source_type` CHECK (only so the sync trigger can mirror it), and
+  adds it to the sync mapping, the codec and the parity table. The 003B plan (#511) names only `origin`.
 - **Kept as they are:** the attestation `choice` (`authored`, `publicWeb`, `book`, `paidSite`, `fromPerson`,
   `cleared`, `publicConfirm`), the import item `statement_kind` and the evidence `source_kind`. These are answer words
   or facts about one piece of evidence. One codec in recipe-core maps an answer to an origin.
@@ -126,22 +128,21 @@ Contents:
 
 ### 4.4 Labelled stored values
 
-| Internal name               | en label                                                             | Key                                                    | Viewer               |
-| --------------------------- | -------------------------------------------------------------------- | ------------------------------------------------------ | -------------------- |
-| `LIFECYCLE_DRAFT`           | Draft                                                                | `LIFECYCLE_DRAFT` (string of `recipe.card.draftBadge`) | owner                |
-| `LIFECYCLE_PUBLISHED`       | none (no chip)                                                       | none                                                   |                      |
-| `LIFECYCLE_DELETED`         | none. The toast keeps `detailActions.recipeDeleted` "Recipe deleted" | none                                                   |                      |
-| `AUDIENCE_PRIVATE`          | Private                                                              | `AUDIENCE_PRIVATE`                                     | owner                |
-| `AUDIENCE_PUBLIC`           | Public                                                               | `AUDIENCE_PUBLIC`                                      | owner                |
-| `ORIGIN_UNSTATED`           | none                                                                 | none                                                   |                      |
-| `ORIGIN_OWN`                | owner "Written by you". Reader "Written by {cook}"                   | `ORIGIN_OWN.owner`, `ORIGIN_OWN.reader`                | both                 |
-| `ORIGIN_WEB_PAGE`           | From a web page                                                      | `ORIGIN_WEB_PAGE`                                      | owner (private only) |
-| `ORIGIN_WEB_PAGE_WITH_SITE` | From {site} (where a site shows and there is no "Source" heading)    | `ORIGIN_WEB_PAGE.withSite`                             | owner (private only) |
-| `ORIGIN_BOOK`               | From a cookbook or magazine                                          | `ORIGIN_BOOK`                                          | owner (private only) |
-| `ORIGIN_PAID_SITE`          | From a paid website                                                  | `ORIGIN_PAID_SITE`                                     | owner (private only) |
-| `ORIGIN_PERSON`             | From another person                                                  | `ORIGIN_PERSON`                                        | owner (private only) |
-| `ORIGIN_PUBLIC_DOMAIN`      | Public domain                                                        | `ORIGIN_PUBLIC_DOMAIN`                                 | any                  |
-| `ORIGIN_COMMISE_WRITTEN`    | Written by Commise                                                   | `ORIGIN_COMMISE_WRITTEN`                               | any                  |
+| Internal name            | en label                                                                      | Key                                                    | Viewer               |
+| ------------------------ | ----------------------------------------------------------------------------- | ------------------------------------------------------ | -------------------- |
+| `LIFECYCLE_DRAFT`        | Draft                                                                         | `LIFECYCLE_DRAFT` (string of `recipe.card.draftBadge`) | owner                |
+| `LIFECYCLE_PUBLISHED`    | none (no chip)                                                                | none                                                   |                      |
+| `LIFECYCLE_DELETED`      | none. The toast keeps `detailActions.recipeDeleted` "Recipe deleted"          | none                                                   |                      |
+| `AUDIENCE_PRIVATE`       | Private                                                                       | `AUDIENCE_PRIVATE`                                     | owner                |
+| `AUDIENCE_PUBLIC`        | Public                                                                        | `AUDIENCE_PUBLIC`                                      | owner                |
+| `ORIGIN_UNSTATED`        | none                                                                          | none                                                   |                      |
+| `ORIGIN_OWN`             | owner "Written by you". Reader "Written by {cook}"                            | `ORIGIN_OWN.owner`, `ORIGIN_OWN.reader`                | both                 |
+| `ORIGIN_WEB_PAGE`        | From a web page. With a site, where there is no "Source" heading: From {site} | `ORIGIN_WEB_PAGE`, `ORIGIN_WEB_PAGE.withSite`          | owner (private only) |
+| `ORIGIN_BOOK`            | From a cookbook or magazine                                                   | `ORIGIN_BOOK`                                          | owner (private only) |
+| `ORIGIN_PAID_SITE`       | From a paid website                                                           | `ORIGIN_PAID_SITE`                                     | owner (private only) |
+| `ORIGIN_PERSON`          | From another person                                                           | `ORIGIN_PERSON`                                        | owner (private only) |
+| `ORIGIN_PUBLIC_DOMAIN`   | Public domain                                                                 | `ORIGIN_PUBLIC_DOMAIN`                                 | any                  |
+| `ORIGIN_COMMISE_WRITTEN` | Written by Commise                                                            | `ORIGIN_COMMISE_WRITTEN`                               | any                  |
 
 - **"Written by Commise" never shows alone.** It always shows with the AI line: `credit.written`, or
   `credit.writtenNoCook` if the credit names no cook. The AI line keeps its words "Steps written by Commise with AI,
@@ -181,7 +182,7 @@ developer message. It builds no user copy.
 | `REFUSAL_CONTAINED`                    | server      | 403 `TEST_PRINCIPAL_CONTAINED`, no reason (reason: PR 2)                                                                                                   | none (no cook meets it)                                                                  | yes                                                                                                                                      |
 | `REFUSAL_CONTENT_NOT_APPROVED`         | server      | 403 `SOURCE_CHECK_NOT_APPROVED`                                                                                                                            | This recipe stays private because it wasn’t approved to be public.                       | pending: 020 (ADR-0074 §3a)                                                                                                              |
 | `REFUSAL_DETECTED_NO_PRIVATE_SLOT`     | server      | 403 `SOURCE_DETECTED_NO_PRIVATE_SLOT`                                                                                                                      | none as a line. The no-slot box shows (4.8.2)                                            | pending: 020 (ADR-0074 §3a)                                                                                                              |
-| `REFUSAL_PUBLIC_VERSION_COPY`          | both        | 400 + reason                                                                                                                                               | `publicRefusal.publicVersionCopy` (planned key)                                          | pending: 003B T405. Stays until 021-FR-005                                                                                               |
+| `REFUSAL_PUBLIC_VERSION_COPY`          | both        | 400 `INVALID_VISIBILITY`, `details.reason` `PUBLIC_VERSION_COPY`                                                                                           | `publicRefusal.publicVersionCopy` (planned key)                                          | pending: 003B T405. Stays until 021-FR-005                                                                                               |
 | `REFUSAL_UNRECOGNISED`                 | client      | never sent                                                                                                                                                 | existing `unrecognised`                                                                  | yes                                                                                                                                      |
 | `REFUSAL_NONE`                         | both        | not a refusal: the result "no refusal"                                                                                                                     | none                                                                                     | yes (the client value `none`)                                                                                                            |
 
@@ -585,13 +586,13 @@ stateDiagram-v2
 
 <!-- recipeState:begin 5.2-2 -->
 
-| From                                                        | Event             | Actor   | Guard                                                                                                                                                                               | To                                                                                                   |
-| ----------------------------------------------------------- | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
-| `ORIGIN_UNSTATED`, or any origin while `SOURCE_UNCONFIRMED` | `ANSWER_*`        | cook    | `sourceLockOf` = `open` (so `SOURCE_UNCONFIRMED`, and not from a person, stored or attested). Web, book and paid need a link or citation, which appends evidence and forces private | the answer's origin                                                                                  |
-| `ORIGIN_UNSTATED`                                           | `PASTE_DETECTED`  | system  | sets `content_pasted_at` only                                                                                                                                                       | unchanged                                                                                            |
-| `ORIGIN_UNSTATED`                                           | `CURATOR_DECLARE` | curator | grant `recipes:import:public`                                                                                                                                                       | `ORIGIN_PUBLIC_DOMAIN`                                                                               |
-| `ORIGIN_OWN` with `SOURCE_CONFIRMED`                        | `DOWNGRADE`       | cook    | a citation. A slot, for a recipe that is not already private. The result is private                                                                                                 | `ORIGIN_BOOK` / `ORIGIN_PAID_SITE`                                                                   |
-| any origin with `SOURCE_CONFIRMED`                          | `STAFF_CORRECT`   | staff   | ADR-0100 route and grant. Records who, when, old, new, reason. Appends `EVIDENCE_STAFF_CORRECTION`. If the new answer can open Public, it sets `HOLD_SOURCE_CORRECTED`              | staff's origin. The recipe is private. A correction that sets the hold also holds the owner's clones |
+| From                                                        | Event             | Actor   | Guard                                                                                                                                                                                                 | To                                                                                                   |
+| ----------------------------------------------------------- | ----------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `ORIGIN_UNSTATED`, or any origin while `SOURCE_UNCONFIRMED` | `ANSWER_*`        | cook    | `sourceLockOf` = `open` (`open` holds for an unconfirmed answer that is not from a person, stored or attested). Web, book and paid need a link or citation, which appends evidence and forces private | the answer's origin                                                                                  |
+| `ORIGIN_UNSTATED`                                           | `PASTE_DETECTED`  | system  | sets `content_pasted_at` only                                                                                                                                                                         | unchanged                                                                                            |
+| `ORIGIN_UNSTATED`                                           | `CURATOR_DECLARE` | curator | grant `recipes:import:public`                                                                                                                                                                         | `ORIGIN_PUBLIC_DOMAIN`                                                                               |
+| `ORIGIN_OWN` with `SOURCE_CONFIRMED`                        | `DOWNGRADE`       | cook    | a citation. A slot, for a recipe that is not already private. The result is private                                                                                                                   | `ORIGIN_BOOK` / `ORIGIN_PAID_SITE`                                                                   |
+| any origin with `SOURCE_CONFIRMED`                          | `STAFF_CORRECT`   | staff   | ADR-0100 route and grant. Records who, when, old, new, reason. Appends `EVIDENCE_STAFF_CORRECTION`. If the new answer can open Public, it sets `HOLD_SOURCE_CORRECTED`                                | staff's origin. The recipe is private. A correction that sets the hold also holds the owner's clones |
 
 <!-- recipeState:end 5.2-2 -->
 
@@ -821,7 +822,7 @@ actor. These are stored facts judged by a pure function on both sides, so a tabl
 
 In `packages/tools/repoGuards/__tests__/`, reading source through the existing stripper:
 
-1. `recipeStateLabelSet.test.ts`: the keys of `recipeStateMessages.en` equal `LABELLED_NAMES`, in each name's shape.
+1. `recipeStateLabelSet.test.ts`: the keys of `recipeStateMessages.en` equal `LABELLED_NAMES`, in each name's shape. A shape is a suffix on the name's key, such as `.owner`, `.reader` and `.withSite`, so `ORIGIN_WEB_PAGE` has the keys `ORIGIN_WEB_PAGE` and `ORIGIN_WEB_PAGE.withSite`. A name never has a second internal name for a shape.
 2. `recipeStateRetiredNamesRatchet.test.ts`: each `RETIRED_NAMES` entry is counted in production source, live specs,
    `docs/design/**` boards and messages files. It reuses `ratchetBaseline.ts`. The count only falls. Superseded ADR
    text, the model doc's retired table and the module are allowed.

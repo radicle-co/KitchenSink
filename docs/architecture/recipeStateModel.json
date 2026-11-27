@@ -1,5 +1,5 @@
 {
-    "note": "Same values as docs/architecture/recipeStateModel.md. The code is the source (ADR-0103); this file is written by the generator once it lands. A refusal's reason is the name main uses today, and its name is the REFUSAL_* name.",
+    "note": "Same values as docs/architecture/recipeStateModel.md. The code is the source (ADR-0103); this file is written by the generator once it lands. A refusal has a reason and a name, the REFUSAL_* name. Only the seven PUBLIC_REFUSALS values (fromPerson, unrecognised, policy.webPage, policy.book, policy.paidSite, sourceConflict and none) are names main uses today. The other reason values, such as statementRequired, privateSlots and sourceLocked, are new names.",
     "axes": [
         {
             "name": "lifecycle",
@@ -128,8 +128,8 @@
         },
         {
             "name": "ORIGIN_WEB_PAGE",
-            "label": "From a web page",
-            "labelKey": "ORIGIN_WEB_PAGE",
+            "label": "From a web page. With a site, where there is no Source heading: From {site}",
+            "labelKey": ["ORIGIN_WEB_PAGE", "ORIGIN_WEB_PAGE.withSite"],
             "viewer": "owner (private only)"
         },
         {
@@ -260,13 +260,6 @@
             "hint": "It stays private. You can say where it’s from later."
         },
         {
-            "name": "ORIGIN_WEB_PAGE_WITH_SITE",
-            "label": "From {site}",
-            "labelKey": "ORIGIN_WEB_PAGE.withSite",
-            "viewer": "owner (private only)",
-            "note": "{site} is the bare host. With no site: From a web page. Not shown under the Source heading."
-        },
-        {
             "name": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
             "label": "Saved as private",
             "labelKey": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
@@ -388,7 +381,7 @@
         {
             "reason": "publicVersionCopy",
             "name": "REFUSAL_PUBLIC_VERSION_COPY",
-            "wire": "400 INVALID_VISIBILITY",
+            "wire": "400 INVALID_VISIBILITY, details.reason PUBLIC_VERSION_COPY",
             "labelKey": "publicRefusal.publicVersionCopy"
         },
         {
@@ -508,7 +501,7 @@
             "from": "ORIGIN_UNSTATED, or any origin while SOURCE_UNCONFIRMED",
             "event": "ANSWER_*",
             "actor": "cook",
-            "guard": "sourceLockOf = open (so SOURCE_UNCONFIRMED, and not from a person, stored or attested); web, book and paid need a link or citation, which appends evidence and forces private",
+            "guard": "sourceLockOf = open (open holds for an unconfirmed answer that is not from a person, stored or attested); web, book and paid need a link or citation, which appends evidence and forces private",
             "to": "the answer's origin"
         },
         {
@@ -951,5 +944,30 @@
             "decision": "A cook saves an edit to a public recipe whose source holds it off Public: it stays public and the check reruns on the new text. It goes private only if the check fails (P10, #412).",
             "by": "owner, 2026-11-27"
         }
-    ]
+    ],
+    "sourceRow": {
+        "views": [
+            "SOURCE_ROW_HIDDEN",
+            "SOURCE_ROW_OWN",
+            "SOURCE_ROW_OPEN_ANSWERED",
+            "SOURCE_ROW_LOCKED",
+            "SOURCE_ROW_LOCKED_ANSWER",
+            "SOURCE_ROW_FIELD"
+        ],
+        "strings": [
+            "SOURCE_ROW_LOCKED_NOTE",
+            "SOURCE_ROW_LOCK_WARNING_PUBLISH",
+            "SOURCE_ROW_LOCK_WARNING_SAVE",
+            "SOURCE_ROW_CHANGE_OWN",
+            "SOURCE_ROW_LOCKED_LEFT_OUT",
+            "SOURCE_ROW_ANNOUNCE_DOWNGRADE",
+            "SOURCE_ROW_ASK_*",
+            "SOURCE_ROW_SAY_WHERE",
+            "SOURCE_ROW_CHANGE_ANSWER",
+            "SOURCE_ROW_OWN_LINK_LEFT_OUT",
+            "SOURCE_ROW_BODY_DOWNGRADE",
+            "SOURCE_ROW_CONFIRM_DOWNGRADE"
+        ],
+        "note": "Names only. Not recipe states. lockedRefused is the string of REFUSAL_SOURCE_LOCKED."
+    }
 }

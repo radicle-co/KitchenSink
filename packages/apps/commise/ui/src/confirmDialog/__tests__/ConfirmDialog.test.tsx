@@ -12,6 +12,7 @@ import {
     showProbe,
     SnackbarProbe,
 } from '../../testing/windowSnackbar.js';
+import { Sheet } from '../../sheet/Sheet.js';
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
 
@@ -371,4 +372,45 @@ describe('ConfirmDialog (web) offers the snackbar an outlet', () => {
         // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole dialog.
         expect(within(screen.getByRole('alertdialog')).getByRole('status').style.bottom).toBe('calc(88px + 1rem)');
     });
+});
+
+describe('ConfirmDialog (web) over a Sheet hands the snackbar between them', () => {
+    /** A confirm opened over a sheet, as a child of it or as its sibling (CollectionSheet renders it as a sibling). */
+    function Over({ confirmOpen, shape }: { readonly confirmOpen: boolean; readonly shape: 'child' | 'sibling' }) {
+        const confirm = <ConfirmDialog {...baseProps({ open: confirmOpen })} />;
+
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <Sheet
+                    open
+                    onOpenChange={() => undefined}
+                    title="Ingredients"
+                    closeLabel="Close Ingredients"
+                    size="page"
+                >
+                    {shape === 'child' ? confirm : null}
+                </Sheet>
+                {shape === 'sibling' ? confirm : null}
+            </SnackbarHost>
+        );
+    }
+
+    it.each(['child', 'sibling'] as const)(
+        'draws it in the confirm while open and in the sheet again once the confirm closes (%s)',
+        (shape) => {
+            // The sheet opens first and the confirm over it, as a person would meet them.
+            const { rerender } = render(<Over confirmOpen={false} shape={shape} />);
+            rerender(<Over confirmOpen shape={shape} />);
+            showProbe();
+
+            expectProbeInside(screen.getByRole('alertdialog'));
+
+            rerender(<Over confirmOpen={false} shape={shape} />);
+
+            // Kills: a footer re-measure re-registering the sheet's outlet (the sibling shape), and an outlet that
+            // stays registered after its window closes (the snackbar then has nowhere to draw).
+            expectProbeInside(screen.getByRole('dialog', { name: 'Ingredients' }));
+        },
+    );
 });

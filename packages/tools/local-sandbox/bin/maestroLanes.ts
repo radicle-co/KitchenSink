@@ -16,6 +16,7 @@
  * @sideEffect Boots emulators, starts the queue consumers and the parse worker, resets the local pool, runs Maestro.
  */
 import { execFile, spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { appendFileSync, closeSync, existsSync, mkdirSync, openSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
@@ -40,6 +41,7 @@ import { parseLaneArgs, platformTurns, type LaneArgs } from '../src/maestroLanes
 import { SCREEN_RECORD_FILE, spawnRunner, type LaneChild } from '../src/maestroLanes/laneProcess.js';
 import { runLaneRun, type LaneRunDeps, type Selection } from '../src/maestroLanes/laneRun.js';
 import { oneOffStaging } from '../src/maestroLanes/oneOffStage.js';
+import { createRerunDoor } from '../src/maestroLanes/rerunDoor.js';
 import { emptyUsage, laneProcesses, parsePs, recordSample, summarizeUsage } from '../src/maestroLanes/laneUsage.js';
 import type { CommandPort, DeviceAdapter, LanePlatform, LaneSpec } from '../src/maestroLanes/laneTypes.js';
 import { processGroup } from '../src/maestroLanes/stopGroups.js';
@@ -447,6 +449,35 @@ async function main(argv: readonly string[]): Promise<number> {
         process.stdout.write(`maestro:lanes: ${new Date().toISOString().slice(11, 19)} ${line}\n`);
     };
 
+    // The reference of a problem report: the run's first line says it was given, and the door
+    // stores it with the flows it released.
+    const reference = (process.env['MAESTRO_PROBLEM'] ?? '').trim();
+
+    if (reference !== '') {
+        log(`MAESTRO_PROBLEM=${reference}`);
+    }
+
+    const headRun = await run('git', ['rev-parse', 'HEAD']);
+
+    if (headRun.code !== 0) {
+        throw new Error(`maestro:lanes: git rev-parse HEAD failed: ${headRun.stderr.trim()}`);
+    }
+
+    const head = headRun.stdout.trim();
+    const rerun = createRerunDoor({
+        historyFile: path.join(STATE_DIR, 'rerunHistory.json'),
+        head,
+        digestOf: (flow) => {
+            const file = path.join(REPO_ROOT, MAESTRO_DIR, `${flow}.yaml`);
+
+            return existsSync(file) ? createHash('sha256').update(readFileSync(file)).digest('hex') : 'no-file';
+        },
+        iosDevice: args.iosDevice,
+        ...(reference === '' ? {} : { reference }),
+        now: () => new Date().toISOString(),
+        report: (line) => process.stderr.write(`${line}\n`),
+    });
+
     // A one-off run runs only its own flows: the impact selector has nothing to say about them.
     const choices =
         args.oneOffs === undefined ? await resolveSelection(args, base, log) : new Map<LanePlatform, PlatformChoice>();
@@ -587,6 +618,8 @@ async function main(argv: readonly string[]): Promise<number> {
                 log,
             }),
         aborted: () => aborted,
+        checkRerun: rerun.checkRerun,
+        recordRerun: rerun.recordRerun,
         ...oneOffStaging({ oneOffs: args.oneOffs, maestroDir: path.join(REPO_ROOT, MAESTRO_DIR), runId: runStamp }),
         staggerMs: args.staggerSeconds * 1000,
         log,

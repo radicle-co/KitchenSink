@@ -35,7 +35,8 @@ describe('timerRowActions', () => {
             timerRowActions(state)[0]?.slot;
         const a = action('a');
 
-        expect(slotOf({ kind: 'running', pause: a, cancel: a })).toBe(slotOf({ kind: 'paused', resume: a, cancel: a }));
+        expect(slotOf({ kind: 'running', pause: a, cancel: a })).toBe('primary');
+        expect(slotOf({ kind: 'paused', resume: a, cancel: a })).toBe('primary');
     });
 
     it('done: Stop alone', () => {

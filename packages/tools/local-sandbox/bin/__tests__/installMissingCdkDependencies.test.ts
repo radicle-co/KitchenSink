@@ -59,10 +59,11 @@ describe('installMissingCdkDependencies', () => {
         // Exactly these two options: an extra key such as `shell: true` must fail.
         const options = call[2];
 
-        expect(typeof options === 'object' && options !== null ? Object.keys(options).sort() : options).toEqual([
-            'encoding',
-            'env',
-        ]);
+        expect(
+            typeof options === 'object' && options !== null
+                ? Object.keys(options).sort((a, b) => a.localeCompare(b))
+                : options,
+        ).toEqual(['encoding', 'env']);
         expect(result).toEqual({ installed: [app.packageDir], failed: [] });
     });
 

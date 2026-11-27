@@ -208,6 +208,16 @@ describe('CookingTimerRow (web), focus across states', () => {
         expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pause Roast timer' }));
     });
 
+    it('lands focus on Stop when the focused Pause becomes the done row, so Enter stops the alarm', () => {
+        const a = actions();
+        const { rerender } = render(rowOf(running(a)));
+        screen.getByRole('button', { name: 'Pause Roast timer' }).focus();
+
+        rerender(rowOf({ kind: 'done', stop: { label: 'Stop Roast timer', onPress: a.stop } }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Stop Roast timer' }));
+    });
+
     it('keeps focus on Cancel when the state changes around it', () => {
         const a = actions();
         const { rerender } = render(rowOf(running(a)));

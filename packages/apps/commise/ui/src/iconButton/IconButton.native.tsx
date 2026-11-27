@@ -9,7 +9,8 @@
  *
  * @pattern Decorator — `PressScale` adds the press motion and owns the one `Pressable`
  */
-import { useCallback, useRef, type FC, type Ref } from 'react';
+import { useComposedRefs } from '@radix-ui/react-compose-refs';
+import { useRef, type FC, type Ref } from 'react';
 import type { View as NativeView } from 'react-native';
 import { styled, View } from 'tamagui';
 
@@ -70,25 +71,14 @@ export const IconButton: FC<IconButtonNativeProps> = ({
     focusRequested = false,
     onFocusRequestHandled,
 }) => {
-    const node = useRef<NativeView | null>(null);
-    // The host's own `ref` and this button's focus request name the same node, so one callback feeds both.
-    const setNode = useCallback(
-        (view: NativeView | null) => {
-            node.current = view;
-
-            if (typeof ref === 'function') {
-                ref(view);
-            } else if (ref !== undefined && ref !== null) {
-                ref.current = view;
-            }
-        },
-        [ref],
-    );
+    const node = useRef<NativeView>(null);
+    // The host's own `ref` and this button's focus request name the same node.
+    const composed = useComposedRefs(ref, node);
     useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
 
     return (
         <PressScale
-            ref={setNode}
+            ref={composed}
             onPress={onPress}
             disabled={disabled}
             accessibilityLabel={accessibilityLabel}

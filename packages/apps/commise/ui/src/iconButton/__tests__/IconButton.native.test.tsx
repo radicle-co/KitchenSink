@@ -6,7 +6,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
-import type { ReactElement } from 'react';
+import { createRef, type ReactElement } from 'react';
+import type { View } from 'react-native';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
 vi.mock('react-native', async (importOriginal) => {
@@ -100,5 +101,41 @@ describe('IconButton (native), a focus request', () => {
             'focus',
         );
         expect(handled).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands the host its own ref, object or callback, the button node, and still moves focus on a request', () => {
+        const objectRef = createRef<View>();
+        const callbackRef = vi.fn<(node: View | null) => void>();
+
+        const { rerender } = render(
+            themed(
+                <IconButton
+                    icon="x"
+                    accessibilityLabel="Cancel"
+                    onPress={vi.fn()}
+                    ref={objectRef}
+                    focusRequested={false}
+                />,
+            ),
+        );
+        const button = screen.getByRole('button', { name: 'Cancel' });
+
+        expect(objectRef.current).toBe(button);
+
+        rerender(
+            themed(
+                <IconButton
+                    icon="x"
+                    accessibilityLabel="Cancel"
+                    onPress={vi.fn()}
+                    ref={callbackRef}
+                    focusRequested
+                    onFocusRequestHandled={vi.fn()}
+                />,
+            ),
+        );
+
+        expect(callbackRef).toHaveBeenCalledWith(button);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(button, 'focus');
     });
 });

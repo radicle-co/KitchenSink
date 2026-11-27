@@ -7,6 +7,9 @@
  * component that spreads a level into its own style draws a shadow the theme cannot recolour and that Android draws
  * only when that view carries the fill. So the table is read only inside the modules that own it.
  *
+ * Known limit: an aliased import (`import { nativeTokens as t }`) is not followed. Nobody writes one today; widen the
+ * reader if one appears.
+ *
  * @pattern Specification — a pure predicate over a parsed module, with the owning modules named in one place
  */
 import ts from 'typescript';

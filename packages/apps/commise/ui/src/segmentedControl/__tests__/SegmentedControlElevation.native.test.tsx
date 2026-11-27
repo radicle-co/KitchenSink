@@ -31,7 +31,8 @@ const PLACES = [
 ] as const;
 
 describe.each(['light', 'dark'] as const)('SegmentedControl (native), %s theme: its elevation', (scheme) => {
-    it('lifts only the selected tab, with the sm level of the table whole (mutant: a literal shadow, or every tab)', () => {
+    // Mutant: a literal shadow, or every tab lifted.
+    it('lifts only the selected tab, with the sm level of the table whole', () => {
         systemScheme.current = scheme;
         renderWithTamagui(
             <SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />,

@@ -33,7 +33,8 @@ afterEach(() => {
 });
 
 describe.each(['light', 'dark'] as const)('FabFace (native, solid), %s theme', (scheme) => {
-    it('lifts the face with the lg level of the elevation table whole (mutant: a literal shadow, or another level)', () => {
+    // Mutant: a literal shadow, or another level.
+    it('lifts the face with the lg level of the elevation table whole', () => {
         systemScheme.current = scheme;
         renderWithTamagui(
             <FabFace label="New recipe" icon="plus" presentation="extended" onLabelWidth={vi.fn()} />,

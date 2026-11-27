@@ -29,7 +29,8 @@ afterEach(() => {
 const noop = () => undefined;
 
 describe.each(['light', 'dark'] as const)('CollectionListResults (native), %s theme: its card elevation', (scheme) => {
-    it('lifts each collection card with the sm level of the table whole (mutant: a literal shadow, or another level)', () => {
+    // Mutant: a literal shadow, or another level.
+    it('lifts each collection card with the sm level of the table whole', () => {
         systemScheme.current = scheme;
         render(
             <LocaleProvider locale="en">

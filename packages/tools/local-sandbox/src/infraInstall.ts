@@ -70,7 +70,8 @@ export function cdkInstallArgs(appDir: string): readonly string[] {
 /**
  * The environment for the CDK app install. `npm run local:up` hands its child the user's `allow-scripts` list as
  * `npm_config_allow_scripts`, and npm refuses a command-line or environment policy in a project install
- * (`EALLOWSCRIPTS`). Emptying it lets the install run; the list stays in the user's `.npmrc`, which this never edits.
+ * (`EALLOWSCRIPTS`). An empty value is no policy, so npm reads the same list from the user's `.npmrc` and
+ * applies it: the script policy is unchanged, and this never edits that file.
  *
  * @param base - The environment the install would inherit.
  * @returns A copy with the allow-scripts list emptied. Pure.

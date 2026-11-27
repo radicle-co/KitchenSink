@@ -117,8 +117,9 @@ describe('cdkInstallArgs', () => {
     });
 });
 
-// `npm run local:up` hands its child the user's `allow-scripts` list as `npm_config_allow_scripts`, and npm refuses that
-// as a command-line policy in a project install (EALLOWSCRIPTS). The install sees it empty; the user's `.npmrc` stays.
+// `npm run local:up` hands its child the user's `allow-scripts` list as `npm_config_allow_scripts`, and npm refuses
+// that as a command-line policy in a project install (EALLOWSCRIPTS). The install sees it empty, so npm applies the
+// list from the user's `.npmrc` instead.
 describe('cdkInstallEnv', () => {
     it('empties the allow-scripts list and keeps every other variable', () => {
         expect(cdkInstallEnv({ PATH: '/bin', npm_config_allow_scripts: 'trace-mcp,protobufjs' })).toEqual({

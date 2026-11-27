@@ -49,7 +49,7 @@ vi.mock('react-native', async (importOriginal) => {
     });
 });
 vi.mock('react-native-safe-area-context', () => ({
-    useSafeAreaInsets: () => ({ top: 0, right: 48, bottom: 21, left: 0 }),
+    useSafeAreaInsets: () => ({ top: 24, right: 48, bottom: 21, left: 0 }),
 }));
 
 beforeEach(() => {
@@ -300,7 +300,7 @@ describe('PhotoCarousel (native)', () => {
 
                     expect(appliedStyle(close, 'width')).toBe(side);
                     expect(appliedStyle(close, 'height')).toBe(side);
-                    expect(appliedStyle(slot, 'top')).toBe('8px');
+                    expect(appliedStyle(slot, 'top')).toBe('32px');
                     expect(appliedStyle(slot, 'right')).toBe('56px');
                 } finally {
                     Object.defineProperty(Platform, 'OS', { value: original, configurable: true });

@@ -190,6 +190,9 @@ describe('Stepper (web)', () => {
             // context. Without both classes the positioned frame paints over the button and hides its glyph.
             expect(frame.className.split(/\s+/u)).toContain('-z-10');
             expect(frame.parentElement?.className.split(/\s+/u)).toContain('isolate');
+            // Size: the seat is the 44 px box, and the frame fills it edge to edge.
+            expect(frame.parentElement?.className.split(/\s+/u)).toContain('size-[44px]');
+            expect(frame.className.split(/\s+/u)).toEqual(expect.arrayContaining(['absolute', 'inset-0']));
         }
     });
 

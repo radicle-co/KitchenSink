@@ -8,7 +8,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { ForbiddenError, isRecipeNotFoundError, NotFoundError, RecipeServiceClient } from '../index.js';
+import {
+    ForbiddenError,
+    isRecipeNotFoundError,
+    NotFoundError,
+    RecipeServiceClient,
+    SourceUnavailableError,
+} from '../index.js';
 import { stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
@@ -33,14 +39,15 @@ describe('isRecipeNotFoundError', () => {
         expect(isRecipeNotFoundError(error)).toBe(true);
     });
 
-    it("⛔ is false for the ALB's code-less text/plain 404, read through the client", async () => {
+    it("⛔ is false for the ALB's code-less text/plain 404, which now reads as service-unavailable", async () => {
         const fetchMock = (async () =>
             new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
         const error: unknown = await new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock })
             .deleteRecipe('rec_1')
             .catch((caught: unknown) => caught);
 
-        expect(error).toBeInstanceOf(NotFoundError);
+        expect(error).toBeInstanceOf(SourceUnavailableError);
+        expect(error).not.toBeInstanceOf(NotFoundError);
         expect(isRecipeNotFoundError(error)).toBe(false);
     });
 });

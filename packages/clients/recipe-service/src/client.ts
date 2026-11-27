@@ -1871,8 +1871,12 @@ export class RecipeServiceClient {
                 return new UnauthorizedError(message, code);
             case 403:
                 return new ForbiddenError(message, code);
+            // ⛔ A 404 is "not there" only when the SERVICE said so. The shared ALB's own 404 (a host or path with no
+            // rule, ADR-0003) has no envelope, and reading it as "deleted" hid an outage behind a missing item (owner ruling 2026-11-26).
             case 404:
-                return new NotFoundError(message, code);
+                return envelope === undefined
+                    ? new SourceUnavailableError('The recipe service did not answer the request')
+                    : new NotFoundError(message, code);
             // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
             // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
             // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no

@@ -10,7 +10,7 @@ import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-quer
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import { collectionQueries, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
+import { collectionQueries, ForbiddenError, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider, useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { FC } from 'react';
@@ -151,12 +151,15 @@ describe('useCollectionVisibility', () => {
         expect(screen.getByRole('status').textContent).not.toContain(commonMessages.en.undoFailed);
     });
 
-    it('says it could not undo, with no failed-change alert, when the Undo fails for now', async () => {
+    it.each([
+        ['fails for now', () => new TypeError('Failed to fetch')],
+        ['is refused', () => new ForbiddenError()],
+    ] as const)('says it could not undo, with no failed-change alert, when the Undo %s', async (_name, failure) => {
         const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
 
         press('make private');
         await screen.findByText('now private');
-        update.mockRejectedValue(new TypeError('Failed to fetch'));
+        update.mockRejectedValue(failure());
         fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
 
         await vi.waitFor(() => {

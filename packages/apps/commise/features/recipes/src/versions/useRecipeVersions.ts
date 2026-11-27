@@ -27,7 +27,6 @@ import {
     isNotFoundError,
     isPrivateFoodsOnPublicRecipeError,
     isVersionConflictError,
-    shouldRetryRecipeServiceFailure,
     recipeQueries,
 } from '@kitchensink/recipe-service-client';
 import {
@@ -121,6 +120,15 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
         refusedFoods === undefined ? classifyRestoreError(restore.error, restore.variables?.versionNumber) : undefined;
     const refusedVersion = versions.find((version) => version.versionNumber === restore.variables?.versionNumber);
 
+    /** What a failed Undo says: deleted, changed since, or failed for another reason (the change is still in place). */
+    const undoMessageFor = (error: unknown): string => {
+        if (isNotFoundError(error)) {
+            return undoGone;
+        }
+
+        return isVersionConflictError(error) ? versionList.undoConflict : undoFailed;
+    };
+
     const restoreVersion = (versionNumber: number, options: RestoreOptions = {}): void => {
         const { onRestored, undoable = true } = options;
         const wasCurrent = recipe.currentVersion;
@@ -136,13 +144,14 @@ export function useRecipeVersions({ recipeId, onOpenFood }: RecipeVersionsInput)
                 // stale by id (the history's key sits under the recipe's), so it also works once this screen is gone.
                 if (isVersionConflictError(error)) {
                     void queryClient.invalidateQueries({ queryKey: recipeServiceKeys.recipe(recipeId) });
-                } else if (!undoable && isNotFoundError(error)) {
-                    snackbar.show({ message: undoGone });
-                } else if (!undoable && shouldRetryRecipeServiceFailure(error)) {
-                    // The restore is still in place, so the inline error that says a restore failed is the wrong story
-                    // after a failed Undo: clear it (a no-op once this screen is gone).
+                }
+
+                // The first restore keeps its inline error. An Undo says what happened in the snackbar instead, and
+                // clears that inline error first, since it would tell the wrong story (a no-op once the screen
+                // is gone).
+                if (!undoable) {
                     restore.reset();
-                    snackbar.show({ message: undoFailed });
+                    snackbar.show({ message: undoMessageFor(error) });
                 }
 
                 return;

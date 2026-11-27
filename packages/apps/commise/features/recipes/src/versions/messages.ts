@@ -59,6 +59,8 @@ export interface RecipeVersionListMessages {
     readonly restored: string;
     /** The snackbar's action that restores the version that was current before. */
     readonly undo: string;
+    /** The snackbar when the Undo meets a newer change to the recipe, so "still in place" may not be true. */
+    readonly undoConflict: string;
     /** The empty state's explanation under its heading. */
     readonly emptyBody: string;
     /** The loading state's name, on both apps. */
@@ -325,6 +327,7 @@ export const recipeVersionMessages: LocalizedMessages<RecipeVersionMessages> = {
             rowDetail: 'Version {version} · Edited {time}',
             restored: 'Restored version {version}.',
             undo: 'Undo',
+            undoConflict: 'Can’t undo. The recipe changed since. Open its versions to check.',
             emptyBody: 'Each time you save changes, the version before is kept here.',
             loading: 'Loading version history…',
             loadError: 'We couldn’t load the version history.',

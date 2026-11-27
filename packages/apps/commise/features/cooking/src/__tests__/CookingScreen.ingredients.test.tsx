@@ -1,8 +1,8 @@
-import { CookMarksProvider, useServingScale } from '@commise/features-recipes/cook';
+import { useServingScale } from '@commise/features-recipes/cook';
 import { act, cleanup, fireEvent, render, renderHook, screen, within } from '@testing-library/react';
-import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.js';
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { makeRecipeIngredientView } from '../__fixtures__/makeRecipeIngredientView.js';
@@ -16,9 +16,7 @@ import type { CookingScreenRead } from '../cookingViewProps.js';
  * page
  * reads, the copy is the real catalogue, and the band comes from a `matchMedia` that answers the real 50 em query.
  */
-const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
-    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
-);
+const { Wrapper } = makeCookingWrapper();
 
 /** Answer the two-column query, and let a test cross the band as a resize does. */
 function stubWindow(wide: boolean) {
@@ -81,7 +79,7 @@ function open(options: {
         renderHook(() => useServingScale(id, 2), { wrapper: Wrapper }).result.current.setServings(servings);
     }
 
-    return render(<CookingScreen read={read} onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />, {
+    return render(<CookingScreen read={read} recipeId="r1" onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />, {
         wrapper: Wrapper,
     });
 }

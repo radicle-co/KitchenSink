@@ -212,9 +212,18 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
         );
     },
 }));
+// The real screen takes Android Back itself and leaves like its Back control. This stand-in registers the same
+// intercept through the real hook, so the row below still presses real hardware Back and expects the same leave.
 vi.mock('../../src/screens/CookingModeScreen.js', () => ({
-    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) =>
-        stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome }),
+    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) => {
+        useBackIntercept(() => {
+            props.onLeave();
+
+            return true;
+        });
+
+        return stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome });
+    },
 }));
 vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
     CollectionDetailScreen: (props: { collectionId: string; onDeleted: () => void; onCloned: (id: string) => void }) =>

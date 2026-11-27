@@ -20,10 +20,10 @@ import { useAuth } from '@clerk/expo';
 import { DefaultTheme, NavigationContainer, type Theme as NavigationTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { PageFootContext } from '@commise/ui/popup-insets';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { useTheme } from '@commise/ui/theme';
-import { useCallback, useContext, useMemo, useState, type JSX } from 'react';
+import { useContext, useMemo, useState, type JSX } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { focusedRootRouteOf, ReportFocusedRootRouteContext } from './focusedRootRoute.js';
@@ -55,9 +55,8 @@ export function RootNavigator(): JSX.Element {
     const [onTabs, setOnTabs] = useState(true);
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
 
-    // The popups (the snackbar) keep clear of the tab bar while the tabs show, and of the home indicator on a task.
+    // The snackbar keeps clear of the tab bar while the tabs show, and of the home indicator on a task.
     const footHeight = onTabs ? tabBarHeight : insets.bottom;
-    const readInsets = useCallback(() => ({ top: 0, bottom: footHeight }), [footHeight]);
 
     // Transparent scenes, so the root `AppCanvas` wash shows through (issue #145); the rest from the theme's roles.
     const theme = useMemo<NavigationTheme>(
@@ -89,7 +88,7 @@ export function RootNavigator(): JSX.Element {
                     reportFocusedRoot(focusedRootRouteOf(state));
                 }}
             >
-                <PopupInsetsContext value={readInsets}>
+                <PageFootContext value={footHeight}>
                     <SnackbarHost subject={userId}>
                         <RootStack.Navigator
                             screenOptions={{
@@ -107,7 +106,7 @@ export function RootNavigator(): JSX.Element {
                             </RootStack.Group>
                         </RootStack.Navigator>
                     </SnackbarHost>
-                </PopupInsetsContext>
+                </PageFootContext>
             </NavigationContainer>
         </BackInterceptProvider>
     );

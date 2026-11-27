@@ -10,7 +10,7 @@
  * - no decision while the viewer is unknown.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { CookMarksProvider } from '@commise/features-recipes/cook';
+import { makeCookingWrapper } from '@commise/features-cooking/testing/web';
 import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -31,12 +31,14 @@ import { CookingRoute } from '@/app/[locale]/recipes/[id]/cook/CookingRoute';
 
 import { makeRecipeDetail } from '../recipes/__fixtures__/recipeFixtures';
 
-/** The route under the cook marks provider the app root mounts: the cooking screen reads the cook's ticks. */
+/** The route under the providers the app root mounts: the cook's ticks, the session's timer and the snackbar host. */
+const { Wrapper: CookingProviders } = makeCookingWrapper();
+
 function CookingRouteWithMarks(): ReactNode {
     return (
-        <CookMarksProvider subject="user_test">
+        <CookingProviders>
             <CookingRoute id="rec_1" />
-        </CookMarksProvider>
+        </CookingProviders>
     );
 }
 

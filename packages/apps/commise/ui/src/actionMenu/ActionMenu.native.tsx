@@ -22,6 +22,7 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { HeroButton } from '../heroButton/HeroButton.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import { IconButton } from '../iconButton/IconButton.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Sheet } from '../sheet/Sheet.native.js';
@@ -97,7 +98,6 @@ export const ActionMenu: FC<ActionMenuProps> = ({
 }) => {
     const [open, setOpen] = useState(false);
     const { colors } = useTheme();
-    const wash = usePressFill();
     // What the open sheet shows: the actions as they were when the sheet opened.
     const [shown, setShown] = useState<ActionMenuSnapshot>({ items, destructiveItem });
     // The chosen item's key, waiting for the sheet to go.
@@ -158,21 +158,14 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                     />
                 </View>
             ) : (
-                <Pressable
+                <IconButton
                     ref={triggerFocus}
-                    accessibilityRole="button"
+                    icon="ellipsis"
                     accessibilityLabel={triggerLabel}
-                    aria-expanded={open}
-                    // `accessibilityState.disabled` on device; a disabled Pressable keeps the screen-reader cursor.
+                    expanded={open}
                     disabled={unavailable}
                     onPress={openMenu}
-                    style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
-                >
-                    {/* Kept, so `unavailable` (`opacity`) never moves the glyph (`nativeFlattenFlips.test.ts`). */}
-                    <View collapsable={false} style={unavailable ? styles.unavailable : null}>
-                        <Icon name="ellipsis" size={24} />
-                    </View>
-                </Pressable>
+                />
             )}
             <Sheet
                 open={open}
@@ -217,13 +210,6 @@ export const ActionMenu: FC<ActionMenuProps> = ({
 };
 
 const styles = StyleSheet.create({
-    trigger: {
-        minWidth: TARGET_DP,
-        minHeight: TARGET_DP,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: TARGET_DP / 2,
-    },
     // The web leaf's `aria-disabled:opacity-60`, so unavailable reads to the eye too.
     unavailable: { opacity: 0.6 },
     item: {

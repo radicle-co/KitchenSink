@@ -92,7 +92,8 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        expect(background(screen.getByRole('button', { name: 'Actions for Saffron' }))).toBe(rgb(theme.press.muted));
+        // TEST-CHANGE (decisions/0118 addendum 4): the press fill is painted on the icon button's circle inside the button.
+        expect(paintedUnder(screen.getByRole('button', { name: 'Actions for Saffron' }))).toBe(rgb(theme.press.muted));
     });
 
     it('a Combobox option in its list presses to paperOverlay, while the field’s own buttons press to the muted row', () => {

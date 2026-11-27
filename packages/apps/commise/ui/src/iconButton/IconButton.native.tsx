@@ -28,6 +28,8 @@ const Circle = styled(View, {
     borderRadius: '$full',
     alignItems: 'center',
     justifyContent: 'center',
+    // Kept, so the dim (`opacity`) never moves the glyph (`nativeFlattenFlips.test.ts`).
+    collapsable: false,
 
     variants: {
         // The one dim every disabled control shares (`tokens/scale.ts`).

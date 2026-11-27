@@ -525,7 +525,7 @@
       "x": 470,
       "y": 19661,
       "w": 390,
-      "h": 9980,
+      "h": 10180,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, iPhone 390)"
     },
     "AccountCloseLicenceStatesAndroid384.dc.html": {
@@ -537,9 +537,9 @@
     },
     "AccountEraseLicenceStatesAndroid384.dc.html": {
       "x": 464,
-      "y": 30201,
+      "y": 30401,
       "w": 384,
-      "h": 9970,
+      "h": 10170,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, Android 384)"
     }
   },

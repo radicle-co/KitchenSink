@@ -185,7 +185,13 @@ function giveInstall(path, installRoot) {
         linkTrees(shared, path);
         utimesSync(shared, new Date(), new Date());
     } else {
-        execFileSync('npm', ['ci'], { cwd: path, stdio: 'inherit' });
+        // `npm run worktree:add` hands this child the user's `allow-scripts` list as `npm_config_allow_scripts`, which npm
+        // refuses in a project install (EALLOWSCRIPTS). Emptied here; the user's `.npmrc` is never edited.
+        execFileSync('npm', ['ci'], {
+            cwd: path,
+            stdio: 'inherit',
+            env: { ...process.env, npm_config_allow_scripts: '' },
+        });
 
         const tmp = join(installRoot, `${TMP_PREFIX}${hash}-${process.pid}`);
 

@@ -49,7 +49,7 @@ describe('installMissingCdkDependencies', () => {
         expect(spawnSync).toHaveBeenCalledWith(
             'npm',
             ['ci', '--prefix', path.join(REPO_ROOT, app.packageDir), '--no-audit', '--no-fund'],
-            { encoding: 'utf8' },
+            { encoding: 'utf8', env: expect.objectContaining({ npm_config_allow_scripts: '' }) },
         );
         expect(result).toEqual({ installed: [app.packageDir], failed: [] });
     });

@@ -6,15 +6,27 @@
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { present } from '../../testing/present.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { DesignSystemTheme } from '../../tamagui/DesignSystemTheme.native.js';
 import { CookingTimerRow } from '../CookingTimerRow.native.js';
 import { CookingTimerSummary } from '../CookingTimerSummary.native.js';
 import type { CookingTimerRowState } from '../props.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+});
 
 const summary = (
     <CookingTimerSummary
@@ -144,5 +156,58 @@ describe('CookingTimerSummary (native)', () => {
         renderWithTamagui(summary, 'light', 3);
 
         expect(getComputedStyle(screen.getByText('1:09:50')).fontSize).toBe('42px');
+    });
+});
+
+describe('CookingTimerRow (native), focus across states', () => {
+    it('keeps the primary action mounted when Pause becomes Resume', () => {
+        const pause = vi.fn<() => void>();
+        const cancel = vi.fn<() => void>();
+        const resume = vi.fn<() => void>();
+        const { rerender } = renderWithTamagui(
+            <CookingTimerRow state={running(pause, cancel)} body={summary} />,
+            'light',
+        );
+        const primary = screen.getByRole('button', { name: 'Pause Roast timer' });
+
+        rerender(
+            <DesignSystemTheme scheme="light" textScale={1}>
+                <CookingTimerRow
+                    state={{
+                        kind: 'paused',
+                        resume: { label: 'Resume Roast timer', onPress: resume },
+                        cancel: { label: 'Cancel Roast timer', onPress: cancel },
+                    }}
+                    body={summary}
+                />
+            </DesignSystemTheme>,
+        );
+
+        expect(screen.getByRole('button', { name: 'Resume Roast timer' })).toBe(primary);
+    });
+
+    it("passes an action's focus request to its button, and acknowledges it", () => {
+        const handled = vi.fn<() => void>();
+        renderWithTamagui(
+            <CookingTimerRow
+                state={{
+                    kind: 'done',
+                    stop: {
+                        label: 'Stop Roast timer',
+                        onPress: vi.fn(),
+                        focusRequested: true,
+                        onFocusRequestHandled: handled,
+                    },
+                }}
+                body={summary}
+            />,
+            'light',
+        );
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('button', { name: 'Stop Roast timer' }),
+            'focus',
+        );
+        expect(handled).toHaveBeenCalledTimes(1);
     });
 });

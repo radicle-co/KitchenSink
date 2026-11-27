@@ -15,8 +15,8 @@ describe('timerRowActions', () => {
         const cancel = action('Cancel');
 
         expect(timerRowActions({ kind: 'running', pause, cancel })).toStrictEqual([
-            { icon: 'pause', action: pause },
-            { icon: 'x', action: cancel },
+            { slot: 'primary', icon: 'pause', action: pause },
+            { slot: 'secondary', icon: 'x', action: cancel },
         ]);
     });
 
@@ -25,14 +25,22 @@ describe('timerRowActions', () => {
         const cancel = action('Cancel');
 
         expect(timerRowActions({ kind: 'paused', resume, cancel })).toStrictEqual([
-            { icon: 'play', action: resume },
-            { icon: 'x', action: cancel },
+            { slot: 'primary', icon: 'play', action: resume },
+            { slot: 'secondary', icon: 'x', action: cancel },
         ]);
+    });
+
+    it('keeps one slot for Pause and Resume, so the button is the same one', () => {
+        const slotOf = (state: Parameters<typeof timerRowActions>[0]): string | undefined =>
+            timerRowActions(state)[0]?.slot;
+        const a = action('a');
+
+        expect(slotOf({ kind: 'running', pause: a, cancel: a })).toBe(slotOf({ kind: 'paused', resume: a, cancel: a }));
     });
 
     it('done: Stop alone', () => {
         const stop = action('Stop');
 
-        expect(timerRowActions({ kind: 'done', stop })).toStrictEqual([{ icon: 'x', action: stop }]);
+        expect(timerRowActions({ kind: 'done', stop })).toStrictEqual([{ slot: 'primary', icon: 'x', action: stop }]);
     });
 });

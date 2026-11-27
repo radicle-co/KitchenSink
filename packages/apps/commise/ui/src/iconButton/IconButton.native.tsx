@@ -9,13 +9,15 @@
  *
  * @pattern Decorator — `PressScale` adds the press motion and owns the one `Pressable`
  */
-import type { FC, Ref } from 'react';
+import { useCallback, useRef, type FC, type Ref } from 'react';
 import type { View as NativeView } from 'react-native';
 import { styled, View } from 'tamagui';
 
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { PressScale } from '../pressScale/PressScale.native.js';
+import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { ICON_BUTTON_CIRCLE_PX, type IconButtonProps } from './props.js';
 
@@ -65,10 +67,28 @@ export const IconButton: FC<IconButtonNativeProps> = ({
     ref,
     expanded,
     description,
+    focusRequested = false,
+    onFocusRequestHandled,
 }) => {
+    const node = useRef<NativeView | null>(null);
+    // The host's own `ref` and this button's focus request name the same node, so one callback feeds both.
+    const setNode = useCallback(
+        (view: NativeView | null) => {
+            node.current = view;
+
+            if (typeof ref === 'function') {
+                ref(view);
+            } else if (ref !== undefined && ref !== null) {
+                ref.current = view;
+            }
+        },
+        [ref],
+    );
+    useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
+
     return (
         <PressScale
-            ref={ref}
+            ref={setNode}
             onPress={onPress}
             disabled={disabled}
             accessibilityLabel={accessibilityLabel}

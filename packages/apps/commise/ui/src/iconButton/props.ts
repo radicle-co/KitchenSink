@@ -15,6 +15,13 @@ export interface IconButtonProps {
     readonly accessibilityLabel: string;
     /** Called once per press, and never while {@link disabled}. */
     readonly onPress: () => void;
+    /**
+     * A host asks for focus on the button: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on
+     * `Button`: it stands until {@link onFocusRequestHandled} acknowledges it.
+     */
+    readonly focusRequested?: boolean;
+    /** Called once the button has taken a requested focus; the host clears its request here. */
+    readonly onFocusRequestHandled?: () => void;
     /** The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear. */
     readonly tone?: IconButtonTone;
     /**

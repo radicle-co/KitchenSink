@@ -10,9 +10,10 @@
  * @pattern Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,
  *     shared with a control that keeps its own element
  */
-import type { FC } from 'react';
+import { useRef, type FC } from 'react';
 
 import { refusedPressProps } from '../button/busyControlProps.js';
+import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 import { Icon } from '../icon/Icon.js';
 import { PressScale } from '../pressScale/PressScale.js';
@@ -47,20 +48,28 @@ export const IconButton: FC<IconButtonProps> = ({
     onPress,
     tone = 'ink',
     disabled = false,
-}) => (
-    <PressScale>
-        <button
-            type="button"
-            aria-label={accessibilityLabel}
-            className={`${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS[tone]} ${ICON_BUTTON_DISABLED_CLASS}`}
-            {...refusedPressProps({
-                unavailable: disabled,
-                onClick: () => {
-                    onPress();
-                },
-            })}
-        >
-            <Icon name={icon} size={24} />
-        </button>
-    </PressScale>
-);
+    focusRequested = false,
+    onFocusRequestHandled,
+}) => {
+    const node = useRef<HTMLButtonElement>(null);
+    useFocusRequest(focusRequested, () => node.current?.focus(), onFocusRequestHandled);
+
+    return (
+        <PressScale>
+            <button
+                ref={node}
+                type="button"
+                aria-label={accessibilityLabel}
+                className={`${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS[tone]} ${ICON_BUTTON_DISABLED_CLASS}`}
+                {...refusedPressProps({
+                    unavailable: disabled,
+                    onClick: () => {
+                        onPress();
+                    },
+                })}
+            >
+                <Icon name={icon} size={24} />
+            </button>
+        </PressScale>
+    );
+};

@@ -7,8 +7,15 @@
 import type { IconName } from '../icon/props.js';
 import type { CookingTimerRowState, TimerRowAction } from './props.js';
 
-/** One action to draw: its glyph and what it does. */
+/**
+ * Where an action sits in the row. A slot keeps its button mounted when the state changes, so focus stays on it when
+ * Pause becomes Resume.
+ */
+export type TimerActionSlot = 'primary' | 'secondary';
+
+/** One action to draw: its slot, its glyph and what it does. */
 export interface DrawnTimerAction {
+    readonly slot: TimerActionSlot;
     readonly icon: IconName;
     readonly action: TimerRowAction;
 }
@@ -23,15 +30,15 @@ export function timerRowActions(state: CookingTimerRowState): readonly DrawnTime
     switch (state.kind) {
         case 'running':
             return [
-                { icon: 'pause', action: state.pause },
-                { icon: 'x', action: state.cancel },
+                { slot: 'primary', icon: 'pause', action: state.pause },
+                { slot: 'secondary', icon: 'x', action: state.cancel },
             ];
         case 'paused':
             return [
-                { icon: 'play', action: state.resume },
-                { icon: 'x', action: state.cancel },
+                { slot: 'primary', icon: 'play', action: state.resume },
+                { slot: 'secondary', icon: 'x', action: state.cancel },
             ];
         case 'done':
-            return [{ icon: 'x', action: state.stop }];
+            return [{ slot: 'primary', icon: 'x', action: state.stop }];
     }
 }

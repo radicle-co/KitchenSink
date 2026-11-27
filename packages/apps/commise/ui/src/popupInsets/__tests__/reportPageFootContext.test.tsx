@@ -10,7 +10,7 @@ describe('ReportPageFootContext', () => {
         const { result } = renderHook(() => useContext(ReportPageFootContext));
 
         expect(() => {
-            result.current(90);
+            result.current({ routeKey: 'r1', height: 90 });
         }).not.toThrow();
     });
 });

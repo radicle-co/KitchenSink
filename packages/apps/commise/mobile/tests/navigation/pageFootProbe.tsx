@@ -1,48 +1,56 @@
-/** A stub screen for the navigator's foot tests: it shows the foot it reads and has buttons to report a height. */
+/** Stub screens for the navigator's foot tests: each shows the foot it reads, and a task reports a height like a dock. */
 import { PageFootContext, ReportPageFootContext } from '@commise/ui/popup-insets';
-import { useContext, type JSX } from 'react';
+import { useRoute } from '@react-navigation/native';
+import { useContext, useEffect, type JSX } from 'react';
 import { Text, View } from 'react-native';
-
-/** The heights the stub's buttons report. */
-const REPORTS = [90, 10, 0] as const;
 
 export const TAB_BAR = 72;
 
-/** @param props - The screen's name, and for the tabs stub the callback that measures the tab bar. */
-export function Probe({
-    name,
-    tabBar,
-}: {
-    readonly name: string;
-    readonly tabBar?: (height: number) => void;
-}): JSX.Element {
+/** The tabs stub: it can measure its tab bar, and it tries to report a dock height, which a tab must ignore. */
+export function TabsProbe({ onTabBarHeight }: { readonly onTabBarHeight: (height: number) => void }): JSX.Element {
     const foot = useContext(PageFootContext);
     const report = useContext(ReportPageFootContext);
+    const { key } = useRoute();
 
     return (
         <View>
-            <Text accessibilityRole="header">{`${name} foot ${String(foot)}`}</Text>
-            {tabBar === undefined ? null : (
-                <Text
-                    accessibilityRole="button"
-                    onPress={() => {
-                        tabBar(TAB_BAR);
-                    }}
-                >
-                    Measure tab bar
-                </Text>
-            )}
-            {REPORTS.map((height) => (
-                <Text
-                    key={height}
-                    accessibilityRole="button"
-                    onPress={() => {
-                        report(height);
-                    }}
-                >
-                    {`Report ${String(height)}`}
-                </Text>
-            ))}
+            <Text accessibilityRole="header">{`tabs foot ${String(foot)}`}</Text>
+            <Text
+                accessibilityRole="button"
+                onPress={() => {
+                    onTabBarHeight(TAB_BAR);
+                }}
+            >
+                Measure tab bar
+            </Text>
+            <Text
+                accessibilityRole="button"
+                onPress={() => {
+                    report({ routeKey: key, height: 90 });
+                }}
+            >
+                Report 90
+            </Text>
         </View>
     );
+}
+
+/**
+ * A task stub with a dock: it shows the foot it reads, and reports `height` under its own route key when it is shown
+ * and 0 when it goes, the way the cooking dock does. No button, so a test sees the navigator's own timing.
+ */
+export function DockProbe({ name, height }: { readonly name: string; readonly height: number }): JSX.Element {
+    const foot = useContext(PageFootContext);
+    const report = useContext(ReportPageFootContext);
+    const { key } = useRoute();
+
+    useEffect(() => {
+        report({ routeKey: key, height });
+
+        return () => {
+            report({ routeKey: key, height: 0 });
+        };
+    }, [report, key, height]);
+
+    return <Text accessibilityRole="header">{`${name} foot ${String(foot)}`}</Text>;
 }

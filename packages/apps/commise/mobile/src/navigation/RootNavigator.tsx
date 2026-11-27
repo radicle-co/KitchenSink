@@ -20,10 +20,10 @@ import { useAuth } from '@clerk/expo';
 import { DefaultTheme, NavigationContainer, type Theme as NavigationTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
-import { PageFootContext, ReportPageFootContext } from '@commise/ui/popup-insets';
+import { PageFootContext, ReportPageFootContext, type PageFootReport } from '@commise/ui/popup-insets';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { useTheme } from '@commise/ui/theme';
-import { useContext, useMemo, useState, type JSX } from 'react';
+import { useCallback, useContext, useMemo, useState, type JSX } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { focusedRootRouteOf, ReportFocusedRootRouteContext } from './focusedRootRoute.js';
@@ -50,6 +50,19 @@ function taskLayout({ children }: { readonly children: JSX.Element }): JSX.Eleme
     return <TaskLayout>{children}</TaskLayout>;
 }
 
+/** The focused root route: its name, and its key, which tells two screens of one name apart. */
+interface FocusedRoute {
+    readonly name?: string;
+    readonly key?: string;
+}
+
+/** @param state - The container's state, or `undefined` before it is ready. @returns The focused root route. Pure. */
+function focusedRouteOf(state: Parameters<typeof focusedRootRouteOf>[0]): FocusedRoute {
+    const route = state?.routes[state.index ?? 0];
+
+    return { name: route?.name, key: route?.key };
+}
+
 /** The app's navigation and its one snackbar host. */
 export function RootNavigator(): JSX.Element {
     // Whom the snackbars belong to: one showing never outlives the cook who raised it (sign-out, account change).
@@ -57,14 +70,19 @@ export function RootNavigator(): JSX.Element {
     const { colors, scheme } = useTheme();
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
-    const [dockHeight, setDockHeight] = useState(0);
-    const [focusedRoute, setFocusedRoute] = useState<string | undefined>('Tabs');
-    const onTabs = focusedRoute === 'Tabs';
+    const [dockHeights, setDockHeights] = useState<Readonly<Record<string, number>>>({});
+    const [focused, setFocused] = useState<FocusedRoute>({ name: 'Tabs' });
+    const onTabs = focused.name === 'Tabs';
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
+    // One height per route, so a screen covered by another keeps its own, and a report of 0 forgets the route.
+    const reportDock = useCallback(({ routeKey, height }: PageFootReport) => {
+        setDockHeights(({ [routeKey]: _gone, ...rest }) => (height > 0 ? { ...rest, [routeKey]: height } : rest));
+    }, []);
 
     // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the
-    // task's own bottom bar (the cooking dock) once that reports a height. The dock's number already includes the home
-    // indicator it pads for, so the larger of the two is the foot.
+    // task's own bottom bar (the cooking dock) while the route that reported it is the focused one. The dock's number
+    // already includes the home indicator it pads for, so the larger of the two is the foot.
+    const dockHeight = (focused.key === undefined ? undefined : dockHeights[focused.key]) ?? 0;
     const footHeight = onTabs ? tabBarHeight : Math.max(insets.bottom, dockHeight);
 
     // Transparent scenes, so the root `AppCanvas` wash shows through (issue #145); the rest from the theme's roles.
@@ -91,22 +109,21 @@ export function RootNavigator(): JSX.Element {
                 theme={theme}
                 // `onReady` reports the route a fresh container opened on, so a gate that outlived a sign-out never
                 // keeps the last session's focus.
-                onReady={() => reportFocusedRoot(focusedRootRouteOf(navigationRef.getRootState()))}
+                onReady={() => {
+                    const route = focusedRouteOf(navigationRef.getRootState());
+
+                    setFocused(route);
+                    reportFocusedRoot(route.name);
+                }}
                 onStateChange={(state) => {
-                    const route = focusedRootRouteOf(state);
+                    const route = focusedRouteOf(state);
 
-                    // A dock's height belongs to the screen that reported it: a new focused route starts with none, and
-                    // a dock that comes back into view reports again.
-                    if (route !== focusedRoute) {
-                        setDockHeight(0);
-                    }
-
-                    setFocusedRoute(route);
-                    reportFocusedRoot(route);
+                    setFocused(route);
+                    reportFocusedRoot(route.name);
                 }}
             >
                 <PageFootContext value={footHeight}>
-                    <ReportPageFootContext value={setDockHeight}>
+                    <ReportPageFootContext value={reportDock}>
                         <SnackbarHost subject={userId}>
                             <RootStack.Navigator
                                 screenOptions={{

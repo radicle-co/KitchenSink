@@ -15,6 +15,7 @@ import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
+import { WindowScope } from '@commise/ui/window-scope';
 import { surfaceToneClass, PRESS_FILL_CLASS } from '@commise/ui/surface-tone';
 import * as Dialog from '@radix-ui/react-dialog';
 import type { FC } from 'react';
@@ -37,46 +38,51 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                 <Dialog.Content
                     onCloseAutoFocus={onCloseAutoFocus}
                     aria-describedby={undefined}
-                    className={`fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col gap-4 overflow-y-auto ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
+                    className={`fixed inset-y-0 end-0 z-50 flex w-full max-w-md flex-col ${surfaceToneClass('paperOverlay')} shadow-lg`}
                 >
-                    <div className="flex items-start justify-between gap-3">
-                        <Dialog.Title className="text-section-title text-ink">
-                            {fillTemplate(compare.title, { version: versionNumber })}
-                        </Dialog.Title>
-                        <Dialog.Close
-                            aria-label={compare.close}
-                            className={`inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
-                        >
-                            <Icon name="x" size={20} />
-                        </Dialog.Close>
-                    </div>
-                    {rows.length === 0 ? (
-                        <p className="text-body text-ink-muted">{compare.noChanges}</p>
-                    ) : (
-                        <ul className="flex flex-col divide-y divide-line-divider">
-                            {rows.map((row) => (
-                                <li key={row.key} className="flex flex-col gap-2 py-3">
-                                    <span className="text-label text-ink">{row.label}</span>
-                                    <dl className="grid grid-cols-1 gap-2 text-meta sm:grid-cols-2">
-                                        <div className="flex flex-col gap-0.5">
-                                            <dt className="text-caption text-ink-muted">
-                                                {fillTemplate(compare.wasLabel, { version: versionNumber })}
-                                            </dt>
-                                            <dd className="break-words text-ink">
-                                                {row.was === '' ? compare.noValue : row.was}
-                                            </dd>
-                                        </div>
-                                        <div className="flex flex-col gap-0.5">
-                                            <dt className="text-caption text-ink-muted">{compare.nowLabel}</dt>
-                                            <dd className="break-words text-ink">
-                                                {row.now === '' ? compare.noValue : row.now}
-                                            </dd>
-                                        </div>
-                                    </dl>
-                                </li>
-                            ))}
-                        </ul>
-                    )}
+                    {/* The panel does not scroll itself, so the snackbar's outlet, which is absolute in it, stays put. */}
+                    <WindowScope>
+                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto p-6">
+                            <div className="flex items-start justify-between gap-3">
+                                <Dialog.Title className="text-section-title text-ink">
+                                    {fillTemplate(compare.title, { version: versionNumber })}
+                                </Dialog.Title>
+                                <Dialog.Close
+                                    aria-label={compare.close}
+                                    className={`inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink-muted ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
+                                >
+                                    <Icon name="x" size={20} />
+                                </Dialog.Close>
+                            </div>
+                            {rows.length === 0 ? (
+                                <p className="text-body text-ink-muted">{compare.noChanges}</p>
+                            ) : (
+                                <ul className="flex flex-col divide-y divide-line-divider">
+                                    {rows.map((row) => (
+                                        <li key={row.key} className="flex flex-col gap-2 py-3">
+                                            <span className="text-label text-ink">{row.label}</span>
+                                            <dl className="grid grid-cols-1 gap-2 text-meta sm:grid-cols-2">
+                                                <div className="flex flex-col gap-0.5">
+                                                    <dt className="text-caption text-ink-muted">
+                                                        {fillTemplate(compare.wasLabel, { version: versionNumber })}
+                                                    </dt>
+                                                    <dd className="break-words text-ink">
+                                                        {row.was === '' ? compare.noValue : row.was}
+                                                    </dd>
+                                                </div>
+                                                <div className="flex flex-col gap-0.5">
+                                                    <dt className="text-caption text-ink-muted">{compare.nowLabel}</dt>
+                                                    <dd className="break-words text-ink">
+                                                        {row.now === '' ? compare.noValue : row.now}
+                                                    </dd>
+                                                </div>
+                                            </dl>
+                                        </li>
+                                    ))}
+                                </ul>
+                            )}
+                        </div>
+                    </WindowScope>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

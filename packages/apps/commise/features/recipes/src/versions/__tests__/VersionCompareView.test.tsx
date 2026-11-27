@@ -8,6 +8,15 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
+
 import { recipeMessages } from '../../messages.js';
 import { makeRecipeVersion, makeSnapshot } from '../__fixtures__/index.js';
 import { compareWithCurrent } from '../compare.js';
@@ -106,5 +115,48 @@ describe('VersionCompareView (web)', () => {
         render(<VersionCompareView open={false} onClose={vi.fn()} />);
 
         expect(screen.queryByRole('dialog')).toBeNull();
+    });
+});
+
+describe('VersionCompareView (web) — offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }) {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <VersionCompareView
+                    open={open}
+                    version={old}
+                    diff={compareWithCurrent(old, current, 'en', lineNames)}
+                    onClose={vi.fn()}
+                />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('scrolls in an inner box, so the outlet, which is absolute in the panel, stays put while the content scrolls', () => {
+        render(<WithHost open />);
+        const panel = screen.getByRole('dialog');
+        const scroller = screen.getByRole('heading', { level: 2 }).parentElement?.parentElement as HTMLElement;
+
+        // Kills: the panel scrolling itself, which carries an absolutely placed snackbar away with the content.
+        expect(panel.className).not.toContain('overflow-y-auto');
+        expect(scroller.className).toContain('overflow-y-auto');
+        expect(panel.contains(scroller)).toBe(true);
     });
 });

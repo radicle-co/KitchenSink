@@ -54,7 +54,8 @@ export function SnackbarProbe(): JSX.Element {
  * @param win - The window's element (its dialog, or the box a `WindowScope` sits in).
  * @param options - The `getAllByRole` options, for a window that is hidden from the accessibility tree.
  * @returns The snackbar's region.
- * @throws Error when the window's two status elements are not laid out as the outlet draws them (the slot, then the region, last).
+ * @throws Error when the window's two status elements are not laid out as the outlet draws them: the slot, then the
+ *     region, last.
  */
 export function snackbarRegionOf(win: HTMLElement, options?: ByRoleOptions): HTMLElement {
     const statuses = within(win).getAllByRole('status', options);

@@ -1,5 +1,5 @@
 {
-    "note": "Same values as docs/architecture/recipeStateModel.md. The code is the source (ADR-0103); this file is written by the generator once it lands. A refusal has a reason and a name, the REFUSAL_* name. Only the seven PUBLIC_REFUSALS values (fromPerson, unrecognised, policy.webPage, policy.book, policy.paidSite, sourceConflict and none) are names main uses today. The other reason values, such as statementRequired, privateSlots and sourceLocked, are new names.",
+    "note": "Same values as docs/architecture/recipeStateModel.md. The code is the source (ADR-0103); this file is written by the generator once it lands. A refusal has a reason and a name, the REFUSAL_* name. The reasons main uses today are the PUBLIC_REFUSALS constant in publicRefusal.ts, which publicRefusalNames.test.ts holds to this list. The other reason values are new names.",
     "axes": [
         {
             "name": "lifecycle",
@@ -136,19 +136,19 @@
             "name": "ORIGIN_BOOK",
             "label": "From a cookbook or magazine",
             "labelKey": "ORIGIN_BOOK",
-            "viewer": "owner"
+            "viewer": "owner (private only)"
         },
         {
             "name": "ORIGIN_PAID_SITE",
             "label": "From a paid website",
             "labelKey": "ORIGIN_PAID_SITE",
-            "viewer": "owner"
+            "viewer": "owner (private only)"
         },
         {
             "name": "ORIGIN_PERSON",
             "label": "From another person",
             "labelKey": "ORIGIN_PERSON",
-            "viewer": "owner"
+            "viewer": "owner (private only)"
         },
         {
             "name": "ORIGIN_PUBLIC_DOMAIN",

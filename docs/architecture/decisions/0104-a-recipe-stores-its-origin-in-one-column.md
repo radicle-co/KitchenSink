@@ -16,7 +16,7 @@
 
 A recipe's origin is stored in three columns that must agree: `source_type` (`user_created`, `imported_public`,
 `imported_physical`, `imported_paid`), `source_kind` (`public_web`, `book`, `paid_site`) and `statement_kind`
-(`authored`, `source`, `fromPerson`). Pairing CHECKs keep them in step, and five different vocabularies name the same
+(`authored`, `source`, `fromPerson`). Pairing CHECKs keep them in step, and several vocabularies name the same
 facts (the columns, the import item, the wire, the attestation choice and the preview). ADR-0097 Decision 5 said the
 values would move to one field under their own ADR. This is that ADR.
 
@@ -72,7 +72,7 @@ fourth vocabulary.
       the triple. In order: do the final backfill of the correction table's new columns and set them NOT NULL, replace
       the append-only function without the old columns, narrow the constraint trigger to
       `UPDATE OF origin, source_url`, drop the sync trigger, `recipes_origin_matches_triple` and the old CHECKs, then
-      drop the three columns and the six old triple columns of the correction table.
+      drop the three columns and the old triple columns of the correction table.
 3. **The pairing CHECKs are restated on `origin`,** and the old ones stay until the contract change. The restated
    rules allow every row the old ones allow, with one exception: the new CHECK above, which refuses two shapes no
    writer produces. Today's schema allows `book` and `paidSite` with no citation, and so does `origin`. A stricter rule

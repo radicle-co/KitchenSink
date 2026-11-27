@@ -38,7 +38,7 @@ Under the badge row, in this order. Body small (14), `inkMuted`, line height 20,
 the block.
 
 1. `credit.written`: "Steps written by Commise with AI, checked by {cook}." `{cook}` is the cook's display name, plain
-   text (the cook row above it already links the profile).
+   text.
 2. `credit.basedOn`, free site only: "Based on a recipe at {site}. Not affiliated." `{site}` is a link to the source
    page. Web: a new tab, `rel="noopener noreferrer"`, with "opens in a new tab" in its accessible name. Mobile: the
    in-app browser. A paid site shows no line 2 (spec.md V7).
@@ -59,6 +59,7 @@ Under the badge row, same type:
 2. `editor.source.authorLabel`, only when the page names an author. Copy as in the paste spec §7.4.
 3. `done.linkPublic` "See the public version", only when this copy has a public version (Both path, or the later route
    once published). It pushes the public version.
+4. The public version's status row (`yourImports.publicWriting`, then `yourImports.publicReady`), in the slot of item 3 before the link exists. One of writing, ready and the link shows at a time. Web: one full-content-width row, glyph `clock` or `globe` then text, as a link-styled button, with a trailing `chevronRight` when ready. Mobile: a full-width tappable row, the whole row the target, at least 48 tall (44 pt on iOS), trailing chevron. Not a banner and not pinned. A change from writing to ready while open is announced once in a polite live region. Owner only. After the job expires the row goes away.
 
 ### 1.3 Longest strings (+35%)
 
@@ -105,15 +106,16 @@ or a paste with no detected address, never shows it. Inside that set it always s
 
 **What pressing it does.** The press fetches the server's `offer` for this copy. The client renders it and never
 derives it. While the fetch runs, the item shows a spinner in place of its glyph, its label stays, and the menu stays
-open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done" (`failed.done`), as for a `privateOnly` line. A `deadEnd` offer
-opens spec.md P9 (B5).
+open. A failed fetch swaps the surface for `later.failed` (new, §6) and "Done" (`failed.done`), as for a `privateOnly` line.
+The route answers only `choice`, `privateOnly` and `publicExists`: the copy already holds its slot, so `publicOnly` and
+`deadEnd` never come from it.
 
-| `offer`                                | Result                                                                                                                                                                                                                         |
-| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `choice` or `publicOnly`               | The menu closes and P7 Writing is pushed (spec.md §3.2), as on the Both path: the copy is already saved, so `writing.bothSaved` shows. Then P8 Review, Publish (P10 opens on `403 ageConfirmNeeded`, spec.md X7), and success. |
-| `privateOnly` (any reason)             | The menu surface swaps its items for the reason's line (copy v3 `privateOnly.*`, or `budget.line`) and one "Done" (`failed.done`, spec.md §7.2). Done closes it. Nothing is sent.                                              |
-| `publicExists` `published`             | The surface shows `publicExists.published` and the link `publicExists.link` "See the public version", which pushes it, then "Done".                                                                                            |
-| `publicExists` `writing` or `inReview` | The surface shows `publicExists.writing` or `publicExists.inReview`, then "Done".                                                                                                                                              |
+| `offer`                                | Result                                                                                                                                                                                                                                                                                                                                                                                |
+| -------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `choice`                               | The menu closes and P7 Writing is pushed (spec.md §3.2), as on the Both path: the copy is already saved, so `writing.bothSaved` shows. Start may return the recipe's live job (a Both job included), and the client then routes by its state: P7 for `pending` and `writing`, P8 for `ready`. Then P8 Review, Publish (P10 opens on `403 ageConfirmNeeded`, spec.md X7), and success. |
+| `privateOnly` (any reason)             | The menu surface swaps its items for the reason's line (copy v3 `privateOnly.*`, or `budget.line`) and one "Done" (`failed.done`, spec.md §7.2). Done closes it. Nothing is sent.                                                                                                                                                                                                     |
+| `publicExists` `published`             | The surface shows `publicExists.published` and the link `publicExists.link` "See the public version", which pushes it, then "Done".                                                                                                                                                                                                                                                   |
+| `publicExists` `writing` or `inReview` | The surface shows `publicExists.writing` or `publicExists.inReview`, then "Done".                                                                                                                                                                                                                                                                                                     |
 
 **Success.** P8 is replaced by this private copy (Back never lands in the finished flow, spec.md S7). The credit block
 gains `done.linkPublic`, and one polite announcement reads `done.public`.
@@ -157,15 +159,17 @@ second presentation of the same form. Back returns to the recipe with nothing se
 
 ## 5. Recipe detail states with a public version
 
-| State               | Owner                                                                                                                    | Reader                                                                                                                            | Copy and key                                                        |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| Loading             | Existing skeleton. The credit block reserves 3 lines.                                                                    | Same                                                                                                                              | `recipeLoadMessages.loadingLabel` (reuse)                           |
-| Error               | Existing `RecipeLoadError*` layout                                                                                       | Same                                                                                                                              | `recipeLoadMessages.errorTitle`, `recipeLoadMessages.retry` (reuse) |
-| Offline, cached     | The recipe from cache with `SyncNotice`. The credit shows. Links that need the network open and fail in their own place. | Same                                                                                                                              | core offline messages (`offlineTitle`, reuse)                       |
-| Not found           | `RecipeNotFound*`                                                                                                        | Same                                                                                                                              | `recipeLoadMessages.notFoundTitle` (reuse)                          |
-| Signed out          | n/a                                                                                                                      | The public version with the credit and "Report a problem". No rating, no Save a copy (they need an account, as on other recipes). | as §1.1                                                             |
-| Checking (ADR-0074) | Badge `Checking`                                                                                                         | Not visible to readers until cleared                                                                                              | `checkingBadge` (reuse, paste spec)                                 |
-| Hidden              | §2                                                                                                                       | §2                                                                                                                                | §2                                                                  |
+| State                  | Owner                                                                                                                                            | Reader                                                                                                                            | Copy and key                                                        |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| Loading                | Existing skeleton. The credit block reserves 3 lines.                                                                                            | Same                                                                                                                              | `recipeLoadMessages.loadingLabel` (reuse)                           |
+| Error                  | Existing `RecipeLoadError*` layout                                                                                                               | Same                                                                                                                              | `recipeLoadMessages.errorTitle`, `recipeLoadMessages.retry` (reuse) |
+| Offline, cached        | The recipe from cache with `SyncNotice`. The credit shows. Links that need the network open and fail in their own place.                         | Same                                                                                                                              | core offline messages (`offlineTitle`, reuse)                       |
+| Not found              | `RecipeNotFound*`                                                                                                                                | Same                                                                                                                              | `recipeLoadMessages.notFoundTitle` (reuse)                          |
+| Signed out             | n/a                                                                                                                                              | The public version with the credit and "Report a problem". No rating, no Save a copy (they need an account, as on other recipes). | as §1.1                                                             |
+| Checking (ADR-0074)    | Badge `Checking`                                                                                                                                 | Not visible to readers until cleared                                                                                              | `checkingBadge` (reuse, paste spec)                                 |
+| Public version writing | The status row (§1.2 item 4): glyph `clock`, `yourImports.publicWriting`, a link-styled button on web and a full-width row on mobile, opening P7 | Not shown                                                                                                                         | `yourImports.publicWriting`                                         |
+| Public version ready   | The status row: glyph `globe`, `yourImports.publicReady`, trailing `chevronRight`, opening P8. A change from writing is announced once, politely | Not shown                                                                                                                         | `yourImports.publicReady`                                           |
+| Hidden                 | §2                                                                                                                                               | §2                                                                                                                                | §2                                                                  |
 
 The layout reserves the credit block's height on load, so nothing shifts when it arrives.
 
@@ -297,17 +301,17 @@ Sizes left off a board show the same layout as a drawn size (P5): Android
 
 ## 10. Open items and conflicts
 
-1. **Contract owed (003B lead).** Ruled by the 003B lead 2026-11-17: show the item when owner + private +
+1. **Settled.** The contract now holds `hasSourceRecord` and the offer route. Ruled by the 003B lead 2026-11-17: show the item when owner + private +
    `hasSourceRecord`, and fetch the offer on press (§3). The contract
-   (`specs/003B-public-rewrite/contracts/publicVersion.api.md`) owes two things: the `hasSourceRecord` field on the
-   recipe read, and an offer read for a private copy. This spec does not specify their wire shape.
-2. **003B lead, key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
+   (`specs/003B-public-rewrite/contracts/publicVersion.api.md`) holds the `hasSourceRecord` field on the
+   recipe read and the offer read for a private copy. This spec does not specify their wire shape.
+2. **Settled: key names.** `privateCopy.author` in copy v3 is replaced by `editor.source.authorLabel`. The site placeholder is `{site}`
    everywhere (003B renames `{domain}`).
 3. **016 owner.** The reader menu item "Report this recipe" becomes "Report a problem" on a public version (D4).
 4. **New strings** (§6), for the lead.
 5. **Owner question, FR-082.** One report, from any reader, signed out included, hides a public version at once until
    staff decide. Is that the intended behaviour for a signed-out report?
-6. **003B lead, leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
+6. **Settled: leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
    `credit.*` (`credit.written`, `credit.basedOn`), and the leaf `notNow` with `notNow.note`. The 003B lead is renaming
    the leaves; the names follow from the 003B lead. Bare uses as leaf keys: `spec.md` §3.1 (`credit` before
    `creditLink`), §6.1 "Nothing chosen (Free)" row (`credit`) and §6.5 "Switch on, upsell, trial eligible" row (`notNow`).

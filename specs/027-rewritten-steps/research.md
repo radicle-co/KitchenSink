@@ -2,15 +2,16 @@
 
 Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 
-## R1. Writer input is a facts sheet for every recipe
+## R1. Writer input is a facts sheet plus the step text for every recipe
 
-- **Decision**: `FactsSheet` = ordered steps, each with `actions` (closed verb lexicon), `amounts`, `temperatures`,
-  `durations`, `ingredients` (names from the recipe's ingredient lines found in the step), `equipment` (closed list),
-  `safety` (FR-041 categories, carried as a category plus its facts, not its words). Plus the ingredient-line names and
-  the recipe language. Built by code. Never stored.
-- **Rationale**: spec FR-035. A cook's source statement is a claim and can be wrong. One input type gives one pinned
+- **Decision**: `FactsSheet` = ordered steps, each with `amounts`, `temperatures`, `durations` (all read from digits, fractions and unit symbols) and
+  `ingredients` (names from the recipe's ingredient lines found in the step). There is no verb, equipment or safety-word
+  lexicon: those are left to the cook's review. Plus the ingredient-line names and the recipe language. Built by code. Never stored. The writer also gets the recipe's own step text in its source language, and never the address, the statement or the source title (ruled 2026-11-17). The wording check of R3 guards against copying it.
+- **Ties**: a tie between an amount and an ingredient is exact or null. Only the shape NUM [UNIT] [of [the]] NAME ties.
+  A step with two or more untied amounts that carry a unit refuses the sheet.
+- **Rationale**: spec FR-035. A cook's source statement is a claim and can be wrong. One input shape (the sheet and the step text) gives one pinned
   prompt signature and one evaluation path (same discipline as 004-FR-057 and ADR-0026's `buildParsePrompt`).
-- **Rejected**: wording for "Written by you" recipes (two prompts, two evaluations, trusts a cook-supplied label);
+- **Rejected**: extra wording for "Written by you" recipes beyond the step text (two prompts, two evaluations, trusts a cook-supplied label);
   LLM fact extraction (a model reading the wording defeats the rule and is a second unchecked model).
 
 ## R2. Fact check: two-way multiset across the whole recipe
@@ -18,7 +19,8 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 - **Decision**: extract the same categories from the result with the same extractor. Compare per category as
   multisets over the whole recipe (steps may merge, split or reorder). Normalise before comparing: amounts to
   canonical quantity + unit, temperatures to °C integer with the stated scale kept, durations to seconds ranges,
-  ingredient names by the recipe's own ingredient-line names. Any missing or extra element fails.
+  ingredient names by the recipe's own ingredient-line names. Any missing or extra element fails. The check compares
+  (quantity, unit, ingredient) triples, not bare amounts, so two amounts swapped between ingredients fail.
 - **Rationale**: FR-040. 008-FR-034a forbids steps gaining amounts from the list, so "nothing added" is as binding
   as "nothing dropped". Durations feed Cooking Mode timers (008-FR-034). Research CK-006 names dropped and changed
   amounts as the trust failure.
@@ -27,12 +29,15 @@ Phase 0 for `plan.md`. Each item: decision, rationale, alternatives rejected.
 
 ## R3. Wording check is a ceiling, on a hashed fingerprint of word 5-shingles
 
-- **Decision**: lower-cased, punctuation-stripped word 5-shingles, reduced to a fingerprint: a versioned set of keyed
-  hashes (`fingerprint(text) → { formatVersion, hashes }`). The measure takes fingerprints, not text: `jaccard(a, b)`
-  for the whole recipe and `containment(sentence, set)` for one result sentence. Refuse when either exceeds a
+- **Decision**: word 5-shingles of lower-cased, punctuation-stripped text from which default-ignorable code points
+  (soft hyphen, zero-width space and similar) are removed, and that has also been through the UTS #39
+  skeleton (look-alike letters compare equal), reduced to a fingerprint: a versioned set of keyed
+  hashes (`fingerprint(text, size, hash) → { formatVersion, hashes }`, where `hash` is an injected keyed hash). The measure
+  takes fingerprint sets, not text: `jaccard(a, b)` for the whole recipe and `containment(part, whole)` for one result
+  sentence. Refuse when either exceeds a
   threshold set from the evaluation set (start point for the bake-off: whole 0.10, per sentence 0.30. To be measured,
   not shipped as guessed). This feature fingerprints the saved steps in memory. Spec 003B stores the fingerprint of
-  an import's steps, because it keeps no source text, and runs the same functions on every save.
+  an import's steps, because its job keeps no source step text once the job ends, and runs the same functions on every save.
 - **Rationale**: FR-042. Same measure ADR-0074 §6 uses to confirm a 020 match, so one function serves 027's check,
   003B's stored check and 020's copy check (`wordShingles.ts`), while each feature owns its threshold
   (staff-architect). A hash cannot be recomputed later, so the format version and the key version are stored with it.

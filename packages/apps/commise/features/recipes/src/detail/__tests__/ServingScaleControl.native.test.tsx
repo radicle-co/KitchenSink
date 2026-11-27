@@ -171,7 +171,7 @@ describe('ServingScaleControl (native)', () => {
         expect(fontVariantClass(count)).toBe(fontVariantClass(reference.getByText('ref')));
     });
 
-    // TEST-CHANGE (decisions/0118 addendum 6): each button is the shared icon button inside the stepper's bordered frame,
+    // each button is the shared icon button inside the stepper's bordered frame,
     // so the floor is read on that frame and on the icon button's own frame.
     it('clears the 44pt touch floor on every control', () => {
         render(<ServingScaleControl servings={4} baseServings={4} onServingsChange={vi.fn()} />);

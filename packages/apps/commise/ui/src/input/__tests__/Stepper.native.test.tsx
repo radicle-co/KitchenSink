@@ -158,7 +158,7 @@ describe('Stepper (native)', () => {
         expect(screen.getByRole('button', { name: 'More servings' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    // TEST-CHANGE (decisions/0118 addenda 5 and 7): the button is the shared icon button over the stepper's own frame
+    // the button is the shared icon button over the stepper's own frame
     // layer in one seat, so the size is read on that frame layer and on the button's own frame.
     it.each([
         ['ios', '44px'],
@@ -186,7 +186,7 @@ describe('Stepper (native)', () => {
         });
     });
 
-    // CL-ICONBTN: the whole control dims once at a bound (designer D90 addendum): the frame layer to 40%, and the icon
+    // the whole control dims once at a bound (the disabled look): the frame layer to 40%, and the icon
     // button's own circle to 40%, neither inside the other. Its live neighbour dims neither.
     it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
         render(<Servings initial={1} />);

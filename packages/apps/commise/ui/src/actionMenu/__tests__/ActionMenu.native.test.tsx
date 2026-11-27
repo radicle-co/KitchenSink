@@ -94,8 +94,8 @@ const renderMenu = () => {
 };
 
 describe('ActionMenu (native)', () => {
-    // TEST-CHANGE (decisions/0118 addendum 4): the trigger is the shared icon button, so its target is the platform
-    // touch floor (D90 Q1: 44 on iOS, 48 on Android), read on the frame inside the button, not a min size on it.
+    // the trigger is the shared icon button, so its target is the platform
+    // touch floor (44 on iOS, 48 on Android), read on the frame inside the button, not a min size on it.
     it.each([
         ['ios', '44px'],
         ['android', '48px'],
@@ -312,7 +312,7 @@ describe('ActionMenu (native)', () => {
         expect(screen.queryByRole('menuitem')).toBeNull();
     });
 
-    // CL-ICONBTN: the plain trigger is the shared icon button, so an unavailable one dims to the one 40% every
+    // the plain trigger is the shared icon button, so an unavailable one dims to the one 40% every
     // disabled control shares (it was 60%), and a live one is not dimmed.
     it('dims the plain trigger to the shared disabled level only while unavailable', () => {
         const draw = (unavailable: boolean) => (

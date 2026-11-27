@@ -53,7 +53,7 @@ function paintedUnder(element: HTMLElement): string {
     }
 
     // A Tamagui theme token (the icon button's press fill) is a CSS variable jsdom does not resolve: read it through
-    // `resolvedColour`, which follows the variable from the element's own theme class (decisions/0118 addendum 8).
+    // `resolvedColour`, which follows the variable from the element's own theme class.
     const colour = background(painted).startsWith('var(')
         ? resolvedColour(painted, 'backgroundColor')
         : background(painted);
@@ -102,7 +102,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        // TEST-CHANGE (decisions/0118 addendum 4): the press fill is painted on the icon button's circle inside the button.
+        // the press fill is painted on the icon button's circle inside the button.
         expect(paintedUnder(screen.getByRole('button', { name: 'Actions for Saffron' }))).toBe(rgb(theme.press.muted));
     });
 
@@ -181,7 +181,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        // TEST-CHANGE (decisions/0118 addendum 7): the press fill is painted on the icon button's circle inside the button.
+        // the press fill is painted on the icon button's circle inside the button.
         expect(paintedUnder(screen.getByRole('button', { name: 'More servings' }))).toBe(rgb(theme.press.muted));
     });
 

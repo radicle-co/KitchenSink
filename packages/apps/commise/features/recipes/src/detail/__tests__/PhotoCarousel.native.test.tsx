@@ -239,8 +239,9 @@ describe('PhotoCarousel (native)', () => {
                 const close = screen.getByLabelText('Close photo');
                 const disc = close.firstElementChild;
 
-                // TEST-CHANGE (decisions/0118 addendum 2): the Close is the hero button, whose disc is the photoChip
-                // role under an ink glyph (it was a paper disc), and the scrim is on the frame the Close and the lightbox
+                // the Close is the hero button, whose disc is the photoChip
+                // role under an ink glyph (it was a paper disc), and the scrim is on the frame the Close and the
+                // lightbox
                 // photo share.
                 expect(disc === null ? '' : getComputedStyle(disc).backgroundColor).toBe(rgb(colours.photoChip));
                 expect(getComputedStyle(commonFrame(close, lightboxPhoto())).backgroundColor).toBe(colours.scrim);
@@ -272,7 +273,7 @@ describe('PhotoCarousel (native)', () => {
             expect(state.modal).toMatchObject({ statusBarTranslucent: true, navigationBarTranslucent: true });
         });
 
-        // TEST-CHANGE (decisions/0118 addendum 2): the Close is the hero button, whose frame is the 48 dp target; the
+        // the Close is the hero button, whose frame is the 48 dp target; the
         // safe-area offsets sit on the absolute slot that places it.
         it.each([
             ['ios', '44px'],
@@ -280,7 +281,8 @@ describe('PhotoCarousel (native)', () => {
         ] as const)(
             'gives Close the touch floor on %s inside the safe area, clear of a side navigation bar',
             async (os, side) => {
-                // The lightbox mounts after a press, so the platform is held for the whole test, not one synchronous call.
+                // The lightbox mounts after a press, so the platform is held for the whole test, not one
+                // synchronous call.
                 const original = Platform.OS;
                 Object.defineProperty(Platform, 'OS', { value: os, configurable: true });
 

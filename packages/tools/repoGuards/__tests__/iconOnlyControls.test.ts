@@ -1,5 +1,5 @@
 /**
- * CL-ICONBTN: the icon-only control detector, proven shape by shape. A control whose only content is a glyph is built
+ * the icon-only control detector, proven shape by shape. A control whose only content is a glyph is built
  * by hand at each site (a 44 target, a focus ring, a press fill, a dim) and drifts. `IconButton` owns that look, so
  * the controls that are not `IconButton` are counted down. Each row is a shape, its source and what the detector
  * counts. The rows that count nothing matter as much: a detector that counts a labelled button or a dot link would
@@ -16,6 +16,8 @@ const FEATURE_NATIVE = 'packages/apps/commise/features/recipes/src/thing/Thing.n
 const UI = 'packages/apps/commise/ui/src/thing/Thing.tsx';
 
 const ICON = `import { Icon } from '@commise/ui/icon';\n`;
+
+const lines = (...parts: readonly string[]): string => parts.join('\n');
 
 const RN = (names: string): string => `import { ${names} } from 'react-native';\n`;
 
@@ -39,12 +41,18 @@ describe('iconOnlyControls', () => {
         ],
         [
             'a Pressable reached through a namespace',
-            `${ICON}import * as RN from 'react-native';\nconst A = () => <RN.Pressable><Icon name="x" /></RN.Pressable>;`,
+            lines(
+                `${ICON}import * as RN from 'react-native';`,
+                `const A = () => <RN.Pressable><Icon name="x" /></RN.Pressable>;`,
+            ),
             FEATURE_NATIVE,
         ],
         [
             'a Touchable from react-native',
-            `${ICON}${RN('TouchableOpacity')}const A = () => <TouchableOpacity><Icon name="x" /></TouchableOpacity>;`,
+            lines(
+                `${ICON}${RN('TouchableOpacity')}`,
+                `const A = () => <TouchableOpacity><Icon name="x" /></TouchableOpacity>;`,
+            ),
             FEATURE_NATIVE,
         ],
         [
@@ -65,7 +73,11 @@ describe('iconOnlyControls', () => {
         ],
         [
             'a press handler on a wrapper of wrappers, copied from the primitive',
-            `${ICON}const A = () => <PressScale onPress={go}><Frame><Circle><Icon name="x" /></Circle></Frame></PressScale>;`,
+            lines(
+                `${ICON}`,
+                `const A = () => <PressScale onPress={go}>`,
+                '<Frame><Circle><Icon name="x" /></Circle></Frame></PressScale>;',
+            ),
             FEATURE_NATIVE,
         ],
         [
@@ -85,12 +97,18 @@ describe('iconOnlyControls', () => {
         ],
         [
             'a block-bodied render function returning a glyph',
-            `${ICON}${RN('Pressable')}const A = () => <Pressable>{() => { return <Icon name="x" />; }}</Pressable>;`,
+            lines(
+                `${ICON}${RN('Pressable')}`,
+                `const A = () => <Pressable>{() => { return <Icon name="x" />; }}</Pressable>;`,
+            ),
             FEATURE_NATIVE,
         ],
         [
             'a renamed Icon',
-            `import { Icon as Glyph } from '@commise/ui/icon';\nconst A = () => <button><Glyph name="x" /></button>;`,
+            lines(
+                `import { Icon as Glyph } from '@commise/ui/icon';`,
+                `const A = () => <button><Glyph name="x" /></button>;`,
+            ),
             FEATURE,
         ],
         [
@@ -100,12 +118,18 @@ describe('iconOnlyControls', () => {
         ],
         [
             'the recipe identifier in feature code, where the exemption does not apply',
-            `${ICON}import { ICON_BUTTON_CLASS } from '@commise/ui/icon-button';\nconst A = () => <button className={ICON_BUTTON_CLASS}><Icon name="x" /></button>;`,
+            lines(
+                `${ICON}import { ICON_BUTTON_CLASS } from '@commise/ui/icon-button';`,
+                `const A = () => <button className={ICON_BUTTON_CLASS}><Icon name="x" /></button>;`,
+            ),
             FEATURE,
         ],
         [
             'a class chosen between a recipe and a hand-built one inside the design system',
-            `${ICON}import { A_CLASS } from '../iconButton/IconButton.js';\nconst A = () => <button className={on ? A_CLASS : PLAIN_CLASS}><Icon name="x" /></button>;`,
+            lines(
+                `${ICON}import { A_CLASS } from '../iconButton/IconButton.js';`,
+                `const A = () => <button className={on ? A_CLASS : PLAIN_CLASS}><Icon name="x" /></button>;`,
+            ),
             UI,
         ],
     ] as const)('counts %s', (_shape, source, fileName) => {
@@ -115,12 +139,18 @@ describe('iconOnlyControls', () => {
     it.each([
         [
             'an IconButton',
-            `import { IconButton } from '@commise/ui/icon-button';\nconst A = () => <IconButton icon="x" accessibilityLabel="x" onPress={go} />;`,
+            lines(
+                `import { IconButton } from '@commise/ui/icon-button';`,
+                `const A = () => <IconButton icon="x" accessibilityLabel="x" onPress={go} />;`,
+            ),
             FEATURE,
         ],
         [
             'a HeroButton',
-            `import { HeroButton } from '@commise/ui/hero-button';\nconst A = () => <HeroButton icon="x" accessibilityLabel="x" onPress={go} />;`,
+            lines(
+                `import { HeroButton } from '@commise/ui/hero-button';`,
+                `const A = () => <HeroButton icon="x" accessibilityLabel="x" onPress={go} />;`,
+            ),
             FEATURE,
         ],
         [
@@ -141,17 +171,26 @@ describe('iconOnlyControls', () => {
         ],
         [
             'a Pressable that is not react-native’s',
-            `${ICON}import { Pressable } from 'elsewhere';\nconst A = () => <Pressable><Icon name="x" /></Pressable>;`,
+            lines(
+                `${ICON}import { Pressable } from 'elsewhere';`,
+                `const A = () => <Pressable><Icon name="x" /></Pressable>;`,
+            ),
             FEATURE_NATIVE,
         ],
         [
             'the recipe identifier inside the design system',
-            `${ICON}import { ICON_BUTTON_CLASS } from '../iconButton/IconButton.js';\nconst A = () => <button className={ICON_BUTTON_CLASS}><Icon name="x" /></button>;`,
+            lines(
+                `${ICON}import { ICON_BUTTON_CLASS } from '../iconButton/IconButton.js';`,
+                `const A = () => <button className={ICON_BUTTON_CLASS}><Icon name="x" /></button>;`,
+            ),
             UI,
         ],
         [
             'a class chosen between two recipes inside the design system',
-            `${ICON}import { A_CLASS, B_CLASS } from '../iconButton/IconButton.js';\nconst A = () => <button className={on ? A_CLASS : B_CLASS}><Icon name="x" /></button>;`,
+            lines(
+                `${ICON}import { A_CLASS, B_CLASS } from '../iconButton/IconButton.js';`,
+                `const A = () => <button className={on ? A_CLASS : B_CLASS}><Icon name="x" /></button>;`,
+            ),
             UI,
         ],
         [
@@ -196,7 +235,10 @@ describe('iconOnlyControls', () => {
     });
 
     it('counts each control once, however its handler and tag both qualify it', () => {
-        const source = `${ICON}${RN('Pressable')}const A = () => <Pressable onPress={go}><Icon name="x" /></Pressable>;`;
+        const source = lines(
+            `${ICON}${RN('Pressable')}`,
+            'const A = () => <Pressable onPress={go}><Icon name="x" /></Pressable>;',
+        );
 
         expect(iconOnlyControls(source, FEATURE_NATIVE)).toHaveLength(1);
     });

@@ -129,7 +129,7 @@ describe('Popover (web)', () => {
         );
     });
 
-    // CL-ICONBTN: the Close is the design-system icon button, so it keeps its target, its 24 glyph and its muted ink.
+    // the Close is the design-system icon button, so it keeps its target, its 24 glyph and its muted ink.
     it('draws its Close as the shared icon button: a 44 target, a 24 glyph, in muted ink', async () => {
         const user = userEvent.setup();
         renderPopover();

@@ -111,7 +111,7 @@ describe('VersionCompareView (web)', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
-    // CL-ICONBTN: the close control is the shared icon button in muted ink, with a 24 glyph.
+    // the close control is the shared icon button in muted ink, with a 24 glyph.
     it('draws its close control as the shared icon button', () => {
         render(
             <VersionCompareView

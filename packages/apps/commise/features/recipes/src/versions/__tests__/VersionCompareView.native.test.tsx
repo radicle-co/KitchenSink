@@ -76,7 +76,7 @@ describe('VersionCompareView (native)', () => {
         expect(screen.queryByRole('heading', { name: /current version/u })).toBeNull();
     });
 
-    // CL-ICONBTN: the close control is the shared icon button: a 44 circle holding a 24 glyph in muted ink.
+    // the close control is the shared icon button: a 44 circle holding a 24 glyph in muted ink.
     it('draws its close control as the shared icon button', () => {
         render(
             <VersionCompareView

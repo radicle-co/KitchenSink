@@ -58,7 +58,7 @@ describe('EditorHeader.native: scaled text', () => {
     it('gives the bar a minimum height and no fixed one, so a second line grows it', () => {
         drawHeader();
 
-        // TEST-CHANGE (decisions/0118 addendum 1): the bar is the nearest ancestor of the close button that holds the
+        // the bar is the nearest ancestor of the close button that holds the
         // title, so the row does not depend on how deep the icon button nests its button.
         const heading = screen.getByRole('heading', { name: 'Edit recipe' });
         let bar = screen.getByRole('button', { name: 'Close editor' }).parentElement;
@@ -80,7 +80,7 @@ describe('EditorHeader.native: scaled text', () => {
 describe('EditorHeader.native: the close control', () => {
     afterEach(cleanup);
 
-    // CL-ICONBTN: × is the shared icon button: a 24 glyph in ink, and one press reports once.
+    // × is the shared icon button: a 24 glyph in ink, and one press reports once.
     it('is the shared icon button, and reports a press once', () => {
         const onClose = vi.fn();
         renderWithTamagui(

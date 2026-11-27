@@ -1,5 +1,5 @@
 /**
- * CL-ICONBTN: icon-only controls built by hand only fall. `IconButton` owns the target, the focus ring, the press fill
+ * icon-only controls built by hand only fall. `IconButton` owns the target, the focus ring, the press fill
  * and the dim of a control that holds one glyph, so each control `iconOnlyControls.ts` finds outside it is a copy of
  * that look. The counts are held per file in `iconOnlyControlsBaseline.json` by the same rules as the other ratchets
  * (`ratchetBaseline.ts`): no file above its count, no new file with any, a drop recorded in the same change, and no
@@ -49,7 +49,7 @@ const counts: FileCounts = Object.fromEntries(
         .filter(([, count]) => count > 0),
 );
 
-describe('icon-only controls only fall (CL-ICONBTN)', () => {
+describe('icon-only controls only fall', () => {
     it('reads real uses, so an empty baseline cannot pass by reading nothing', () => {
         expect(counts[`${UI}/sheet/SheetPanel.tsx`]).toBeGreaterThan(0);
     });

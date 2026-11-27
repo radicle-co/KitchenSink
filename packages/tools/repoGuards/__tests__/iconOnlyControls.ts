@@ -1,5 +1,5 @@
 /**
- * CL-ICONBTN: every control whose only content is a glyph, read from the parsed module. `IconButton` owns the look of
+ * every control whose only content is a glyph, read from the parsed module. `IconButton` owns the look of
  * an icon-only control (one target, one focus ring, one press fill, one dim), so each one built by hand is a copy that
  * can drift. See `iconOnlyControls.test.ts` for the shapes counted and the shapes that are not.
  *
@@ -42,11 +42,13 @@ const WRAPPER_DEPTH = 3;
 const isIconModule = (specifier: string): boolean =>
     specifier === '@commise/ui/icon' || /^\.{1,2}\/(?:.*\/)?icon\/Icon(?:\.native)?\.js$/u.test(specifier);
 
-/** The two primitives whose recipe an element in the design system may build from. */
-const isRecipeModule = (specifier: string): boolean =>
-    /^(?:@commise\/ui\/(?:icon-button|hero-button)|\.{1,2}\/(?:.*\/)?(?:iconButton\/IconButton|heroButton\/HeroButton)\.js)$/u.test(
-        specifier,
-    );
+/** The package exports of the two primitives whose recipe an element in the design system may build from. */
+const RECIPE_EXPORT = /^@commise\/ui\/(?:icon-button|hero-button)$/u;
+
+/** Their leaves, by relative import from inside the design system. */
+const RECIPE_LEAF = /^\.{1,2}\/(?:.*\/)?(?:iconButton\/IconButton|heroButton\/HeroButton)\.js$/u;
+
+const isRecipeModule = (specifier: string): boolean => RECIPE_EXPORT.test(specifier) || RECIPE_LEAF.test(specifier);
 
 /** One or two characters that are neither letters, digits nor space: "×", "⋯". */
 const isSymbol = (text: string): boolean => /^[^\p{L}\p{N}\s]{1,2}$/u.test(text.trim());

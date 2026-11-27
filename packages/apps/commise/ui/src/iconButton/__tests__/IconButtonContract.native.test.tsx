@@ -4,9 +4,9 @@
  * `Stepper`, `ActionMenu` and `SearchField` need before they stop building the control by hand.
  *
  * react-native-web's `Pressable` does not toggle `pressed` from jsdom events, so a held press is stood in for by
- * `pressedPressable`, and the props the leaf hands the `Pressable` are recorded to read the hint. Mutation lens: drop the
- * `disabled` pass-through and the refused row fails; drop the dim and the 40% row fails; paint the press while disabled
- * and the dead-press row fails; drop the hint, ref or `expanded` and its row fails.
+ * `pressedPressable`, and the props the leaf hands the `Pressable` are recorded to read the hint. Mutation lens:
+ * drop the `disabled` pass-through and the refused row fails; drop the dim and the 40% row fails; paint the press
+ * while disabled and the dead-press row fails; drop the hint, ref or `expanded` and its row fails.
  */
 import { cleanup, fireEvent, screen } from '@testing-library/react';
 import { createRef, type ComponentProps } from 'react';

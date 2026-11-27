@@ -24,9 +24,10 @@ import { stepFrom, type StepperProps } from './props.js';
 const STEP_SEAT = 'relative isolate inline-flex size-[44px] shrink-0';
 
 /**
- * The frame layer: a circle on the neutral surface with its 1 px control line, under the icon button (`-z-10` inside the seat's own stacking context, so the in-flow button paints over it). It is a layer of
- * its own so a button at its bound dims the whole control once: this layer to 40%, and the icon button's own circle and
- * glyph to 40%, never one inside the other.
+ * The frame layer: a circle on the neutral surface with its 1 px control line, under the icon button (`-z-10` inside
+ * the seat's own stacking context, so the in-flow button paints over it). It is a layer of its own so a button at its
+ * bound dims the whole control once: this layer to 40%, and the icon button's own circle and glyph to 40%, never one
+ * inside the other.
  */
 const STEP_FRAME = '-z-10 absolute inset-0 rounded-full border border-line-control bg-paper';
 

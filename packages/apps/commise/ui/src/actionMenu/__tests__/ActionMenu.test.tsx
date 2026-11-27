@@ -397,7 +397,7 @@ describe('ActionMenu (web) — the overhaul contract', () => {
             expect(classes).not.toContain('bg-photo-chip');
         });
 
-        // CL-ICONBTN: the plain trigger keeps its Radix element and takes the shared icon button's recipe and press motion.
+        // the plain trigger keeps its Radix element and takes the shared icon button's recipe and press motion.
         it('is built from the shared icon button recipe, inside its press motion', () => {
             const trigger = renderAppearance();
 

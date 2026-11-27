@@ -112,7 +112,7 @@ describe('SearchField (native)', () => {
         expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
     });
 
-    // CL-ICONBTN: the clear control is the shared icon button, in muted ink, with a 24 glyph in its 44 circle.
+    // the clear control is the shared icon button, in muted ink, with a 24 glyph in its 44 circle.
     it('draws the clear control as the shared icon button: muted ink and a 24 glyph', () => {
         render(<Search initial="lemon" />);
         const glyph = document.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')[1];
@@ -121,7 +121,7 @@ describe('SearchField (native)', () => {
         expect(glyph?.dataset['iconColor']).toBe(role.inkMuted);
     });
 
-    // TEST-CHANGE (decisions/0118): the clear control is the shared icon button, so its 44 pt / 48 dp target is the
+    // the clear control is the shared icon button, so its 44 pt / 48 dp target is the
     // frame inside its Pressable, not a min size on the Pressable. The row reads that frame.
     it('gives the clear control a 44pt target on iOS and 48dp on Android', () => {
         for (const [os, size] of [

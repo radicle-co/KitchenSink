@@ -138,7 +138,10 @@ export const ActionMenu: FC<ActionMenuProps> = ({
             ref={triggerNode}
             aria-label={triggerLabel}
             aria-disabled={unavailable || undefined}
-            className={`${appearance === 'disc' ? HERO_DISC_CLASS : `${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS.ink}`} ${BUSY_CONTROL_CLASS}`}
+            className={[
+                appearance === 'disc' ? HERO_DISC_CLASS : `${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS.ink}`,
+                BUSY_CONTROL_CLASS,
+            ].join(' ')}
         >
             <Icon name="ellipsis" size={24} />
         </DropdownMenu.Trigger>

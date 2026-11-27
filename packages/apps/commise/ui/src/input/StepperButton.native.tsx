@@ -1,7 +1,7 @@
 /**
  * @module @commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's
- * own frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS, 48 dp
- * on Android), with the icon button over it.
+ * own frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS,
+ * 48 dp on Android), with the icon button over it.
  *
  * Presentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that
  * imports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.

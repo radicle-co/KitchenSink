@@ -50,7 +50,7 @@ describe('EditorHeader (web): scaled text', () => {
 describe('EditorHeader (web): the close control', () => {
     afterEach(cleanup);
 
-    // CL-ICONBTN: × is the shared icon button, a round 44 target, not a hand-built square one.
+    // × is the shared icon button, a round 44 target, not a hand-built square one.
     it('is the shared icon button, and reports a press once', () => {
         const onClose = vi.fn();
         render(<EditorHeader title="Edit recipe" status={STATUS} closeLabel="Close editor" onClose={onClose} />);

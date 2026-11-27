@@ -69,17 +69,17 @@ test.describe('accessibility (axe, WCAG 2.1 A and AA)', () => {
         await expectOnlyKnown(page, '/');
     });
 
-    test('a recipe has no violation', async ({ page }) => {
+    test('a recipe shows no violation beyond its known ones', async ({ page }) => {
         await page.goto(route(`/recipes/${RECIPE_ID}`));
         await expect(page.getByRole('heading', { level: 1, name: RECIPE_TITLE })).toBeVisible();
 
         await expectOnlyKnown(page, '/recipes/[id]');
     });
 
-    test('the collections list has no violation', async ({ page }) => {
+    test('the collections list shows no violation beyond its known ones', async ({ page }) => {
         await page.goto(route('/collections'));
         await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
-        await expect(page.getByText('Axe collection')).toBeVisible();
+        await expect(page.getByRole('link', { name: 'Axe collection' })).toBeVisible();
 
         await expectOnlyKnown(page, '/collections');
     });

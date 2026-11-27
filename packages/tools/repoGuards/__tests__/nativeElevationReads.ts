@@ -62,6 +62,7 @@ export function elevationTableReads(fileName: string, source: string): readonly 
 
     const file = parseModule(fileName, source);
     const found: string[] = [];
+
     const visit = (node: ts.Node): void => {
         if (readsElevation(node)) {
             found.push(`${fileName}:${String(lineOf(file, node))}`);

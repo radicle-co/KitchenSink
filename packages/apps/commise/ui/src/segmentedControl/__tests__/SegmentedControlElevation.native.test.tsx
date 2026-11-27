@@ -1,9 +1,8 @@
 /**
  * The selected segment draws the sm level of the elevation table whole, in both themes, through `Elevated`, and an
- * unselected one draws no shadow at all (fields absent, not zero). The segment stays ONE accessible control with its
- * role, name and selected or checked state, and a press still selects it, in both forms: it is no longer a `Pressable`.
- * `hitSlop` is not simulated by jsdom, so the touch band is a device check. Written before the move off
- * `nativeTokens.elevation`.
+ * unselected one draws no shadow at all (fields absent, not zero). The `Elevated` is the face inside the segment's
+ * `Pressable`, which owns the press, the role and the name, so a press still selects it, in both forms. Written before
+ * the move off `nativeTokens.elevation`.
  */
 import { cleanup, screen } from '@testing-library/react';
 import { fireEvent } from '@testing-library/dom';
@@ -25,6 +24,17 @@ afterEach(() => {
     systemScheme.current = null;
 });
 
+/** The face of a segment: the `Elevated` that carries its fill and shadow, inside the pressable role element. */
+const faceOf = (segment: HTMLElement): HTMLElement => {
+    const face = segment.firstElementChild;
+
+    if (!(face instanceof HTMLElement)) {
+        throw new Error('The segment has no face view');
+    }
+
+    return face;
+};
+
 const PLACES = [
     { id: 'mine', label: 'My recipes' },
     { id: 'collections', label: 'Collections' },
@@ -39,10 +49,12 @@ describe.each(['light', 'dark'] as const)('SegmentedControl (native), %s theme: 
             scheme,
         );
 
-        expect(resolvedStyle(screen.getByRole('tab', { name: 'My recipes' }), 'boxShadow')).toBe(
+        expect(resolvedStyle(faceOf(screen.getByRole('tab', { name: 'My recipes' })), 'boxShadow')).toBe(
             elevationBoxShadow('sm'),
         );
-        expect(['', 'none']).toContain(resolvedStyle(screen.getByRole('tab', { name: 'Collections' }), 'boxShadow'));
+        expect(['', 'none']).toContain(
+            resolvedStyle(faceOf(screen.getByRole('tab', { name: 'Collections' })), 'boxShadow'),
+        );
     });
 
     it('lifts only the checked radio of a view switch', () => {
@@ -52,10 +64,12 @@ describe.each(['light', 'dark'] as const)('SegmentedControl (native), %s theme: 
             scheme,
         );
 
-        expect(resolvedStyle(screen.getByRole('radio', { name: 'Collections' }), 'boxShadow')).toBe(
+        expect(resolvedStyle(faceOf(screen.getByRole('radio', { name: 'Collections' })), 'boxShadow')).toBe(
             elevationBoxShadow('sm'),
         );
-        expect(['', 'none']).toContain(resolvedStyle(screen.getByRole('radio', { name: 'My recipes' }), 'boxShadow'));
+        expect(['', 'none']).toContain(
+            resolvedStyle(faceOf(screen.getByRole('radio', { name: 'My recipes' })), 'boxShadow'),
+        );
     });
 });
 

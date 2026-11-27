@@ -44,6 +44,17 @@ const PLACES = [
     { id: 'collections', label: 'Collections' },
 ] as const;
 
+/** The face of a segment: the `Elevated` inside the pressable role element that carries its fill and edge. */
+const faceOf = (segment: HTMLElement): HTMLElement => {
+    const face = segment.firstElementChild;
+
+    if (!(face instanceof HTMLElement)) {
+        throw new Error('The segment has no face view');
+    }
+
+    return face;
+};
+
 describe('SegmentedControl (native) — route', () => {
     it('is a tablist named by its label, the current tab selected', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
@@ -66,7 +77,9 @@ describe('SegmentedControl (native) — route', () => {
     it('paints the current tab paper with an ink label, the other inkMuted, on a pearl track', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
 
-        expect(getComputedStyle(screen.getByRole('tab', { name: 'My recipes' })).backgroundColor).toBe(rgb(role.paper));
+        expect(getComputedStyle(faceOf(screen.getByRole('tab', { name: 'My recipes' }))).backgroundColor).toBe(
+            rgb(role.paper),
+        );
         // The label is the design-system Text, whose colour is a theme variable, so it is read resolved.
         expect(resolvedColour(screen.getByText('My recipes'), 'color')).toBe(rgb(role.ink));
         expect(resolvedColour(screen.getByText('Collections'), 'color')).toBe(rgb(role.inkMuted));
@@ -80,8 +93,8 @@ describe('SegmentedControl (native) — route', () => {
     // one shifts nothing.
     it('draws the current tab a 1 pt lineControl edge, and every other tab a transparent one of the same width', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
-        const current = getComputedStyle(screen.getByRole('tab', { name: 'My recipes' }));
-        const other = getComputedStyle(screen.getByRole('tab', { name: 'Collections' }));
+        const current = getComputedStyle(faceOf(screen.getByRole('tab', { name: 'My recipes' })));
+        const other = getComputedStyle(faceOf(screen.getByRole('tab', { name: 'Collections' })));
 
         expect(current.borderTopWidth).toBe('1px');
         expect(current.borderTopColor).toBe(rgb(role.lineControl));

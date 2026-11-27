@@ -248,7 +248,7 @@ const EXEMPTIONS: readonly Exemption[] = [
     },
     {
         file: `${APPS}ui/src/createFab/FabFace.native.tsx`,
-        frame: '<View style={[styles.face, shape,',
+        frame: '<Elevated style={{ ...styles.face, ...shape, backgroundColor: colors.action }}>',
         kind: 'allowed',
         reason: 'The pill height follows the label up to the 1.5x chrome cap (L33, fabHeightAt) and the label is capped at 1.5x (L40, chromeCap); the collapsed 56 pt disc holds one icon.',
     },

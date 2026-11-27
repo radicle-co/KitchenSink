@@ -8,7 +8,7 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Elevated } from '../elevation/Elevated.native.js';
 import { Icon } from '../icon/Icon.native.js';
@@ -92,11 +92,8 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
             {faces.map((face) => (
-                <Elevated
+                <Pressable
                     key={face.id}
-                    // A View is not focusable as one control unless it says so, as a Pressable is.
-                    accessible
-                    tabIndex={0}
                     role={roles.segment}
                     {...(props.form === 'route'
                         ? { 'aria-selected': face.selected }
@@ -105,36 +102,56 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     onPress={face.onPress}
                     // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
                     hitSlop={SEGMENT_HIT_SLOP}
-                    // Only the selected segment is lifted: the unselected one carries no shadow field at all.
-                    {...(face.selected ? { level: 'sm' as const } : {})}
-                    style={{
-                        ...styles.segment,
-                        ...(compactTrack ? styles.segmentContent : {}),
-                        ...(face.selected ? { backgroundColor: colors.paper, borderColor: colors.lineControl } : {}),
-                    }}
+                    style={[styles.slot, compactTrack ? styles.slotContent : null]}
                 >
-                    {face.icon === undefined ? null : (
-                        <Icon
-                            name={face.icon}
-                            size={SEGMENT_ICON}
-                            tone={face.selected ? 'ink' : 'inkMuted'}
-                            {...glyphScale}
-                        />
-                    )}
-                    {labelHidden ? null : (
-                        <Text
-                            typeRole={SEGMENT_LABEL_ROLE}
-                            chromeCap={SEGMENT_CHROME_CAP}
-                            color={face.selected ? '$ink' : '$inkMuted'}
-                        >
-                            {face.label}
-                        </Text>
-                    )}
-                </Elevated>
+                    <Elevated
+                        // The press owner is the Pressable above: a Tamagui press handler adds a second responder view.
+                        // Only the selected segment is lifted: the unselected one carries no shadow field at all.
+                        {...(face.selected ? { level: 'sm' as const } : {})}
+                        {...segmentFace}
+                        {...(face.selected
+                            ? { backgroundColor: colors.paper, borderColor: colors.lineControl }
+                            : { borderColor: 'transparent' })}
+                    >
+                        {face.icon === undefined ? null : (
+                            <Icon
+                                name={face.icon}
+                                size={SEGMENT_ICON}
+                                tone={face.selected ? 'ink' : 'inkMuted'}
+                                {...glyphScale}
+                            />
+                        )}
+                        {labelHidden ? null : (
+                            <Text
+                                typeRole={SEGMENT_LABEL_ROLE}
+                                chromeCap={SEGMENT_CHROME_CAP}
+                                color={face.selected ? '$ink' : '$inkMuted'}
+                            >
+                                {face.label}
+                            </Text>
+                        )}
+                    </Elevated>
+                </Pressable>
             ))}
         </Surface>
     );
 };
+
+/**
+ * The segment's face as Tamagui props, so the `Elevated` carries the fill and the count of React Native `style` uses does
+ * not grow. A transparent 1 pt edge sits on every segment; the selected one colours it `lineControl`
+ * (`componentFixes.md` §8), so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
+ */
+const segmentFace = {
+    flexGrow: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SEGMENT_ICON_GAP,
+    borderRadius: nativeTokens.radius.full,
+    borderWidth: SEGMENT_EDGE,
+    paddingHorizontal: SEGMENT_PADDING_X,
+} as const;
 
 const styles = StyleSheet.create({
     track: {
@@ -145,20 +162,6 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.full,
     },
     trackContent: { alignSelf: 'flex-start' },
-    segmentContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
-    segment: {
-        flexGrow: 1,
-        flexShrink: 1,
-        flexBasis: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: SEGMENT_ICON_GAP,
-        borderRadius: nativeTokens.radius.full,
-        // A transparent 1 pt edge on every segment; the selected one colours it `lineControl` (`componentFixes.md` §8),
-        // so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
-        borderWidth: SEGMENT_EDGE,
-        borderColor: 'transparent',
-        paddingHorizontal: SEGMENT_PADDING_X,
-    },
+    slot: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
+    slotContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
 });

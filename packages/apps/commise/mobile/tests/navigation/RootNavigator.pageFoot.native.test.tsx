@@ -5,6 +5,7 @@
  */
 import { renderWithProviders } from '@commise/test-utils';
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
+import { StackActions } from '@react-navigation/native';
 import type { ComponentType, JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -20,22 +21,28 @@ vi.mock('react-native-safe-area-context', async (importOriginal) => ({
 }));
 vi.mock('@clerk/expo', () => ({ useAuth: () => ({ userId: 'user_1' }) }));
 vi.mock('../../src/navigation/TabsNavigator.js', async () => {
-    const { Probe } = await import('./pageFootProbe.js');
+    const { TabsProbe } = await import('./pageFootProbe.js');
 
-    return {
-        TabsNavigator: (props: { onTabBarHeight: (height: number) => void }) => (
-            <Probe name="tabs" tabBar={props.onTabBarHeight} />
-        ),
-    };
+    return { TabsNavigator: TabsProbe };
 });
+/** The height each stub dock reports, by recipe id. */
+const dockHeights = vi.hoisted(() => new Map<string, number>());
 vi.mock('../../src/navigation/tasks.js', async () => {
-    const { Probe: TaskProbe } = await import('./pageFootProbe.js');
+    const { DockProbe } = await import('./pageFootProbe.js');
+    const { useRoute } = await import('@react-navigation/native');
+
+    function Cooking(): JSX.Element {
+        const { params } = useRoute();
+        const { recipeId } = params as { recipeId: string };
+
+        return <DockProbe name={`cooking ${recipeId}`} height={dockHeights.get(recipeId) ?? 0} />;
+    }
 
     return {
         taskScreens: (stack: { Screen: ComponentType<{ name: string; children: () => JSX.Element }> }) => (
             <>
-                <stack.Screen name="CookingMode">{() => <TaskProbe name="task" />}</stack.Screen>
-                <stack.Screen name="FoodDetail">{() => <TaskProbe name="other" />}</stack.Screen>
+                <stack.Screen name="CookingMode">{() => <Cooking />}</stack.Screen>
+                <stack.Screen name="FoodDetail">{() => <DockProbe name="food" height={0} />}</stack.Screen>
             </>
         ),
     };
@@ -43,14 +50,19 @@ vi.mock('../../src/navigation/tasks.js', async () => {
 
 const { RootNavigator } = await import('../../src/navigation/RootNavigator.js');
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    dockHeights.clear();
+});
 
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const foot = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name} foot`) }).textContent;
+const HOME = String(HOME_INDICATOR);
 
-function openTask(): void {
+/** Pushes, so a second cooking screen sits on top of the first instead of replacing its params. */
+function openCooking(recipeId: string): void {
     act(() => {
-        navigationRef.navigate('CookingMode', { recipeId: 'r1' });
+        navigationRef.dispatch(StackActions.push('CookingMode', { recipeId }));
     });
 }
 
@@ -63,48 +75,57 @@ describe('the foot the navigator provides', () => {
         expect(foot('tabs')).toBe(`tabs foot ${String(TAB_BAR)}`);
     });
 
-    it('is the home indicator on a task until its bottom bar reports', () => {
+    it('is the home indicator on a task whose bottom bar reports 0', () => {
+        dockHeights.set('a', 0);
         renderWithProviders(<RootNavigator />);
-        openTask();
+        openCooking('a');
 
-        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
+        expect(foot('cooking a')).toBe(`cooking a foot ${HOME}`);
     });
 
-    it('lifts to a reported dock height on a task, and drops to the home indicator when it reports 0', () => {
+    it('lifts to the height a task reports as it is shown', () => {
+        dockHeights.set('a', 90);
         renderWithProviders(<RootNavigator />);
-        openTask();
+        openCooking('a');
 
-        press('Report 90');
-        expect(foot('task')).toBe('task foot 90');
-
-        press('Report 0');
-        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
+        expect(foot('cooking a')).toBe('cooking a foot 90');
     });
 
     it('never goes below the home indicator for a dock height smaller than it', () => {
+        dockHeights.set('a', 10);
         renderWithProviders(<RootNavigator />);
-        openTask();
+        openCooking('a');
 
-        press('Report 10');
-
-        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
+        expect(foot('cooking a')).toBe(`cooking a foot ${HOME}`);
     });
 
-    it('drops a reported dock height when another task opens above, and takes the dock again when it returns', () => {
+    it('drops the height while another task is above, and has it back on return without a new report', () => {
+        dockHeights.set('a', 90);
         renderWithProviders(<RootNavigator />);
-        openTask();
-        press('Report 90');
-        expect(foot('task')).toBe('task foot 90');
+        openCooking('a');
 
         act(() => {
             navigationRef.navigate('FoodDetail', { foodId: 'f1', from: 'recipe' });
         });
-        expect(foot('other')).toBe(`other foot ${String(HOME_INDICATOR)}`);
+        expect(foot('food')).toBe(`food foot ${HOME}`);
 
         act(() => {
             navigationRef.goBack();
         });
-        press('Report 90');
-        expect(foot('task')).toBe('task foot 90');
+        expect(foot('cooking a')).toBe('cooking a foot 90');
+    });
+
+    it('tells two screens of the same name apart by route key, each keeping its own height', () => {
+        dockHeights.set('a', 90);
+        dockHeights.set('b', 60);
+        renderWithProviders(<RootNavigator />);
+        openCooking('a');
+        openCooking('b');
+        expect(foot('cooking b')).toBe('cooking b foot 60');
+
+        act(() => {
+            navigationRef.goBack();
+        });
+        expect(foot('cooking a')).toBe('cooking a foot 90');
     });
 });

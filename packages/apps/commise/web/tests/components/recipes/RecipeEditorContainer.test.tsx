@@ -251,7 +251,9 @@ describe('RecipeEditorContainer (web)', () => {
         });
 
         // E8: the editor says how it finished itself, then opens the recipe with no query string at all.
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        });
         expect((await screen.findByText('Recipe published.')).closest('[role="status"]')).not.toBeNull();
         expect(update).toHaveBeenCalledTimes(1);
         expect(update.mock.calls[0]?.[1]).toMatchObject({ status: 'published', expectedVersion: 2 });
@@ -280,7 +282,9 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1'));
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_1');
+        });
         expect((await screen.findByText('Changes saved.')).closest('[role="status"]')).not.toBeNull();
     });
 
@@ -319,7 +323,9 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_full?privateRefused=slots'));
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_full?privateRefused=slots');
+        });
         expect(setVisibility).not.toHaveBeenCalled();
     });
 
@@ -352,7 +358,9 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Save changes' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_failed_read'));
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_failed_read');
+        });
         await waitFor(() =>
             expect(setVisibility).toHaveBeenCalledWith('rec_failed_read', RecipeVisibility.PRIVATE, undefined),
         );
@@ -405,7 +413,9 @@ describe('RecipeEditorContainer (web)', () => {
             await userEvent.click(screen.getByRole('button', { name: 'Publish' }));
         });
 
-        await waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new'));
+        await waitFor(() => {
+            expect(pushMock).toHaveBeenCalledWith('/en/recipes/rec_new');
+        });
         await waitFor(() => expect(setVisibility).toHaveBeenCalledWith('rec_new', RecipeVisibility.PRIVATE, undefined));
     });
 

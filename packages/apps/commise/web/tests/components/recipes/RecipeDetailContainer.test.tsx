@@ -866,11 +866,13 @@ describe('RecipeDetailContainer', () => {
             arriveWith('privateRefused=slots');
 
             await renderDone();
-            await vi.waitFor(() => expect(window.location.search).toBe(''));
+            await vi.waitFor(() => {
+                expect(window.location.search).toBe('');
+            });
             const calls = replace.mock.calls.length;
             await userEvent.click(document.body);
 
-            expect(replace.mock.calls.length).toBe(calls);
+            expect(replace.mock.calls).toHaveLength(calls);
         });
     });
 
@@ -898,7 +900,9 @@ describe('RecipeDetailContainer', () => {
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
             // REWRITTEN: "Recipe deleted" used to ride to My recipes in `?deleted=1`. The one snackbar host now
             // outlives the page, so it is said here, before the push, and the address stays clean.
-            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes'));
+            await vi.waitFor(() => {
+                expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes');
+            });
             expect((await screen.findByText('Recipe deleted')).closest('[role="status"]')).not.toBeNull();
         });
 

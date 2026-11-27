@@ -70,7 +70,16 @@ const renderShell = (): void => {
     );
 };
 
-const region = (): HTMLElement => screen.getAllByRole('status')[0] as HTMLElement;
+/** The host's status region, found from the message it holds, not by its place among the page's live regions. */
+const region = (): HTMLElement => {
+    const host = screen.getByText('Removed Pasta').closest('[role="status"]');
+
+    if (!(host instanceof HTMLElement)) {
+        throw new Error('The snackbar is not inside a status region.');
+    }
+
+    return host;
+};
 
 describe('HomeChrome (web), the snackbar column', () => {
     it('centres the snackbar over `<main>`, beside the sidebar, at 1024', () => {

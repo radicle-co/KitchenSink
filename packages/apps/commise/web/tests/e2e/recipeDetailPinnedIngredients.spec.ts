@@ -285,28 +285,36 @@ for (const width of [430, 375]) {
                     Promise.all(node.getAnimations({ subtree: true }).map((a) => a.finished)),
                 );
 
-                const seen = await page.evaluate(() => {
-                    const dialog = document.querySelector('[role="dialog"]') as HTMLElement;
-                    const list = dialog.lastElementChild as HTMLElement;
-                    const box = list.getBoundingClientRect();
-                    const at = (x: number, y: number): Element | null => document.elementFromPoint(x, y);
-                    const probe = document.createElement('div');
+                // The panel is the dialog's child that holds the rows, whatever else the dialog holds beside it.
+                const seen = await panel
+                    .getByRole('checkbox')
+                    .first()
+                    .evaluate((row) => {
+                        const list = row.closest('[role="dialog"] > *');
 
-                    probe.className = 'bg-paper';
-                    document.body.append(probe);
-                    const paper = getComputedStyle(probe).backgroundColor;
+                        if (list === null) {
+                            throw new Error('the first row sits in no child of the dialog');
+                        }
 
-                    probe.remove();
+                        const box = list.getBoundingClientRect();
+                        const at = (x: number, y: number): Element | null => document.elementFromPoint(x, y);
+                        const probe = document.createElement('div');
 
-                    return {
-                        opacity: getComputedStyle(list).opacity,
-                        centreInPanel: list.contains(at(box.left + box.width / 2, box.top + 40)),
-                        stripIsScrim: at(5, 400)?.classList.contains('bg-scrim') === true,
-                        rightStripIsScrim: at(window.innerWidth - 5, 300)?.classList.contains('bg-scrim') === true,
-                        paper,
-                        patch: { x: box.left + 30, y: box.top + 3 },
-                    };
-                });
+                        probe.className = 'bg-paper';
+                        document.body.append(probe);
+                        const paper = getComputedStyle(probe).backgroundColor;
+
+                        probe.remove();
+
+                        return {
+                            opacity: getComputedStyle(list).opacity,
+                            centreInPanel: list.contains(at(box.left + box.width / 2, box.top + 40)),
+                            stripIsScrim: at(5, 400)?.classList.contains('bg-scrim') === true,
+                            rightStripIsScrim: at(window.innerWidth - 5, 300)?.classList.contains('bg-scrim') === true,
+                            paper,
+                            patch: { x: box.left + 30, y: box.top + 3 },
+                        };
+                    });
 
                 expect(seen).toMatchObject({
                     opacity: '1',
@@ -377,22 +385,25 @@ for (const width of [430, 375]) {
 // the rows scroll inside the panel while the bar stays put. The 13 rows at 200% text are taller than the 320 px half of
 // a 640 px window.
 /**
- * The box of the dialog frame's last child (the open panel; the bar copy is its first) once its animations have
- * finished. Throws when there is none, so a missing box never passes.
+ * The box of the dialog child that holds the rows (the open panel; the bar copy is another child) once its
+ * animations have finished. Throws when there is none, so a missing box never passes.
  */
 async function settledPanelBox(frame: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
-    return frame.evaluate(async (element) => {
-        const panel = element.lastElementChild;
+    return frame
+        .getByRole('checkbox')
+        .first()
+        .evaluate(async (row) => {
+            const panel = row.closest('[role="dialog"] > *');
 
-        if (panel === null) {
-            throw new Error('the dialog frame has no panel');
-        }
+            if (panel === null) {
+                throw new Error('the first row sits in no child of the dialog');
+            }
 
-        await Promise.all(panel.getAnimations().map((animation) => animation.finished));
-        const { x, y, width, height } = panel.getBoundingClientRect();
+            await Promise.all(panel.getAnimations().map((animation) => animation.finished));
+            const { x, y, width, height } = panel.getBoundingClientRect();
 
-        return { x, y, width, height };
-    });
+            return { x, y, width, height };
+        });
 }
 
 test.describe('recipe page at 390 x 640 with 200% text', () => {

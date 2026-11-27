@@ -198,7 +198,7 @@ interface CookingAddTimerMessages {
 }
 
 /** What cooking mode says on the way out while a timer of this recipe is still counting or paused. */
-export interface CookingExitMessages {
+interface CookingExitMessages {
     /** A running timer (contains `{label}`). It says where the timer rings, so each platform has its own sentence. */
     readonly timerRunningWeb: string;
     /** The same on the phone: the timer rings only while the app is on screen (contains `{label}`). */

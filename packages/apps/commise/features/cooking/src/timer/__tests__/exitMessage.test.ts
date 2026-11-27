@@ -94,9 +94,9 @@ describe('exitMessageOf', () => {
     });
 
     it('says nothing for an ended-away timer', () => {
-        const [ringing] = stateOf('ringing').timers;
+        const ringing = stateOf('ringing').timers.find((timer) => timer.kind === 'ringing');
 
-        if (ringing?.kind !== 'ringing') {
+        if (ringing === undefined) {
             throw new Error('the case needs a ringing timer');
         }
 

@@ -957,7 +957,7 @@ describe('CookingScreen (native): the names a cook hears on the way to Done', ()
 });
 
 describe('CookingScreen (native): the read wins over the session at the join', () => {
-    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
+    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) => {
         view.rerender(
             <CookingScreen
                 read={read}
@@ -967,6 +967,7 @@ describe('CookingScreen (native): the read wins over the session at the join', (
                 onHome={view.onHome}
             />,
         );
+    };
 
     const finish = async () => {
         for (let step = 1; step <= 6; step++) {
@@ -1221,6 +1222,7 @@ describe('CookingScreen (native): Done', () => {
 describe('CookingScreen: leaving with a timer', () => {
     const en = resolveMessages(cookingMessages, 'en');
     const RICE = fillTemplate(en.exit.timerRunningNative, { label: 'Rice' });
+
     const startTimer = (store: TimerStore, recipeId: string): void => {
         store.start({
             recipeId,
@@ -1231,6 +1233,7 @@ describe('CookingScreen: leaving with a timer', () => {
             durationMs: 60_000,
         });
     };
+
     const mount = (read: CookingScreenRead, timerOf?: string) => {
         const { store, Wrapper } = makeCookingWrapper();
 
@@ -1289,13 +1292,16 @@ describe('CookingScreen: leaving with a timer', () => {
         expect(ways.onLeave).toHaveBeenCalledTimes(1);
     });
 
-    it('says it on Android Back, through the back-intercept registry, then leaves', async () => {
+    it('says it on Android Back, through the back-intercept registry, then leaves', () => {
         const back = installHardwareBackHandler();
         const ways = mount(ready(), 'r1');
 
-        expect(back.press()).toBe(true);
-        expect(screen.getByText(RICE)).toBeTruthy();
-        expect(ways.onLeave).toHaveBeenCalledTimes(1);
-        back.restore();
+        try {
+            expect(back.press()).toBe(true);
+            expect(screen.getByText(RICE)).toBeTruthy();
+            expect(ways.onLeave).toHaveBeenCalledTimes(1);
+        } finally {
+            back.restore();
+        }
     });
 });

@@ -155,11 +155,13 @@ describe('useExitMessageWays', () => {
                 });
             },
         };
+
         const Open = (): ReactNode => {
             const snackbar = useSnackbar();
 
             return <button onClick={() => snackbar.show({ message: 'Recipe removed', onTimeout })}>Open</button>;
         };
+
         render(
             <TimerStoreContext value={store}>
                 <SnackbarHost>

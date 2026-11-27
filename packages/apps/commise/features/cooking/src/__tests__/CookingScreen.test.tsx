@@ -970,7 +970,7 @@ describe('CookingScreen: the names a cook hears on the way to Done', () => {
 });
 
 describe('CookingScreen: the read wins over the session at the join', () => {
-    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
+    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) => {
         view.rerender(
             <CookingScreen
                 read={read}
@@ -980,6 +980,7 @@ describe('CookingScreen: the read wins over the session at the join', () => {
                 onHome={view.onHome}
             />,
         );
+    };
 
     const finish = () => {
         for (let step = 1; step <= 6; step++) {
@@ -1196,6 +1197,7 @@ describe('CookingScreen: focus recovery inside a page that has its own landmarks
 describe('CookingScreen: leaving with a timer', () => {
     const en = resolveMessages(cookingMessages, 'en');
     const RICE = fillTemplate(en.exit.timerRunningWeb, { label: 'Rice' });
+
     const startTimer = (store: TimerStore, recipeId: string): void => {
         store.start({
             recipeId,
@@ -1206,6 +1208,7 @@ describe('CookingScreen: leaving with a timer', () => {
             durationMs: 60_000,
         });
     };
+
     const mount = (read: CookingScreenRead, timerOf?: string) => {
         const { store, Wrapper } = makeCookingWrapper();
 

@@ -38,6 +38,41 @@ vi.mock('react-native-safe-area-context', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
 }));
+/** Who is signed in, as a store the mocked Clerk hook reads, so a test can sign out and see the app re-render. */
+const clerk = vi.hoisted(() => {
+    const listeners = new Set<() => void>();
+    const state: { userId: string | null | undefined } = { userId: 'user_1' };
+
+    return {
+        state,
+        subscribe: (listener: () => void) => {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+        set: (userId: string | null | undefined) => {
+            state.userId = userId;
+            listeners.forEach((listener) => {
+                listener();
+            });
+        },
+    };
+});
+vi.mock('@clerk/expo', async () => {
+    const { useSyncExternalStore } = await import('react');
+
+    return {
+        useAuth: () => ({
+            userId: useSyncExternalStore(
+                clerk.subscribe,
+                () => clerk.state.userId,
+                () => clerk.state.userId,
+            ),
+        }),
+    };
+});
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: () => ({ isError: false, data: { user: { displayName: 'Eliza Mendes' } } }),
 }));
@@ -245,6 +280,7 @@ let back: HardwareBackHandle;
 
 afterEach(() => {
     cleanup();
+    clerk.set('user_1');
     back.restore();
     crash.discover = false;
 });
@@ -767,6 +803,22 @@ describe('the snackbar host', () => {
 
         expect(status.textContent).toBe('Removed Pasta');
         expect(getComputedStyle(status).bottom).toBe('88px');
+    });
+
+    it('closes the snackbar on sign-out, and keeps it while the session is still loading', () => {
+        renderRoot();
+        press('Remove');
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        act(() => {
+            clerk.set(undefined);
+        });
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        act(() => {
+            clerk.set(null);
+        });
+        expect(screen.getByRole('status').textContent).toBe('');
     });
 });
 

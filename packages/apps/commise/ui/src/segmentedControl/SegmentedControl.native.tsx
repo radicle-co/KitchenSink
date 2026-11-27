@@ -13,7 +13,6 @@ import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 import { Elevated } from '../elevation/Elevated.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName, IconProps } from '../icon/props.js';
-import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
@@ -56,7 +55,6 @@ const ROLES = {
 
 /** The native design-system segmented control. */
 export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
-    const { colors } = useTheme();
     const windowWidth = useWindowDimensions().width;
     const roles = ROLES[props.form];
     // Only a ROUTE control chooses its width (a view switch is sized by its glyphs on web and fills a row here).
@@ -110,7 +108,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                         {...(face.selected ? { level: 'sm' as const } : {})}
                         {...segmentFace}
                         {...(face.selected
-                            ? { backgroundColor: colors.paper, borderColor: colors.lineControl }
+                            ? { backgroundColor: '$paper', borderColor: '$lineControl' }
                             : { borderColor: 'transparent' })}
                     >
                         {face.icon === undefined ? null : (

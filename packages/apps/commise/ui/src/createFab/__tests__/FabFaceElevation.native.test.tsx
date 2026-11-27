@@ -40,11 +40,7 @@ describe.each(['light', 'dark'] as const)('FabFace (native, solid), %s theme', (
             <FabFace label="New recipe" icon="plus" presentation="extended" onLabelWidth={vi.fn()} />,
             scheme,
         );
-        const face = filledBoxOf(
-            screen.getAllByText('New recipe')[0] as HTMLElement,
-            rgb(rolesFor(scheme).action),
-            'the FAB',
-        );
+        const face = filledBoxOf(screen.getAllByText('New recipe')[0], rgb(rolesFor(scheme).action), 'the FAB');
 
         expect(resolvedStyle(face, 'boxShadow')).toBe(elevationBoxShadow('lg'));
     });

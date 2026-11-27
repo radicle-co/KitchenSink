@@ -77,7 +77,7 @@ describe('SegmentedControl (native) — route', () => {
     it('paints the current tab paper with an ink label, the other inkMuted, on a pearl track', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
 
-        expect(getComputedStyle(faceOf(screen.getByRole('tab', { name: 'My recipes' }))).backgroundColor).toBe(
+        expect(resolvedColour(faceOf(screen.getByRole('tab', { name: 'My recipes' })), 'backgroundColor')).toBe(
             rgb(role.paper),
         );
         // The label is the design-system Text, whose colour is a theme variable, so it is read resolved.
@@ -93,14 +93,14 @@ describe('SegmentedControl (native) — route', () => {
     // one shifts nothing.
     it('draws the current tab a 1 pt lineControl edge, and every other tab a transparent one of the same width', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
-        const current = getComputedStyle(faceOf(screen.getByRole('tab', { name: 'My recipes' })));
-        const other = getComputedStyle(faceOf(screen.getByRole('tab', { name: 'Collections' })));
+        const current = faceOf(screen.getByRole('tab', { name: 'My recipes' }));
+        const other = faceOf(screen.getByRole('tab', { name: 'Collections' }));
 
-        expect(current.borderTopWidth).toBe('1px');
-        expect(current.borderTopColor).toBe(rgb(role.lineControl));
-        expect(current.backgroundColor).toBe(rgb(role.paper));
-        expect(other.borderTopWidth).toBe('1px');
-        expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
+        expect(getComputedStyle(current).borderTopWidth).toBe('1px');
+        expect(resolvedColour(current, 'borderTopColor')).toBe(rgb(role.lineControl));
+        expect(resolvedColour(current, 'backgroundColor')).toBe(rgb(role.paper));
+        expect(getComputedStyle(other).borderTopWidth).toBe('1px');
+        expect(resolvedColour(other, 'borderTopColor')).not.toBe(rgb(role.lineControl));
     });
 
     // The face fills its segment, so the fill and the edge span the whole target rather than shrinking to the label.

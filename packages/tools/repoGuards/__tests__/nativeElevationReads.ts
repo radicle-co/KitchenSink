@@ -17,7 +17,7 @@ import ts from 'typescript';
 import { lineOf, parseModule } from './appSources.js';
 
 /** The modules that own the table: the table, the theme that derives colours from it, `Elevated`, the tests' reader. */
-export const ELEVATION_TABLE_OWNERS = /^packages\/apps\/commise\/ui\/src\/(?:tokens|theme|elevation|testing)\//u;
+const ELEVATION_TABLE_OWNERS = /^packages\/apps\/commise\/ui\/src\/(?:tokens|theme|elevation|testing)\//u;
 
 /** `nativeTokens.elevation`, `nativeTokens['elevation']`, or `const { elevation } = nativeTokens`. */
 const readsElevation = (node: ts.Node): boolean => {

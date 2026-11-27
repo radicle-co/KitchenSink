@@ -77,7 +77,7 @@ export const IconButton: FC<IconButtonNativeProps> = ({
         >
             {({ pressed }) => (
                 <Frame width={touchFloor()} height={touchFloor()}>
-                    <Circle dimmed={disabled} pressed={pressed && !disabled}>
+                    <Circle dimmed={disabled} pressed={pressed ? !disabled : false}>
                         <Icon name={icon} size={24} tone={tone} />
                     </Circle>
                 </Frame>

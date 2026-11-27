@@ -74,7 +74,7 @@ describe('iconOnlyControls', () => {
         [
             'a press handler on a wrapper of wrappers, copied from the primitive',
             lines(
-                `${ICON}`,
+                ICON,
                 `const A = () => <PressScale onPress={go}>`,
                 '<Frame><Circle><Icon name="x" /></Circle></Frame></PressScale>;',
             ),
@@ -230,8 +230,8 @@ describe('iconOnlyControls', () => {
             FEATURE,
         );
 
-        expect(found?.line).toBe(4);
-        expect(found?.text).toContain('<button>');
+        expect(found.line).toBe(4);
+        expect(found.text).toContain('<button>');
     });
 
     it('counts each control once, however its handler and tag both qualify it', () => {

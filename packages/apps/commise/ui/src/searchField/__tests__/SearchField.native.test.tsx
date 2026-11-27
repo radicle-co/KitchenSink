@@ -117,8 +117,8 @@ describe('SearchField (native)', () => {
         render(<Search initial="lemon" />);
         const glyph = document.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')[1];
 
-        expect(glyph?.dataset['iconSize']).toBe('24');
-        expect(glyph?.dataset['iconColor']).toBe(role.inkMuted);
+        expect(glyph.dataset['iconSize']).toBe('24');
+        expect(glyph.dataset['iconColor']).toBe(role.inkMuted);
     });
 
     // Rewritten: the clear control is the shared icon button, so its 44 pt / 48 dp target is the frame inside its

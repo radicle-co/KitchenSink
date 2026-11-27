@@ -47,7 +47,7 @@ function frameOf(button: HTMLElement, other: HTMLElement): HTMLElement {
         if (framed.length > 0) {
             const [frame] = framed;
 
-            if (framed.length !== 1 || frame === undefined || seat.contains(other) || frame.contains(button)) {
+            if (framed.length !== 1 || seat.contains(other) || frame.contains(button)) {
                 throw new Error('The step button seat is not one button and one frame layer.');
             }
 

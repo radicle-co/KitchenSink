@@ -10,6 +10,8 @@
  *
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
+import { nearestAncestorHolding } from '../../testing/ancestorHolding.js';
+import { present } from '../../testing/present.js';
 import { reportResize } from '../../testing/resizeObserver.js';
 import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, useEffect, type ComponentProps, type FC, type JSX } from 'react';
@@ -120,31 +122,22 @@ const dialog = (): HTMLElement =>
  * The title row: the nearest ancestor of Close that also holds the title. It is found by what it holds, so it does not
  * depend on how many boxes the icon button nests its button in.
  */
-const titleRow = (): HTMLElement => {
-    const heading = screen.getByRole('heading', { name: 'Filter recipes' });
-
-    for (
-        let box = screen.getByRole('button', { name: 'Close filters' }).parentElement;
-        box !== null;
-        box = box.parentElement
-    ) {
-        if (box.contains(heading)) {
-            return box;
-        }
-    }
-
-    throw new Error('Expected an ancestor of Close to hold the title.');
-};
+const titleRow = (): HTMLElement =>
+    nearestAncestorHolding(
+        screen.getByRole('button', { name: 'Close filters' }),
+        screen.getByRole('heading', { name: 'Filter recipes' }),
+        'the title',
+    );
 
 /** The swipe zone: the grab handle and the title row. */
-const swipeZone = (): HTMLElement => titleRow().parentElement as HTMLElement;
+const swipeZone = (): HTMLElement => present(titleRow().parentElement, 'the swipe zone');
 /**
  * The top block the footer decision measures: everything pinned above the scroll region, which is the swipe zone (the
  * grab handle and the title row with Close) and, below it, the toolbar. REWRITTEN for issue #192 review item 3: it used
  * to be the swipe zone alone (Close's grandparent), which left a toolbar out of the measure. Before that, parity item 7
  * added the handle to the zone.
  */
-const topBlock = (): HTMLElement => swipeZone().parentElement as HTMLElement;
+const topBlock = (): HTMLElement => present(swipeZone().parentElement, 'the top block');
 /** The footer: the view that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 const scrollRegion = (): Element => dialog().querySelector('[data-scroll-region]') as Element;

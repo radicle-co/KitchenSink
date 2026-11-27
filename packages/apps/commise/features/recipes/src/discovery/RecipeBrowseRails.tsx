@@ -89,7 +89,9 @@ const Rail: FC<{
                         icon="chevronLeft"
                         accessibilityLabel={discovery.previous}
                         disabled={scroll.atStart}
-                        onPress={() => scroll.by(-1)}
+                        onPress={() => {
+                            scroll.by(-1);
+                        }}
                     />
                 </span>
                 <span className={FINE_POINTER_ONLY}>
@@ -97,7 +99,9 @@ const Rail: FC<{
                         icon="chevronRight"
                         accessibilityLabel={discovery.next}
                         disabled={scroll.atEnd}
-                        onPress={() => scroll.by(1)}
+                        onPress={() => {
+                            scroll.by(1);
+                        }}
                     />
                 </span>
                 {/* The link wraps under the title when the two do not fit; it never shrinks or truncates, and its box is

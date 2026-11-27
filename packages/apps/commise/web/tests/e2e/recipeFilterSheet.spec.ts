@@ -23,6 +23,7 @@ const WIDE = { width: 1440, height: 900 };
 
 /** The Sheet's apply button: "Show 3 recipes", "Show 1 recipe", or "Show recipes" while the count is unknown. */
 const SHOW = /^Show (?:\d+ )?recipes?$/u;
+/** The Sheet's title, which also names its dialog. */ const SHEET_TITLE = 'Filters';
 
 /** One vegan and one non-vegan public recipe, both matching the query `e`, so a facet visibly narrows the list. */
 async function seed(page: Page): Promise<void> {
@@ -259,7 +260,29 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
                     scrolled: node.scrollTop,
                 };
             }),
-            close.evaluate((element) => element.parentElement?.getBoundingClientRect().height ?? 0),
+            // The title row is the nearest ancestor of Close that holds the Sheet's title, found by its exact name because
+            // the body holds section headings too. It never holds Done, which would make it the whole Sheet.
+            close.evaluate((element, title) => {
+                const isTitle = (node: Element): boolean =>
+                    [...node.querySelectorAll('[role="heading"], h1, h2, h3')].some(
+                        (heading) => heading.textContent?.trim() === title,
+                    );
+                let node = element.parentElement;
+
+                while (node !== null && !isTitle(node)) {
+                    node = node.parentElement;
+                }
+
+                if (node === null) {
+                    throw new Error(`No ancestor of Close holds the title ${title}`);
+                }
+
+                if ([...node.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Done')) {
+                    throw new Error('The title row holds Done, so it is the whole Sheet');
+                }
+
+                return node.getBoundingClientRect().height;
+            }, SHEET_TITLE),
         ]);
 
         return { ...region, top };

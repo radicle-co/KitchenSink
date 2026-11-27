@@ -222,7 +222,7 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
     it('are drawn for a fine pointer only, named Previous and Next, in the Trending heading row', () => {
         renderRails();
         const next = screen.getAllByRole('button', { name: 'Next' })[0];
-        let visibility: HTMLElement | null = next?.parentElement ?? null;
+        let visibility: HTMLElement | null = next.parentElement;
 
         while (visibility !== null && !visibility.className.split(/\s+/u).includes('pointer-fine:inline-flex')) {
             visibility = visibility.parentElement;
@@ -241,11 +241,11 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
         for (const name of ['Previous', 'Next']) {
             const button = screen.getAllByRole('button', { name })[0];
 
-            expect(button?.className.split(/\s+/u), name).toContain('size-[44px]');
+            expect(button.className.split(/\s+/u), name).toContain('size-[44px]');
             // Ink, and not the muted tone.
-            expect(button?.className.split(/\s+/u), name).toContain('text-ink');
-            expect(button?.className.split(/\s+/u), name).not.toContain('text-ink-muted');
-            expect(button?.querySelector('svg')?.getAttribute('width'), name).toBe('24');
+            expect(button.className.split(/\s+/u), name).toContain('text-ink');
+            expect(button.className.split(/\s+/u), name).not.toContain('text-ink-muted');
+            expect(button.querySelector('svg')?.getAttribute('width'), name).toBe('24');
         }
     });
 

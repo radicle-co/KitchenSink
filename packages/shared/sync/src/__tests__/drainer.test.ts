@@ -247,8 +247,8 @@ describe('drain — backoff', () => {
         expect(after.log.records).toStrictEqual([]);
     });
 
-    // The offline write path's integration rows draw no jitter (`Math.random` pinned to 0), so the two ends of the draw
-    // are pinned here: the shortest wait is none, and the longest stays just under the doubling ceiling (500 ms, 1 s).
+    // Both ends of the draw: the shortest wait is none, and the longest stays just under the doubling ceiling
+    // (500 ms, then 1 s).
     it.each([
         ['no jitter', 0, [0, 0]],
         ['the largest draw', 0.999, [499, 999]],

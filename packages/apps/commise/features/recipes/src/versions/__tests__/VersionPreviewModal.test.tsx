@@ -8,10 +8,18 @@
  * dismissal (Cancel + Escape/focus-return).
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, cleanup, render, screen } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
 import type { RecipeIngredient, RecipeSnapshot, RecipeStep, RecipeVersion } from '@kitchensink/recipe-core';
 
 import { diffSnapshots, type SnapshotDiff } from '../diff.js';
@@ -785,5 +793,68 @@ describe('VersionPreviewModal — the pinned-footer limit', () => {
         ).toBeTruthy();
         // The title and the summary stay pinned outside it.
         expect(scroller.contains(screen.getByText(/^Changed from current:/))).toBe(false);
+    });
+});
+
+describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }) {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <VersionPreviewModal
+                    {...baseProps({ open, version: populatedVersion, diffFromCurrent: populatedDiff })}
+                />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('sits the snackbar 16 above the pinned action row, past the dialog padding under it', () => {
+        // jsdom lays nothing out: the box that holds the dialog reports 600, the pinned top row 100, the action row 80.
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+            const holdsActions =
+                this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
+            const holdsTitle = this.querySelector('h2') !== null;
+            const height = this.getAttribute('role') === 'dialog' ? 600 : holdsTitle ? 100 : holdsActions ? 80 : 0;
+
+            return new DOMRect(0, 0, 320, height);
+        });
+        globalThis.ResizeObserver = class implements ResizeObserver {
+            public constructor(private readonly callback: ResizeObserverCallback) {}
+
+            public observe(): void {
+                this.callback([], this);
+            }
+
+            public unobserve(): void {}
+
+            public disconnect(): void {}
+        };
+        try {
+            render(<WithHost open />);
+
+            // 80 (the row) + 24 (the dialog's own bottom padding) + 16, as `calc(104px + 1rem)`.
+            // Kills: no footHeight (covers the buttons) and forgetting the padding (sits 24 too low, over the buttons' edge).
+            const regions = within(screen.getByRole('dialog')).getAllByRole('status', { hidden: true });
+
+            expect(regions.some((region) => region.style.bottom === 'calc(104px + 1rem)')).toBe(true);
+        } finally {
+            Reflect.deleteProperty(globalThis, 'ResizeObserver');
+        }
     });
 });

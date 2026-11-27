@@ -35,6 +35,8 @@
  * a `userCalories` override — never fabricated), plus the "Changed from current" summary when
  * `diffFromCurrent` was supplied, and the count-templated Restore action.
  *
+ * A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the pinned actions.
+ *
  * @pattern Adapter over the house Radix `Dialog`, mirroring `PullUpdatesDialog.tsx` structurally and behaviourally —
  *     `open` is the caller's and this leaf stays a controlled `props → JSX` render.
  */
@@ -47,6 +49,7 @@ import { Icon } from '@commise/ui/icon';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import { WindowScope } from '@commise/ui/window-scope';
 import * as Dialog from '@radix-ui/react-dialog';
 import { type FC } from 'react';
 
@@ -69,6 +72,9 @@ import {
  */
 const SIDE_BY_SIDE_FROM = 600;
 
+/** The dialog's own padding, px: `p-6` on its content. The pinned actions sit this far above its foot. */
+const DIALOG_PADDING_PX = 24;
+
 export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     open,
     version,
@@ -90,7 +96,7 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
 
     // Past half the dialog, the pinned top and the actions leave the recipe a sliver (large text, a short phone), so the
     // actions drop into the end of the scroller. The title, errors and summary stay pinned; Esc and Keep still close.
-    const { unpinned, frameRef, topRef, footerRef } = usePinnedFooter();
+    const { unpinned, footerHeight, frameRef, topRef, footerRef } = usePinnedFooter();
 
     // Loading always wins — a fetch that is genuinely in flight must not read as broken on first paint. Once
     // NOTHING is pending, though, having no version to show IS a failure (B21): this used to read "still
@@ -136,6 +142,10 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
     // Only a loaded body has a scroller to drop into.
     const actionsInBody = unpinned && showContent;
 
+    // The snackbar sits 16 above the pinned actions: their height and the dialog's own bottom padding under them. Once
+    // the actions drop into the scroller there is nothing pinned to clear, so it sits 16 above the dialog's foot.
+    const footHeight = actionsInBody ? undefined : footerHeight + DIALOG_PADDING_PX;
+
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onCancel()}>
             <Dialog.Portal>
@@ -145,133 +155,141 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                     onCloseAutoFocus={onCloseAutoFocus}
                     className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paper')} p-6 shadow-lg md:max-w-2xl`}
                 >
-                    <div ref={topRef} className="flex flex-col gap-4">
-                        <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
+                    <WindowScope footHeight={footHeight}>
+                        <div ref={topRef} className="flex flex-col gap-4">
+                            <Dialog.Title className="text-section-title text-ink">{title}</Dialog.Title>
 
-                        {showLoading && (
-                            <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
-                                {preview.loading}
-                            </p>
-                        )}
-
-                        {showError && (
-                            <p role="alert" className="text-body-md text-danger-text">
-                                {preview.error}
-                            </p>
-                        )}
-
-                        {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
-                            the list behind the dialog (`namelessLineCopy.md` §5). */}
-                        {restoreErrorText !== undefined && (
-                            <p role="alert" className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text">
-                                {restoreErrorText}
-                            </p>
-                        )}
-
-                        {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
-                            with, what a restore changes. */}
-                        {showContent && diffFromCurrent !== undefined && (
-                            <p className="text-body-sm italic text-ink-muted">
-                                {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
-                            </p>
-                        )}
-                    </div>
-
-                    {showContent && version !== undefined && (
-                        // The only part that scrolls: the dialog is capped at 85vh, so a long recipe scrolls here
-                        // while the title, the summary and the actions stay on screen.
-                        <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
-                            <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md text-ink">
-                                <dt className="font-medium text-ink-muted">{conflict.titleLabel}</dt>
-                                <dd>{version.snapshot.title}</dd>
-                                <dt className="font-medium text-ink-muted">{conflict.descriptionLabel}</dt>
-                                <dd>{version.snapshot.description}</dd>
-                                <dt className="font-medium text-ink-muted">{conflict.servingsLabel}</dt>
-                                <dd>{version.snapshot.servings}</dd>
-                                <dt className="font-medium text-ink-muted">{conflict.prepLabel}</dt>
-                                <dd>{formatDurationMinutes(version.snapshot.prepTimeMinutes, conflict.minutes)}</dd>
-                                <dt className="font-medium text-ink-muted">{conflict.cookLabel}</dt>
-                                <dd>{formatDurationMinutes(version.snapshot.cookTimeMinutes, conflict.minutes)}</dd>
-                                <dt className="font-medium text-ink-muted">{conflict.totalLabel}</dt>
-                                <dd>
-                                    {formatDurationMinutes(
-                                        version.snapshot.prepTimeMinutes + version.snapshot.cookTimeMinutes,
-                                        conflict.minutes,
-                                    )}
-                                </dd>
-                            </dl>
-
-                            <div className="flex flex-col gap-2">
-                                <h3 className="font-display text-body-md font-semibold text-ink">
-                                    {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
-                                </h3>
-                                <ul className="flex flex-col divide-y divide-line-divider rounded-lg bg-surface-muted p-2">
-                                    {toVersionPreviewIngredientLines(
-                                        version.snapshot.ingredients,
-                                        preview,
-                                        locale,
-                                        ingredientLineName,
-                                        unrestorablePositionsFor(restoreError, version.versionNumber),
-                                    ).map((line) => (
-                                        <li
-                                            key={line.key}
-                                            className="flex items-center justify-between gap-3 px-3 py-2 text-body-sm text-ink"
-                                        >
-                                            {/* The line text yields the width (and breaks); the calorie
-                                                    chip never shrinks. Parity with the native leaf's
-                                                    `flexShrink` pair — see `VersionPreviewModal.native.tsx`. */}
-                                            <span className="min-w-0 break-words">
-                                                <AmountText text={line.text} />
-                                                {/* Curated U15 (§S1): a variant-bound line's dotted line, on a
-                                                    line of its own under the line it belongs to. */}
-                                                {line.variantParts !== undefined && (
-                                                    <span className="mt-1 block">
-                                                        <VariantPartsLine parts={line.variantParts} tone="secondary" />
-                                                    </span>
-                                                )}
-                                                {/* Words, never colour alone: the refused restore named this
-                                                        line. Plain text in the line, so it is read with it, and
-                                                        last, because it is about the whole line, details too. */}
-                                                {line.cannotRestore !== undefined && (
-                                                    <>
-                                                        {' '}
-                                                        <span className="font-medium text-danger-text">
-                                                            {line.cannotRestore}
-                                                        </span>
-                                                    </>
-                                                )}
-                                            </span>
-                                            {line.calories !== undefined && (
-                                                <span className="shrink-0 text-ink-muted">{line.calories}</span>
-                                            )}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-
-                            {version.snapshot.steps.length > 0 && (
-                                <div className="flex flex-col gap-2">
-                                    <h3 className="font-display text-body-md font-semibold text-ink">
-                                        {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
-                                    </h3>
-                                    <ol className="flex flex-col gap-2 rounded-lg bg-surface-muted p-3">
-                                        {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
-                                            <li key={step.key} className="flex gap-2 text-body-sm text-ink">
-                                                <span className="shrink-0 tabular-nums text-ink-muted">
-                                                    {step.marker}
-                                                </span>
-                                                <span className="min-w-0 break-words">{step.text}</span>
-                                            </li>
-                                        ))}
-                                    </ol>
-                                </div>
+                            {showLoading && (
+                                <p role="status" aria-label={preview.loading} className="text-body-md text-ink-muted">
+                                    {preview.loading}
+                                </p>
                             )}
 
-                            {actionsInBody ? actions : null}
-                        </div>
-                    )}
+                            {showError && (
+                                <p role="alert" className="text-body-md text-danger-text">
+                                    {preview.error}
+                                </p>
+                            )}
 
-                    {actionsInBody ? null : actions}
+                            {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
+                            the list behind the dialog (`namelessLineCopy.md` §5). */}
+                            {restoreErrorText !== undefined && (
+                                <p
+                                    role="alert"
+                                    className="rounded-lg bg-danger/10 px-4 py-3 text-body-sm text-danger-text"
+                                >
+                                    {restoreErrorText}
+                                </p>
+                            )}
+
+                            {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
+                            with, what a restore changes. */}
+                            {showContent && diffFromCurrent !== undefined && (
+                                <p className="text-body-sm italic text-ink-muted">
+                                    {formatChangedFromCurrent(diffFromCurrent, preview, conflict, locale)}
+                                </p>
+                            )}
+                        </div>
+
+                        {showContent && version !== undefined && (
+                            // The only part that scrolls: the dialog is capped at 85vh, so a long recipe scrolls here
+                            // while the title, the summary and the actions stay on screen.
+                            <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto">
+                                <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-body-md text-ink">
+                                    <dt className="font-medium text-ink-muted">{conflict.titleLabel}</dt>
+                                    <dd>{version.snapshot.title}</dd>
+                                    <dt className="font-medium text-ink-muted">{conflict.descriptionLabel}</dt>
+                                    <dd>{version.snapshot.description}</dd>
+                                    <dt className="font-medium text-ink-muted">{conflict.servingsLabel}</dt>
+                                    <dd>{version.snapshot.servings}</dd>
+                                    <dt className="font-medium text-ink-muted">{conflict.prepLabel}</dt>
+                                    <dd>{formatDurationMinutes(version.snapshot.prepTimeMinutes, conflict.minutes)}</dd>
+                                    <dt className="font-medium text-ink-muted">{conflict.cookLabel}</dt>
+                                    <dd>{formatDurationMinutes(version.snapshot.cookTimeMinutes, conflict.minutes)}</dd>
+                                    <dt className="font-medium text-ink-muted">{conflict.totalLabel}</dt>
+                                    <dd>
+                                        {formatDurationMinutes(
+                                            version.snapshot.prepTimeMinutes + version.snapshot.cookTimeMinutes,
+                                            conflict.minutes,
+                                        )}
+                                    </dd>
+                                </dl>
+
+                                <div className="flex flex-col gap-2">
+                                    <h3 className="font-display text-body-md font-semibold text-ink">
+                                        {fillTemplate(preview.ingredientsHeading, { version: version.versionNumber })}
+                                    </h3>
+                                    <ul className="flex flex-col divide-y divide-line-divider rounded-lg bg-surface-muted p-2">
+                                        {toVersionPreviewIngredientLines(
+                                            version.snapshot.ingredients,
+                                            preview,
+                                            locale,
+                                            ingredientLineName,
+                                            unrestorablePositionsFor(restoreError, version.versionNumber),
+                                        ).map((line) => (
+                                            <li
+                                                key={line.key}
+                                                className="flex items-center justify-between gap-3 px-3 py-2 text-body-sm text-ink"
+                                            >
+                                                {/* The line text yields the width (and breaks); the calorie
+                                                    chip never shrinks. Parity with the native leaf's
+                                                    `flexShrink` pair — see `VersionPreviewModal.native.tsx`. */}
+                                                <span className="min-w-0 break-words">
+                                                    <AmountText text={line.text} />
+                                                    {/* Curated U15 (§S1): a variant-bound line's dotted line, on a
+                                                    line of its own under the line it belongs to. */}
+                                                    {line.variantParts !== undefined && (
+                                                        <span className="mt-1 block">
+                                                            <VariantPartsLine
+                                                                parts={line.variantParts}
+                                                                tone="secondary"
+                                                            />
+                                                        </span>
+                                                    )}
+                                                    {/* Words, never colour alone: the refused restore named this
+                                                        line. Plain text in the line, so it is read with it, and
+                                                        last, because it is about the whole line, details too. */}
+                                                    {line.cannotRestore !== undefined && (
+                                                        <>
+                                                            {' '}
+                                                            <span className="font-medium text-danger-text">
+                                                                {line.cannotRestore}
+                                                            </span>
+                                                        </>
+                                                    )}
+                                                </span>
+                                                {line.calories !== undefined && (
+                                                    <span className="shrink-0 text-ink-muted">{line.calories}</span>
+                                                )}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+
+                                {version.snapshot.steps.length > 0 && (
+                                    <div className="flex flex-col gap-2">
+                                        <h3 className="font-display text-body-md font-semibold text-ink">
+                                            {fillTemplate(preview.stepsHeading, { version: version.versionNumber })}
+                                        </h3>
+                                        <ol className="flex flex-col gap-2 rounded-lg bg-surface-muted p-3">
+                                            {toVersionPreviewSteps(version.snapshot.steps).map((step) => (
+                                                <li key={step.key} className="flex gap-2 text-body-sm text-ink">
+                                                    <span className="shrink-0 tabular-nums text-ink-muted">
+                                                        {step.marker}
+                                                    </span>
+                                                    <span className="min-w-0 break-words">{step.text}</span>
+                                                </li>
+                                            ))}
+                                        </ol>
+                                    </div>
+                                )}
+
+                                {actionsInBody ? actions : null}
+                            </div>
+                        )}
+
+                        {actionsInBody ? null : actions}
+                    </WindowScope>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

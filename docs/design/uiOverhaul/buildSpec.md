@@ -967,7 +967,7 @@ phone 390                                    840+ (main 960)
   name "See all {rail}"). Track: grid cards at `width: clamp(240px, 78%, 256px)`, `scroll-snap-type: x mandatory`,
   `scroll-padding-inline` equal to the gutter. At 320 the next card peeks about 32 px. At 390 it peeks about 86 px.
   The peek is the swipe cue on touch.
-    - Fine pointer only (`(hover: hover) and (pointer: fine)`): two 36 px round ghost buttons, previous and next, at
+    - Fine pointer only (`(hover: hover) and (pointer: fine)`): two 44 px icon buttons, previous and next, at
       the end of the heading row before "See all". They scroll by one view minus one card and disable at the ends.
     - Keyboard: the track is a focusable `region` named "{rail} recipes", arrow keys scroll it, each card is a stop.
     - **The skeleton uses the same track element as the loaded rail** (one `RailTrack`), so it cannot overflow the

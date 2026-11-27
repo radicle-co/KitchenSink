@@ -85,7 +85,8 @@ test.describe('the rail scroll hint', () => {
 
         await row.getByRole('button', { name: 'Next' }).click();
         await expectChevron(chevronOf(rail), 'hidden');
-        await expect(previous).toHaveAttribute('aria-disabled', 'false');
+        // The shared icon button sets aria-disabled only while unavailable, so an available Previous carries none.
+        await expect(previous).not.toHaveAttribute('aria-disabled');
     });
 
     test('sits at the left edge in a right-to-left page, and follows the same rule', async ({ page }) => {

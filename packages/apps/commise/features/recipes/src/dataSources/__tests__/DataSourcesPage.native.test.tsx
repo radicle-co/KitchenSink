@@ -9,6 +9,7 @@ import userEvent from '@testing-library/user-event';
 import { createElement, type ComponentProps } from 'react';
 import { AccessibilityInfo, Text, type Modal as ModalType } from 'react-native';
 import { role, roleDark } from '@commise/ui/colors';
+import { withPlatformOs } from '@commise/ui/testing/platform-os';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
@@ -116,6 +117,32 @@ describe('DataSourcesPage (native)', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Close data sources' }));
 
         expect(onRequestClose).toHaveBeenCalledTimes(1);
+    });
+
+    // New: Close is the shared icon button, so its 44pt (iOS) and 48dp (Android) target is the frame inside the press
+    // target, the button's first element child.
+    it('gives Close the icon button target: 44pt on iOS and 48dp on Android', () => {
+        for (const [os, size] of [
+            ['ios', '44px'],
+            ['android', '48px'],
+        ] as const) {
+            withPlatformOs(os, () => {
+                const { unmount } = render(
+                    <DataSourcesPage onRequestClose={vi.fn()} headingFocusSignal={0}>
+                        {null}
+                    </DataSourcesPage>,
+                );
+                const frame = screen.getByRole('button', { name: 'Close data sources' }).firstElementChild;
+
+                if (frame === null) {
+                    throw new Error('Expected the Close button to hold a frame.');
+                }
+
+                expect(getComputedStyle(frame).width, os).toBe(size);
+                expect(getComputedStyle(frame).height, os).toBe(size);
+                unmount();
+            });
+        }
     });
 
     it('renders the read’s state below the intro', () => {

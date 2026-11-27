@@ -2,6 +2,7 @@
  * @module testing/undoSnackbarParts — where a test finds the native Undo snackbar's boxes, by what they hold and not
  * by how deep the styling library nests them.
  */
+import { nearestAncestorHolding } from './ancestorHolding.js';
 import { present } from './present.js';
 
 /**
@@ -13,13 +14,7 @@ import { present } from './present.js';
  * @throws Error when no ancestor of the message holds the button.
  */
 export function snackbarBarOf(message: HTMLElement, undo: HTMLElement): HTMLElement {
-    for (let box = message.parentElement; box !== null; box = box.parentElement) {
-        if (box.contains(undo)) {
-            return box;
-        }
-    }
-
-    throw new Error('Expected an ancestor of the message to hold the Undo button.');
+    return nearestAncestorHolding(message, undo, 'the Undo button');
 }
 
 /**

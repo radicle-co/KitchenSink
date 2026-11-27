@@ -16,6 +16,7 @@ import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
+import { nearestAncestorHolding } from '../../testing/ancestorHolding.js';
 import { resizeEntryOf } from '../../testing/resizeObserver.js';
 import type { SheetProps } from '../props.js';
 import { Sheet } from '../Sheet.js';
@@ -97,8 +98,18 @@ async function openHost(element: JSX.Element): Promise<ReturnType<typeof userEve
 
 /** The sheet's own box: the panel that fills the dialog. */
 const sheetBox = (): HTMLElement => screen.getByRole('dialog').firstElementChild as HTMLElement;
-/** The title row: the row that holds the title and Close. */
-const titleRow = (): HTMLElement => screen.getByRole('button', { name: 'Close filters' }).parentElement as HTMLElement;
+
+/**
+ * The title row: the nearest ancestor of Close that also holds the title. It is found by what it holds, so it does not
+ * depend on how many boxes the icon button nests its button in.
+ */
+const titleRow = (): HTMLElement =>
+    nearestAncestorHolding(
+        screen.getByRole('button', { name: 'Close filters' }),
+        screen.getByRole('heading', { name: 'Filter recipes' }),
+        'the title',
+    );
+
 /** The footer: the box that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 

@@ -11,7 +11,7 @@
  *
  * @pattern Adapter over the design-system `Sheet` — the leaf maps each statechart state to the sheet's slots
  */
-import { Icon } from '@commise/ui/icon';
+import { IconButton } from '@commise/ui/icon-button';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
@@ -24,7 +24,7 @@ import { TextInput } from '@commise/ui/text-input';
 import { useTheme } from '@commise/ui/theme';
 import { VariantPartsLine } from '@commise/ui/variant-parts-line';
 import { useState, type FC, type ReactNode } from 'react';
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
+import { Platform, StyleSheet, Text, View, useWindowDimensions } from 'react-native';
 
 import { fillTemplate } from '@commise/i18n';
 import { sentenceCase } from '../format/sentenceCase.js';
@@ -103,14 +103,12 @@ export const VariantDetailsDialog: FC<VariantDetailsDialogProps> = ({ open, food
                           style={[styles.input, { borderColor: colors.lineControl, color: colors.ink }]}
                       />
                       {details.query !== '' && (
-                          <Pressable
-                              accessibilityRole="button"
+                          <IconButton
+                              icon="x"
+                              tone="inkMuted"
                               accessibilityLabel={copy.searchClear}
                               onPress={details.onClearQuery}
-                              style={styles.clear}
-                          >
-                              <Icon name="x" size={20} tone="inkMuted" />
-                          </Pressable>
+                          />
                       )}
                   </View>
               ),
@@ -293,7 +291,6 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
         paddingHorizontal: nativeTokens.spacing[3],
     },
-    clear: { width: 48, height: 48, alignItems: 'center', justifyContent: 'center' },
     block: { gap: nativeTokens.spacing[3], paddingHorizontal: nativeTokens.spacing[4] },
     body: { ...nativeTokens.type.body },
     retry: { alignSelf: 'flex-start' },

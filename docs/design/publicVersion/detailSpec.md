@@ -301,7 +301,7 @@ Sizes left off a board show the same layout as a drawn size (P5): Android
 
 ## 10. Open items and conflicts
 
-1. **Settled.** The contract now holds `hasSourceRecord` and the offer route. Ruled by the 003B lead 2026-11-17: show the item when owner + private +
+1. **Closed.** The contract now holds `hasSourceRecord` and the offer route. Ruled by the 003B lead 2026-11-17: show the item when owner + private +
    `hasSourceRecord`, and fetch the offer on press (§3). The contract
    (`specs/003B-public-rewrite/contracts/publicVersion.api.md`) holds the `hasSourceRecord` field on the
    recipe read and the offer read for a private copy. This spec does not specify their wire shape.
@@ -311,9 +311,9 @@ Sizes left off a board show the same layout as a drawn size (P5): Android
 4. **New strings** (§6), for the lead.
 5. **Owner question, FR-082.** One report, from any reader, signed out included, hides a public version at once until
    staff decide. Is that the intended behaviour for a signed-out report?
-6. **Settled: leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
+6. **Closed: leaf keys that clash with groups.** In the message files the leaf `credit` clashes with the group
    `credit.*` (`credit.written`, `credit.basedOn`), and the leaf `notNow` with `notNow.note`. The 003B lead is renaming
-   the leaves; the names follow from the 003B lead. Bare uses as leaf keys: `spec.md` §3.1 (`credit` before
+   the leaves; R8 holds the names `creditNote` and `notNowLabel`, and the boards annotate them (003B follow-up boards PR). Bare uses as leaf keys: `spec.md` §3.1 (`credit` before
    `creditLink`), §6.1 "Nothing chosen (Free)" row (`credit`) and §6.5 "Switch on, upsell, trial eligible" row (`notNow`).
    None in this spec. The `credit` and `notNow` props of `ImportChoiceGroup` and `PublicVersionReview` (spec.md §8.2)
    are props, not keys.

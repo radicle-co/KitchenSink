@@ -238,7 +238,7 @@
       "x": 0,
       "y": 15972,
       "w": 1280,
-      "h": 3903,
+      "h": 3959,
       "title": "Recipe importing, choice (web, 1280)"
     },
     "ImportPublicPrivateOnlyWeb1280.dc.html": {
@@ -259,7 +259,7 @@
       "x": 4080,
       "y": 15972,
       "w": 1280,
-      "h": 2431,
+      "h": 2455,
       "title": "Recipe importing, public only, no slot (web, 1280)"
     },
     "ImportPublicDeadEndWeb1280.dc.html": {
@@ -273,7 +273,7 @@
       "x": 6800,
       "y": 15972,
       "w": 1280,
-      "h": 863,
+      "h": 923,
       "title": "Recipe importing, writing (web, 1280)"
     },
     "ImportPublicReviewWeb1280.dc.html": {
@@ -287,7 +287,7 @@
       "x": 9520,
       "y": 15972,
       "w": 1280,
-      "h": 1387,
+      "h": 1419,
       "title": "Recipe importing, refused, failed and budget (web, 1280)"
     },
     "ImportPublicSavedWeb1280.dc.html": {
@@ -315,7 +315,7 @@
       "x": 0,
       "y": 22472,
       "w": 390,
-      "h": 7682,
+      "h": 7768,
       "title": "Recipe importing, choice (web, 390)"
     },
     "ImportPublicPrivateOnlyWeb390.dc.html": {
@@ -336,7 +336,7 @@
       "x": 1410,
       "y": 22472,
       "w": 390,
-      "h": 3350,
+      "h": 3377,
       "title": "Recipe importing, public only, no slot (web, 390)"
     },
     "ImportPublicDeadEndWeb390.dc.html": {
@@ -793,6 +793,76 @@
       "w": 390,
       "h": 1800,
       "title": "Recipe importing, paste review with the source photo (P5, web, 390)"
+    },
+    "ImportPublicDiscardWeb1280.dc.html": {
+      "x": 0,
+      "y": 32950,
+      "w": 1280,
+      "h": 1512,
+      "title": "Recipe importing, public version: writing, discard and allowance (web, 1280)"
+    },
+    "ImportPublicRefusedFinalWeb1280.dc.html": {
+      "x": 1360,
+      "y": 32950,
+      "w": 1280,
+      "h": 1968,
+      "title": "Recipe importing, public version: refused, failed and no-slot finals (web, 1280)"
+    },
+    "ImportPublicReviewStatesWeb1280.dc.html": {
+      "x": 2720,
+      "y": 32950,
+      "w": 1280,
+      "h": 1172,
+      "title": "Recipe importing, public version: check unavailable, no-slot review and flags (web, 1280)"
+    },
+    "ImportPublicPrivateOnlyReasonsWeb1280.dc.html": {
+      "x": 4080,
+      "y": 32950,
+      "w": 1280,
+      "h": 556,
+      "title": "Recipe importing, public version: private only, by reason (web, 1280)"
+    },
+    "ImportPublicOutcomesWeb1280.dc.html": {
+      "x": 5440,
+      "y": 32950,
+      "w": 1280,
+      "h": 732,
+      "title": "Recipe importing, public version: Pro outcomes and success (web, 1280)"
+    },
+    "ImportPublicDiscardWeb390.dc.html": {
+      "x": 0,
+      "y": 35378,
+      "w": 390,
+      "h": 3653,
+      "title": "Recipe importing, public version: writing, discard and allowance (web, 390)"
+    },
+    "ImportPublicRefusedFinalWeb390.dc.html": {
+      "x": 470,
+      "y": 35378,
+      "w": 390,
+      "h": 5134,
+      "title": "Recipe importing, public version: refused, failed and no-slot finals (web, 390)"
+    },
+    "ImportPublicReviewStatesWeb390.dc.html": {
+      "x": 940,
+      "y": 35378,
+      "w": 390,
+      "h": 2810,
+      "title": "Recipe importing, public version: check unavailable, no-slot review and flags (web, 390)"
+    },
+    "ImportPublicPrivateOnlyReasonsWeb390.dc.html": {
+      "x": 1410,
+      "y": 35378,
+      "w": 390,
+      "h": 1458,
+      "title": "Recipe importing, public version: private only, by reason (web, 390)"
+    },
+    "ImportPublicOutcomesWeb390.dc.html": {
+      "x": 1880,
+      "y": 35378,
+      "w": 390,
+      "h": 1662,
+      "title": "Recipe importing, public version: Pro outcomes and success (web, 390)"
     }
   },
   "order": [
@@ -907,7 +977,17 @@
     "ImportLibraryAlreadyInLibraryWeb390.dc.html",
     "ImportPasteReviewPhotoWeb1280.dc.html",
     "ImportPasteReviewPhotoWeb768.dc.html",
-    "ImportPasteReviewPhotoWeb390.dc.html"
+    "ImportPasteReviewPhotoWeb390.dc.html",
+    "ImportPublicDiscardWeb1280.dc.html",
+    "ImportPublicRefusedFinalWeb1280.dc.html",
+    "ImportPublicReviewStatesWeb1280.dc.html",
+    "ImportPublicPrivateOnlyReasonsWeb1280.dc.html",
+    "ImportPublicOutcomesWeb1280.dc.html",
+    "ImportPublicDiscardWeb390.dc.html",
+    "ImportPublicRefusedFinalWeb390.dc.html",
+    "ImportPublicReviewStatesWeb390.dc.html",
+    "ImportPublicPrivateOnlyReasonsWeb390.dc.html",
+    "ImportPublicOutcomesWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -956,6 +1036,20 @@
       "x": 0,
       "y": 22212,
       "text": "Public version (spec 003B): web, 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowFollow0": {
+      "x": 0,
+      "y": 32690,
+      "text": "Recipe importing, public version follow-ups: web, 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowFollow1": {
+      "x": 0,
+      "y": 35118,
+      "text": "Recipe importing, public version follow-ups: web, 390",
       "kind": "title1",
       "maxW": 2400
     }

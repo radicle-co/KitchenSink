@@ -1003,6 +1003,20 @@
       "w": 390,
       "h": 2424,
       "title": "Recipe editor, why Public is refused (web, 390)"
+    },
+    "RecipeEditorPublicCopyWeb1280.dc.html": {
+      "x": 0,
+      "y": 27392,
+      "w": 1280,
+      "h": 378,
+      "title": "Recipe editor, copy of a public recipe (web, 1280)"
+    },
+    "RecipeEditorPublicCopyWeb390.dc.html": {
+      "x": 1360,
+      "y": 27392,
+      "w": 390,
+      "h": 516,
+      "title": "Recipe editor, copy of a public recipe (web, 390)"
     }
   },
   "order": [
@@ -1147,7 +1161,9 @@
     "RecipeEditorStatementPaidSiteWeb1280.dc.html",
     "RecipeEditorStatementPaidSiteWeb390.dc.html",
     "RecipeEditorRefusalNoticeWeb1280.dc.html",
-    "RecipeEditorRefusalNoticeWeb390.dc.html"
+    "RecipeEditorRefusalNoticeWeb390.dc.html",
+    "RecipeEditorPublicCopyWeb1280.dc.html",
+    "RecipeEditorPublicCopyWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1175,6 +1191,13 @@
       "x": 0,
       "y": 14696,
       "text": "Recipe editor: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowFollow0": {
+      "x": 0,
+      "y": 27132,
+      "text": "Recipe editor, copy of a public recipe: web, 1280 and 390",
       "kind": "title1",
       "maxW": 2400
     }

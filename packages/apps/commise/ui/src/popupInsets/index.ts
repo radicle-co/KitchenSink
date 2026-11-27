@@ -4,6 +4,7 @@
  */
 export type { PageColumn, PageColumnReader } from './pageColumn.js';
 export { PageFootContext } from './pageFootContext.js';
+export { ReportPageFootContext, type ReportPageFoot } from './reportPageFootContext.js';
 export { PopupInsetsContext, type PopupInsets, type PopupInsetsReader } from './popupInsetsContext.js';
 export { PopupInsetsProvider, type PopupInsetsProviderProps } from './PopupInsetsProvider.js';
 export {

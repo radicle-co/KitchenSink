@@ -19,11 +19,7 @@ import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import {
-    isNotFoundError,
-    shouldRetryRecipeServiceFailure,
-    type CollectionWithRecipes,
-} from '@kitchensink/recipe-service-client';
+import { isNotFoundError, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import {
     invalidateCollections,
     recipeServiceKeys,
@@ -100,19 +96,15 @@ export function useCollectionVisibility(collection: {
     /**
      * The compensating change. The snackbar outlives this screen, so Undo can run after it unmounted: it awaits the
      * mutation (TanStack skips callbacks passed to one `mutate` call after unmount) and reports a collection that is
-     * gone in a snackbar of its own, and a failure a later try can fix in another. Every other refusal takes the
-     * hook-level rollback and is not raised again.
+     * gone in a snackbar of its own, and every other failure in another. The hook-level rollback still puts the cache
+     * back, and nothing is raised again.
      */
     const undo = (change: VisibilityChange): void => {
         mutation.mutateAsync(change).catch((error: unknown) => {
-            if (isNotFoundError(error)) {
-                snackbar.show({ message: undoGone });
-            } else if (shouldRetryRecipeServiceFailure(error)) {
-                // A failure a later try can fix. The change is still in place, so the page's "change failed" state,
-                // which says the first change was refused, would be the wrong story: clear it (a no-op off the page).
-                mutation.reset();
-                snackbar.show({ message: undoFailed });
-            }
+            // The page's "change failed" state says the first change was refused, the wrong story after a failed
+            // Undo: clear it (a no-op off the page), then say what happened in the snackbar that outlives the page.
+            mutation.reset();
+            snackbar.show({ message: isNotFoundError(error) ? undoGone : undoFailed });
         });
     };
 

@@ -15,7 +15,11 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import type { RecipeIngredient } from '@kitchensink/recipe-core';
 import { makeIngredient, makeRecipeDetail, makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { PrivateFoodsOnPublicRecipeError, VersionConflictError } from '@kitchensink/recipe-service-client';
+import {
+    ForbiddenError,
+    PrivateFoodsOnPublicRecipeError,
+    VersionConflictError,
+} from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { Suspense, type FC, type ReactNode } from 'react';
@@ -127,7 +131,15 @@ describe('useRecipeVersions — restore', () => {
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
     });
 
-    it('says it could not undo, and leaves no inline restore error, when the Undo fails for now', async () => {
+    it.each([
+        ['fails for now', () => new TypeError('Failed to fetch'), commonMessages.en.undoFailed],
+        ['is refused', () => new ForbiddenError(), commonMessages.en.undoFailed],
+        [
+            'meets a conflict',
+            () => new VersionConflictError(3, 1),
+            'Can’t undo. The recipe changed since. Open its versions to check.',
+        ],
+    ] as const)('says so, and leaves no inline restore error, when the Undo %s', async (_name, failure, line) => {
         const { result, restore } = setup();
         await waitFor(() => {
             expect(result.current.list.versions).toHaveLength(3);
@@ -139,13 +151,13 @@ describe('useRecipeVersions — restore', () => {
         await waitFor(() => {
             expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
         });
-        restore.mockRejectedValue(new TypeError('Failed to fetch'));
+        restore.mockRejectedValue(failure());
         act(() => {
             screen.getByRole('button', { name: 'Undo' }).click();
         });
 
         await waitFor(() => {
-            expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed);
+            expect(screen.getByRole('status').textContent).toBe(line);
         });
         expect(result.current.list.restoreError).toBeUndefined();
     });

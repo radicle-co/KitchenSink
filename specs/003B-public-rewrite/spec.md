@@ -759,7 +759,7 @@ Still open:
 ## Amendments
 
 [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)
-carries the amendments to 004, 016, 020, 021 and the paste design spec, except the two named under "Still owed" below (§4 writer input, §5 paid-list signal), which the feature ADR (T004) carries. 003B does not duplicate the rest.
+carries the amendments to 004, 016, 020, 021 and the paste design spec, except the two named under "Recorded in the T004 ADRs" below (§4 writer input, §5 paid-list signal), which the feature ADR, [ADR-0102](../../docs/architecture/decisions/0102-public-versions-of-imported-recipes.md), carries. 003B does not duplicate the rest.
 
 Done: `010` US6 scenario 2 and `010-FR-042c` are amended for the dead-end screen only (FR-074, 2026-11-17).
 
@@ -770,7 +770,7 @@ Changed in other specs by this PR, besides 010 (above) and 027 (the engine):
 
 - **The recipe state model** (`docs/architecture/recipeStateModel.md` and `.json`, "the one authority" under ADR-0097): T405 adds the refusal `publicVersionCopy`, with `labelKey: recipeState.refusal.publicVersionCopy`, under `refusals`. `packages/tools/repoGuards/__tests__/publicRefusalNames.test.ts` fails otherwise, because it requires every name in `PUBLIC_REFUSALS` (`FR/actions/publicRefusal.ts`) to be a `reason` in the model's `refusals`. The model files are not edited in this PR's docs; T405 does it.
 
-Still owed to the feature ADR (T004):
+Recorded in the T004 ADRs, the feature ADR [ADR-0102](../../docs/architecture/decisions/0102-public-versions-of-imported-recipes.md) and the paste-and-link import ADR [ADR-0101](../../docs/architecture/decisions/0101-a-paste-spends-its-import-unit-when-it-is-saved.md):
 
 - ADR-0093 §4 says the writer sees facts only. This feature changes that: the writer reads the facts sheet and the
   source step text (`027-FR-035`, ruled 2026-11-17). `016-FR-077` already points to `027-FR-035`.

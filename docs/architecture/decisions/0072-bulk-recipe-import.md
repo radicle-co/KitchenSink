@@ -20,6 +20,10 @@
   `POST /api/v1/recipes`.
 - **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §9, the Label column of the statement and label table.
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §9. A private bulk import is usable at once, and only going public waits for review. So §3 no longer holds a private import in review.
+- **Amended by:** [ADR-0101](0101-a-paste-spends-its-import-unit-when-it-is-saved.md): §2, §3 and §8. A `paste` item
+  spends its one unit when the import ends in a saved recipe, and a `bulk` item still pays when its lines are first
+  sent. The client checks room at paste start and deletes nothing, and the save answers `429 IMPORT_QUOTA_EXCEEDED`.
+  The payment CHECK is relaxed for paste items only. Every other part stands.
 - **Relates to:** [ADR-0071](0071-paste-matches-are-proposals.md): matching runs as the cook, and a paste match is a
   proposal. [ADR-0070](0070-catalog-ranking-head-noun-and-defaults.md): defaults serve imports and are never selected
   for the cook. [ADR-0024](0024-llm-spend-ceiling-reserve-then-settle.md): the one spend pool, and the exception this

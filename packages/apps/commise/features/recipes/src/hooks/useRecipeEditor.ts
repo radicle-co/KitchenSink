@@ -1111,13 +1111,15 @@ function adoptResolved(ctx: EditorContext, serverId: string, trigger: Checkpoint
 }
 
 /**
- * A write was refused because the recipe's Source is locked: the 403 carries no recipe, so read the one the server holds. A
- * read at the version the editor holds is adopted (it carries the locked answer, and a staff correction made at the same
- * version), and then the cook's other edits go. A read at another version is another editor's work: it is not adopted, and
- * the edits go at the old version, which meets the 409 the conflict path handles. A read that fails sends nothing: the notice
- * stays, and the cook's next press goes through the gate again. ⛔ Never a write used as a read: a save mints a version.
+ * A write was refused because the recipe's Source is locked: the 403 carries no recipe, so read the one the server holds. The
+ * read decides only whether to ADOPT it, never whether the cook's edits go: they go on every path, because they are parked
+ * behind the refused write and the cook believes them saved. A read at the version the editor holds is adopted (it carries the
+ * locked answer, and a staff correction made at the same version). A read at another version is another editor's work and is
+ * not adopted: the edits go at the old version, which meets the 409 the conflict path handles. A failed read, or one that
+ * lands after the server facts moved, adopts nothing. ⛔ Never a write used as a read: a save mints a version, and
+ * `retry` sends only real edits because the refused Source was dropped.
  *
- * @sideEffect Reads the recipe, then may move the server facts and submit an update.
+ * @sideEffect Reads the recipe, may move the server facts, and resends the cook's other edits.
  */
 function rereadAfterLockRefusal(ctx: EditorContext): void {
     const { server } = ctx.core.get();
@@ -1131,23 +1133,22 @@ function rereadAfterLockRefusal(ctx: EditorContext): void {
     const { id } = server.recipe;
     const { baseVersion } = server;
 
-    void ctx.opts.rereadRecipe(id).then(
-        (detail) => {
-            const now = ctx.core.get().server;
+    void ctx.opts
+        .rereadRecipe(id)
+        .then(
+            (detail) => {
+                const now = ctx.core.get().server;
+                const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion && detail.id === id;
 
-            // The server facts moved while the read was out: this read is older than what the editor knows now.
-            if (now.kind !== 'stored' || now.baseVersion !== baseVersion || detail.id !== id) {
-                return;
-            }
-
-            if (detail.currentVersion === baseVersion) {
-                adoptServerFacts(ctx, detail, undefined);
-            }
-
+                if (unchanged && detail.currentVersion === baseVersion) {
+                    adoptServerFacts(ctx, detail, undefined);
+                }
+            },
+            () => undefined,
+        )
+        .then(() => {
             retry(ctx, { stay: true });
-        },
-        () => undefined,
-    );
+        });
 }
 
 /** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */

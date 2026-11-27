@@ -4829,14 +4829,17 @@ describe("the Source row's own sheet (ADR-0100)", () => {
             expect(resent[0]).toMatchObject({ payload: { input: { expectedVersion: 3 } } });
         });
 
-        it('⛔ a failed read sends no write, adopts nothing and keeps the notice', async () => {
+        it('⛔ a failed read adopts nothing and keeps the notice, and the cook’s edits still go (one write, the title, no statement)', async () => {
             const view = mount({ recipe: stored });
             view.rereadRecipe.mockRejectedValue(new Error('offline'));
 
             typeTitle(view.result, 'Renamed soup');
             const sentBefore = await refuseAnswer(view);
+            const resent = view.port.submitted.slice(sentBefore);
 
-            expect(view.port.submitted.slice(sentBefore)).toEqual([]);
+            expect(resent).toHaveLength(1);
+            expect(resent[0]).toMatchObject({ payload: { input: { title: 'Renamed soup' } } });
+            expect(JSON.stringify(resent[0]?.payload)).not.toContain('statement');
             expect(view.result.current.sourceLockRefused).toBe(true);
             expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
         });
@@ -4865,7 +4868,8 @@ describe("the Source row's own sheet (ADR-0100)", () => {
 
             expect(view.result.current.storedRecipe).toMatchObject({ currentVersion: 5 });
             expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
-            expect(view.port.submitted.length).toBe(sentBefore);
+            // Nothing is adopted from the late read, and the refused answer is not sent again.
+            expect(JSON.stringify(view.port.submitted.slice(sentBefore))).not.toContain('statement');
         });
     });
 

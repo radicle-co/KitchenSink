@@ -42,6 +42,11 @@
         "./parsing/parse-prompt": "./src/parsing/parsePrompt.ts",
         "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
+        "./step-writing/step-prompt": "./src/stepWriting/stepPrompt.ts",
+        "./step-writing/step-answer": "./src/stepWriting/stepAnswer.ts",
+        "./step-writing/facts-sheet-types": "./src/stepWriting/factsSheet.types.ts",
+        "./step-writing/alphabet": "./src/stepWriting/alphabet.ts",
+        "./step-writing/facts-sheet-input": "./src/stepWriting/factsSheetInput.ts",
         "./scaling": "./src/scaling.ts",
         "./external-url": "./src/externalUrl.ts"
     },
@@ -53,6 +58,7 @@
     "scripts": {
         "build": "tsc -p tsconfig.build.json",
         "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
         "lint": "eslint .",
         "typecheck": "tsc --noEmit",
         "format": "prettier --write .",

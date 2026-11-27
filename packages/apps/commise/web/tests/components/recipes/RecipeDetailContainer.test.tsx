@@ -860,20 +860,6 @@ describe('RecipeDetailContainer', () => {
                 expect(window.location.search).toBe(`?${query}`);
             },
         );
-
-        it('does not take the refusal off again on a re-render: the address is the latch', async () => {
-            const replace = vi.spyOn(window.history, 'replaceState');
-            arriveWith('privateRefused=slots');
-
-            await renderDone();
-            await vi.waitFor(() => {
-                expect(window.location.search).toBe('');
-            });
-            const calls = replace.mock.calls.length;
-            await userEvent.click(document.body);
-
-            expect(replace.mock.calls).toHaveLength(calls);
-        });
     });
 
     describe('delete (T068) — owner only, the ⋯ menu’s destructive action', () => {

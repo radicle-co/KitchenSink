@@ -138,9 +138,9 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // E8: the editor said how it finished before it navigated. The one thing it leaves in the address is a refused
     // Private (`?privateRefused=<refusal>`, the reader's to forge: only the exact spellings count). This effect keeps
     // it as a CLAIM, for this recipe, and takes it off the address WITHOUT a navigation (`history.replaceState`), so a
-    // reload or a copied link does not claim it again. The ADDRESS is the latch: once the parameter is gone, a
-    // re-render finds nothing to do. The page is told after it mounted, so the live region below is filled one render
-    // after it exists.
+    // reload or a copied link does not claim it again. Next folds that `replaceState` into `useSearchParams`, so the
+    // parameter is gone from the read too and the effect does not run again. The page is told after it mounted, so the
+    // live region below is filled one render after it exists.
     // ⛔ A claim is not a fact: `visibilityNoticeOf` says it only when the owner's own public recipe and the profile agree.
     const [finishRefusalFor, setFinishRefusalFor] = useState<string | undefined>(undefined);
     const refusalParam = useSearchParams().get(PRIVATE_REFUSED_PARAM);
@@ -151,10 +151,6 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
         }
 
         const url = new URL(window.location.href);
-
-        if (!url.searchParams.has(PRIVATE_REFUSED_PARAM)) {
-            return;
-        }
 
         // Set after mount on purpose: the alert region below is spoken only on a change.
         // eslint-disable-next-line react-hooks/set-state-in-effect -- reason in the line above

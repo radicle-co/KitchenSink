@@ -7,9 +7,14 @@
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { asLoadedFace, measureTextWidth } from '../../testing/measureText.js';
+import { present } from '../../testing/present.js';
+import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { snackbarBarOf, undoFrameOf } from '../../testing/undoSnackbarParts.js';
 import { layOutSnackbar, type SnackbarLayout } from '../../testing/yogaSnackbarLayout.js';
+import { scaledTypeSize } from '../../text/scaledType.js';
+import { bodyFontFace } from '../../tokens/scale.js';
+import { typeRole } from '../../tokens/typography.js';
 
 /** The system text size the test sets, read through `useWindowDimensions`. */
 const text = vi.hoisted(() => ({ scale: 1 }));
@@ -35,7 +40,7 @@ const PADDING = 16;
 const LONG = 'Removed Slow-roasted tomato and white bean stew from your Weeknight Dinners collection.';
 const SHORT = 'Recipe deleted';
 
-const layOut = (message: string): SnackbarLayout => {
+const layOut = (message: string, adjust: (bar: HTMLElement) => void = () => undefined): SnackbarLayout => {
     renderWithTamagui(
         <UndoSnackbar
             message={message}
@@ -48,14 +53,17 @@ const layOut = (message: string): SnackbarLayout => {
     const messageElement = screen.getByText(message);
     const undo = screen.getByRole('button', { name: 'Undo' });
 
+    const bar = snackbarBarOf(messageElement, undo);
+    adjust(bar);
+
     return layOutSnackbar(
         {
-            bar: snackbarBarOf(messageElement, undo),
-            messageBox: messageElement.parentElement as HTMLElement,
-            actionSlot: undo.parentElement as HTMLElement,
+            bar,
+            messageBox: present(messageElement.parentElement, 'the message box'),
+            actionSlot: present(undo.parentElement, "Undo's slot"),
             actionFrame: undoFrameOf(undo),
         },
-        { messageLength: message.length, labelLength: 4, scale: Math.min(text.scale, 2) },
+        { message, label: 'Undo', systemScale: text.scale },
         BAR_WIDTH,
     );
 };
@@ -94,5 +102,28 @@ describe('UndoSnackbar (native) layout, in the real Yoga engine', () => {
         const layout = layOut(LONG);
 
         expect(layout.messageBox.width).toBeLessThanOrEqual(BAR_WIDTH - 2 * PADDING);
+    });
+
+    it("sizes Undo's frame from the label role, not the body role (mutant: the label measured as body text)", () => {
+        text.scale = 2;
+        const layout = layOut(LONG);
+        const label = 'Undo';
+        const face = asLoadedFace(bodyFontFace[typeRole.label.weight]);
+        const width = measureTextWidth(label, face, scaledTypeSize('label', text.scale).fontSize);
+        const frame = undoFrameOf(screen.getByRole('button', { name: label }));
+        const padding = Number.parseFloat(resolvedStyle(frame, 'paddingLeft')) * 2;
+        const floor = Number.parseFloat(resolvedStyle(frame, 'minWidth'));
+
+        expect(layout.actionFrame.width).toBeCloseTo(Math.max(floor, width + padding), 0);
+    });
+
+    it('refuses a style it cannot model, so a changed style cannot leave the harness laying out another bar', () => {
+        text.scale = 1;
+
+        expect(() =>
+            layOut(SHORT, (bar) => {
+                bar.style.alignItems = 'flex-end';
+            }),
+        ).toThrow(/cannot model alignItems/u);
     });
 });

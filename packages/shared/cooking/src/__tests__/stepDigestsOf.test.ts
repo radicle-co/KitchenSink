@@ -11,7 +11,7 @@ import { stepDigestsOf } from '../stepDigestsOf.js';
 const step = (stepNumber: number, instruction: string) => ({ stepNumber, instruction });
 
 describe('stepDigestsOf', () => {
-    it('gives one digest of the raw instruction per step with text, in the same order and count as cookingStepsOf', () => {
+    it('gives one digest of the raw instruction per step with text, aligned with cookingStepsOf', () => {
         const steps = [step(1, 'Chop.'), step(2, '   '), step(3, 'Roast\nfor an hour.')];
 
         const digests = stepDigestsOf(steps);

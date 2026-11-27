@@ -45,6 +45,11 @@ function TaskLayout({ children }: { readonly children: JSX.Element }): JSX.Eleme
     );
 }
 
+/** The root stack's screen layout for the focused tasks. Module-level, so React Navigation gets one stable function. */
+function taskLayout({ children }: { readonly children: JSX.Element }): JSX.Element {
+    return <TaskLayout>{children}</TaskLayout>;
+}
+
 /** The app's navigation and its one snackbar host. */
 export function RootNavigator(): JSX.Element {
     // Whom the snackbars belong to: one showing never outlives the cook who raised it (sign-out, account change).
@@ -105,9 +110,7 @@ export function RootNavigator(): JSX.Element {
                                 <RootStack.Screen name="Tabs">
                                     {() => <TabsNavigator onTabBarHeight={setTabBarHeight} />}
                                 </RootStack.Screen>
-                                <RootStack.Group screenLayout={(props) => <TaskLayout>{props.children}</TaskLayout>}>
-                                    {taskScreens(RootStack)}
-                                </RootStack.Group>
+                                <RootStack.Group screenLayout={taskLayout}>{taskScreens(RootStack)}</RootStack.Group>
                             </RootStack.Navigator>
                         </SnackbarHost>
                     </ReportPageFootContext>

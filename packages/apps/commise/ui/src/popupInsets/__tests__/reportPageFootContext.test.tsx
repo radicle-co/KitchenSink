@@ -6,9 +6,11 @@ import { describe, expect, it } from 'vitest';
 import { ReportPageFootContext } from '../reportPageFootContext.js';
 
 describe('ReportPageFootContext', () => {
-    it('defaults to a reporter that accepts a height and returns nothing', () => {
+    it('defaults to a reporter that accepts a height without throwing', () => {
         const { result } = renderHook(() => useContext(ReportPageFootContext));
 
-        expect(result.current(90)).toBeUndefined();
+        expect(() => {
+            result.current(90);
+        }).not.toThrow();
     });
 });

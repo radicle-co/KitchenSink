@@ -46,7 +46,9 @@ const press = (name: string) => fireEvent.click(screen.getByRole('button', { nam
 const foot = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name} foot`) }).textContent;
 
 function openTask(): void {
-    act(() => navigationRef.navigate('CookingMode' as never));
+    act(() => {
+        navigationRef.navigate('CookingMode', { recipeId: 'r1' });
+    });
 }
 
 describe('the foot the navigator provides', () => {
@@ -55,14 +57,14 @@ describe('the foot the navigator provides', () => {
         press('Measure tab bar');
         press('Report 90');
 
-        expect(foot('tabs')).toBe(`tabs foot ${TAB_BAR}`);
+        expect(foot('tabs')).toBe(`tabs foot ${String(TAB_BAR)}`);
     });
 
     it('is the home indicator on a task until its bottom bar reports', () => {
         renderWithProviders(<RootNavigator />);
         openTask();
 
-        expect(foot('task')).toBe(`task foot ${HOME_INDICATOR}`);
+        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
     });
 
     it('lifts to a reported dock height on a task, and drops to the home indicator when it reports 0', () => {
@@ -73,7 +75,7 @@ describe('the foot the navigator provides', () => {
         expect(foot('task')).toBe('task foot 90');
 
         press('Report 0');
-        expect(foot('task')).toBe(`task foot ${HOME_INDICATOR}`);
+        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
     });
 
     it('never goes below the home indicator for a dock height smaller than it', () => {
@@ -82,6 +84,6 @@ describe('the foot the navigator provides', () => {
 
         press('Report 10');
 
-        expect(foot('task')).toBe(`task foot ${HOME_INDICATOR}`);
+        expect(foot('task')).toBe(`task foot ${String(HOME_INDICATOR)}`);
     });
 });

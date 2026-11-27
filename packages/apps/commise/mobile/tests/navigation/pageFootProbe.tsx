@@ -4,7 +4,7 @@ import { useContext, type JSX } from 'react';
 import { Text, View } from 'react-native';
 
 /** The heights the stub's buttons report. */
-export const REPORTS = [90, 10, 0] as const;
+const REPORTS = [90, 10, 0] as const;
 
 export const TAB_BAR = 72;
 
@@ -21,15 +21,26 @@ export function Probe({
 
     return (
         <View>
-            <Text accessibilityRole="header">{`${name} foot ${foot}`}</Text>
+            <Text accessibilityRole="header">{`${name} foot ${String(foot)}`}</Text>
             {tabBar === undefined ? null : (
-                <Text accessibilityRole="button" onPress={() => tabBar(TAB_BAR)}>
+                <Text
+                    accessibilityRole="button"
+                    onPress={() => {
+                        tabBar(TAB_BAR);
+                    }}
+                >
                     Measure tab bar
                 </Text>
             )}
             {REPORTS.map((height) => (
-                <Text key={height} accessibilityRole="button" onPress={() => report(height)}>
-                    {`Report ${height}`}
+                <Text
+                    key={height}
+                    accessibilityRole="button"
+                    onPress={() => {
+                        report(height);
+                    }}
+                >
+                    {`Report ${String(height)}`}
                 </Text>
             ))}
         </View>

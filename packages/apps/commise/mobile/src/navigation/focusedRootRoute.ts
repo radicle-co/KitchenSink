@@ -24,15 +24,21 @@ export type ReportFocusedRootRoute = (routeName: string | undefined) => void;
 /** The gate's callback. Without a gate (a test of the navigator alone) a report goes nowhere. */
 export const ReportFocusedRootRouteContext = createContext<ReportFocusedRootRoute>(() => undefined);
 
+/** The focused root route: its name, and its key, which tells two screens of one name apart. */
+export interface FocusedRoute {
+    readonly name?: string;
+    readonly key?: string;
+}
+
 /**
- * The name of the focused root route in a navigation state. Pure.
+ * The focused root route of a navigation state. Pure.
  *
  * @param state - The container's state, or `undefined` before it is ready.
  */
-export function focusedRootRouteOf(
-    state: NavigationState | PartialState<NavigationState> | undefined,
-): string | undefined {
-    return state?.routes[state.index ?? 0]?.name;
+export function focusedRouteOf(state: NavigationState | PartialState<NavigationState> | undefined): FocusedRoute {
+    const route = state?.routes[state.index ?? 0];
+
+    return { name: route?.name, key: route?.key };
 }
 
 /**

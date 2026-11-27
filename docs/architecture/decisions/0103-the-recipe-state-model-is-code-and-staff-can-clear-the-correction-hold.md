@@ -48,7 +48,8 @@ the recipe off Public for good, until a migration ran. Staff need a way to lift 
       trigger.
     - **Erasure.** The actor column is relabelled to an `erased_` token when that staff account is erased, by the same
       rule as the correction table: only the actor changes, and only while the account's erasure job is queued or
-      running (or its test reset is running). The erasure worker relabels it beside the two correction relabels.
+      running (or its test reset is running). The erasure worker relabels it beside the two correction relabels. The
+      trigger also allows the DELETE that cascades from deleting the recipe, and refuses any other DELETE.
     - **Held clones are released.** The clear mirrors the correction's clone hold. In the same transaction it releases
       the owner's descendants of the recipe, found by the same walk, and skips a descendant that has a correction of
       its own. It writes one record for each recipe it releases. Other cooks' clones keep their hold, and each is

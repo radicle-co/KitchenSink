@@ -48,11 +48,22 @@ fourth vocabulary.
       `statement_kind` (the evidence and the import tables) are not touched.
     - **The correction audit table** gets `old_origin` and `new_origin`, each with a CHECK on the eight values. They
       are backfilled with the append-only trigger disabled and enabled again inside the migration's one transaction,
-      then set NOT NULL. The writer writes both sets during the window. The append-only function also freezes the
+      The writer writes both sets during the window. The expand change adds no NOT NULL: a previous-release writer
+      sets neither column, so NOT NULL would break it. The two columns become NOT NULL in the contract change, or a
+      trigger fills them in the expand step. The append-only function also freezes the
       new columns in its relabel branch.
+    - **A new CHECK refuses two shapes** that today's CHECKs allow and no writer produces: `imported_physical` or
+      `imported_paid` with no source kind and no statement. The backfill maps them like the other rows, and the CHECK
+      stops new ones.
+    - **The spec 003B value** `commise_written` (a source type the 003B plan adds) reaches the same mapping. The backfill
+      CASE and the sync trigger map it to `origin = 'commiseWritten'`, and the 003B plan names `origin`.
+    - **Step order inside the expand change:** add the column and its CHECK; backfill `origin`; add the sync trigger and
+      the matches-triple CHECK; replace the functions and the constraint trigger; restate the CHECKs on `origin`; add
+      the correction table's new columns, backfill them with its append-only trigger disabled and then enabled again,
+      and replace its append-only function. The service and every reader move in the same release.
     - **Raw SQL outside migrations** that names the old columns, such as the erasure worker's private-only key
       predicate, moves to `origin` in the same change, and its key format moves with it.
-    - **Contract (a later change).** It waits until the deployed service no longer reads or writes the triple, and one
+    - **Contract (a later change).** It waits for every deployed reader of the triple, the Drizzle declarations included, and until the deployed service no longer reads or writes it, and one
       release has gone out after that with no rollback. In order: replace the append-only function without the old
       columns, narrow the constraint trigger to `UPDATE OF origin, source_url`, drop the sync trigger and the old
       CHECKs, then drop the three columns and the six old triple columns of the correction table.

@@ -257,6 +257,20 @@
             "label": "A report hides this recipe until we check it, so we need to know who sent it.",
             "labelKey": "publicPage.reportSignIn.body",
             "viewer": "signed-out reader"
+        },
+        {
+            "name": "ANSWER_UNSTATED_PRIVATE",
+            "label": "I’m not sure yet",
+            "labelKey": "ANSWER_UNSTATED_PRIVATE",
+            "viewer": "owner",
+            "hint": "It stays private. You can say where it’s from later."
+        },
+        {
+            "name": "ORIGIN_WEB_PAGE.withSite",
+            "label": "From {site}",
+            "labelKey": "ORIGIN_WEB_PAGE.withSite",
+            "viewer": "any",
+            "note": "{site} is the bare host. With no site: From a web page. Not shown under the Source heading."
         }
     ],
     "refusals": [
@@ -616,15 +630,6 @@
         },
         {
             "axis": "lifecycleAudience",
-            "from": "PUBLISHED,PUBLIC with a publicNeedsCheck hold",
-            "event": "SAVE",
-            "actor": "cook",
-            "guard": "today the editor sends it private (#412, a bug, not the model)",
-            "to": "none named. Owner question: P10 has no ruling",
-            "pending": "P10, owner ruling"
-        },
-        {
-            "axis": "lifecycleAudience",
             "from": "a copy of a public version, private",
             "event": "MAKE_PUBLIC",
             "actor": "cook",
@@ -685,6 +690,24 @@
             "guard": "per-item status under PUBLIC_VERSION_JOB_*",
             "to": "per item",
             "pending": "P13"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with a source check pending",
+            "event": "SAVE",
+            "actor": "cook",
+            "guard": "the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Today the editor sends it private (#412), which this replaces",
+            "to": "PUBLISHED,PUBLIC, with the check rerun",
+            "pending": "020, P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with a source check pending",
+            "event": "RERUN_CHECK_FAILS",
+            "actor": "system",
+            "guard": "the check on the new text fails",
+            "to": "PUBLISHED,PRIVATE, with VIEW_TOO_CLOSE_SAVED_PRIVATE",
+            "pending": "020, P10 (#412)"
         }
     ],
     "creations": [
@@ -769,7 +792,7 @@
     "retired": [
         {
             "name": "Publish privately",
-            "replacedBy": "a new label for the same answer (open question). The answer value and the flow stay",
+            "replacedBy": "ANSWER_UNSTATED_PRIVATE (I’m not sure yet). The answer value and the flow stay",
             "labelOnly": false
         },
         {
@@ -874,11 +897,6 @@
         }
     ],
     "allowedHits": [],
-    "openQuestions": [
-        "P10 (#412): the result of saving a public recipe the evidence rule holds off Public. No ruling.",
-        "The label for the Publish privately answer. Proposal: ANSWER_UNSTATED_PRIVATE, Not sure yet, keep it private.",
-        "The web-page label with a site. Proposal: From {site}; From a web page with no site."
-    ],
     "separateMachines": [
         "IMPORT_ITEM_*",
         "IMPORT_CHOICE_*",

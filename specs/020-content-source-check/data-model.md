@@ -49,7 +49,7 @@ ALTER TABLE account_erasure_jobs ADD COLUMN donation_review_until timestamptz NU
   already reads the bytes to make the thumbnail, so this adds no new read.
 - `recipe_photos.check_key` is the object key of the photo's **check rendition**: a copy at a fixed maximum size, made
   with `sharp` at confirm beside the thumbnail, under the same owner erasure prefix (research R-07). The worker sends it
-  to the model. NULL means the rendition failed, and that photo then reads `unchecked` (`checkFailed`).
+  to the model. NULL means the rendition failed, and that photo then reads `unchecked` (`checkFailed`). Its key is its photo's key plus `.check.jpg` (`003A` data-model, Photo addresses). Account erasure copies it, stripped, to its photo's new key plus `.check.jpg`, and writes the new `check_key` and the stripped photo's `content_sha256` (closure plan U3b, P4 and step 9).
 - `recipe_photos.check_rendition_version` names the resize bound and encoder settings the rendition was made with. It is
   part of the photo's model key (section 2), so a change of bound produces new evidence rather than reusing old.
 - `account_erasure_jobs.donation_review_until` is the donation deadline: the request time plus 14 days (spec FR-018a,
@@ -247,15 +247,16 @@ There is no cook confirmation and no curator shortcut. Nothing the cook does set
 ### Who writes this row, and how they cannot race (State machine with compare-and-set guards)
 
 Three writers change an input to `allows`: the worker's outcome, a reviewer's decision, and the next-period re-check.
-Each recomputes `allows` in the same statement, by a compare-and-set.
+Each recomputes `allows` in the same statement, by a compare-and-set. Account erasure also locks these rows and re-keys one in place. It changes no input to `allows`, so it has no compare-and-set.
 
-| Writer               | Lock order                           | Compare-and-set predicate                                                                          |
-| -------------------- | ------------------------------------ | -------------------------------------------------------------------------------------------------- |
-| Worker outcome       | the check row                        | `state = 'checking'` and the digest matches                                                        |
-| Reviewer decision    | the referral row, then the check row | referral `state = 'open'`, and check `outcome = $shown_outcome AND evidence_ref = $shown_evidence` |
-| Next-period re-check | the referral row, then the check row | `state = 'decided' AND outcome = 'unchecked' AND reason = 'budgetSpent' AND cleared_at IS NULL`    |
+| Writer               | Lock order                                                   | Compare-and-set predicate                                                                                                                                                                                 |
+| -------------------- | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Worker outcome       | the check row                                                | `state = 'checking'` and the digest matches                                                                                                                                                               |
+| Reviewer decision    | the referral row, then the check row                         | referral `state = 'open'`, and check `outcome = $shown_outcome AND evidence_ref = $shown_evidence`                                                                                                        |
+| Next-period re-check | the referral row, then the check row                         | `state = 'decided' AND outcome = 'unchecked' AND reason = 'budgetSpent' AND cleared_at IS NULL`                                                                                                           |
+| Account erasure      | the referral rows, then the check rows, then the recipe rows | none: each of its transactions holds its locks until it commits, and re-keys only the current row it locked that passed `SOURCE_CHECK_ALLOWS_SQL` or was `checking` (closure plan U3b, steps 2, 4 and 14) |
 
-Zero rows updated is the refusal, and the loser re-reads. A referral is created only once the row is `decided`
+Zero rows updated is the refusal, and the loser re-reads. Each predicate names the row by its full key, its digest included, so a writer that waited on account erasure's locks updates nothing once the erasure has re-keyed the row, and re-reads. A worker outcome that updates nothing for that reason finds the row still `checking` under the new digest and checks that digest: the pending check finishing, not a new check (`016-FR-037`). A referral is created only once the row is `decided`
 (spec FR-016). This is the repair for review H7.
 
 ```text
@@ -414,6 +415,8 @@ CREATE TABLE recipe_source_decisions (
 CREATE INDEX recipe_source_decisions_hold_hash ON recipe_source_decisions (text_fingerprint)
     WHERE text_fingerprint IS NOT NULL;
 ```
+
+At account erasure, on a recipe the erasure keeps public, `owner_id` is rewritten to that recipe's owner token (the `erased_` value `recipes.owner_id` takes), so it no longer holds the cook's app id (spec FR-063, owner ruling 2026-11-26; closure plan U3b step 12). On a recipe the erasure removes, it keeps the app id.
 
 - Two automated-means facts, because a statement of reasons states both: was the content found by automated means, and
   was the decision taken by them. A person's hold after a check referral is `automated_detection = true`,
@@ -642,9 +645,8 @@ EXISTS (SELECT 1 FROM recipe_source_checks rsc
    donation referral re-enqueues the job in the same transaction, and the sweeper claims it once
    `donation_review_until` passes.
 3. **At completion** (every donation referral decided, or the deadline passed). Live donation referrals close as
-   `expired`. The existing transaction then runs unchanged in shape: it flips the elected recipes, and removes every
-   recipe of the owner that is not `visibility = 'public' AND status = 'published' AND SOURCE_CHECK_ALLOWS_SQL`. So a
-   held recipe, an elected recipe a person held, and an elected recipe still undecided are deleted with no extra logic.
+   `expired`. The erasure then runs one transaction per kept recipe and one final transaction (closure plan U3b, Order): each recipe transaction erases one recipe of the kept set frozen at the photo plan that still passes the kept rule: truly public (`visibility = 'public' AND status = 'published' AND SOURCE_CHECK_ALLOWS_SQL`), or elected and passing the donate rules (elected recipes are flipped in it), and the final transaction removes every recipe the owner still holds. So a
+   held recipe, an elected recipe a person held, and an elected recipe still undecided are deleted with no extra logic. While blocking is on, so is a public recipe whose latest edit is still being checked: spec FR-064 would show its last approved version, but erasure deletes the versions that serves from. In shadow or paused mode (`enforced = false`), `SOURCE_CHECK_ALLOWS_SQL` passes such a recipe, so it is kept, and its `checking` row is re-keyed and checked again (Who writes this row). A kept recipe keeps only the one check row it passed with, re-keyed to its scrubbed content, and loses that row's parts, items, matches and referrals (closure plan U3b, step 14).
 
 ## 10. Same recipe and same source (spec section J)
 

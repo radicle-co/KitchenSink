@@ -10,10 +10,10 @@ the owner's ruling on [026](../026-chef-spaces/spec.md) Q2. Amended 2026-11-03 f
 ADR-0082). Facts cards open signed out (FR-003, FR-004, FR-014 to FR-014h). Family and gated public domain text open
 to the web (FR-002, FR-006). Cooks get a CC BY choice (FR-040a, FR-040b). The pre-launch confirmations grow (FR-095). See
 Session 2026-11-03. Amended 2026-11-09 for the owner's answers to feature 003A's questions: recipes left public at
-erasure (FR-002 rule 7), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
+erasure (FR-002 rule 7, withdrawn 2026-11-21), the page language and the cache key (FR-062), comments (FR-070), and the `noindex` 003A ships
 with (FR-020a). See Session 2026-11-09. Amended 2026-11-15 for the public versions of imported recipes (owner ruling,
 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md)). Facts cards, linked cards, book cards and source cards are withdrawn. An imported
-recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15
+recipe goes public only as a Commise-written version (FR-003, FR-014). See Session 2026-11-15. Amended 2026-11-20: every page carries its locale in the URL (FR-010, FR-062). Amended 2026-11-21: recipes stay open whatever the cook's standing (FR-002 rule 7, withdrawn), the creator page words (FR-013), names stay (FR-024, FR-070), and account closure (FR-077). Erasure keeps public recipes as "a former member" (US7, FR-072), and an address that held the erased cook's name answers `410` (FR-010). See Session 2026-11-21.
 **Input**: Owner, 2026-10-27: "Let's add a feature and spec for indexing and sharing as you note." And: "Include the
 other recommendations in either new features or expanding existing features." Mindset, same day: "assume that we can do
 this and figure out how." Owner, 2026-10-28: "Let's also do the pages for AI recommendation."
@@ -358,7 +358,7 @@ websites, or anything she keeps private.
 on 012 being built, so it cannot be P1.
 
 **Independent Test**: Open an active creator page signed out. Only open recipes appear. Open a deactivated or
-suspended creator page: it gets the not-available answer.
+suspended creator page: it gets the not-available answer ("This page isn’t available", FR-013).
 
 **Acceptance Scenarios**:
 
@@ -367,7 +367,7 @@ suspended creator page: it gets the not-available answer.
 2. **Given** a creator whose public recipes are all imported, **When** the page is requested, **Then** it lists no
    recipes, says they have none to show yet, and answers `noindex` (FR-025).
 3. **Given** a deactivated (`012-FR-004`) or suspended (`012-FR-020`) profile, **When** anyone signed out opens it,
-   **Then** they get the not-available answer.
+   **Then** they get the not-available answer ("This page isn’t available", FR-013).
 4. **Given** a creator who changed their handle, **When** someone opens the old address within 14 days, **Then** they
    are redirected to the new one. After that, the old address is not available, and the old handle is never given to
    another account (FR-073).
@@ -378,8 +378,8 @@ suspended creator page: it gets the not-available answer.
 
 Maya deletes her soup. Within minutes the page and the app's public view say not available. The preview card no
 longer shows the recipe. The address leaves the sitemap, and the search engines that accept change notices are told.
-Later she erases her account. Every public page of hers goes the same way. Her photos and avatar stop being served,
-and her handle is retired.
+Later she erases her account. Her creator page and avatar stop being served, and her handle is retired. The recipes she
+left public stay, as "a former member", with names scrubbed from every free-text field and the photos handled as `016-FR-037` says (owner ruling 2026-11-21).
 
 **Why this priority**: A public page that outlives the cook's choice is a privacy failure and a GDPR failure.
 
@@ -392,8 +392,7 @@ the app view, the preview image and the CDN copy all answer not available.
    the purge bound (FR-061).
 2. **Given** an indexable recipe that is deleted, **When** the exit is processed, **Then** its address leaves the
    sitemap and a removal notice goes to every search engine that accepts change notices (FR-074).
-3. **Given** a cook who erases their account, **When** erasure runs, **Then** every page of theirs, every preview image,
-   every photo of theirs on a public page, and their avatar stop being served within the purge bound (FR-072).
+3. **Given** a cook who erases their account, **When** erasure runs, **Then** their creator page, their avatar, every recipe the erasure deleted and its preview image stop being served within the purge bound, and each recipe they left public shows "a former member" within the same bound (FR-072, `016-FR-037`).
 4. **Given** a public recipe of Maya's that its owner edits, **When** 020 checks the new content, **Then** the page
    keeps showing the last approved version until the new content is allowed, and never shows the new text before that
    (FR-007, `020-FR-064`). _(amended 2026-11-03, owner ruling O10, ADR-0082)_
@@ -476,9 +475,9 @@ creator page.
 - **A cook makes an open recipe private, then public again.** It is open again only after 020 allows it. If its
   checked content changed, a new settle period starts.
 - **Two people share the same recipe.** Each share has its own share mark. The page and its cache are the same for
-  both, because the cache ignores the share mark (FR-062).
+  both, because the response is the same bytes (FR-062, `003A-FR-015`).
 - **A link with a stale slug.** The title changed after the link was sent. The address still works and redirects
-  permanently to the canonical slug (FR-010).
+  permanently to the canonical slug, except an address retired by an erasure's name scrub (FR-010).
 - **A cook with no creator profile.** Their open recipe has no author name on the page, and its structured data has no
   author. The page never falls back to the name from the sign-in provider (FR-024).
 - **A creator renames their handle.** Recipe addresses do not contain the handle, so they do not change.
@@ -537,7 +536,7 @@ creator page.
   only, not who can read (FR-040, FR-043).
 - **Reading: one answer for everything not open.** Private, draft, held, deleted, erased and never-existed all get the
   same `404` answer. A separate `410` for deleted pages tells a stranger that a cook deleted a recipe and did not only
-  make it private (FR-013).
+  make it private (FR-013). _(Owner ruling 2026-11-21.)_ One exception: an address retired by an erasure's name scrub answers `410`. It is not a closed recipe, and the `410` speeds its removal from search.
 - **Reading: "ping search engines".** Google retired its sitemap ping endpoint in 2023, and its Indexing API covers
   only job postings and livestreams. So "ping" means: remove the address from our sitemap, answer `404` with `noindex`,
   and send a removal notice through IndexNow to the engines that take it (FR-074).
@@ -647,12 +646,20 @@ The owner answered feature 003A's eight questions ([003A spec, Clarifications](.
 Four of the answers change this spec:
 
 - **Recipes left public at erasure stay open** (003A Q8). They are shown with no author name. FR-002 rule 7 is amended
-  for that case only.
+  for that case only. _(Superseded 2026-11-21: rule 7 withdrawn.)_
 - **The page's own words follow the browser language** (003A Q3), with English as the fallback. FR-062's cache key
-  becomes the path plus that language.
+  becomes the path plus that language. Superseded on 2026-11-20 by the owner's ruling that every page carries its
+  locale in the URL (FR-062).
 - **Comments show on public pages** (003A Q6). The owner ruled that a commenter's name and words are public, and that
   the terms say so. FR-070 is amended, the Out of Scope line is changed, and `016-FR-012c` puts it in the terms.
 - **003A ships `noindex`, and this feature removes it** (003A Q7). FR-020a and task P003A-01.
+
+### Session 2026-11-21 (owner rulings)
+
+- **One library, signed in and out.** FR-002 rule 7 is withdrawn. FR-007, FR-077 and `003A-FR-012` follow it.
+- **Names stay.** Suspended, terminated and closed cooks keep their names on recipes and comments (FR-024, FR-070). An erased cook reads "a former member". A suspended creator page says "This page isn’t available" (FR-013, `012-FR-020`).
+- **Erasure keeps public recipes.** Recipes a cook left public stay at erasure as "a former member", and the creator page, avatar and handle go (US7, FR-072). A pending erasure keeps the name (FR-024). The licence, the takedown request and the anonymity rules are `016`'s (`016-FR-010`, `016-FR-016`, `016-FR-037`).
+- **Names leave the title and the address** (owner, round 2). The erasure scrubs names from the title. An address that held a name answers `410` and the recipe gets a new public id (a new row in `recipe_public_ids`), with no mapping (FR-010, `016-FR-037`).
 
 ### Session 2026-11-04
 
@@ -743,10 +750,7 @@ Session 2026-11-15.)_
         site claim. A claim only clears one hit inside 020 (`020-FR-012g`).
 
     6. Its owner accepted the licence version that covers showing it on the web (FR-040, FR-041).
-    7. Its owner's account is active: not suspended, not terminated (`016-FR-020`), not closed and not erased.
-       _(Amended 2026-11-09, owner ruling on 003A Q8.)_ One exception: a recipe the cook left public when they erased
-       their account. Rule 7 does not apply to it. It stays open, and every public surface shows it with no author
-       name and no pseudonym. Suspended, terminated and closed accounts still close their recipes.
+    7. _(Withdrawn 2026-11-21, owner ruling: "We should list all public recipes" and "Show them signed out too".)_ The owner's account standing never closes a recipe. A suspended, terminated or closed cook's public recipes stay open, with their name, signed in and signed out. A recipe the cook left public when they erased their account stays open as "a former member" (FR-024), with no name or pseudonym. The erasure deletes the rest. Content removed after a copyright notice stays down (rule 8).
     8. No decision under 016 removed or restricted it.
 - **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A public recipe imported from a source the
   cook did not write (a web page, a cookbook, a magazine or a paid site) MUST NOT be open to the web in the source's
@@ -807,10 +811,11 @@ Session 2026-11-15.)_
 - **FR-007**: These are the **exit events**. Each MUST take effect on every public surface within the purge bound
   (FR-061):
     - visibility set to private, or the recipe set back to draft
-    - the recipe deleted, or the account closed or erased
+    - the recipe deleted, by its cook or by an account erasure
     - the checked content or source statement changed, which starts a new 020 check (`020-FR-001`) _(amended 2026-11-03, owner ruling O10, ADR-0082)_. For an edit with an approved earlier version, this one changes the
-      page to that version instead of removing it. Without one, it removes the page.
-    - a 016 decision that removes or restricts it, or a suspension or termination of the account
+      page to that version instead of removing it. Without one, it removes the page. _(Owner ruling 2026-11-26.)_ An account erasure's own writes (the scrub, the source redaction, the new photo copies and any new public id) are not this event: they start no 020 check, and the page changes once, when the erasure marker is written (closure plan U3b).
+    - a 016 decision that removes or restricts it
+    - _(added 2026-11-26)_ a recipe hidden through 016's recipe hide record (`016` data-model §16), while the hide lasts. The erasure marker, written when an erasure keeps the recipe public, is also a change to what the page shows.
     - the owner's licence acceptance no longer covering web display (FR-041)
     - for a creator page, the profile deactivated, suspended or its handle changed
     - _(added 2026-11-03, ADR-0082)_ a public domain record that no longer passes `016-FR-015k`
@@ -829,9 +834,9 @@ Session 2026-11-15.)_
 #### B. Public pages, the app's public view, and their states
 
 - **FR-010**: Each open recipe MUST have one public page at one canonical address on `commise.app`, on its own route,
-  never the app root. The address MUST be built from the recipe's id and a slug from its title. It MUST NOT contain the
+  never the app root. The address MUST be built from the recipe's public id (`003A` data-model, Public id; never the row id) and a slug from its title. It MUST NOT contain the
   cook's handle, so a handle change never breaks it. A wrong or stale slug MUST redirect permanently to the canonical
-  one. Whether the path carries a locale is a plan decision. Either way there is one canonical address per recipe.
+  one. _(Owner ruling 2026-11-21.)_ An address retired by an erasure's name scrub is the exception: it answers `410 Gone`, and nothing maps it to the recipe's new address (`016-FR-037`, `003A-FR-014`). The path carries the locale (`/{locale}/recipe/{id}/{slug}`, owner 2026-11-20). There is one canonical address per recipe in each shipped locale.
 - **FR-010a** _(added 2026-10-29, owner ruling Q2 on [026](../026-chef-spaces/spec.md): "Their blog")_: A chef chooses a
   **Home**, their blog or Commise (`026-FR-006`). Home starts as the blog. While Home is the blog, an open recipe that
   has an origin on the chef's claimed site (`004-FR-053a`) MUST follow these rules. _(amended 2026-11-03, owner ruling
@@ -871,12 +876,11 @@ Session 2026-11-15.)_
 - **FR-012**: The server's response at a public address MUST always be the signed-out version, the same for every
   viewer, and MUST NOT set a cookie. This holds for an open recipe, a creator page and the not-available answer alike. Anything more for a signed-in viewer MUST appear only after the page loads in the
   browser, from the viewer's own session. It MUST never be part of the cached response. That covers their actions
-  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed on the
-  path alone (FR-062) is safe only because of this rule.
+  (save, rate, add to a plan), the owner's note (FR-017), and links into the app (FR-013, FR-014). A cache keyed as `003A-FR-015` states (FR-062) is safe only because of this rule.
 - **FR-013**: Every address that is not an open recipe or an active creator page
   MUST get one **not-available** answer: status `404`, `noindex`, the same words ("This recipe is not available"), a
   sign-in link, and a generic Commise preview card. It MUST NOT differ between private, draft, deleted, erased, held,
-  in review, not approved, and never existed. _(Amended 2026-11-03, ADR-0082.)_ "Book or paid-site" left this list. A
+  in review, not approved, and never existed. _(Owner ruling 2026-11-21.)_ Except an address retired by an erasure's name scrub, which answers `410` (FR-010, `016-FR-037`). _(Amended 2026-11-21, owner ruling.)_ For a creator page address that is not an active creator page (deactivated `012-FR-004`, suspended `012-FR-020`), the words are "This page isn’t available", the same for every case, with no reason given. _(Amended 2026-11-03, ADR-0082.)_ "Book or paid-site" left this list. A
   private one is private, and its public form is a Commise-written version (FR-003, amended 2026-11-15). Sometimes a signed-in viewer's own session can read the recipe.
   Then, after the page loads, their browser MUST offer a link to it in the app (FR-012). The server never redirects
   on identity.
@@ -1016,7 +1020,7 @@ Session 2026-11-15.)_
 
 - **FR-024**: The structured data's `author`, and the page's author line, MUST come from the cook's active creator
   profile: its display name, and its address as the URL. A cook with no active creator profile MUST have no author
-  name on the page and no `author` in the data. The name from the sign-in provider MUST never be used. _(Added
+  name on the page and no `author` in the data. The name from the sign-in provider MUST never be used. _(Amended 2026-11-21, owner ruling.)_ A cook whose account is suspended, terminated or closed, or whose creator page is suspended (`012-FR-020`), keeps the author line and `author` on their open recipes where they have a creator profile, with no link to the page. An erased cook shows the label "a former member" and no name or link. While an erasure waits for staff (up to 14 days, `020-FR-018a`), the cook keeps the name. While the erasure runs, the recipe keeps the name, unless the erasure notice hides it (`016-FR-012a`). The label replaces the name when the erasure writes the erasure marker (`003A` data-model, Erased owner, gives the order) (owner ruling 2026-11-21). A suspended, terminated or closed cook's name also stays in the "Adapted from" credit on other cooks' copies (FR-040). An erased cook's credit on copies is stripped (Edge Cases). _(Owner ruling 2026-11-21.)_ An `author_request` asking to remove the cook's name from other cooks' copies is deferred, as copies are. Copies keep their credit until a later spec decides how a credit is removed. _(Added
   2026-11-03, ADR-0082.)_ For public domain text, the `author` is the original author from its record (FR-006). A book
   with no named author has no `author`. The cook who saved it is never named as its author. A family recipe names its
   giver only with the giver's permission (FR-002).
@@ -1166,7 +1170,7 @@ Session 2026-11-15.)_
   `staff-ux-engineer` to refine at SPECIFY and to confirm before launch (FR-095). Each gets a localisation key. The words MUST
   say:
     - CC BY lets anyone copy, change and share the recipe, also for money. They must credit the cook.
-    - Copies others make cannot be recalled. The grant is "irrevocable as far as the law allows".
+    - Copies others make cannot be recalled. The grant "can’t be withdrawn, as far as the law allows". The word "irrevocable" stays only in the licence text the link opens (`016-FR-010`).
     - The cook can ask a re-user to remove their name.
     - The photos have their own choice.
 
@@ -1231,12 +1235,10 @@ Session 2026-11-15.)_
   inside this bound. A preview a social platform already copied is outside our control, and is a residual risk. After any
   exit event, every one MUST answer not available, or
   show the new content. It MUST do so within 5 minutes for 95% of events, and within 15 minutes for all. An event that the purge cannot confirm MUST raise an alarm.
-- **FR-062**: Public pages MUST be served from a CDN. The cache key MUST be the path alone. It MUST ignore query
-  parameters (the share mark included), cookies and the `Authorization` header. _(Amended 2026-11-09, owner ruling on
-  003A Q3.)_ The page's own words follow the reader's browser language, so the key is the path plus the page language,
-  chosen from the closed set of supported locales, and never the raw `Accept-Language` header (`003A-FR-015`,
-  `003A-FR-015a`). The address carries no locale. This is safe only because the response
-  does not depend on who asked (FR-012, FR-101).
+- **FR-062**: Public pages MUST be served from a CDN, cached as `003A-FR-015` states. _(Amended 2026-11-20, owner ruling:
+  every page carries its locale in the URL.)_ The locale is part of the path (`/{locale}/recipe/{id}/{slug}`), and the page's own words follow that locale
+  (`003A-FR-015`, `003A-FR-015a`). This is safe only
+  because the response does not depend on who asked (FR-012, FR-101).
 - **FR-063**: Each client address MUST be rate-limited at the edge, where the real address is visible, never from a
   header a client can set. A person reading and sharing MUST never reach the limit. A client past it gets `429` with
   `Retry-After`. The per-user throttler cannot do this, because a signed-out caller has no user.
@@ -1256,10 +1258,10 @@ Session 2026-11-15.)_
     - the recipe's content. For public
       domain text it includes the basis line from its record (FR-006). A family recipe names its giver only with the
       giver's permission.
-    - the creator profile fields the cook set, if they have an active profile
+    - the cook's display name in the author line where FR-024 allows it, and the other creator profile fields the cook set only while they have an active profile
     - the rating total and count
     - _(added 2026-11-09, owner ruling on 003A Q6)_ on a full public page and public view, the recipe's comments, each
-      with its commenter's display name, as a signed-in reader sees them. A commenter agrees that the comment and the
+      with its commenter's display name (an erased commenter shows "a former member", `016-FR-037`), as a signed-in reader sees them. A commenter agrees that the comment and the
       name are public (`016-FR-012c`)
 
     So, apart from a commenter's display name, they MUST NOT carry the cook's email, the name from the sign-in provider, any internal user id, or a location.
@@ -1269,9 +1271,7 @@ Session 2026-11-15.)_
 - **FR-071**: Every image a public surface serves MUST be a derived image with all metadata stripped, GPS included. Its
   address MUST NOT contain a user id. Avatar keys carry the user id today (ADR-0064), so the avatar key or its public
   address MUST change before creator pages ship (FR-093).
-- **FR-072**: A cook erases their account. Then every public page of theirs, every preview image, every photo of
-  theirs that a public surface served, and their avatar MUST stop being served from the CDN within the purge bound. The plain,
-  long-cached photo addresses of ADR-0064 make this a purge, not only a delete.
+- **FR-072**: A cook erases their account. Then their creator page, their avatar, every page and preview image of a recipe the erasure deleted, and every photo `016-FR-037` removes MUST stop being served from the CDN within the purge bound. A recipe they left public stays open as "a former member" (FR-024, `003A-FR-012`), and each changed indexable address gets an IndexNow notice through FR-074's path so search engines refresh it. An address that held the cook's name is retired as `016-FR-037` says, and each refresh step is logged. The plain, long-cached photo addresses of ADR-0064 make this a purge, not only a delete.
 - **FR-073**: An erased cook's handle MUST never be given to another account, because search engines and old links
   point at it. A renamed handle MUST redirect to the new one for 012's 14 days (`012-FR-005`). After that, it MUST NOT be
   given to another account either.
@@ -1282,8 +1282,7 @@ Session 2026-11-15.)_
   consent banner.
 - **FR-076**: Edge and CDN logs that hold client addresses MUST be kept no longer than 30 days, and used only for abuse
   control and operations.
-- **FR-077**: Account closure follows the closure plan. Whatever it decides about a closed account's recipes, the open
-  rule reads it (FR-002 item 7), so no separate public-page rule exists for closure.
+- **FR-077**: Account closure follows the closure plan, which leaves a closed account's recipes as they are. The open rule reads no account standing (FR-002 rule 7, withdrawn 2026-11-21), so no public-page rule exists for closure.
 
 #### I. Measurement
 
@@ -1317,7 +1316,7 @@ Session 2026-11-15.)_
   authenticator or a WebSocket to any service that adopts the shared CORS policy (ADR-0047). The
   `bearerOnlyPrecondition` guard MUST stay green without a waiver.
 - **FR-101**: A signed-out read path MUST NOT read the `Authorization` header, and MUST answer the same bytes with or
-  without a credential. Only then can a cache keyed on the path serve it (ADR-0020's first trap).
+  without a credential. Only then can a shared cache serve it (ADR-0020's first trap).
 - **FR-102**: A signed-out response MUST be a **public projection**: an allowlist of fields picked from the
   service-owned schema (GR-015), using `Pick`, never `Omit`, so a new field cannot reach the public by default. It
   MUST carry no owner id. _(Amended 2026-11-15.)_ The facts card projection is withdrawn. A Commise-written version
@@ -1496,7 +1495,7 @@ Session 2026-11-15.)_
   stamped in `blocking` mode (FR-020).
 - **The web app runs on Vercel and production services sit behind CloudFront** (ADR-0020). Photos and avatars are on
   the media CDN (ADR-0064).
-- **English is the only locale** (`SUPPORTED_LOCALES`). No alternate-language pages are declared until a second locale
+- **`en-US` is the only shipped locale** (`SUPPORTED_LOCALES`), and the catalogs are `en`. No alternate-language pages are declared until a second locale
   ships.
 - **Search results come slowly.** The business plan plans no search volume in its first 24 months. This feature makes
   search possible. It does not promise traffic.

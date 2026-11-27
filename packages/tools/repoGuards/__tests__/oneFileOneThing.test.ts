@@ -135,7 +135,9 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'SHRANK (S6.U0): `TimerAlreadyActiveError` deleted; a start at the limit is a result, not an error. ' +
             'GREW 2026-11-16 (source statement, ADR-0095): the recipe client added `InvalidVisibilityError`, the 400 ' +
             'that names why a visibility change was refused, which the recipe page answers with a different sentence ' +
-            'for each reason.',
+            'for each reason. ' +
+            "GREW 2026-11-27: the recipe client added `ServiceUnreachableError`, the load balancer's own 404, kept " +
+            'apart from `SourceUnavailableError` because logs and alerts read the code and status.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },

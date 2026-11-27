@@ -58,7 +58,7 @@ describe('a 404 the service answered', () => {
         const error = await rejectionOf(stubFetch(404, { code: 'SOMETHING_NEWER', message: 'newer service' }));
 
         expect(error).toBeInstanceOf(NotFoundError);
-        expect((error as NotFoundError).code).toBe('SOMETHING_NEWER');
+        expect(error).toMatchObject({ code: 'SOMETHING_NEWER' });
     });
 });
 
@@ -70,7 +70,7 @@ describe('other statuses with no service body are unchanged', () => {
     ])('%i keeps its own typed error', async (status, name) => {
         const error = await rejectionOf((async () => new Response('x', { status })) as typeof fetch);
 
-        expect((error as Error).name).toBe(name);
+        expect(error).toMatchObject({ name });
     });
 
     it('a 500 stays an unexpected response', async () => {

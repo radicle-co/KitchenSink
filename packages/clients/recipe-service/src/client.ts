@@ -1872,7 +1872,8 @@ export class RecipeServiceClient {
             case 403:
                 return new ForbiddenError(message, code);
             // ⛔ A 404 is "not there" only when the SERVICE said so. The shared ALB's own 404 (a host or path with no
-            // rule, ADR-0003) has no envelope, and reading it as "deleted" hid an outage behind a missing item (owner ruling 2026-11-26).
+            // rule, ADR-0003) has no envelope, and reading it as "deleted" hid an outage behind a missing item (owner
+            // ruling 2026-11-26).
             case 404:
                 return envelope === undefined
                     ? new SourceUnavailableError('The recipe service did not answer the request')

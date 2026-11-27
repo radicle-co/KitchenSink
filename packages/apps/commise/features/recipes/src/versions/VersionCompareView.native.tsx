@@ -8,12 +8,11 @@
  */
 import { useMessages } from '@commise/i18n/react';
 import { FullScreenSheet } from '@commise/ui/full-screen-sheet';
-import { Icon } from '@commise/ui/icon';
+import { IconButton } from '@commise/ui/icon-button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
-import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { ScrollView, StyleSheet, Text, View } from 'react-native';
 
 import { fillTemplate } from '@commise/i18n';
 import { compareRowsOf, type VersionCompareViewProps } from './compare.js';
@@ -41,14 +40,7 @@ export const VersionCompareView: FC<VersionCompareViewProps> = ({ open, version,
                     <Text accessibilityRole="header" style={[styles.title, ink]}>
                         {heading}
                     </Text>
-                    <Pressable
-                        accessibilityRole="button"
-                        accessibilityLabel={compare.close}
-                        onPress={onClose}
-                        style={styles.close}
-                    >
-                        <Icon name="x" size={24} tone="inkMuted" />
-                    </Pressable>
+                    <IconButton icon="x" accessibilityLabel={compare.close} tone="inkMuted" onPress={onClose} />
                 </View>
                 <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.content}>
                     {rows.length === 0 ? (
@@ -81,7 +73,6 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[4],
     },
     title: { ...nativeTokens.type.sectionTitle, flex: 1 },
-    close: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     content: { paddingHorizontal: nativeTokens.spacing[4], paddingBottom: nativeTokens.spacing[6] },
     row: { gap: 2, paddingVertical: nativeTokens.spacing[3], borderBottomWidth: StyleSheet.hairlineWidth },
     label: { ...nativeTokens.type.label, marginBottom: nativeTokens.spacing[1] },

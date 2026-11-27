@@ -12,6 +12,7 @@ import { compareWithCurrent } from '../compare.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { VersionCompareView } from '../VersionCompareView.native.js';
 import { render } from '@commise/ui/testing/tamagui';
+import { role } from '@commise/ui/colors';
 
 afterEach(cleanup);
 
@@ -73,5 +74,24 @@ describe('VersionCompareView (native)', () => {
 
         rerender(<VersionCompareView open={false} onClose={onClose} />);
         expect(screen.queryByRole('heading', { name: /current version/u })).toBeNull();
+    });
+
+    // CL-ICONBTN: the close control is the shared icon button: a 44 circle holding a 24 glyph in muted ink.
+    it('draws its close control as the shared icon button', () => {
+        render(
+            <VersionCompareView
+                open
+                version={old}
+                diff={compareWithCurrent(old, current, 'en', lineNames)}
+                onClose={vi.fn()}
+            />,
+        );
+        const close = screen.getByRole('button', { name: 'Close compare' });
+        const circle = close.firstElementChild?.firstElementChild;
+        const glyph = close.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        expect(circle === undefined || circle === null ? '' : getComputedStyle(circle).width).toBe('44px');
+        expect(glyph?.dataset['iconSize']).toBe('24');
+        expect(glyph?.dataset['iconColor']).toBe(role.inkMuted);
     });
 });

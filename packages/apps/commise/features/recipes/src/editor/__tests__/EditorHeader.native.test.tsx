@@ -5,8 +5,8 @@
  */
 import { renderWithTamagui } from '@commise/ui/testing/tamagui';
 import { nativeTokens } from '@commise/ui/native';
-import { cleanup, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorHeader } from '../EditorHeader.native.js';
 
@@ -58,10 +58,44 @@ describe('EditorHeader.native: scaled text', () => {
     it('gives the bar a minimum height and no fixed one, so a second line grows it', () => {
         drawHeader();
 
-        const bar = screen.getByRole('button', { name: 'Close editor' }).parentElement as HTMLElement;
+        // TEST-CHANGE (decisions/0118 addendum 1): the bar is the nearest ancestor of the close button that holds the
+        // title, so the row does not depend on how deep the icon button nests its button.
+        const heading = screen.getByRole('heading', { name: 'Edit recipe' });
+        let bar = screen.getByRole('button', { name: 'Close editor' }).parentElement;
+
+        while (bar !== null && !bar.contains(heading)) {
+            bar = bar.parentElement;
+        }
+
+        if (bar === null) {
+            throw new Error('No ancestor of the close button holds the title.');
+        }
 
         expect(bar.className).toMatch(/r-minHeight-/);
         expect(bar.className).not.toMatch(/r-height-/);
         expect(bar.getAttribute('style') ?? '').not.toMatch(/(^|[^-])height:\s*\d/);
+    });
+});
+
+describe('EditorHeader.native: the close control', () => {
+    afterEach(cleanup);
+
+    // CL-ICONBTN: × is the shared icon button: a 24 glyph in ink, and one press reports once.
+    it('is the shared icon button, and reports a press once', () => {
+        const onClose = vi.fn();
+        renderWithTamagui(
+            <EditorHeader title="Edit recipe" status={STATUS} closeLabel="Close editor" onClose={onClose} />,
+            'light',
+        );
+        const glyph = document.querySelector<HTMLElement>('[data-commise-stub="icon"]');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Close editor' }));
+
+        expect(onClose).toHaveBeenCalledTimes(1);
+        expect(glyph?.dataset['iconSize']).toBe('24');
+
+        const circle = screen.getByRole('button', { name: 'Close editor' }).firstElementChild?.firstElementChild;
+
+        expect(circle === undefined || circle === null ? '' : getComputedStyle(circle).width).toBe('44px');
     });
 });

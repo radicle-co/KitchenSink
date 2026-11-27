@@ -1,5 +1,6 @@
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { snackbarBarOf, undoFrameOf } from '../../testing/undoSnackbarParts.js';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState, type JSX } from 'react';
@@ -206,11 +207,12 @@ describe('UndoSnackbar (native)', () => {
         const message = screen.getByText('Removed Pasta');
         const undo = screen.getByRole('button', { name: 'Undo' });
 
-        expect(getComputedStyle(message).color).toBe('rgb(255, 255, 255)');
-        expect(getComputedStyle(message.parentElement as HTMLElement).backgroundColor).toBe(
+        // The bar holds both the message and Undo, and Undo's touch floor sits on the frame inside its button.
+        expect(resolvedColour(message, 'color')).toBe('rgb(255, 255, 255)');
+        expect(resolvedColour(snackbarBarOf(message, undo), 'backgroundColor')).toBe(
             `rgb(${[1, 3, 5].map((at) => parseInt(role.ink.slice(at, at + 2), 16)).join(', ')})`,
         );
-        expect(getComputedStyle(undo).minHeight).toBe('44px');
+        expect(resolvedStyle(undoFrameOf(undo), 'minHeight')).toBe('44px');
     });
 });
 

@@ -185,7 +185,17 @@ function giveInstall(path, installRoot) {
         linkTrees(shared, path);
         utimesSync(shared, new Date(), new Date());
     } else {
-        execFileSync('npm', ['ci'], { cwd: path, stdio: 'inherit' });
+        // `npm run worktree:add` hands this child the user's `allow-scripts` list as `npm_config_allow_scripts`,
+        // which npm refuses in a project install (EALLOWSCRIPTS). Emptied here, so npm applies the same list
+        // from the user's `.npmrc`: the policy is unchanged.
+        // npm is the developer's own toolchain, found on their PATH as it was for the
+        // `npm run worktree:add` that started this script.
+        // eslint-disable-next-line sonarjs/no-os-command-from-path -- the developer's own npm
+        execFileSync('npm', ['ci'], {
+            cwd: path,
+            stdio: 'inherit',
+            env: { ...process.env, npm_config_allow_scripts: '' },
+        });
 
         const tmp = join(installRoot, `${TMP_PREFIX}${hash}-${process.pid}`);
 

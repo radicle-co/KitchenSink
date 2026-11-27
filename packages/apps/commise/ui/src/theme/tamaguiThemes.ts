@@ -21,6 +21,7 @@ import {
     type SurfaceTone,
 } from '../surfaceTone/surfaceTone.js';
 import { role, roleDark, type Role } from '../tokens/colors.js';
+import { nativeTokens } from '../tokens/native.js';
 import { COVER_TINT_NAMES, coverTint, coverTintDark, type CoverTintName } from '../tokens/covers.js';
 import { proTone, proToneDark, type Tone } from '../tokens/tones.js';
 
@@ -35,6 +36,22 @@ export const proThemeKeys = ['proFill', 'proInk'] as const;
  * our scrim, and a device logs no unknown-colour warning.
  */
 export const engineThemeKeys = ['shadow-color'] as const;
+
+/** The elevation levels that draw a native shadow: every level of the table but the focus halo, which is no shadow. */
+export const ELEVATION_LEVELS = ['sm', 'md', 'lg', 'xl'] as const;
+
+/** A level of the elevation table that draws a shadow. */
+export type ElevationLevel = (typeof ELEVATION_LEVELS)[number];
+
+/** A theme key for one level's shadow colour (`elevationLgShadow`). */
+export type ElevationThemeKey = `elevation${Capitalize<ElevationLevel>}Shadow`;
+
+/** The theme key of a level's shadow colour. Pure. */
+export const elevationThemeKeyOf = (level: ElevationLevel): ElevationThemeKey =>
+    `elevation${level.charAt(0).toUpperCase()}${level.slice(1)}Shadow` as ElevationThemeKey;
+
+/** Every elevation-shadow key, in table order. */
+export const elevationThemeKeys: readonly ElevationThemeKey[] = ELEVATION_LEVELS.map(elevationThemeKeyOf);
 
 /** A theme key for the engine. */
 export type EngineThemeKey = (typeof engineThemeKeys)[number];
@@ -73,7 +90,10 @@ export type ToneTheme = Readonly<Record<ToneThemeKey, string>>;
 
 /** One scheme's theme: every role, each tone's fill, press and chip fill, the PRO pair, the engine and tone keys, and the cover tints. */
 export type TamaguiTheme = Readonly<
-    Record<Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey | CoverThemeKey, string>
+    Record<
+        Role | SurfaceToneThemeKey | ProThemeKey | EngineThemeKey | ToneThemeKey | CoverThemeKey | ElevationThemeKey,
+        string
+    >
 >;
 
 /** A sub-theme's name: the scheme, an underscore, the tone. The one place the name is built. */
@@ -129,11 +149,17 @@ function themeOf(
     ]);
 
     const coverEntries = COVER_TINT_NAMES.map((name) => [coverKeyOf(name), covers[name]]);
+    // Each level's shadow colour, from the table the native shadow is composed from, so a colour is typed once.
+    const elevationEntries = ELEVATION_LEVELS.map((level) => [
+        elevationThemeKeyOf(level),
+        nativeTokens.elevation[level].shadowColor,
+    ]);
 
     return {
         ...colors,
         ...Object.fromEntries(toneEntries),
         ...Object.fromEntries(coverEntries),
+        ...Object.fromEntries(elevationEntries),
         proFill: pro.fill,
         proInk: pro.text,
         'shadow-color': colors.scrim,

@@ -56,6 +56,13 @@ export const gutter = {
  */
 export const pinnedBarHeight = 56;
 
+/**
+ * The room the snackbar's message asks for beside Undo, px, at the default text size (12 rem). Web reads it as
+ * `--snackbar-message-basis` (`themeCss.ts`), which grows with the text size on its own; native multiplies it by the
+ * system text size, up to the cap. When the message cannot have this room beside Undo, Undo drops under it.
+ */
+export const snackbarMessageBasis = 192;
+
 /** A container class: the layout content takes at the width it gets. */
 export type ContainerClass = 'narrow' | 'regular' | 'wide';
 

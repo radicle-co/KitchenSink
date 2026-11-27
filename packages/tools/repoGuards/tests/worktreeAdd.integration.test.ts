@@ -72,7 +72,7 @@ describe('worktree:add', () => {
             path.join(bin, 'npm'),
             [
                 '#!/bin/sh',
-                'echo "$@" >> "$KS_FAKE_NPM_LOG"',
+                'echo "$@ allow=[${npm_config_allow_scripts-unset}]" >> "$KS_FAKE_NPM_LOG"',
                 'mkdir -p node_modules/dep packages/a/node_modules/inner',
                 'echo root > node_modules/dep/index.js',
                 '[ -n "$KS_FAKE_NPM_FAIL" ] && exit 1',
@@ -94,7 +94,7 @@ describe('worktree:add', () => {
 
     it('adds the worktree and hard-links its node_modules from an install keyed by the lockfile hash', () => {
         const wt = path.join(scratch, 'wt1');
-        run([wt, 'feature/one']);
+        run([wt, 'feature/one'], { npm_config_allow_scripts: 'trace-mcp,protobufjs' });
 
         const hash = lockfileHash(Buffer.from(lock));
         const shared = path.join(installRoot, hash);
@@ -108,6 +108,10 @@ describe('worktree:add', () => {
         );
         expect(readdirSync(installRoot)).toEqual([hash]);
         expect(npmCalls()).toBe(1);
+        // `npm run worktree:add` hands its child the user's `allow-scripts` list as `npm_config_allow_scripts`, and
+        // npm refuses that as a command-line policy in a project install (EALLOWSCRIPTS). The install must see it
+        // empty. Mutation: pass the environment through unchanged and the log shows the list.
+        expect(readFileSync(npmLog, 'utf8').trim()).toBe('ci allow=[]');
         expect(existsSync(path.join(wt, '.husky/_/pre-commit'))).toBe(true);
     });
 

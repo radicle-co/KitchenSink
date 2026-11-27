@@ -1083,8 +1083,8 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
         await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
 
         expect(answerRowStatement).toHaveBeenCalledOnce();
-        const [write, forSheet] = answerRowStatement.mock.calls[0] ?? [];
-        expect(write?.statement?.kind).toBe('fromPerson');
+        const [write, forSheet] = answerRowStatement.mock.calls[0];
+        expect(write.statement?.kind).toBe('fromPerson');
         expect(forSheet).toBe('firstAnswer');
         expect(screen.queryByRole('dialog')).toBeNull();
     });
@@ -1165,6 +1165,23 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
         expect(
             screen.getAllByText('That source change wasn’t saved. Only Commise can change this source.'),
         ).toHaveLength(2);
+    });
+
+    it('⛔ after a refusal the Source row is the stored answer, locked, with no Change control (the row re-read)', () => {
+        const locked = makeRecipeDetail({
+            id: 'rec_1',
+            sourceType: 'imported_physical',
+            sourceKind: 'book',
+            sourceAttribution: 'Joy of Cooking',
+            statementKind: 'source',
+            sourceConfirmed: true,
+        });
+        mount({ seed: { recipe: locked }, editorOver: { storedRecipe: locked, sourceLockRefused: true } });
+
+        expect(screen.getByText('From a cookbook or magazine')).toBeTruthy();
+        expect(screen.getByText('Joy of Cooking')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Change where it’s from' })).toBeNull();
+        expect(screen.queryByText('Once you publish, this source can’t be changed.')).toBeNull();
     });
 
     it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {

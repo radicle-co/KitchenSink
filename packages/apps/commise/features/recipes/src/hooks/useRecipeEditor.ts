@@ -287,6 +287,11 @@ export interface UseRecipeEditorOptions {
      */
     readonly readRecipe: (id: string) => Promise<RecipeDetail>;
     /**
+     * Reads the recipe the server holds as `id`, from the service and never the cache: how the editor learns the Source it
+     * was refused over (`recipeSourceLocked`), which a staff correction can change without a new version.
+     */
+    readonly rereadRecipe: (id: string) => Promise<RecipeDetail>;
+    /**
      * Whether a pasted list is still joining the draft: it holds the server create (`serverWriteFor`).
      *
      * @deprecated Pass {@link pasteHold} instead: a value passed here is copied through render, one render late.
@@ -1105,6 +1110,46 @@ function adoptResolved(ctx: EditorContext, serverId: string, trigger: Checkpoint
     );
 }
 
+/**
+ * A write was refused because the recipe's Source is locked: the 403 carries no recipe, so read the one the server holds. A
+ * read at the version the editor holds is adopted (it carries the locked answer, and a staff correction made at the same
+ * version), and then the cook's other edits go. A read at another version is another editor's work: it is not adopted, and
+ * the edits go at the old version, which meets the 409 the conflict path handles. A read that fails sends nothing: the notice
+ * stays, and the cook's next press goes through the gate again. ⛔ Never a write used as a read: a save mints a version.
+ *
+ * @sideEffect Reads the recipe, then may move the server facts and submit an update.
+ */
+function rereadAfterLockRefusal(ctx: EditorContext): void {
+    const { server } = ctx.core.get();
+
+    if (server.kind !== 'stored') {
+        retry(ctx, { stay: true });
+
+        return;
+    }
+
+    const { id } = server.recipe;
+    const { baseVersion } = server;
+
+    void ctx.opts.rereadRecipe(id).then(
+        (detail) => {
+            const now = ctx.core.get().server;
+
+            // The server facts moved while the read was out: this read is older than what the editor knows now.
+            if (now.kind !== 'stored' || now.baseVersion !== baseVersion || detail.id !== id) {
+                return;
+            }
+
+            if (detail.currentVersion === baseVersion) {
+                adoptServerFacts(ctx, detail, undefined);
+            }
+
+            retry(ctx, { stay: true });
+        },
+        () => undefined,
+    );
+}
+
 /** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */
 function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: OutstandingWrite): void {
     const wasPublished = lifecycleNow(ctx) === 'published';
@@ -1248,7 +1293,7 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         dropRefusedSource(ctx);
         ctx.setSourceLockRefused(true);
         ctx.countSourceLockRefusal();
-        retry(ctx, { stay: true });
+        rereadAfterLockRefusal(ctx);
 
         return;
     }

@@ -113,6 +113,9 @@ function mount(
     const readRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
         throw new Error('readRecipe: not expected in this test');
     });
+    const rereadRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
+        throw new Error('rereadRecipe: not expected in this test');
+    });
     const reportError = vi.fn<ErrorReporter>();
     const view = renderHook(
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
@@ -127,6 +130,7 @@ function mount(
                 rebindLine,
                 setVisibility,
                 readRecipe,
+                rereadRecipe,
                 reportError,
                 pastePending: props.pastePending ?? false,
                 ...(pasteHold === undefined ? {} : { pasteHold }),
@@ -136,7 +140,18 @@ function mount(
         { initialProps: { seed } as { readonly seed: EditorSeed; readonly pastePending?: boolean } },
     );
 
-    return { ...view, port, drafts, onExit, onRecipeRef, rebindLine, setVisibility, readRecipe, reportError };
+    return {
+        ...view,
+        port,
+        drafts,
+        onExit,
+        onRecipeRef,
+        rebindLine,
+        setVisibility,
+        readRecipe,
+        rereadRecipe,
+        reportError,
+    };
 }
 
 /** Type a title (the draft floor's one requirement). */
@@ -4709,6 +4724,7 @@ describe("the Source row's own sheet (ADR-0100)", () => {
             visibility: RecipeVisibility.PRIVATE,
         });
         const view = mount({ recipe: stored });
+        view.rereadRecipe.mockResolvedValue(stored);
 
         typeTitle(view.result, 'Renamed soup');
         act(() => {
@@ -4744,9 +4760,119 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         expect(JSON.stringify(view.port.submitted.slice(sentBefore + 1))).not.toContain('statement');
     });
 
+    describe('after a lock refusal the editor reads the recipe, and never writes to learn it', () => {
+        const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
+        const locked = makeRecipeDetail({
+            id: 'rec_1',
+            currentVersion: 3,
+            status: RecipeStatus.DRAFT,
+            sourceConfirmed: true,
+            statementKind: 'fromPerson',
+        });
+
+        const refuseAnswer = async (view: ReturnType<typeof mount>) => {
+            act(() => {
+                view.result.current.answerRowStatement(fromPerson, 'firstAnswer');
+            });
+            await settle();
+            const sentBefore = view.port.submitted.length;
+
+            act(() => {
+                view.port.park(view.port.lastSeq(), 403, { kind: 'recipeSourceLocked' });
+            });
+            await settle();
+            await settle();
+
+            return sentBefore;
+        };
+
+        it('⛔ with nothing else changed it reads once, submits no write, and the stored recipe is the locked one (a staff correction at the same version)', async () => {
+            const view = mount({ recipe: stored });
+            view.rereadRecipe.mockResolvedValue(locked);
+
+            const sentBefore = await refuseAnswer(view);
+
+            expect(view.rereadRecipe).toHaveBeenCalledExactlyOnceWith('rec_1');
+            expect(view.port.submitted.slice(sentBefore)).toEqual([]);
+            expect(view.result.current.sourceLockRefused).toBe(true);
+            expect(view.result.current.storedRecipe).toMatchObject({
+                sourceConfirmed: true,
+                statementKind: 'fromPerson',
+            });
+        });
+
+        it('⛔ with other edits it reads first, then sends one write with those edits and no statement', async () => {
+            const view = mount({ recipe: stored });
+            view.rereadRecipe.mockResolvedValue(locked);
+
+            typeTitle(view.result, 'Renamed soup');
+            const sentBefore = await refuseAnswer(view);
+            const resent = view.port.submitted.slice(sentBefore);
+
+            expect(view.rereadRecipe).toHaveBeenCalledOnce();
+            expect(resent).toHaveLength(1);
+            expect(resent[0]).toMatchObject({ payload: { input: { title: 'Renamed soup' } } });
+            expect(JSON.stringify(resent[0]?.payload)).not.toContain('statement');
+        });
+
+        it('⛔ a read at another version is another editor’s work: nothing is adopted, and the edits go at the old version for the conflict path', async () => {
+            const view = mount({ recipe: stored });
+            view.rereadRecipe.mockResolvedValue({ ...locked, currentVersion: 4 });
+
+            typeTitle(view.result, 'Renamed soup');
+            const sentBefore = await refuseAnswer(view);
+            const resent = view.port.submitted.slice(sentBefore);
+
+            expect(view.result.current.storedRecipe).toMatchObject({ currentVersion: 3 });
+            expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
+            expect(resent).toHaveLength(1);
+            expect(resent[0]).toMatchObject({ payload: { input: { expectedVersion: 3 } } });
+        });
+
+        it('⛔ a failed read sends no write, adopts nothing and keeps the notice', async () => {
+            const view = mount({ recipe: stored });
+            view.rereadRecipe.mockRejectedValue(new Error('offline'));
+
+            typeTitle(view.result, 'Renamed soup');
+            const sentBefore = await refuseAnswer(view);
+
+            expect(view.port.submitted.slice(sentBefore)).toEqual([]);
+            expect(view.result.current.sourceLockRefused).toBe(true);
+            expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
+        });
+
+        it('⛔ a read that lands after the server facts moved is ignored', async () => {
+            const view = mount({ recipe: stored });
+            let land: (detail: RecipeDetail) => void = () => undefined;
+            view.rereadRecipe.mockReturnValue(
+                new Promise<RecipeDetail>((resolve) => {
+                    land = resolve;
+                }),
+            );
+            typeTitle(view.result, 'Renamed soup');
+            await refuseAnswer(view);
+
+            // Another answer taught the editor the recipe at a later version while the read was out.
+            act(() => {
+                view.port.sync(view.port.lastSeq(), makeRecipeDetail({ id: 'rec_1', currentVersion: 5 }));
+            });
+            await settle();
+            const sentBefore = view.port.submitted.length;
+            act(() => {
+                land(locked);
+            });
+            await settle();
+
+            expect(view.result.current.storedRecipe).toMatchObject({ currentVersion: 5 });
+            expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
+            expect(view.port.submitted.length).toBe(sentBefore);
+        });
+    });
+
     it('⛔ the lock notice stays through the automatic resend and clears at the cook’s next Publish', async () => {
         const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
         const view = mount({ recipe: stored });
+        view.rereadRecipe.mockResolvedValue(stored);
 
         typeTitle(view.result, 'Renamed soup');
         act(() => {
@@ -4772,6 +4898,7 @@ describe("the Source row's own sheet (ADR-0100)", () => {
     it('⛔ a background draft save that succeeds does not clear the lock notice: only the cook’s next Publish or Save does', async () => {
         const stored = makeRecipeDetail({ id: 'rec_1', currentVersion: 3, status: RecipeStatus.DRAFT });
         const view = mount({ recipe: stored });
+        view.rereadRecipe.mockResolvedValue(stored);
 
         typeTitle(view.result, 'Renamed soup');
         act(() => {
@@ -4804,6 +4931,7 @@ describe("the Source row's own sheet (ADR-0100)", () => {
             firstPublishedAt: '2026-11-01T00:00:00.000Z',
         });
         const view = mount({ recipe: published });
+        view.rereadRecipe.mockResolvedValue(published);
 
         typeTitle(view.result, 'Renamed soup');
         act(() => {

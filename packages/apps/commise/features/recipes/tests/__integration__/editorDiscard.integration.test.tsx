@@ -67,6 +67,7 @@ function mountEditor(client: RecipeServiceClient, seed: EditorSeed = {}) {
                 throw new Error('setVisibility: not expected in this suite');
             }),
             readRecipe: (id) => client.getRecipeById(id),
+            rereadRecipe: (id) => client.getRecipeById(id),
         }),
     );
 

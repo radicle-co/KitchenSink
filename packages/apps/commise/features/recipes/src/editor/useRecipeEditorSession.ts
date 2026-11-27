@@ -228,6 +228,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         setVisibility: (id, visibility) => setVisibility.mutateAsync({ id, visibility }),
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
+        // Never the cache: a source lock the cook was refused over may be newer than what the cache holds.
+        rereadRecipe: (id) => queryClient.fetchQuery({ ...recipeQueries(client).detail(id), staleTime: 0 }),
         pasteHold,
         rowEditHold,
         privateRefusal,

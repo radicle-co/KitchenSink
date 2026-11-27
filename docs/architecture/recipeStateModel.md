@@ -724,8 +724,7 @@ by a canvas PR, published from main. The strings of the open source-lock change 
 
 <!-- recipeState:end 6-1 -->
 
-"Just for me", "Keep it just for me" and "For everyone" are **not** retired. They are `IMPORT_CHOICE_*` words. The guard does not count them. "For everyone" in 001 openapi:538 as a recipe audience label is out of step, and the
-rename task fixes it.
+"Just for me", "Keep it just for me" and "For everyone" are **not** retired. They are `IMPORT_CHOICE_*` words. The guard does not count them.
 
 **Origin and copies**
 

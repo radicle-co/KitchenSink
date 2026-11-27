@@ -107,7 +107,7 @@ the page's wording and shows the source author's name. Then clone it and verify 
    post link are visible as attribution.
 7. **Given** a page from a paid site (`FR-014`), **When** the cook imports it, **Then** it is kept privately, and Public
    is offered as the cook's own Adapted version once our review finds the edits sufficient, or as a page Commise writes in
-   full that names no site (`FR-065`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
+   full that names no site (`FR-065`, [the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)).
 8. **Given** a cook imports a page they already hold, **When** the import runs, **Then** the cook chooses Duplicate,
    Replace or Cancel. **Given** the cook's copy is public, **Then** the choices are "Import as a new copy" and Cancel
    (`FR-008`).
@@ -233,13 +233,13 @@ them. So the import never invents a value:
       ingredient food-match review (ADR-0071) stays.
     - When part of a recipe was pasted and the cook gave no statement, the import asks where the recipe is from. The
       question, its choices and its record are spec 016's.
-- **FR-065**: **At import the cook chooses Private, Public or Both** (the labels are [the model's](../../docs/architecture/recipeStateModel.md#5-labels)). Private keeps the cook's own copy (`FR-066`). Public
+- **FR-065**: **At import the cook chooses Private, Public or Both** (the labels are [the model's](../../docs/architecture/recipeStateModel.md#44-labelled-stored-values)). Private keeps the cook's own copy (`FR-066`). Public
   publishes a version Commise writes. Both does the two. If the rewrite cannot run for a recipe, only Private is offered.
     - The import rewrites the instructions of every public-facing recipe whose source is not on the copy-outright
       allowlist, and of every recipe that 020's reviewer check flags. The allowlist is: the cook's own verified site
       (`026-FR-001`), an open licence stated in the page's structured data, public-domain works (`016-FR-015k`) and US
       government works.
-    - A paid-site recipe goes public as the cook's own Adapted version after our check and once our review finds the edits sufficient, or as a page Commise writes in full that names no site (ADR-0097, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)).
+    - A paid-site recipe goes public as the cook's own Adapted version after our check and once our review finds the edits sufficient, or as a page Commise writes in full that names no site (ADR-0097, [the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)).
     - The rewrite, its checks and the cook's confirmation before it publishes are spec 003B. Until it ships, the rewrite
       cannot run, so an import is Private only.
     - Every state of the choice is designed in
@@ -430,7 +430,7 @@ them. So the import never invents a value:
       the curator's public-domain record (`016-FR-015k`). An imported recipe's text opens to the web as it is only when its
       source is on `FR-065`'s copy-outright allowlist. Otherwise its only public form is a Commise-written version.
       `imported_physical` and `imported_paid` keep the cook's verbatim copy private.
-    - **Statement kinds.** The stored statement kind holds `authored` (I wrote this), `source` (a copy from a web page, book, magazine or paid site, with its citation and source kind) and `fromPerson` (From another person). `publicDomain` is the curator grant only, with the record in `016-FR-015k`. `adapted` is not stored: "Adapted by you" is derived. Each maps to an origin in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from).
+    - **Statement kinds.** The stored statement kind holds `authored` (I wrote this), `source` (a copy from a web page, book, magazine or paid site, with its citation and source kind) and `fromPerson` (From another person). `publicDomain` is the curator grant only, with the record in `016-FR-015k`. `adapted` is not stored: "Adapted by you" is derived. Each maps to an origin in [the model](../../docs/architecture/recipeStateModel.md#42-stored-value-types-one-as-const-object-each-values-are-the-stored-strings).
 - **FR-013**: System MUST create recipes imported from physical copies as private, with no public source attribution.
   "Private" covers the verbatim copy. The cook can publish an Adapted version after our check, and the other public form of the
   source is a Commise-written version (`FR-065`). Structured-file imports follow the ordinary `user_created` visibility
@@ -449,12 +449,12 @@ them. So the import never invents a value:
 - **FR-014a**: System MUST require, for any pasted or typed recipe the cook attests came from an external source, both an
   explicit source attestation and a source citation: a URL where one exists, otherwise a free-text citation (book title,
   author, page). Where the cited source is not a publicly reachable web page, the recipe is classified `imported_paid` or
-  `imported_physical`, and its verbatim copy stays private. The states, labels and transitions of a recipe are defined once, in [the recipe state model](../../docs/architecture/recipeStateModel.md). A book recipe and a paid-website recipe can each go public as the cook's own "Adapted by you" version after our check (the difference check re-run on the published text, then 020's check), and for a paid website only once our review finds the cook's edits sufficient ([the model, public by state](../../docs/architecture/recipeStateModel.md#4-public-by-state)). The other public form is a Commise-written version (`FR-065`). "Adapted by you" is derived from the origin and the rewritten fact. It is never a statement the cook chooses, and the recipe stays the same recipe. Automated detection heuristics run as a secondary signal that
+  `imported_physical`, and its verbatim copy stays private. The states, labels and transitions of a recipe are defined once, in [the recipe state model](../../docs/architecture/recipeStateModel.md). A book recipe and a paid-website recipe can each go public as the cook's own "Adapted by you" version after our check (the difference check re-run on the published text, then 020's check), and for a paid website only once our review finds the cook's edits sufficient ([the model, public by state](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)). The other public form is a Commise-written version (`FR-065`). "Adapted by you" is derived from the origin and the rewritten fact. It is never a statement the cook chooses, and the recipe stays the same recipe. Automated detection heuristics run as a secondary signal that
   flags a recipe for review. A heuristic never reclassifies a recipe or blocks a save.
     - **One statement, one origin, on every channel.** The cook chooses one statement for each recipe. The mapping to an
       origin does not vary by channel, and a channel offers the statements its own rules allow. The origins, their
-      labels, stored forms and public rules are in [the model](../../docs/architecture/recipeStateModel.md#14-origin-axis-origin-where-the-words-came-from) and
-      [its public-by-state table](../../docs/architecture/recipeStateModel.md#4-public-by-state).
+      labels, stored forms and public rules are in [the model](../../docs/architecture/recipeStateModel.md#42-stored-value-types-one-as-const-object-each-values-are-the-stored-strings) and
+      [ADR-0097 Decision 2](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md).
 
         | Statement                                                                   | Origin in the model |
         | --------------------------------------------------------------------------- | ------------------- |
@@ -527,7 +527,7 @@ them. So the import never invents a value:
       pauses (ADR-0072 §9).
     - With no free slot, the cook is offered Public where the rewrite can run, and otherwise the dead end with its
       "Upgrade to Pro" action (`003B-FR-073`).
-    - A recipe from another person is private only for now ([the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)), so this requirement's
+    - A recipe from another person is private only for now ([the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)), so this requirement's
       refusals apply to it. Its private copy uses a slot like any private recipe.
     - A book recipe can go public as the cook's own Adapted version after our check, and a paid-site recipe also once our review finds the edits sufficient. Either can go public as a Commise-written version (`FR-065`). The cook's private copy uses
       a private slot even when the recipe also has a public version.
@@ -551,9 +551,9 @@ them. So the import never invents a value:
       The server derives the label, the address and the site from the link and stores the source kind `public_web`. A
       recipe with that kind is private only. The statement is the cook's first answer. Once the cook confirms it (the source
       sheet's confirm, the first publish, or a Save of a published recipe), only Commise changes it, as the model sets out
-      in [its origin transitions](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact). A background checkpoint never
+      in [its origin transitions](../../docs/architecture/recipeStateModel.md#52-origin). A background checkpoint never
       confirms. The one change the cook keeps is a confirmed "I wrote this" moving to a book or a paid website, private
-      only. The code does not enforce this yet (the model's [edges main still allows](../../docs/architecture/recipeStateModel.md#edges-main-still-allows):
+      only. The code does not enforce this yet (the model's [edges main still allows](../../docs/architecture/recipeStateModel.md#52-origin):
       P7, then P8). It never travels with the curator's `source`.
     - On the link and social routes the server sets the label from the channel it observed, except with statement 1a.
       With it the label is `user_created`, accepted only with its own origin, and the own origin MUST be the page or
@@ -604,7 +604,7 @@ them. So the import never invents a value:
     - A flag holds public and sale only. A private import is never blocked by it. A private bulk-imported recipe is usable
       at once, and only going public or on sale waits for review (`020-FR-003b`).
     - A suggestion is never a cook's own words (`020-FR-077`, `016-FR-015i`). An accepted suggestion keeps the recipe's
-      origin label and adds the line saying AI wrote the steps ([the model](../../docs/architecture/recipeStateModel.md#2-derived-facts)). It never makes the recipe "Adapted by you", and the
+      origin label and adds the line saying AI wrote the steps ([the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)). It never makes the recipe "Adapted by you", and the
       screen says so before the cook accepts.
     - Rewording a flagged step before any takedown is not a strike (`016-FR-062`). The screen MUST NOT warn the cook that
       accepting or disputing a suggestion counts against them.
@@ -985,7 +985,7 @@ official-API path is hidden by its capability flag and its tests run against the
   `D-019`). It keeps 016's rules, 017's user-directed posture and 020's check, and it adds no new label and no new
   pipeline.
 - **C-009 (Recipe rights)**: A web import is private in full (`FR-008`, `FR-066`), public as a Commise-written version
-  (`FR-065`), or as the cook's own Adapted version after our check (for a paid website also once our review finds the edits sufficient). The statements are in the `FR-014a` table. A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/recipeStateModel.md#4-public-by-state)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
+  (`FR-065`), or as the cook's own Adapted version after our check (for a paid website also once our review finds the edits sufficient). The statements are in the `FR-014a` table. A recipe from another person is private for now (`FR-028`, [the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)). A fingerprint is kept at capture for the source check (`020-FR-012b`).
 
 ---
 
@@ -994,7 +994,7 @@ official-API path is hidden by its capability flag and its tests run against the
 - **A link is fetched on the cook's device first and by the server if that fails** (`FR-064`, `FR-008`). `FR-053`,
   `FR-053a`, the shared links of `FR-009`, `FR-023` and SC-004 apply.
 - **The cook's private copy uses a private slot even when a public version exists** (`FR-028`, `FR-066`).
-- **Only Commise changes a confirmed statement, and detected source evidence stays locked** ([the model](../../docs/architecture/recipeStateModel.md#32-origin-with-evidence-and-the-rewritten-fact), ADR-0097).
+- **Only Commise changes a confirmed statement, and detected source evidence stays locked** ([the model](../../docs/architecture/recipeStateModel.md#52-origin), ADR-0097).
 - **A second import of the same page is matched by its normalised source address** (C-001, SC-005).
 - **The account data export includes the private copy's wording, paid sites included.** "No export" means no share or
   export feature beyond the account data export (`FR-066`).

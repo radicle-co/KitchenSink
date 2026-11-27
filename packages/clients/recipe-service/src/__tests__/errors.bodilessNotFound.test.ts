@@ -1,12 +1,13 @@
 /**
  * A `404` is "the item is not there" only when the SERVICE said so. The shared ALB answers a host or path with no
  * rule using its own `404` with no service body (ADR-0003), and that is an outage, so it maps to
- * `SourceUnavailableError`, which the retry policy treats as transient. Owner ruling 2026-11-26.
+ * `ServiceUnreachableError`, which the retry policy treats as transient. Owner ruling 2026-11-26.
  */
 import { describe, expect, it } from 'vitest';
 
 import {
     isNotFoundError,
+    isServiceUnreachableError,
     isSourceUnavailableError,
     NotFoundError,
     RecipeServiceClient,
@@ -39,10 +40,11 @@ describe('a 404 whose body is not JSON', () => {
             'an HTML page',
             () => new Response('<html>404</html>', { status: 404, headers: { 'content-type': 'text/html' } }),
         ],
-    ])('is service-unavailable, not not-found: %s', async (_name, respond) => {
+    ])('is service-unreachable, not not-found: %s', async (_name, respond) => {
         const error = await rejectionOf(fetchOf(respond));
 
-        expect(isSourceUnavailableError(error)).toBe(true);
+        expect(isServiceUnreachableError(error)).toBe(true);
+        expect(isSourceUnavailableError(error)).toBe(false);
         expect(isNotFoundError(error)).toBe(false);
     });
 });

@@ -306,10 +306,6 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
 /**
  * A `502 SOURCE_UNAVAILABLE`: a route needed the food service and could not ask it. Nothing was done. Carries no
  * retry window, because nothing on our side knows when food recovers.
- *
- * Also what a `404` whose body is not a JSON object becomes: the shared ALB's own answer for a host or path with no
- * rule (ADR-0003). The request never reached the service, so nothing was done there either, and the same transient
- * handling is right. The status and code stay `502 SOURCE_UNAVAILABLE`; read the message, not the code, for the cause.
  */
 export class SourceUnavailableError extends RecipeServiceClientError {
     public constructor(message = 'The ingredient source did not answer') {
@@ -322,6 +318,26 @@ export class SourceUnavailableError extends RecipeServiceClientError {
 /** Type guard for {@link SourceUnavailableError}. */
 export function isSourceUnavailableError(error: unknown): error is SourceUnavailableError {
     return error instanceof SourceUnavailableError;
+}
+
+/**
+ * A `404` whose body is not a JSON object: the shared ALB's own answer for a host or path with no rule (ADR-0003).
+ * The recipe service did not answer and nothing was done there. It is its own class, with its own `503` and
+ * `SERVICE_UNREACHABLE`, because `status` and `code` are what logs and alerts read: it is not a food outage
+ * (`SourceUnavailableError`), and it must not carry the wire's `404`, which anything that branches on `404` would
+ * read as "the item is gone". `503` is also the sync vocabulary for "not processed".
+ */
+export class ServiceUnreachableError extends RecipeServiceClientError {
+    public constructor(message = 'The recipe service did not answer the request') {
+        super(message, 503, 'SERVICE_UNREACHABLE');
+        this.name = 'ServiceUnreachableError';
+        Object.setPrototypeOf(this, ServiceUnreachableError.prototype);
+    }
+}
+
+/** Type guard for {@link ServiceUnreachableError}. */
+export function isServiceUnreachableError(error: unknown): error is ServiceUnreachableError {
+    return error instanceof ServiceUnreachableError;
 }
 
 /**

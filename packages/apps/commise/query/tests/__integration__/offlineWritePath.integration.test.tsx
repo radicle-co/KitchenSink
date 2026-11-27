@@ -497,13 +497,15 @@ describe('a Discard settles the outbox through the real client (integration)', (
 
     /**
      * ⛔ A 404 THE SERVICE DID NOT SAY IS NOT "ALREADY DELETED". With `recipe-pr-{N}` torn down, the shared ALB
-     * answers the host with a code-less `text/plain` 404 (ADR-0003). Read as done, the delete synced and settled away
-     * the parked update of a recipe that still exists.
+     * answers the host with a `text/plain` 404 (ADR-0003). Read as done, the delete synced and settled away the
+     * parked update of a recipe that still exists. The client now reads that page as service-unavailable, which the
+     * sender reports as not processed (503) and the drain retries to its cap. The delete then parks with the 503 and,
+     * as a delete, is sent again on the next drain; the parked update is never settled.
      */
-    it("⛔ a delete that gets the ALB's text/plain 404 parks, and the recipe's parked update survives", async () => {
-        const network = scriptedFetch([
-            () => new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } }),
-        ]);
+    it("⛔ a delete that gets the ALB's text/plain 404 is retried, then parks as 503, and the parked update survives", async () => {
+        const albPage = (): Response =>
+            new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } });
+        const network = scriptedFetch([albPage, albPage, albPage]);
         const store = createMemoryOutboxStore();
         const update: Intent = {
             ...updateIntent('Edited'),
@@ -533,9 +535,10 @@ describe('a Discard settles the outbox through the real client (integration)', (
             ]),
         ).toStrictEqual([
             ['update', 'parked', 409],
-            ['delete', 'parked', 404],
+            ['delete', 'parked', 503],
         ]);
-        expect(wire(network.calls)).toStrictEqual(['DELETE /api/v1/recipes/srv-soup']);
+        // One DELETE per transient attempt (MAX_TRANSIENT_ATTEMPTS), and no other write.
+        expect(wire(network.calls)).toStrictEqual(Array(3).fill('DELETE /api/v1/recipes/srv-soup'));
     });
 });
 

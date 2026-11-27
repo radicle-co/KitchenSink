@@ -27,7 +27,7 @@ import {
     recipeServiceKeys,
 } from '../queries.js';
 import type { RecipeServiceClient } from '../client.js';
-import { SourceUnavailableError, UnexpectedResponseError } from '../errors.js';
+import { ServiceUnreachableError, SourceUnavailableError, UnexpectedResponseError } from '../errors.js';
 
 /** A minimal fake client — only the methods a given test exercises need to be real `vi.fn()`s. */
 function makeFakeClient(overrides: Partial<Record<keyof RecipeServiceClient, unknown>> = {}): RecipeServiceClient {
@@ -276,6 +276,15 @@ describe('ingredientQueries (P5 repository read seam)', () => {
         // The positive control: a recipe-service failure a repeat can fix is retried, once.
         expect([0, 1, 2].filter((count) => retry(count, new UnexpectedResponseError(503)))).toEqual([0]);
         expect(retry(0, new UnexpectedResponseError(400))).toBe(false);
+    });
+
+    it('retries a recipe service the load balancer could not reach once, as it does a dropped connection', () => {
+        const retry = ingredientQueries(makeFakeClient()).search('tom').retry as (
+            count: number,
+            error: Error,
+        ) => boolean;
+
+        expect([0, 1, 2].filter((count) => retry(count, new ServiceUnreachableError()))).toEqual([0]);
     });
 
     it('preserves the self-limiting refetchInterval on status(id) — polls ONLY while PENDING', () => {

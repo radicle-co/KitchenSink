@@ -52,6 +52,7 @@ import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     FetchUnavailableError,
+    ServiceUnreachableError,
     SourceUnavailableError,
     ForbiddenError,
     GoneError,
@@ -1877,9 +1878,7 @@ export class RecipeServiceClient {
             // item (owner ruling 2026-11-26). The envelope is not the test: Nest's default 404 body has no `code`
             // and is still the service.
             case 404:
-                return isJsonObject(res.body)
-                    ? new NotFoundError(message, code)
-                    : new SourceUnavailableError('The recipe service did not answer the request');
+                return isJsonObject(res.body) ? new NotFoundError(message, code) : new ServiceUnreachableError();
             // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
             // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
             // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no
@@ -1895,13 +1894,13 @@ export class RecipeServiceClient {
 }
 
 /**
- * Whether a parsed error body is a JSON object, which only the service sends: the ALB's own pages are not JSON.
+ * Whether an error body parsed to a JSON object or array, which only the service sends: the ALB's pages are not JSON.
  *
  * @param body - The parsed error body, `undefined` when it did not parse.
- * @returns `true` for a non-null, non-array object. Pure.
+ * @returns `true` for a parsed object or array. Pure.
  */
 function isJsonObject(body: unknown): boolean {
-    return typeof body === 'object' && body !== null && !Array.isArray(body);
+    return typeof body === 'object' && body !== null;
 }
 
 /**

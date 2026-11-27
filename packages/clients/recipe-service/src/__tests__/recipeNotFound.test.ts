@@ -2,7 +2,7 @@
  * `isRecipeNotFoundError` — whether a refusal is the recipe service itself saying no active recipe has that id.
  *
  * ⛔ A 404 ALONE IS NOT THAT. The shared ALB answers a host with no listener rule (`recipe-pr-{N}` torn down) with a
- * code-less `text/plain` 404 (ADR-0003), which the client reads as a `SourceUnavailableError`, and the service answers
+ * code-less `text/plain` 404 (ADR-0003), which the client reads as a `ServiceUnreachableError`, and the service answers
  * a path it does not route with `NOT_FOUND`, which becomes a `NotFoundError`. Neither says anything about the recipe.
  * A caller that read them as "already deleted" reported a Discard as done while the recipe still existed, and settled
  * away every parked write of it.
@@ -14,7 +14,7 @@ import {
     isRecipeNotFoundError,
     NotFoundError,
     RecipeServiceClient,
-    SourceUnavailableError,
+    ServiceUnreachableError,
 } from '../index.js';
 import { stubFetch } from './utils/fetchDouble.js';
 
@@ -47,7 +47,7 @@ describe('isRecipeNotFoundError', () => {
             .deleteRecipe('rec_1')
             .catch((caught: unknown) => caught);
 
-        expect(error).toBeInstanceOf(SourceUnavailableError);
+        expect(error).toBeInstanceOf(ServiceUnreachableError);
         expect(error).not.toBeInstanceOf(NotFoundError);
         expect(isRecipeNotFoundError(error)).toBe(false);
     });

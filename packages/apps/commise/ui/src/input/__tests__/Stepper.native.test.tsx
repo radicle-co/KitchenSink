@@ -4,9 +4,11 @@ import { fireEvent } from '@testing-library/dom';
 import { useState, type ReactElement } from 'react';
 
 import { Text } from '../../text/Text.native.js';
+import { present } from '../../testing/present.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { dimmedOpacity } from '../../tokens/scale.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -127,30 +129,52 @@ describe('Stepper (native)', () => {
         expect(screen.getByRole('button', { name: 'More servings' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('sizes each button at 44pt on iOS and 48dp on Android, drawing minus and plus', () => {
-        for (const [os, size] of [
-            ['ios', '44px'],
-            ['android', '48px'],
-        ] as const) {
-            withPlatformOs(os, () => {
-                const { unmount } = render(<Servings />);
+    // TEST-CHANGE (decisions/0118 addendum 5): the button is the shared icon button inside the stepper's own bordered
+    // frame, so the size is read on that frame (the nearest ancestor with a 1 px border) and on the button's own frame.
+    it.each([
+        ['ios', '44px'],
+        ['android', '48px'],
+    ] as const)('sizes each framed button at the touch floor on %s, drawing minus and plus', (os, size) => {
+        withPlatformOs(os, () => {
+            render(<Servings />);
 
-                for (const [name, glyph] of [
-                    ['Fewer servings', 'minus'],
-                    ['More servings', 'plus'],
-                ] as const) {
-                    const button = screen.getByRole('button', { name });
+            for (const [name, glyph, other] of [
+                ['Fewer servings', 'minus', 'More servings'],
+                ['More servings', 'plus', 'Fewer servings'],
+            ] as const) {
+                const button = screen.getByRole('button', { name });
+                let frame = button.parentElement;
 
-                    expect(getComputedStyle(button).minWidth, `${os} ${name}`).toBe(size);
-                    expect(getComputedStyle(button).minHeight, `${os} ${name}`).toBe(size);
-                    expect(button.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(
-                        glyph,
-                    );
+                while (frame !== null && getComputedStyle(frame).borderTopWidth !== '1px') {
+                    frame = frame.parentElement;
                 }
 
-                unmount();
-            });
-        }
+                if (frame === null) {
+                    throw new Error(`${name} has no bordered frame.`);
+                }
+
+                const inner = present(button.firstElementChild, `the ${name} frame`);
+
+                expect(frame.contains(screen.getByRole('button', { name: other })), `${os} ${name}`).toBe(false);
+                expect(getComputedStyle(frame).width, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(frame).height, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(inner).width, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(inner).height, `${os} ${name}`).toBe(size);
+                expect(button.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(
+                    glyph,
+                );
+            }
+        });
+    });
+
+    // CL-ICONBTN: a button at its bound dims to the one 40% every disabled control shares, and its live neighbour does not.
+    it('dims the button at its bound to the shared disabled level, and only that one', () => {
+        render(<Servings initial={1} />);
+        const circleOf = (name: string): Element =>
+            present(screen.getByRole('button', { name }).firstElementChild?.firstElementChild, `the ${name} circle`);
+
+        expect(getComputedStyle(circleOf('Fewer servings')).opacity).toBe(String(dimmedOpacity));
+        expect(getComputedStyle(circleOf('More servings')).opacity).not.toBe(String(dimmedOpacity));
     });
 
     // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the

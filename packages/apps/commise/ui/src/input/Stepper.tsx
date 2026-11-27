@@ -15,20 +15,17 @@
  */
 import { useState, type FC } from 'react';
 
-import { refusedPressProps } from '../button/busyControlProps.js';
-import { Icon } from '../icon/Icon.js';
 import type { IconName } from '../icon/props.js';
+import { IconButton } from '../iconButton/IconButton.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
-import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
-import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 
-/** A step button: a fixed 44 CSS px circle on the neutral surface. */
-const STEP =
-    `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ` +
-    `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
-    'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
+/**
+ * The frame of a step button: a 44 CSS px circle on the neutral surface with its 1 px control line. The icon button
+ * sits inside and overlays that line by a pixel, so the button's own 44 target is the whole frame.
+ */
+const STEP_FRAME =
+    'inline-flex size-[44px] shrink-0 items-center justify-center rounded-full border border-line-control bg-paper';
 
 /** The web design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
@@ -50,24 +47,23 @@ export const Stepper: FC<StepperProps> = ({
         const next = stepFrom(value, step, min, max);
 
         return (
-            <button
-                type="button"
-                aria-label={name}
-                {...refusedPressProps({
-                    unavailable: next === null,
-                    onClick: () => {
-                        if (next === null) {
-                            return;
-                        }
+            <span className={STEP_FRAME}>
+                <span className="-m-px inline-flex">
+                    <IconButton
+                        icon={glyph}
+                        accessibilityLabel={name}
+                        disabled={next === null}
+                        onPress={() => {
+                            if (next === null) {
+                                return;
+                            }
 
-                        onChange(next);
-                        setSpoken((previous) => ({ text: announce(next), occurrence: previous.occurrence + 1 }));
-                    },
-                })}
-                className={STEP}
-            >
-                <Icon name={glyph} size={20} />
-            </button>
+                            onChange(next);
+                            setSpoken((previous) => ({ text: announce(next), occurrence: previous.occurrence + 1 }));
+                        }}
+                    />
+                </span>
+            </span>
         );
     };
 

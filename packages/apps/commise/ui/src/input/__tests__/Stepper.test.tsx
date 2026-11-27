@@ -137,24 +137,33 @@ describe('Stepper (web)', () => {
         expect(screen.getByRole('button', { name: 'Fewer' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('draws 44px round buttons with the minus and plus glyphs and the focusRing', () => {
+    // TEST-CHANGE (decisions/0118 addendum 5): the button is the shared icon button inside the stepper's own frame, so
+    // the focus ring and the glyph are on the button and the 44 px size, the round shape, the paper fill and the control
+    // line are on the frame around it.
+    it('draws 44px round framed buttons with the minus and plus glyphs and the focusRing', () => {
         render(<Servings />);
 
-        for (const [name, glyph] of [
-            ['Fewer servings', 'lucide-minus'],
-            ['More servings', 'lucide-plus'],
+        for (const [name, glyph, other] of [
+            ['Fewer servings', 'lucide-minus', 'More servings'],
+            ['More servings', 'lucide-plus', 'Fewer servings'],
         ] as const) {
             const button = screen.getByRole('button', { name });
+            let frame = button.parentElement;
 
-            expect(button.className.split(/\s+/u)).toEqual(
-                expect.arrayContaining([
-                    'size-[44px]',
-                    'rounded-full',
-                    'border-line-control',
-                    'focus-visible:ring-focus-ring',
-                ]),
-            );
+            while (frame !== null && !frame.className.split(/\s+/u).includes('border-line-control')) {
+                frame = frame.parentElement;
+            }
+
+            if (frame === null) {
+                throw new Error(`${name} has no framed ancestor.`);
+            }
+
+            expect(button.className.split(/\s+/u)).toContain('focus-visible:ring-focus-ring');
             expect(button.querySelector(`svg.${glyph}`)).not.toBeNull();
+            expect(frame.className.split(/\s+/u)).toEqual(
+                expect.arrayContaining(['size-[44px]', 'rounded-full', 'bg-paper']),
+            );
+            expect(frame.contains(screen.getByRole('button', { name: other }))).toBe(false);
         }
     });
 

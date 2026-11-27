@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 103,
-        "implementations": 165,
-        "props": 1264,
-        "documentedComponents": 103,
-        "implementationsWithModuleDoc": 165,
-        "implementationsWithComponentDoc": 151,
-        "documentedProps": 1072,
-        "classifiedComponents": 96,
-        "componentsWithPatternTag": 103,
+        "components": 104,
+        "implementations": 166,
+        "props": 1269,
+        "documentedComponents": 104,
+        "implementationsWithModuleDoc": 166,
+        "implementationsWithComponentDoc": 152,
+        "documentedProps": 1077,
+        "classifiedComponents": 97,
+        "componentsWithPatternTag": 104,
         "crossPlatformComponents": 62
     },
     "components": [
@@ -8376,6 +8376,156 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/input/StepperButton",
+            "name": "StepperButton",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/input",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — the control line and the surface are added around the icon button"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "StepperButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/input",
+                    "moduleDoc": "@commise/ui/input — the native step button of the {@link Stepper}: the shared icon button inside the stepper's\nown frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS, 48 dp\non Android). The icon button is seated over the line by a point, so its own target is the whole frame.\n\nPresentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that\nimports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/input — the native step button of the {@link Stepper}: the shared icon button inside the stepper's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — the control line and the surface are added around the icon button"
+                        }
+                    ],
+                    "description": "The native step button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The field's error, read after the name (React Native has no `aria-describedby`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the stepper is at this button's bound.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The glyph: minus or plus.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press, and never while disabled.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

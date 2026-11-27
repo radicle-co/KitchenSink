@@ -41,6 +41,7 @@ function principalFor(token: string): {
     permissions: string[];
     roles: readonly Role[];
     testPrincipal: boolean;
+    publishAgeMet: boolean;
 } {
     switch (token) {
         case 'author':
@@ -51,6 +52,7 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'stranger':
             return {
@@ -60,9 +62,17 @@ function principalFor(token: string): {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'm2m':
-            return { sub: 'svc_import', scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'svc_import',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         default:
             throw new ClerkVerificationError();
     }

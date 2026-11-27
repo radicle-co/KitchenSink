@@ -35,6 +35,7 @@ const claimsFor = (sub: string, testPrincipal: boolean): VerifiedClerkClaims => 
     permissions: [],
     roles: [],
     testPrincipal,
+    publishAgeMet: false,
 });
 
 describe('test-principal containment — lifecycle actions (integration)', () => {

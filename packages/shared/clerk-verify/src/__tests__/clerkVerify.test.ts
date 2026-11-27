@@ -146,6 +146,38 @@ describe('verifyClerkToken', () => {
         expect(claims.permissions).toEqual([]);
     });
 
+    it.each([
+        [16, true],
+        [18, true],
+        [15, false],
+        [13, false],
+        [16.5, false],
+        ['16', false],
+        [NaN, false],
+        [null, false],
+        [true, false],
+        [[16], false],
+    ])('publishAgeMet is %j -> %s when public_metadata.ageFloorMet carries it', async (ageFloorMet, expected) => {
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            azp: 'https://app.example.com',
+            public_metadata: { ageFloorMet },
+        } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).publishAgeMet).toBe(expected);
+    });
+
+    it.each([
+        ['absent public_metadata', {}],
+        ['absent ageFloorMet', { public_metadata: {} }],
+        ['unsafe_metadata.ageFloorMet', { unsafe_metadata: { ageFloorMet: 18 } }],
+        ['a top-level ageFloorMet claim', { ageFloorMet: 18 }],
+    ])('publishAgeMet is false for %s', async (_label, extra) => {
+        mockVerify.mockResolvedValue({ sub: 'user_1', azp: 'https://app.example.com', ...extra } as never);
+
+        expect((await verifyClerkToken('tok', CONFIG)).publishAgeMet).toBe(false);
+    });
+
     it('⛔ marks a TEST PRINCIPAL only from public_metadata.testPrincipal === true (ADR-0040)', async () => {
         mockVerify.mockResolvedValue({
             sub: 'user_1',

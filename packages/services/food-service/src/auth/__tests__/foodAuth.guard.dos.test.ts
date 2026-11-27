@@ -69,6 +69,7 @@ describe('FoodAuthGuard — per-source 401-rate load-shed (FR-052/SC-011)', () =
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const goodReq = makeReq('good', '1.1.1.1');
         await guard.use(goodReq, {} as Response, next);
@@ -134,6 +135,7 @@ describe('FoodAuthGuard — the shed key cannot be spoofed (security review F8)'
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const victim = viaAlb('good', '6.6.6.6', '1.1.1.1');
 
@@ -156,7 +158,14 @@ describe('FoodAuthGuard — verification-concurrency bound (FR-052)', () => {
     });
 
     it('releases the slot after a verification so capacity recovers', async () => {
-        mockVerify.mockResolvedValue({ sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'user_1',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
         const shedder = new AuthLoadShedder({ maxConcurrent: 1, shedThreshold: 1000, shedWindowMs: 60_000 });
         const guard = new FoodAuthGuard(shedder);
 

@@ -104,7 +104,14 @@ describe('FoodAuthGuard', () => {
     });
 
     it('names the request to the verifier (food exempts no route for a suspended account)', async () => {
-        mockVerify.mockResolvedValue({ sub: 'u', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'u',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
         const req = {
             ...makeReq({ authorization: 'Bearer good' }),
             method: 'GET',
@@ -128,6 +135,7 @@ describe('FoodAuthGuard', () => {
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer good' });
@@ -154,6 +162,7 @@ describe('FoodAuthGuard', () => {
             permissions: [],
             roles: [],
             testPrincipal: true,
+            publishAgeMet: false,
         });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer pool' });
@@ -170,6 +179,7 @@ describe('FoodAuthGuard', () => {
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer real', 'x-test-principal': 'true' });
@@ -188,6 +198,7 @@ describe('FoodAuthGuard', () => {
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer good' });
@@ -199,7 +210,14 @@ describe('FoodAuthGuard', () => {
     });
 
     it('ignores a forged x-debug-sub / x-authorizer-context and trusts only the verified token', async () => {
-        mockVerify.mockResolvedValue({ sub: 'real_sub', scopes: [], permissions: [], roles: [], testPrincipal: false });
+        mockVerify.mockResolvedValue({
+            sub: 'real_sub',
+            scopes: [],
+            permissions: [],
+            roles: [],
+            testPrincipal: false,
+            publishAgeMet: false,
+        });
         const guard = new FoodAuthGuard();
         const req = makeReq({
             authorization: 'Bearer good',
@@ -222,7 +240,14 @@ describe('FoodAuthGuard', () => {
                 throw new ClerkVerificationError();
             }
 
-            return { sub: 'user_1', scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'user_1',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         });
         const guard = new FoodAuthGuard();
         const next = vi.fn() as unknown as NextFunction;
@@ -241,6 +266,7 @@ describe('FoodAuthGuard', () => {
             permissions: [],
             roles: [],
             testPrincipal: false,
+            publishAgeMet: false,
         });
         const guard = new FoodAuthGuard();
         const req = makeReq({ authorization: 'Bearer m2m' });
@@ -265,7 +291,7 @@ describe('FoodAuthGuard', () => {
             mockVerify.mockImplementation(async (_token, config) => {
                 captured = (config as { authorizedPartyPattern?: RegExp }).authorizedPartyPattern;
 
-                return { sub: 'u', scopes: [], permissions: [], roles: [], testPrincipal: false };
+                return { sub: 'u', scopes: [], permissions: [], roles: [], testPrincipal: false, publishAgeMet: false };
             });
             await new FoodAuthGuard().use(makeReq({ authorization: 'Bearer good' }), {} as Response, vi.fn() as never);
 

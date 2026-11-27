@@ -68,6 +68,7 @@ export interface MockPrincipal {
     readonly permissions: string[];
     readonly roles: readonly Role[];
     readonly testPrincipal: boolean;
+    readonly publishAgeMet: boolean;
 }
 
 /**
@@ -92,6 +93,7 @@ export function principalFor(token: string): MockPrincipal {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'stranger':
             return {
@@ -101,11 +103,26 @@ export function principalFor(token: string): MockPrincipal {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         case 'service':
-            return { sub: 'svc_recipe', scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'svc_recipe',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         case 'unsynced':
-            return { sub: 'user_unsynced', scopes: [], permissions: [], roles: [], testPrincipal: false };
+            return {
+                sub: 'user_unsynced',
+                scopes: [],
+                permissions: [],
+                roles: [],
+                testPrincipal: false,
+                publishAgeMet: false,
+            };
         case 'pool':
             return {
                 sub: 'user_pool',
@@ -114,6 +131,7 @@ export function principalFor(token: string): MockPrincipal {
                 permissions: [],
                 roles: [],
                 testPrincipal: true,
+                publishAgeMet: false,
             };
         case 'operator':
             return {
@@ -123,6 +141,7 @@ export function principalFor(token: string): MockPrincipal {
                 permissions: [],
                 roles: [],
                 testPrincipal: false,
+                publishAgeMet: false,
             };
         default:
             throw new ClerkVerificationError();

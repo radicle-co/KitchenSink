@@ -32,6 +32,7 @@ const makeClaims = (overrides: Partial<VerifiedClerkClaims> = {}): VerifiedClerk
     permissions: [],
     roles: ['vip'],
     testPrincipal: false,
+    publishAgeMet: false,
     ...overrides,
 });
 

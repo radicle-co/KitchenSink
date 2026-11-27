@@ -1816,7 +1816,7 @@ The check uses AI, and it searches the wider internet as well as the source the 
   `016-FR-015i` already says a method rewritten by an AI feature is not the cook's own
   words and MUST NOT make a recipe "Written by you".
     - _(amended 2026-11-19, owner ruling, "Yes, same rule (Rec.)", ADR-0097. Was: an accepted suggestion makes the recipe
-      "Adapted by you".)_ A step from an accepted suggestion follows the model's rule for AI-written steps ([the model](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)) (`016-FR-015i`, `021-FR-040a`). This settles Q-1.
+      "Adapted by you".)_ A step from an accepted suggestion follows the model's rule for AI-written steps ([ADR-0097 Decision 2](../../docs/architecture/decisions/0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)) (`016-FR-015i`, `021-FR-040a`). This settles Q-1.
 - **FR-078** _(FINAL, owner ruling 2026-11-03)_: **The suggestion call, its cost and its budget.** _(amended 2026-11-03, owner ruling, ADR-0082)_
   The suggestion call MUST have an explicit `maxTokens` and a hard input cap. Its cost, its budget, whether it
   shares ADR-0024's pool, and its spend mechanism are OPEN (owner ruling 2026-11-03): decided when feature 020 starts. If the call cannot run, no

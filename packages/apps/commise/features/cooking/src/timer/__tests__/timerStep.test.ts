@@ -44,6 +44,12 @@ describe('timerStepOf', () => {
         expect(timerStepOf(timerAt(0, 'Roast.'), recipe)).toEqual({ number: 1, lines: [] });
     });
 
+    it('gives the stored place with no lines when two steps share the text, never a guess at one', () => {
+        const recipe = makeCookingRecipe({ steps: steps('Stir.', 'Chop.', 'Stir.') });
+
+        expect(timerStepOf(timerAt(2, 'Stir.'), recipe)).toEqual({ number: 3, lines: [] });
+    });
+
     it('gives no lines for a timer of another recipe, and never throws', () => {
         const recipe = makeCookingRecipe({ id: 'r2', steps: steps('Roast.') });
 

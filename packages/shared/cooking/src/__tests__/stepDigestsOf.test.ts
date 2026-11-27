@@ -5,8 +5,7 @@ import { stepDigest } from '../stepDigest.js';
 import { stepDigestsOf } from '../stepDigestsOf.js';
 
 /**
- * `stepDigestsOf` is the one rule for "the digest of each step the cook walks": the reader (which step a timer is on)
- * and the writer (the digest stored when a timer starts) both call it, so they cannot drift apart.
+ * `stepDigestsOf` is the one rule for "the digest of each step the cook walks", aligned with `cookingStepsOf`.
  */
 const step = (stepNumber: number, instruction: string) => ({ stepNumber, instruction });
 

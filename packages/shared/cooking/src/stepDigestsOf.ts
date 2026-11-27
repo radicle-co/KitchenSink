@@ -5,8 +5,9 @@ import { stepDigest } from './stepDigest.js';
 
 /**
  * The digest of each step the cook walks: one per step with text (as `cookingStepsOf`), of its raw instruction.
- * The one rule both sides of a saved position use: the writer stores `stepDigestsOf(steps)[index]`, the reader matches
- * against `stepDigestsOf(steps)`.
+ * The reader of a saved position matches against `stepDigestsOf(steps)`, so whatever stores a position's digest must
+ * store `stepDigestsOf(steps)[index]`: a digest taken over the raw steps, blank ones included, shifts every digest
+ * after a blank step and no timer matches.
  *
  * @param steps - The recipe's steps, in order.
  * @returns The digests, aligned index for index with `cookingStepsOf(steps)`. Pure.

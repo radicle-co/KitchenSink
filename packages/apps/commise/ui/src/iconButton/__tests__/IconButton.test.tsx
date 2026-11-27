@@ -7,7 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 
 import { TOUCH_TARGET_CLASS } from '../../touchTarget/touchTargetClass.js';
-import { IconButton } from '../IconButton.js';
+import { ICON_BUTTON_CLASS, ICON_BUTTON_TONE_CLASS, IconButton } from '../IconButton.js';
 
 afterEach(cleanup);
 
@@ -51,5 +51,50 @@ describe('IconButton (web)', () => {
         render(<IconButton icon="x" accessibilityLabel="Cancel" onPress={vi.fn()} />);
 
         expect(screen.getByRole('button', { name: 'Cancel' }).getAttribute('type')).toBe('button');
+    });
+
+    // The recipe is shared with controls that keep their own element (a Radix trigger), so its colour is a second,
+    // separate class: two colours in one string would leave Tailwind's emission order to pick the winner.
+    it('shares a recipe with no colour in it, and a tone class that is one colour', () => {
+        expect(ICON_BUTTON_CLASS.split(' ').filter((token) => token.startsWith('text-'))).toEqual([]);
+        expect(ICON_BUTTON_TONE_CLASS).toEqual({ ink: 'text-ink', inkMuted: 'text-ink-muted' });
+    });
+
+    it('is ink by default, and the muted tone swaps the colour rather than adding one', () => {
+        const { rerender } = render(<IconButton icon="x" accessibilityLabel="Close" onPress={vi.fn()} />);
+        const ink = screen.getByRole('button', { name: 'Close' }).className.split(' ');
+
+        expect(ink).toContain('text-ink');
+        expect(ink).not.toContain('text-ink-muted');
+
+        rerender(<IconButton icon="x" accessibilityLabel="Close" tone="inkMuted" onPress={vi.fn()} />);
+        const muted = screen.getByRole('button', { name: 'Close' }).className.split(' ');
+
+        expect(muted).toContain('text-ink-muted');
+        expect(muted).not.toContain('text-ink');
+    });
+
+    it('is available unless it is told otherwise: no aria-disabled', () => {
+        render(<IconButton icon="x" accessibilityLabel="Close" onPress={vi.fn()} />);
+
+        expect(screen.getByRole('button', { name: 'Close' }).hasAttribute('aria-disabled')).toBe(false);
+    });
+
+    it('when disabled it refuses the press but stays focusable, and dims to 40% with a not-allowed cursor', () => {
+        const onPress = vi.fn();
+        render(<IconButton icon="x" accessibilityLabel="Close" disabled onPress={onPress} />);
+        const button = screen.getByRole('button', { name: 'Close' });
+
+        fireEvent.click(button);
+        button.focus();
+
+        expect(onPress).not.toHaveBeenCalled();
+        expect(button.getAttribute('aria-disabled')).toBe('true');
+        expect(button.hasAttribute('disabled')).toBe(false);
+        expect(document.activeElement).toBe(button);
+        expect(button.className.split(' ')).toEqual(
+            expect.arrayContaining(['aria-disabled:opacity-40', 'aria-disabled:cursor-not-allowed']),
+        );
+        expect(button.className).not.toContain('opacity-60');
     });
 });

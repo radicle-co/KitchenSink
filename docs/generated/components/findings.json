@@ -3,7 +3,7 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 32,
+        "cross-platform-props-diverge": 33,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
         "platform-singleton": 110,
@@ -481,6 +481,17 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "designSystem/iconButton/IconButton",
+            "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: accessibilityLabel disabled icon onPress tone",
+                "native: accessibilityLabel description disabled expanded icon onPress ref tone"
             ]
         },
         {

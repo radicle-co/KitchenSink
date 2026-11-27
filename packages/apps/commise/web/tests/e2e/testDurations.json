@@ -651,6 +651,7 @@
     "chromium › shellNavigation.spec.ts › the shell (light) › shows Back to top past four screens on the way up, and it returns to the top and the H1": 4858,
     "chromium › shellNavigation.spec.ts › the shell (light) › shows the collapsed rail’s New recipe tooltip beside the rail, fully visible, on hover and on focus": 2095,
     "chromium › shellOffline.spec.ts › the offline notice › ⛔ does not move the sidebar when the device goes offline": 1621,
+    "chromium › snackbarAcrossPages.spec.ts › one snackbar across pages (U7a) › a removal snackbar follows the cook to the collections list and sends the removal when it runs out": 12000,
     "chromium › ssrPrefetch.spec.ts › SSR prefetch degradation (B19) › collections list renders via client fetch after its SSR prefetch fails, without a server error": 3038,
     "chromium › ssrPrefetch.spec.ts › SSR prefetch degradation (B19) › discover renders via client fetch after its SSR prefetch fails, without a server error": 2829,
     "chromium › ssrPrefetch.spec.ts › SSR prefetch degradation (B19) › recipe detail renders via client fetch after its SSR prefetch fails, without a server error": 2945,

@@ -227,3 +227,67 @@ describe('act, pause and resume read the store clock', () => {
         expect(store.getState().current?.input.message).toBe('B');
     });
 });
+
+/**
+ * `observeSubject`: the person the queue's snackbars belong to. A snackbar that names a recipe must never show to the
+ * next person at the screen, so a change of subject closes the one showing without its action and without its commit.
+ * `undefined` means the subject is still loading, and changes nothing.
+ */
+describe('observeSubject', () => {
+    it('does nothing while the subject is undefined, and holds the first real one without closing', () => {
+        const { store } = setup();
+        const onTimeout = vi.fn();
+
+        store.observeSubject(undefined);
+        store.show({ message: 'A', onTimeout });
+        store.observeSubject(undefined);
+        store.observeSubject('u1');
+        runSettled(store);
+
+        expect(store.getState().current?.input.message).toBe('A');
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it.each([
+        ['u1 to null (sign-out)', 'u1', null],
+        ['u1 to u2 (a change of account)', 'u1', 'u2'],
+        ['null to u1 (a sign-in)', null, 'u1'],
+    ] as const)('closes the snackbar showing on %s, with neither its action nor its commit', (_name, from, to) => {
+        const { store } = setup();
+        const onTimeout = vi.fn();
+        const onAction = vi.fn();
+
+        store.observeSubject(from);
+        store.show({ message: 'Removed Pasta', action: { label: 'Undo', onAction }, onTimeout });
+        store.observeSubject(to);
+        runSettled(store);
+
+        expect(store.getState().current).toBeNull();
+        expect(onAction).not.toHaveBeenCalled();
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('keeps the snackbar while the same subject is seen again, and when it goes back to undefined', () => {
+        const { store } = setup();
+
+        store.observeSubject('u1');
+        store.show({ message: 'A' });
+        store.observeSubject('u1');
+        store.observeSubject(undefined);
+
+        expect(store.getState().current?.input.message).toBe('A');
+    });
+
+    it('still commits a snackbar that had already committed before the subject changed', () => {
+        const { store } = setup();
+        const onTimeoutA = vi.fn();
+
+        store.observeSubject('u1');
+        store.show({ message: 'A', onTimeout: onTimeoutA });
+        store.show({ message: 'B' });
+        store.observeSubject('u2');
+        runSettled(store);
+
+        expect(onTimeoutA).toHaveBeenCalledOnce();
+    });
+});

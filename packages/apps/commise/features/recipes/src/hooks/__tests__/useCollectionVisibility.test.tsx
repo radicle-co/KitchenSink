@@ -5,6 +5,7 @@
  * instead and nothing is sent; one who made a private collection public gets no Undo, because the reverse would be
  * refused. A refused change rolls back and says so.
  */
+import { commonMessages } from '@commise/features-core/common';
 import { QueryClient, QueryClientProvider, useQuery } from '@tanstack/react-query';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
@@ -147,6 +148,21 @@ describe('useCollectionVisibility', () => {
 
         await screen.findByRole('alert');
         await screen.findByText('now public');
+        expect(screen.getByRole('status').textContent).not.toContain(commonMessages.en.undoFailed);
+    });
+
+    it('says it could not undo, with no failed-change alert, when the Undo fails for now', async () => {
+        const { update } = await setup(RecipeVisibility.PUBLIC, 'granted');
+
+        press('make private');
+        await screen.findByText('now private');
+        update.mockRejectedValue(new TypeError('Failed to fetch'));
+        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
+
+        await vi.waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe(commonMessages.en.undoFailed);
+        });
+        expect(screen.queryByRole('alert')).toBeNull();
     });
 
     it('does nothing for a change to the visibility it already has', async () => {

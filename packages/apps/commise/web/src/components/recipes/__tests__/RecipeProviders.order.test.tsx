@@ -11,11 +11,16 @@
  * The providers are wrapped in marker elements around the REAL implementations, so the assertion is on DOM nesting and
  * the real providers still run.
  */
-import { cleanup, render } from '@testing-library/react';
+import { act, cleanup, render, screen, within } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+/** The cook Clerk reports: a user id, `null` once signed out. A test changes it between renders. */
+const auth = vi.hoisted((): { userId: string | null | undefined } => ({ userId: 'user_1' }));
+
 vi.mock('@clerk/nextjs', () => ({
-    useAuth: () => ({ getToken: async () => 'tok', userId: 'user_1' }),
+    useAuth: () => ({ getToken: () => Promise.resolve('tok'), userId: auth.userId }),
     useClerk: () => ({ session: { user: { id: 'user_1' } } }),
 }));
 
@@ -87,7 +92,28 @@ vi.mock('@commise/features-cooking/web', async (importOriginal) => {
 
 const { RecipeProviders } = await import('../RecipeProviders.js');
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    auth.userId = 'user_1';
+});
+
+/** The one control these rows press: it raises a snackbar from inside the providers. */
+const Raise = () => {
+    const { show } = useSnackbar();
+
+    return (
+        <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
+            raise
+        </button>
+    );
+};
+
+/** A new element each time: React skips an element it has already rendered, so the same one would not re-read Clerk. */
+const tree = () => (
+    <RecipeProviders>
+        <Raise />
+    </RecipeProviders>
+);
 
 describe('RecipeProviders (web) — provider order', () => {
     it('mounts the queue outside the recipe client, and the recipe client outside the food client', () => {
@@ -132,5 +158,45 @@ describe('RecipeProviders (web) — provider order', () => {
         ).not.toBeNull();
         expect(container.querySelector('[data-provider="timer"] [data-provider="sync"]')).toBeNull();
         expect(new Set(timerSubjects.seen)).toStrictEqual(new Set(['user_1']));
+    });
+
+    it('mounts ONE snackbar host above the screens, inside the timers, named "Notifications" (plan U7a)', () => {
+        const { container } = render(
+            <RecipeProviders>
+                <span>child</span>
+            </RecipeProviders>,
+        );
+
+        expect(screen.getAllByRole('region', { name: 'Notifications' })).toHaveLength(1);
+        expect(container.querySelector('[data-provider="timer"] section[aria-label="Notifications"]')).not.toBeNull();
+        expect(within(screen.getByRole('region', { name: 'Notifications' })).getByRole('status')).toBeTruthy();
+    });
+
+    it('closes a snackbar when the cook signs out, and never shows it to the next cook (condition 1)', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(tree());
+
+        await user.click(screen.getByRole('button', { name: 'raise' }));
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        auth.userId = null;
+        act(() => {
+            rerender(tree());
+        });
+
+        expect(screen.getByRole('status').textContent).toBe('');
+    });
+
+    it('keeps a snackbar while Clerk is still loading the cook (userId undefined changes nothing)', async () => {
+        const user = userEvent.setup();
+        const { rerender } = render(tree());
+
+        await user.click(screen.getByRole('button', { name: 'raise' }));
+        auth.userId = undefined;
+        act(() => {
+            rerender(tree());
+        });
+
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
     });
 });

@@ -9,7 +9,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, screen, within } from '@testing-library/react';
 import { onlineManager } from '@tanstack/react-query';
 import userEvent from '@testing-library/user-event';
-import { useSnackbar } from '@commise/ui/snackbar';
+import { SnackbarHost, useSnackbar } from '@commise/ui/snackbar';
 import type { JSX } from 'react';
 
 import { renderWithProviders } from '@commise/test-utils';
@@ -150,10 +150,11 @@ describe('AppShell — the page name', () => {
 });
 
 /**
- * UI-overhaul slice 2: the shell hosts the app's ONE snackbar (`@commise/ui/snackbar`), inside the shell's popup insets so
- * it can sit above the bottom tab bar.
+ * The app's ONE snackbar host lives above every page (`RecipeProviders`, plan U7a), not in the shell: a page change
+ * remounts the shell, and a host inside it would drop a queued snackbar and its Undo. The shell only publishes the tab
+ * bar's extent to the host, through `PopupInsetsProvider`, so the snackbar sits above the bar.
  */
-describe('AppShell — the snackbar host', () => {
+describe('AppShell — under the app’s snackbar host', () => {
     function Remover(): JSX.Element {
         const { show } = useSnackbar();
 
@@ -164,18 +165,34 @@ describe('AppShell — the snackbar host', () => {
         );
     }
 
-    it('lets a surface show a snackbar, which says itself in the status region', async () => {
+    it('lets a surface show a snackbar, which the host above the shell says in its status region', async () => {
         const user = userEvent.setup();
         renderWithProviders(
-            <AppShell activeId="recipes">
-                <Remover />
-            </AppShell>,
+            <SnackbarHost>
+                <AppShell activeId="recipes">
+                    <Remover />
+                </AppShell>
+            </SnackbarHost>,
         );
 
         await user.click(screen.getByRole('button', { name: 'Remove' }));
 
-        // The shell now holds two status regions (P5): the snackbar's, and the sync notice's, empty while online.
+        // The shell holds two status regions (P5): the snackbar's, and the sync notice's, empty while online.
         expect(screen.getAllByRole('status').map((region) => region.textContent)).toContain('Removed Pasta');
+    });
+
+    it('mounts no host of its own: a surface that asks for a snackbar without one above fails loudly', () => {
+        const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        expect(() =>
+            renderWithProviders(
+                <AppShell activeId="recipes">
+                    <Remover />
+                </AppShell>,
+            ),
+        ).toThrow(/SnackbarHost/u);
+
+        consoleError.mockRestore();
     });
 });
 

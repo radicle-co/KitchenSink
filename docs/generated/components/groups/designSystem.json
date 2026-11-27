@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 100,
-        "implementations": 162,
-        "props": 1249,
-        "documentedComponents": 100,
-        "implementationsWithModuleDoc": 162,
-        "implementationsWithComponentDoc": 148,
-        "documentedProps": 1057,
-        "classifiedComponents": 93,
-        "componentsWithPatternTag": 100,
+        "components": 101,
+        "implementations": 163,
+        "props": 1254,
+        "documentedComponents": 101,
+        "implementationsWithModuleDoc": 163,
+        "implementationsWithComponentDoc": 149,
+        "documentedProps": 1062,
+        "classifiedComponents": 94,
+        "componentsWithPatternTag": 101,
         "crossPlatformComponents": 62
     },
     "components": [
@@ -13012,6 +13012,64 @@
             ]
         },
         {
+            "id": "designSystem/popupInsets/PopupInsetsProvider",
+            "name": "PopupInsetsProvider",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/popupInsets",
+            "kind": "presentational",
+            "patterns": [
+                "Observer — publishes the page's reader to the host's registry while mounted, and withdraws it"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PopupInsetsProvider",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx",
+                    "dir": "packages/apps/commise/ui/src/popupInsets",
+                    "moduleDoc": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once.\n\nIt provides `PopupInsetsContext` to the popups below it, as a bare context provider did, and registers the same\nreader upward with the snackbar host's registry, one level deeper than the provider around it. So every page that\nprovides insets reports them to the host without page code, and a nested provider (the editor inside the app shell)\noutranks the one around it. It withdraws its entry on unmount and touches only its own.\n\nPresentational glue: props → context providers, plus the one registration effect.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Observer — publishes the page's reader to the host's registry while mounted, and withdraws it"
+                        }
+                    ],
+                    "description": "Provides a page's chrome reader down to its popups and up to the snackbar host.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "reader",
+                            "type": "PopupInsetsReader",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reads the page's chrome extent now. Stable (memoised) where the page can: a new reader re-registers.",
+                            "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/pressScale/PressScale",
             "name": "PressScale",
             "group": "designSystem",
@@ -17572,11 +17630,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarHost.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once per app (in `AppShell`), it gives screens\n`useSnackbar` and draws the one snackbar on screen.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus. It sits 16 px above the page's bottom\nchrome, read from the page's `PopupInsetsContext` reader as each snackbar shows, and is centred at the foot. The\npointer or focus inside the snackbar pauses its timer (SC 2.2.1).\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),\nit gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar,\nits timer and its Undo outlive a page change.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus, and a page change does not announce\nit again. Given a `label` it sits in a landmark of that name, which follows `main` in the DOM. It is centred at the\nfoot, the gap above the CURRENT page's bottom chrome: each page's `PopupInsetsProvider` registers its reader with\nthe host's placement store, and the host re-places when one registers, unregisters or a snackbar shows. The pointer\nor focus inside the snackbar pauses its timer (SC 2.2.1).\n\nA `subject` (the signed-in user id, `null` signed out, `undefined` while loading) closes the snackbar showing when it\nchanges from a known one, so a snackbar that names a recipe never shows to the next person.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once per app (in `AppShell`), it gives screens"
+                            "text": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),"
                         },
                         {
                             "name": "pattern",
@@ -17595,6 +17653,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The app the host serves.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web: the accessible name of the landmark the snackbar region sits in (\"Notifications\", localised by the caller).\nAbsent, the region is a bare status.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "subject",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`). Web only for now.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],
@@ -17633,6 +17709,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The app the host serves.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web: the accessible name of the landmark the snackbar region sits in (\"Notifications\", localised by the caller).\nAbsent, the region is a bare status.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "subject",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`). Web only for now.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],

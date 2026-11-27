@@ -20,7 +20,7 @@
  * ⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { PopupInsetsProvider } from '@commise/ui/popup-insets';
 import { MainElementContext } from '@commise/ui/main-element';
 import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
@@ -118,7 +118,7 @@ export function HomeChrome({
                 }`}
             >
                 <MainElementContext value={mainElement}>
-                    <PopupInsetsContext value={readInsets}>
+                    <PopupInsetsProvider reader={readInsets}>
                         <PinnedBarSlotContext value={barSlot}>
                             {/* Empty: the bar is `fixed`, so the slot takes no room. */}
                             <div ref={setBarSlot} />
@@ -136,7 +136,7 @@ export function HomeChrome({
                             )}
                             {children}
                         </PinnedBarSlotContext>
-                    </PopupInsetsContext>
+                    </PopupInsetsProvider>
                 </MainElementContext>
             </main>
 

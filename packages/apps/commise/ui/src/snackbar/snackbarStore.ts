@@ -31,7 +31,17 @@ export interface SnackbarStore {
     readonly act: (id: number, action: SnackbarAction) => void;
     readonly pause: (id: number) => void;
     readonly resume: (id: number) => void;
+    /**
+     * Tells the store whom the snackbars belong to: a user id, `null` once signed out, or `undefined` while it is not
+     * yet known. `undefined` changes nothing. A change from a subject the store holds closes the snackbar showing
+     * without its action and without its commit, because a snackbar that names a recipe must never show to the next
+     * person at the screen. Snackbars that had already committed still run their `onTimeout`.
+     */
+    readonly observeSubject: (next: SnackbarSubject) => void;
 }
+
+/** Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while unknown. */
+type SnackbarSubject = string | null | undefined;
 
 /**
  * A store for one queue.
@@ -42,6 +52,7 @@ export interface SnackbarStore {
  */
 export function createSnackbarStore(now: () => number): SnackbarStore {
     let state = INITIAL_SNACKBAR_STATE;
+    let subject: SnackbarSubject;
     const listeners = new Set<() => void>();
 
     const dispatch = (action: SnackbarQueueAction): void => {
@@ -96,6 +107,19 @@ export function createSnackbarStore(now: () => number): SnackbarStore {
         },
         resume: (id) => {
             dispatch({ type: 'resume', id, now: now() });
+        },
+        observeSubject: (next) => {
+            if (next === undefined) {
+                return;
+            }
+
+            const { current } = state;
+
+            if (subject !== undefined && subject !== next && current !== null) {
+                dispatch({ type: 'act', id: current.id });
+            }
+
+            subject = next;
         },
     };
 }

@@ -59,6 +59,17 @@ export interface SnackbarApi {
 export interface SnackbarHostProps {
     /** The app the host serves. */
     readonly children: ReactNode;
+    /**
+     * Web: the accessible name of the landmark the snackbar region sits in ("Notifications", localised by the caller).
+     * Absent, the region is a bare status.
+     */
+    readonly label?: string;
+    /**
+     * Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change
+     * from a known subject closes the snackbar showing, so it never shows to the next person (see
+     * `SnackbarStore.observeSubject`). Web only for now.
+     */
+    readonly subject?: string | null;
 }
 
 /** The cross-platform `UndoSnackbar` contract: what the host draws for the snackbar on screen. */

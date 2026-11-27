@@ -18,7 +18,7 @@
  */
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { LiveRegion } from '@commise/ui/live-region';
-import { PopupInsetsContext } from '@commise/ui/popup-insets';
+import { PopupInsetsProvider } from '@commise/ui/popup-insets';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';
@@ -131,7 +131,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
         pinning.topHeight > 0 ? { '--top-chrome': `${String(pinning.topHeight)}px` } : undefined;
 
     return (
-        <PopupInsetsContext value={readInsets}>
+        <PopupInsetsProvider reader={readInsets}>
             <div
                 className="flex min-h-dvh flex-col bg-canvas [--top-chrome:3.5rem]"
                 style={frameStyle}
@@ -268,6 +268,6 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
                     onOpenChange={page.openChoices.setOpen}
                 />
             )}
-        </PopupInsetsContext>
+        </PopupInsetsProvider>
     );
 };

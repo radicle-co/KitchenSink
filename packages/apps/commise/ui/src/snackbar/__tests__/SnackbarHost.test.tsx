@@ -1,8 +1,9 @@
-import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { useContext, useState, type JSX } from 'react';
+import { useContext, useEffect, useState, type FC, type JSX } from 'react';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
+import { PopupInsetsProvider } from '../../popupInsets/PopupInsetsProvider.js';
 import { SnackbarClearanceContext } from '../snackbarClearanceContext.js';
 import { SnackbarHost } from '../SnackbarHost.js';
 import type { SnackbarHandle, SnackbarInput } from '../props.js';
@@ -44,6 +45,12 @@ const advance = (ms: number): void => {
         vi.advanceTimersByTime(ms);
     });
 };
+
+/** The status region, which carries the snackbar's offset from the foot. */
+const regionOf = (): HTMLElement => screen.getByRole('status');
+
+/** A reader of a page whose bottom chrome is `bottom` px tall. */
+const reader = (bottom: number) => () => ({ top: 0, bottom });
 
 const statusText = (): string => screen.getByRole('status').textContent ?? '';
 
@@ -192,9 +199,40 @@ describe('SnackbarHost (web)', () => {
         expect(onTimeout).toHaveBeenCalledOnce();
     });
 
-    it('sits 16px above the page’s bottom chrome, read as it shows', () => {
+    it('sits 16px above the bottom chrome of the page that is mounted, read as it shows', () => {
         render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 64 })}>
+            <SnackbarHost>
+                <PopupInsetsProvider reader={reader(64)}>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </PopupInsetsProvider>
+            </SnackbarHost>,
+        );
+
+        showFrom('Removed Pasta');
+
+        expect(regionOf().style.bottom).toBe('80px');
+    });
+
+    it('re-reads the page chrome as a snackbar shows, so chrome that moved since the page mounted is followed', () => {
+        let bottom = 64;
+
+        render(
+            <SnackbarHost>
+                <PopupInsetsProvider reader={() => ({ top: 0, bottom })}>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </PopupInsetsProvider>
+            </SnackbarHost>,
+        );
+        bottom = 120;
+
+        showFrom('Removed Pasta');
+
+        expect(regionOf().style.bottom).toBe('136px');
+    });
+
+    it('sits at the 16px base when no page provides chrome, and ignores a reader that is only above the host', () => {
+        render(
+            <PopupInsetsContext value={reader(64)}>
                 <SnackbarHost>
                     <Screen input={{ message: 'Removed Pasta' }} />
                 </SnackbarHost>
@@ -203,7 +241,204 @@ describe('SnackbarHost (web)', () => {
 
         showFrom('Removed Pasta');
 
-        expect(screen.getByRole('status').style.bottom).toBe('80px');
+        expect(regionOf().style.bottom).toBe('16px');
+    });
+});
+
+/**
+ * One host above the pages (plan U7a, six conditions). The host never remounts with the page: a page change swaps the
+ * children, and the snackbar, its timer and its status node stay.
+ */
+describe('SnackbarHost (web): above the pages', () => {
+    const Pages: FC<{ readonly page: 'a' | 'b'; readonly bottom: Record<'a' | 'b', number> }> = ({ page, bottom }) => (
+        <PopupInsetsProvider key={page} reader={reader(page === 'a' ? bottom.a : bottom.b)}>
+            <Screen input={{ message: `from ${page}`, durationMs: 6000 }} />
+        </PopupInsetsProvider>
+    );
+
+    it('is a landmark named by its label, around the always-mounted status', () => {
+        render(
+            <SnackbarHost label="Notifications">
+                <span />
+            </SnackbarHost>,
+        );
+
+        expect(within(screen.getByRole('region', { name: 'Notifications' })).getByRole('status')).toBeTruthy();
+    });
+
+    it('re-places a snackbar that is showing when a page with chrome mounts, and when it unmounts', () => {
+        const { rerender } = render(
+            <SnackbarHost>
+                <Screen input={{ message: 'Saved' }} />
+            </SnackbarHost>,
+        );
+
+        showFrom('Saved');
+        expect(regionOf().style.bottom).toBe('16px');
+
+        rerender(
+            <SnackbarHost>
+                <PopupInsetsProvider reader={reader(64)}>
+                    <Screen input={{ message: 'Saved' }} />
+                </PopupInsetsProvider>
+            </SnackbarHost>,
+        );
+        expect(regionOf().style.bottom).toBe('80px');
+
+        rerender(
+            <SnackbarHost>
+                <Screen input={{ message: 'Saved' }} />
+            </SnackbarHost>,
+        );
+        expect(regionOf().style.bottom).toBe('16px');
+    });
+
+    it('follows the page the cook is on, not the page that raised it, across a page change', () => {
+        const bottom = { a: 64, b: 8 } as const;
+        const { rerender } = render(
+            <SnackbarHost>
+                <Pages page="a" bottom={bottom} />
+            </SnackbarHost>,
+        );
+
+        showFrom('from a');
+        expect(regionOf().style.bottom).toBe('80px');
+
+        rerender(
+            <SnackbarHost>
+                <Pages page="b" bottom={bottom} />
+            </SnackbarHost>,
+        );
+
+        expect(regionOf().style.bottom).toBe('24px');
+    });
+
+    it('keeps the same status node, the same snackbar and the same timer across a page change', () => {
+        const onTimeout = vi.fn();
+        const bottom = { a: 0, b: 0 } as const;
+        const { rerender } = render(
+            <SnackbarHost>
+                <Screen input={{ message: 'Removed Pasta', onTimeout }} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+        const status = screen.getByRole('status');
+        advance(4000);
+
+        rerender(
+            <SnackbarHost>
+                <Pages page="b" bottom={bottom} />
+            </SnackbarHost>,
+        );
+
+        expect(screen.getByRole('status')).toBe(status);
+        expect(statusText()).toBe('Removed Pasta');
+        advance(1999);
+        expect(onTimeout).not.toHaveBeenCalled();
+        advance(1);
+        expect(onTimeout).toHaveBeenCalledOnce();
+    });
+
+    it('never holds focus on a page change: the snackbar is not focusable and focus is not inside it', () => {
+        const { rerender } = render(
+            <SnackbarHost>
+                <Screen input={{ message: 'Removed Pasta' }} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost>
+                <Pages page="b" bottom={{ a: 0, b: 0 }} />
+            </SnackbarHost>,
+        );
+
+        expect(screen.getByRole('status').contains(document.activeElement)).toBe(false);
+    });
+
+    it('lets a show captured before its page unmounted still show, and the snackbar stay', () => {
+        const held: { show?: (input: SnackbarInput) => SnackbarHandle } = {};
+
+        const Capture: FC<{ readonly onShow: (show: (input: SnackbarInput) => SnackbarHandle) => void }> = ({
+            onShow,
+        }) => {
+            const { show } = useSnackbar();
+
+            useEffect(() => {
+                onShow(show);
+            }, [onShow, show]);
+
+            return null;
+        };
+
+        const { rerender } = render(
+            <SnackbarHost>
+                <Capture
+                    onShow={(show) => {
+                        held.show = show;
+                    }}
+                />
+            </SnackbarHost>,
+        );
+
+        rerender(
+            <SnackbarHost>
+                <span />
+            </SnackbarHost>,
+        );
+        act(() => {
+            held.show?.({ message: 'Undone' });
+        });
+
+        expect(statusText()).toBe('Undone');
+    });
+
+    it('closes the snackbar when the subject goes from a user to null, with no action and no commit', () => {
+        const onAction = vi.fn();
+        const onTimeout = vi.fn();
+        const input = { message: 'Removed Pasta', action: { label: 'Undo', onAction }, onTimeout };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={null}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        advance(60_000);
+
+        expect(statusText()).toBe('');
+        expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+        expect(onAction).not.toHaveBeenCalled();
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('closes the snackbar on a change of account, and keeps it while the subject is still loading', () => {
+        const input = { message: 'Removed Pasta' };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={undefined}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(statusText()).toBe('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject="u2">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(statusText()).toBe('');
     });
 });
 
@@ -286,7 +521,9 @@ describe('UndoSnackbar (web)', () => {
         showFrom('Saved');
         regionHeight = 52;
         act(() => {
-            heights.forEach((report) => report());
+            heights.forEach((report) => {
+                report();
+            });
         });
 
         expect(screen.getByText('clearance 52')).toBeDefined();
@@ -308,7 +545,12 @@ describe('SnackbarHost (web): withdraw', () => {
 
             return (
                 <>
-                    <button type="button" onClick={() => setHandle(show({ message: 'Removed', onTimeout }))}>
+                    <button
+                        type="button"
+                        onClick={() => {
+                            setHandle(show({ message: 'Removed', onTimeout }));
+                        }}
+                    >
                         open
                     </button>
                     <button

@@ -13,6 +13,7 @@ const CHROME = {
     collapseNav: 'Collapse',
     expandNav: 'Expand sidebar',
     backToTop: 'Back to top',
+    notificationsLabel: 'Notifications',
     destinations: {
         home: 'Home',
         recipes: 'Recipes',

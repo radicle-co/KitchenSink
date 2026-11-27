@@ -21,7 +21,7 @@ export interface PopupInsets {
     readonly bottom: number;
 }
 
-/** Reads the chrome's extent now. A web popup calls it during placement; a native consumer may call it while rendering. */
+/** Reads the chrome's extent now. A web popup calls it in placement; a native consumer may call it in render. */
 export type PopupInsetsReader = () => PopupInsets;
 
 /** No chrome: what a popup reads on a page that provides no reader. */

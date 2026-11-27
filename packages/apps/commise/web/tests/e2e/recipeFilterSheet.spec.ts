@@ -263,8 +263,8 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
                 };
             }),
             // The title row is the nearest ancestor of Close that holds the Sheet's title, found by its exact name
-            // because the body holds section headings too. It never holds the apply button (named `done` below), which would
-            // make it the whole Sheet.
+            // because the body holds section headings too. It never holds the apply button (named `done` below),
+            // which would make it the whole Sheet.
             close.evaluate(
                 (element, { title, apply }) => {
                     const isTitle = (node: Element): boolean =>

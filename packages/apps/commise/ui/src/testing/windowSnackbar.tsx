@@ -15,6 +15,7 @@ import type { JSX } from 'react';
 import { expect, vi, type Mock } from 'vitest';
 
 import { useSnackbar } from '../snackbar/useSnackbar.js';
+import { present } from './present.js';
 
 /** What the probe's snackbar says. */
 export const PROBE_MESSAGE = 'Probe shown';
@@ -70,7 +71,7 @@ export function expectProbeInside(win: HTMLElement): void {
 
     // Kills: a window with no outlet, which leaves the snackbar behind the scrim (visible, unreachable).
     expect(regions).toHaveLength(1);
-    expect(win.contains(regions[0] as HTMLElement)).toBe(true);
+    expect(win.contains(present(regions[0], 'the probe region'))).toBe(true);
     // Kills: an autofocus on the snackbar, which takes a keyboard user out of the dialog they were reading.
     expect(regions[0]?.contains(document.activeElement)).toBe(false);
 }
@@ -108,9 +109,7 @@ export function expectProbeHandedBack(): void {
 
     probeUndo.mockClear();
     act(() => {
-        within(holders()[0] as HTMLElement)
-            .getByRole('button', { name: 'Undo', hidden: true })
-            .click();
+        within(present(holders()[0], 'the probe region')).getByRole('button', { name: 'Undo', hidden: true }).click();
     });
 
     // Kills: an outlet that stays registered after its window is gone, which leaves the snackbar nowhere.

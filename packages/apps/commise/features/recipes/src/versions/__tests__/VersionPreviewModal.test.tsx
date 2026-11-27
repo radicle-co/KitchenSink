@@ -830,7 +830,12 @@ describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
             const holdsActions =
                 this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
             const holdsTitle = this.querySelector('h2') !== null;
-            const height = this.getAttribute('role') === 'dialog' ? 600 : holdsTitle ? 100 : holdsActions ? 80 : 0;
+            const heights = [
+                [this.getAttribute('role') === 'dialog', 600],
+                [holdsTitle, 100],
+                [holdsActions, 80],
+            ] as const;
+            const height = heights.find(([matches]) => matches)?.[1] ?? 0;
 
             return new DOMRect(0, 0, 320, height);
         });

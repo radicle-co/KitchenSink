@@ -32,7 +32,7 @@ export default defineConfig({
         // still loads natively.
         server: { deps: { inline: [/@sentry\/nextjs\/build\/esm\//] } },
         environment: 'jsdom',
-        setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts'],
+        setupFiles: [jsdomPolyfillsSetup, './tests/setup.ts', '@commise/ui/testing/axe-setup'],
         globals: true,
 
         // The CDK suites that justified this headroom now run in the sibling `infra` package, which owns

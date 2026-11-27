@@ -90,7 +90,6 @@
         "./sync-notice": "./src/syncNotice/index.ts",
         "./popover": "./src/popover/index.ts",
         "./popup-insets": "./src/popupInsets/index.ts",
-        "./resize-watch": "./src/layout/useResizeWatch.ts",
         "./stand-in": "./src/standIn/index.ts",
         "./status-badge": "./src/statusBadge/index.ts",
         "./difficulty-badge": "./src/difficultyBadge/index.ts",

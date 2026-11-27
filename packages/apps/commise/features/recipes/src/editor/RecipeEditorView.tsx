@@ -18,8 +18,7 @@
  */
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { LiveRegion } from '@commise/ui/live-region';
-import { PopupInsetsProvider } from '@commise/ui/popup-insets';
-import { useResizeWatch } from '@commise/ui/resize-watch';
+import { PopupInsetsProvider, useResizeWatch } from '@commise/ui/popup-insets';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';

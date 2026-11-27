@@ -116,4 +116,23 @@ describe('the options a node was observed with, and reaching every observer', ()
 
         expect(callback).not.toHaveBeenCalled();
     });
+
+    it('keeps a node observed while another observer still watches it', () => {
+        const node = document.createElement('div');
+        const first = new ResizeObserver(vi.fn());
+        const second = new ResizeObserver(vi.fn());
+
+        first.observe(node, { box: 'border-box' });
+        second.observe(node);
+        first.disconnect();
+
+        // Kills: a record that drops a node one observer let go of, which another observer still watches.
+        expect(resizeObserver.observed.has(node)).toBe(true);
+        expect(resizeObserver.options.has(node)).toBe(true);
+
+        second.unobserve(node);
+
+        expect(resizeObserver.observed.has(node)).toBe(false);
+        expect(resizeObserver.options.has(node)).toBe(false);
+    });
 });

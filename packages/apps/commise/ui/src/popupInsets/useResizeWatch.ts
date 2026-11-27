@@ -1,5 +1,5 @@
 /**
- * @module @commise/ui/resize-watch — a node's size changes, as a `watch` the snackbar host can start and stop (web).
+ * @module @commise/ui/popup-insets — a node's size changes, as a `watch` the snackbar host can start and stop (web).
  *
  * The page chrome the snackbar sits above (the tab bar, the editor's action bar) can change size while a snackbar
  * shows: the system text size changes, or a rotation changes the bar's safe-area padding. The reader measures the
@@ -10,7 +10,7 @@
  */
 import { useMemo } from 'react';
 
-import type { PopupInsetsWatch } from '../popupInsets/popupInsetsRegistry.js';
+import type { PopupInsetsWatch } from './popupInsetsRegistry.js';
 
 /**
  * The `watch` for one node.

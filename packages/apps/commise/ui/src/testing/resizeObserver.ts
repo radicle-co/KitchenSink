@@ -109,6 +109,16 @@ export function reportResizeOf(targets: Iterable<Element>): void {
     });
 }
 
+/** Drops a node from the record once no live observer watches it: another observer may still hold it. */
+function forgetUnwatched(node: Element): void {
+    const held = [...resizeObserver.observers].some((watching) => watching.nodes.has(node));
+
+    if (!held) {
+        resizeObserver.observed.delete(node);
+        resizeObserver.options.delete(node);
+    }
+}
+
 globalThis.ResizeObserver = class {
     private readonly watching: WatchingObserver;
 
@@ -126,17 +136,15 @@ globalThis.ResizeObserver = class {
     }
 
     public unobserve(target: Element): void {
-        resizeObserver.observed.delete(target);
-        resizeObserver.options.delete(target);
         this.watching.nodes.delete(target);
+        forgetUnwatched(target);
     }
 
     public disconnect(): void {
-        this.watching.nodes.forEach((node) => {
-            resizeObserver.observed.delete(node);
-            resizeObserver.options.delete(node);
-        });
+        const released = [...this.watching.nodes];
+
         this.watching.nodes.clear();
         resizeObserver.observers.delete(this.watching);
+        released.forEach(forgetUnwatched);
     }
 };

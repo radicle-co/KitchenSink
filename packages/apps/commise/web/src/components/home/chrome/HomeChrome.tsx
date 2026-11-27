@@ -20,8 +20,7 @@
  * ⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import { PopupInsetsProvider } from '@commise/ui/popup-insets';
-import { useResizeWatch } from '@commise/ui/resize-watch';
+import { PopupInsetsProvider, useResizeWatch } from '@commise/ui/popup-insets';
 import { MainElementContext } from '@commise/ui/main-element';
 import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';

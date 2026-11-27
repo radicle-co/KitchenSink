@@ -502,7 +502,7 @@ describe('a Discard settles the outbox through the real client (integration)', (
      * sender reports as not processed (503) and the drain retries to its cap. The delete then parks with the 503 and,
      * as a delete, is sent again on the next drain; the parked update is never settled.
      */
-    it("⛔ a delete that gets the ALB's text/plain 404 is retried, then parks as 503, and the parked update survives", async () => {
+    it("⛔ a delete that gets the ALB's text/plain 404 parks as 503 and the parked update survives", async () => {
         const albPage = (): Response =>
             new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } });
         const network = scriptedFetch([albPage, albPage, albPage]);

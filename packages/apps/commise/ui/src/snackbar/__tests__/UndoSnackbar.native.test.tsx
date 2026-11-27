@@ -130,12 +130,12 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
     });
 
     it.each([
-        [1, '128px'],
-        [1.5, '192px'],
-        [2, '256px'],
-        [3, '256px'],
+        [1, '192px'],
+        [1.5, '288px'],
+        [2, '384px'],
+        [3, '384px'],
     ])(
-        'asks for 8 text units of room at text size %s, capped at 2x, so Undo drops as text grows (%s)',
+        'asks for 12 text units of room at text size %s, capped at 2x, so Undo drops as text grows (%s)',
         (scale, basis) => {
             text.scale = scale;
 

@@ -4,7 +4,7 @@
  *
  * `inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its
  * action in `inverseAction` (4.56:1 on `inverse`) at a 44 pt target (48 dp on Android) that never wraps; all three from
- * the inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for 8 text units
+ * the inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for 12 text units
  * of room, which grow with the system text size up to the cap, so when it has no room beside the action the action
  * drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most 36 rem (576 pt)
  * wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not wired here: the
@@ -24,8 +24,8 @@ import { Text } from '../text/Text.native.js';
 import { cappedFontScale } from '../text/fontScaleCap.js';
 import type { SnackbarAction, UndoSnackbarProps } from './props.js';
 
-/** The room the message asks for beside Undo at the default text size, in pt: 8 rem on the web bar. */
-const MESSAGE_BASIS = 128;
+/** The room the message asks for beside Undo at the default text size, in pt: 12 rem on the web bar. */
+const MESSAGE_BASIS = 192;
 
 /** The bar: the inverse fill, the level-lg shadow, and a row that wraps so Undo can drop under a long message. */
 const Bar = styled(Elevated, {

@@ -12,6 +12,14 @@ import { fireEvent } from '@testing-library/dom';
 import userEvent from '@testing-library/user-event';
 
 import { FIELD_CLASS } from '@commise/ui/input';
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
 
 import { AccountEraseDialog } from '../AccountEraseDialog.js';
 import type { AccountEraseDialogProps } from '../model.js';
@@ -313,5 +321,52 @@ describe('AccountEraseDialog (web) — recipes that hold a private food (private
         renderDialog({ donatableRecipes: [makeDonatableRecipe()] });
 
         expect(screen.queryByText('These will be deleted')).toBeNull();
+    });
+});
+
+describe('AccountEraseDialog (web) — offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }) {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <AccountEraseDialog
+                    open={open}
+                    donatableRecipes={[]}
+                    selectedRecipeIds={[]}
+                    onToggleRecipe={noop}
+                    phrase=""
+                    onPhraseChange={noop}
+                    onConfirm={noop}
+                    onCancel={noop}
+                />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('dialog'));
+        await expectProbeUndoReachable(screen.getByRole('dialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('scrolls in an inner box, so the outlet, which is absolute in the dialog, stays put while the content scrolls', () => {
+        render(<WithHost open />);
+        const dialog = screen.getByRole('dialog');
+        const scroller = screen.getByRole('heading', { level: 2 }).parentElement as HTMLElement;
+
+        // Kills: the dialog scrolling itself, which carries an absolutely placed snackbar away with the content.
+        expect(dialog.className).not.toContain('overflow-y-auto');
+        expect(scroller.className).toContain('overflow-y-auto');
+        expect(dialog.contains(scroller)).toBe(true);
     });
 });

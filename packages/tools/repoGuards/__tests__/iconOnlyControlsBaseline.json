@@ -17,7 +17,6 @@
         "packages/apps/commise/ui/src/actionMenu/ActionMenu.tsx": 1,
         "packages/apps/commise/ui/src/input/Stepper.native.tsx": 1,
         "packages/apps/commise/ui/src/input/Stepper.tsx": 1,
-        "packages/apps/commise/ui/src/popover/Popover.tsx": 1,
         "packages/apps/commise/ui/src/searchField/SearchField.native.tsx": 1,
         "packages/apps/commise/ui/src/searchField/SearchField.tsx": 1,
         "packages/apps/commise/ui/src/sheet/BottomSheetPanel.native.tsx": 1,

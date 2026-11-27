@@ -14,6 +14,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import type { PopoverProps } from '../props.js';
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
+import { TOUCH_TARGET_CLASS } from '../../touchTarget/touchTargetClass.js';
 import { Popover } from '../Popover.js';
 
 afterEach(cleanup);
@@ -126,6 +127,19 @@ describe('Popover (web)', () => {
         expect(screen.getByRole('button', { name: 'Close details for Kale' }).className.split(/\s+/u)).toContain(
             'focus-visible:ring-focus-ring',
         );
+    });
+
+    // CL-ICONBTN: the Close is the design-system icon button, so it keeps its target, its 24 glyph and its muted ink.
+    it('draws its Close as the shared icon button: a 44 target, a 24 glyph, in muted ink', async () => {
+        const user = userEvent.setup();
+        renderPopover();
+        await user.click(trigger());
+        const close = screen.getByRole('button', { name: 'Close details for Kale' });
+        const classes = close.className.split(/\s+/u);
+
+        expect(classes).toEqual(expect.arrayContaining([TOUCH_TARGET_CLASS.fixed, 'text-ink-muted']));
+        expect(classes).not.toContain('text-ink');
+        expect(close.querySelector('svg')?.getAttribute('width')).toBe('24');
     });
 
     // UI-overhaul slice 2: the glyph is a meaning from the icon Registry, so no host draws its own.

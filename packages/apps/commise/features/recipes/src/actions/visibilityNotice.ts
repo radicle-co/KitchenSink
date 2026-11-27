@@ -12,7 +12,8 @@
  * CLAIM), the editor's follow-up was refused after the editor left (`useServerRefusedPrivate`), and the page's own Make
  * private was refused. The generic "we couldn't change who can see this recipe" lives in the same slot.
  *
- * ⛔ THE FINISH CLAIM IS NOT TRUSTED. It arrives as `?done=<outcome>.<reason>` on web, which is a link anyone can write,
+ * ⛔ THE FINISH CLAIM IS NOT TRUSTED. It arrives as `?privateRefused=<refusal>` on web, which is a link anyone can
+ * write,
  * and the editor withheld that Private, so the server never saw it and there is no server answer to carry. The sentence
  * is therefore only said when every clause of it is TRUE by facts the page already holds from the server: the viewer
  * owns the recipe, the recipe is public, and the profile says Private is refused for this viewer. The words come from

@@ -481,12 +481,7 @@ export { useDraftAnswers } from './editor/useDraftAnswers.js';
 // What a device keeps for one cook ends with their session, on both apps (ADR-0057, ADR-0054).
 export { endDeviceSession, useDeviceSessionScope } from './session/deviceSession.js';
 export { editorMessages } from './editor/messages.js';
-export {
-    FINISHED_OUTCOME_PARAM,
-    finishedNoticeOf,
-    finishedParamOf,
-    parseFinishedParam,
-} from './editor/finishedOutcome.js';
+export { finishedNoticeOf, parsePrivateRefusalParam, PRIVATE_REFUSED_PARAM } from './editor/finishedOutcome.js';
 export type { EditorFinish, FinishedOutcome } from './editor/finishedOutcome.js';
 export type { GateOutcome } from './editor/gate.js';
 export { RecipePreviewSheet } from './editor/RecipePreviewSheet.js';

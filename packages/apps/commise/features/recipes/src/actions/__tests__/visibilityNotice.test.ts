@@ -1,6 +1,7 @@
 /**
  * {@link visibilityNoticeOf}: the ONE answer to "what does the recipe page say about visibility?" (buildSpec §6.4, plan
- * 2026-10-14-009 T3). It serves three ways a Private is refused: the editor withheld it (a CLAIM carried in `?done=` on
+ * 2026-10-14-009 T3). It serves three ways a Private is refused: the editor withheld it (a CLAIM carried in
+ * `?privateRefused=` on
  * web or a route param on native), the editor's follow-up was refused after it left, and the page's own Make private was
  * refused.
  *

@@ -7,9 +7,8 @@
  * inverts in either theme. The row wraps: the message asks for room (`snackbarMessageBasis`, which grows with the text
  * size), so when it has no room beside the action the action drops to its own row under it, at the end. The message may
  * shrink here because CSS breaks the line on its basis; the native twin may not, because Yoga would squeeze it. At most
- * 36 rem wide. It rises 8 px
- * into place over 200 ms only when motion is allowed, and otherwise fades. The pointer or focus inside it tells the
- * host to pause its timer.
+ * `snackbarMaxWidth` wide. It rises 8 px into place over 200 ms only when motion is allowed, and otherwise fades. The
+ * pointer or focus inside it tells the host to pause its timer.
  *
  * Presentational: props → JSX, with no data, no mutation and no effect of its own.
  *
@@ -24,7 +23,7 @@ import { PRESS_FILL_CLASS, surfaceToneClass } from '../surfaceTone/surfaceToneCl
 
 /** The bar's box, in pieces so no line runs past 120 characters. */
 const BAR_CLASS = [
-    'pointer-events-auto flex w-full max-w-[36rem] flex-wrap items-center gap-x-3 rounded-md',
+    'pointer-events-auto flex w-full max-w-[var(--snackbar-max-width)] flex-wrap items-center gap-x-3 rounded-md',
     surfaceToneClass('inverse'),
     'px-4 py-2 shadow-lg transition duration-200 starting:opacity-0 motion-safe:starting:translate-y-2',
 ].join(' ');

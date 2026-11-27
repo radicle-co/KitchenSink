@@ -16,6 +16,7 @@
  */
 import { useContext, useEffect, useId, type FC, type ReactNode } from 'react';
 
+import type { PageColumnReader } from './pageColumn.js';
 import { PopupInsetsContext, type PopupInsetsReader } from './popupInsetsContext.js';
 import { PopupInsetsDepthContext, PopupInsetsRegistryContext, type PopupInsetsWatch } from './popupInsetsRegistry.js';
 
@@ -25,18 +26,27 @@ export interface PopupInsetsProviderProps {
     readonly reader: PopupInsetsReader;
     /** Tells the host when the chrome resizes, so a snackbar that shows follows it. Stable where the page can. */
     readonly watch?: PopupInsetsWatch;
+    /** Where this page's content column sits, for the snackbar to centre over. Stable where the page can. */
+    readonly column?: PageColumnReader;
     readonly children: ReactNode;
 }
 
 /** Provides a page's chrome reader down to its popups and up to the snackbar host. */
-export const PopupInsetsProvider: FC<PopupInsetsProviderProps> = ({ reader, watch, children }) => {
+export const PopupInsetsProvider: FC<PopupInsetsProviderProps> = ({ reader, watch, column, children }) => {
     const registry = useContext(PopupInsetsRegistryContext);
     const depth = useContext(PopupInsetsDepthContext) + 1;
     const token = useId();
 
     useEffect(
-        () => registry?.register({ token, depth, read: reader, ...(watch === undefined ? {} : { watch }) }),
-        [registry, token, depth, reader, watch],
+        () =>
+            registry?.register({
+                token,
+                depth,
+                read: reader,
+                ...(watch === undefined ? {} : { watch }),
+                ...(column === undefined ? {} : { column }),
+            }),
+        [registry, token, depth, reader, watch, column],
     );
 
     return (

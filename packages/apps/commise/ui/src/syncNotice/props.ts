@@ -30,6 +30,12 @@ export interface SyncNoticeProps {
     readonly state: SyncNoticeState;
     /** Accessible name for the live region. */
     readonly regionLabel: string;
+    /**
+     * Web only: a window is open over the page and speaks the notice itself, so the notice must not. The region keeps
+     * its text and loses its status role and its name, so it is not a live region at all. The native leaf has no live
+     * region and ignores it.
+     */
+    readonly quiet?: boolean;
 }
 
 /**

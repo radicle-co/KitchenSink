@@ -67,6 +67,9 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         'The web window frame: it deepens the overlay depth and mounts the snackbar outlet where the snackbar ' +
         'draws while that window is open. It adds no element and has no look of its own. The web twin of ' +
         'OverlayHost; the SnackbarHost card covers the placement it feeds.',
+    WindowAnnouncementSlot:
+        'The text a window speaks for the page below it: a visually hidden polite region in each open window. It ' +
+        'draws nothing the cook sees and has no look of its own. The SnackbarHost card covers the windows it lives in.',
     ToneScope:
         "Native-only scope that states a surface's tone to Tamagui's theme and to the JS tone context. It draws nothing of its own; Surface and every self-painting root state their tone through it.",
 };

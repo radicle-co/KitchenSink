@@ -27,6 +27,7 @@ import { styled, View } from 'tamagui';
 import { WINDOW_LAYERS } from '../overlay/windowLayers.js';
 import { SNACKBAR_GAP } from './props.js';
 import { SnackbarOutletContext } from './snackbarOutletContext.js';
+import { WindowAnnouncementSlot } from './WindowAnnouncementSlot.native.js';
 
 /** Presentational: the region across the window's foot that the snackbar centres in. It takes no touches itself. */
 const OutletRegion = styled(View, {
@@ -83,13 +84,16 @@ export const SnackbarOutlet: FC<SnackbarOutletProps> = ({ presenting, depth, foo
     }
 
     return (
-        <OutletRegion
-            collapsable={false}
-            role="status"
-            aria-live="polite"
-            bottom={(footHeight > 0 ? footHeight : insets.bottom) + SNACKBAR_GAP}
-        >
-            {outlets.top === token ? outlets.snackbar : null}
-        </OutletRegion>
+        <>
+            <WindowAnnouncementSlot isTop={outlets.top === token} />
+            <OutletRegion
+                collapsable={false}
+                role="status"
+                aria-live="polite"
+                bottom={(footHeight > 0 ? footHeight : insets.bottom) + SNACKBAR_GAP}
+            >
+                {outlets.top === token ? outlets.snackbar : null}
+            </OutletRegion>
+        </>
     );
 };

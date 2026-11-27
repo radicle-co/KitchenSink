@@ -25,7 +25,7 @@ import { authBlockMessages } from '@commise/features-account';
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { boundaryMessages } from '@commise/features-core/boundary';
 import { useMessages } from '@commise/i18n/react';
-import { SyncNoticeHost } from '@commise/query/sync-notice-host';
+import { SyncNoticeAnnouncement, SyncNoticeHost } from '@commise/query/sync-notice-host';
 import { LoadingNotice } from '@commise/ui/loading-notice';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
@@ -132,7 +132,9 @@ export function AuthGate({ children }: AuthGateProps): JSX.Element {
             return (
                 <View style={styles.app}>
                     <SyncNoticeHost copy={offline} form={noticeFormOf(focusedRoot)} />
-                    <ReportFocusedRootRouteContext value={setFocusedRoot}>{children}</ReportFocusedRootRouteContext>
+                    <SyncNoticeAnnouncement copy={offline} form={noticeFormOf(focusedRoot)}>
+                        <ReportFocusedRootRouteContext value={setFocusedRoot}>{children}</ReportFocusedRootRouteContext>
+                    </SyncNoticeAnnouncement>
                 </View>
             );
     }

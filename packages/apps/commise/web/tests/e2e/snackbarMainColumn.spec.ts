@@ -41,10 +41,10 @@ async function expectBarOverMainColumn(page: Page): Promise<void> {
     const notifications = page.getByRole('region', { name: 'Notifications' });
     await expect(notifications.getByText(MESSAGE)).toBeVisible();
 
-    const region = await notifications.boundingBox();
+    const region = await notifications.getByRole('status').boundingBox();
     const main = await page.getByRole('main').boundingBox();
     const text = await notifications.getByText(MESSAGE).boundingBox();
-    const sidebar = await page.getByRole('navigation', { name: 'Primary' }).boundingBox();
+    const sidebar = await page.getByRole('navigation', { name: 'Main' }).boundingBox();
 
     expect(region).not.toBeNull();
     expect(main).not.toBeNull();

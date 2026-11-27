@@ -28,5 +28,6 @@ export function mainColumnOf(main: HTMLElement | null, viewportWidth: number): P
 
     const box = main.getBoundingClientRect();
 
-    return { left: box.left, right: viewportWidth - box.right };
+    // Clamped: a `<main>` wider than the viewport, or scrolled sideways, must not push the host off screen.
+    return { left: Math.max(0, box.left), right: Math.max(0, viewportWidth - box.right) };
 }

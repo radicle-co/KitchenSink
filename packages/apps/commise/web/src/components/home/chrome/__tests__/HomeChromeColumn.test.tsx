@@ -1,9 +1,8 @@
 // @vitest-environment jsdom
 /**
- * The shell tells the snackbar host where its `<main>` column is (issue 508, designer D21 and D95): the host centres the
- * snackbar over that measured box, so beside the sidebar it never covers it, and a sidebar collapse moves it because the
- * shell watches `<main>` as well as the tab bar (the tab bar is hidden at the width the sidebar shows). Written before the
- * change.
+ * The shell tells the snackbar host where its `<main>` column is (issue 508): the host centres the snackbar over
+ * that measured box, so beside the sidebar it never covers it, and a sidebar collapse moves it because the shell
+ * watches `<main>` as well as the tab bar (the tab bar is hidden at the width the sidebar shows).
  */
 import '@commise/ui/testing/resize-observer';
 import { afterEach, describe, expect, it, vi } from 'vitest';

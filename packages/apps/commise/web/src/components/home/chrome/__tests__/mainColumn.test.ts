@@ -44,4 +44,8 @@ describe('mainColumnOf', () => {
     it('counts a side panel on the right the same way', () => {
         expect(mainColumnOf(mainAt({ left: 256, right: 700 }), 1024)).toStrictEqual({ left: 256, right: 324 });
     });
+
+    it('never goes negative when `<main>` overflows the viewport on either side', () => {
+        expect(mainColumnOf(mainAt({ left: -40, right: 1100 }), 1024)).toStrictEqual({ left: 0, right: 0 });
+    });
 });

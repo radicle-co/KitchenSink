@@ -7,37 +7,15 @@
 import { useMemo } from 'react';
 
 import type { PopupInsetsWatch } from './popupInsetsRegistry.js';
+import { resizeWatchOf } from './useResizeWatch.js';
 
 /**
  * The `watch` for several nodes, each observed by its border box as `useResizeWatch` does.
  *
- * @sideEffect Calling the returned watch creates a `ResizeObserver` on every node that exists, and its cleanup
- *     disconnects them all.
- * @param nodes - The elements, each held as state by a callback ref and `null` before it mounts. Stable while the
- *     elements are the same: a new array re-registers the entry.
- * @returns A watch stable while the nodes are the same, or `undefined` with no node or no `ResizeObserver` (a server
- *     render).
+ * @param nodes - The elements, each `null` before it mounts. Stable while the elements are the same: a new array
+ *     re-registers the entry.
+ * @returns A watch stable while the nodes are the same, or `undefined` with no node or no `ResizeObserver`.
  */
 export function useResizeWatchAll(nodes: readonly (HTMLElement | null)[]): PopupInsetsWatch | undefined {
-    return useMemo(() => {
-        const present = nodes.filter((node): node is HTMLElement => node !== null);
-
-        if (present.length === 0 || typeof ResizeObserver !== 'function') {
-            return undefined;
-        }
-
-        return (onChange) => {
-            const observer = new ResizeObserver(() => {
-                onChange();
-            });
-
-            for (const node of present) {
-                observer.observe(node, { box: 'border-box' });
-            }
-
-            return () => {
-                observer.disconnect();
-            };
-        };
-    }, [nodes]);
+    return useMemo(() => resizeWatchOf(nodes.filter((node): node is HTMLElement => node !== null)), [nodes]);
 }

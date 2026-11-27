@@ -4,10 +4,9 @@ import { createSnackbarPlacement } from '../snackbarPlacement.js';
 
 /**
  * Where the snackbar sits ACROSS the viewport (issue 508): over the page's content column, which the registered
- * entries may state through an optional `column` reader, apart from the vertical chrome pick. The horizontal pick reuses
- * the outlets' ranking (deepest, latest among equals) over the entries that HAVE a column reader, so a nested provider
- * with none (the editor inside the shell) keeps the shell's column. A column change alone still notifies. Written before
- * the change.
+ * entries may state through an optional `column` reader, apart from the vertical chrome pick. The horizontal pick
+ * reuses the outlets' ranking (deepest, latest among equals) over the entries that HAVE a column reader, so a nested
+ * provider with none (the editor inside the shell) keeps the shell's column. A column change alone still notifies.
  */
 const entry = (token: string, depth: number, bottom: number, column?: { left: number; right: number }) => ({
     token,

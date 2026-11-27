@@ -64,8 +64,8 @@ export const pinnedBarHeight = 56;
 export const snackbarMessageBasis = 192;
 
 /**
- * The most the snackbar is wide, px (36 rem). Web reads it as `--snackbar-max-width` (`themeCss.ts`), native as the bar's
- * `maxWidth`, so the two bars are never drawn at different widths.
+ * The most the snackbar is wide, px (36 rem). Web reads it as `--snackbar-max-width` (`themeCss.ts`), native as the
+ * bar's `maxWidth`, so the two bars are never drawn at different widths.
  */
 export const snackbarMaxWidth = 576;
 

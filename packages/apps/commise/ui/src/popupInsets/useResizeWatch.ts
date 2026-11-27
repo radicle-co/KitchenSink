@@ -13,29 +13,38 @@ import { useMemo } from 'react';
 import type { PopupInsetsWatch } from './popupInsetsRegistry.js';
 
 /**
- * The `watch` for one node.
+ * The `watch` over some nodes: one `ResizeObserver`, each node by its border box.
  *
- * @sideEffect Calling the returned watch creates a `ResizeObserver` on the node, and its cleanup disconnects it.
- * @param node - The chrome's element, held as state by a callback ref; `null` before it mounts.
- * @returns A stable watch while the node is the same, or `undefined` with no node or no `ResizeObserver` (a server
- *     render).
+ * @sideEffect Calling the returned watch creates a `ResizeObserver` on the nodes, and its cleanup disconnects it.
+ * @param nodes - The elements to observe.
+ * @returns The watch, or `undefined` with no node or no `ResizeObserver` (a server render).
  */
-export function useResizeWatch(node: HTMLElement | null): PopupInsetsWatch | undefined {
-    return useMemo(() => {
-        if (node === null || typeof ResizeObserver !== 'function') {
-            return undefined;
+export function resizeWatchOf(nodes: readonly HTMLElement[]): PopupInsetsWatch | undefined {
+    if (nodes.length === 0 || typeof ResizeObserver !== 'function') {
+        return undefined;
+    }
+
+    return (onChange) => {
+        const observer = new ResizeObserver(() => {
+            onChange();
+        });
+
+        for (const node of nodes) {
+            observer.observe(node, { box: 'border-box' });
         }
 
-        return (onChange) => {
-            const observer = new ResizeObserver(() => {
-                onChange();
-            });
-
-            observer.observe(node, { box: 'border-box' });
-
-            return () => {
-                observer.disconnect();
-            };
+        return () => {
+            observer.disconnect();
         };
-    }, [node]);
+    };
+}
+
+/**
+ * The `watch` for one node.
+ *
+ * @param node - The chrome's element, held as state by a callback ref; `null` before it mounts.
+ * @returns A stable watch while the node is the same, or `undefined` with no node or no `ResizeObserver`.
+ */
+export function useResizeWatch(node: HTMLElement | null): PopupInsetsWatch | undefined {
+    return useMemo(() => resizeWatchOf(node === null ? [] : [node]), [node]);
 }

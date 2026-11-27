@@ -3,6 +3,10 @@
  * names the rule and the element. The broken row proves the matcher can fail at all, so a green row elsewhere means
  * "no violation found" and not "nothing was checked". jsdom cannot compute colour, so contrast is off here and on in
  * the browser spec.
+ *
+ * Known limit: rows below pin the wcag2a, wcag2aa and wcag21aa tags. No rule that jsdom can check carries only wcag21a,
+ * so dropping that tag fails no row here. The browser spec covers it, because its known violation
+ * (`label-content-name-mismatch`) is a wcag21a rule, so dropping the tag makes that entry stale and fails the spec.
  */
 import { render } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';

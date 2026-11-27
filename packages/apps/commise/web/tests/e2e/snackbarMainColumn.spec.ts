@@ -11,7 +11,7 @@ import { E2E_RECIPE_IDS, makeCollection, makeRecipeDetail, mockRecipeApi, readVi
  */
 const MESSAGE = 'Removed Weeknight Pasta from Weeknight dinners.';
 
-async function raiseSnackbar(page: Page): Promise<void> {
+async function raiseSnackbar(page: Page, collapseSidebar: boolean): Promise<void> {
     await signInWithTicket(page);
     const viewerId = await readViewerAppId(page);
     await mockRecipeApi(page, {
@@ -27,6 +27,12 @@ async function raiseSnackbar(page: Page): Promise<void> {
         ],
     });
     await page.goto(route('/collections/col_dinners'));
+
+    if (collapseSidebar) {
+        await page.getByRole('button', { name: 'Collapse' }).click();
+        await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+    }
+
     await page.getByRole('button', { name: 'More actions for Weeknight Pasta' }).click();
     await page.getByRole('menuitem', { name: 'Remove from collection' }).click();
 }
@@ -51,16 +57,17 @@ async function expectBarOverMainColumn(page: Page): Promise<void> {
     expect(text?.x ?? 0).toBeGreaterThanOrEqual((sidebar?.x ?? 0) + (sidebar?.width ?? 0));
 }
 
-test.describe('snackbar over the main column (CL-508)', () => {
+test.describe('snackbar over the main column (issue 508)', () => {
     test.use({ viewport: { width: 1024, height: 768 } });
 
-    test('at 1024 px the bar sits over the main column, sidebar open and then collapsed', async ({ page }) => {
-        await raiseSnackbar(page);
+    // Each width is its own test, with the sidebar set before the bar shows, so nothing here races the bar's timer.
+    test('at 1024 px with the sidebar open, the bar sits over the main column', async ({ page }) => {
+        await raiseSnackbar(page, false);
         await expectBarOverMainColumn(page);
+    });
 
-        // Pause the timer with the pointer on the bar, then collapse: the column widens and the bar follows it.
-        await page.getByRole('button', { name: 'Collapse' }).click();
-        await expect(page.getByRole('button', { name: 'Expand sidebar' })).toBeVisible();
+    test('at 1024 px with the sidebar collapsed, the bar sits over the wider main column', async ({ page }) => {
+        await raiseSnackbar(page, true);
         await expectBarOverMainColumn(page);
     });
 });

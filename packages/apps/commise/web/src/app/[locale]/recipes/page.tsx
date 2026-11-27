@@ -4,7 +4,6 @@ import { HydrationBoundary, QueryClient, dehydrate } from '@tanstack/react-query
 import { requireSignedIn } from '@/lib/requireSignedIn';
 import { AppShell } from '@/components/app/AppShell';
 import { ShellBackToTop } from '@/components/app/ShellBackToTop';
-import { RecipeDeletedNotice } from '@/components/recipes/RecipeDeletedNotice';
 import { RecipeListContainer } from '@/components/recipes/RecipeListContainer';
 import { prefetchUserSettings } from '@/lib/prefetchUserSettings';
 import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
@@ -58,8 +57,6 @@ export default async function RecipesPage({
         <HydrationBoundary state={dehydrate(queryClient)}>
             <AppShell activeId="recipes" titleId="recipes">
                 <RecipeListContainer locale={locale} />
-                {/* A delete lands here and is said here: the detail page's own snackbar went with it (owner 2026-10-13). */}
-                <RecipeDeletedNotice />
                 {/* A long list with a floating create button: "Back to top" sits above it, last in DOM order (§3.6). */}
                 <ShellBackToTop aboveFab />
             </AppShell>

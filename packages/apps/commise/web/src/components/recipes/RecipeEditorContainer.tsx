@@ -30,8 +30,9 @@
  */
 import {
     arrivalFromHash,
-    FINISHED_OUTCOME_PARAM,
-    finishedParamOf,
+    editorMessages,
+    finishedNoticeOf,
+    PRIVATE_REFUSED_PARAM,
     nextEditorOpening,
     useDeviceDraft,
     useRecipeEditorSession,
@@ -46,6 +47,7 @@ import type { EditorSeed } from '@commise/features-recipes/hooks';
 import { useMessages } from '@commise/i18n/react';
 import { useSyncQueue } from '@commise/query/sync';
 import { LoadingNotice } from '@commise/ui/loading-notice';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { useAuth } from '@clerk/nextjs';
 import { knownPaidFeaturesOf, paidFeatureStateOf } from '@commise/features-account';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
@@ -333,6 +335,8 @@ function replaceUrlFor(locale: string, ref: string): void {
 /** The editor over its seed. */
 const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, drafts, seed, openPaste }) => {
     const router = useRouter();
+    const snackbar = useSnackbar();
+    const editorCopy = useMessages(editorMessages);
     const queue = useSyncQueue();
     const profile = useUserProfile();
     const paidFeatures = paidFeatureStateOf(profile);
@@ -359,10 +363,14 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     }, [arrivedAtLine]);
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
-        // E8: how the editor finished goes to the recipe page in a one-shot parameter (a snackbar raised here would die
-        // with this page's shell). The page reads it, says it once, and removes it.
-        finished: (recipeId, finish) =>
-            router.push(`/${locale}/recipes/${recipeId}?${FINISHED_OUTCOME_PARAM}=${finishedParamOf(finish)}` as Route),
+        // E8: the one snackbar host outlives this page, so how the editor finished is said before the push. Only a
+        // refused Private rides to the recipe page, which says it inline.
+        finished: (recipeId, finish) => {
+            snackbar.show({ message: finishedNoticeOf(finish, editorCopy) });
+            const refusal =
+                finish.privateRefused === undefined ? '' : `?${PRIVATE_REFUSED_PARAM}=${finish.privateRefused}`;
+            router.push(`/${locale}/recipes/${recipeId}${refusal}` as Route);
+        },
         leftForRecipe: (recipeId) => router.push(`/${locale}/recipes/${recipeId}` as Route),
         discarded: () => router.push(`/${locale}/recipes` as Route),
     };

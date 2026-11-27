@@ -36,11 +36,9 @@
 import { useAuth } from '@clerk/nextjs';
 import {
     RecipeDetailView,
-    editorMessages,
-    FINISHED_OUTCOME_PARAM,
-    finishedNoticeOf,
     isUnreachableRecovery,
-    parseFinishedParam,
+    parsePrivateRefusalParam,
+    PRIVATE_REFUSED_PARAM,
     recipeActionMessages,
     recipeMessages,
 } from '@commise/features-recipes';
@@ -53,20 +51,19 @@ import { ActionMenu } from '@commise/ui/action-menu';
 import { Button, buttonSurfaceClass, GHOST_EDGE_CLASS } from '@commise/ui/button';
 import { HeroButton } from '@commise/ui/hero-button';
 import { Icon } from '@commise/ui/icon';
+import { useSnackbar } from '@commise/ui/snackbar';
 import { recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { useSuspenseQuery } from '@tanstack/react-query';
 import type { Route } from 'next';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
-import { useCallback, useState, type FC } from 'react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { useEffect, useState, type FC } from 'react';
 
 import { ClientQueryBoundary } from '@/components/app/ClientQueryBoundary';
 import { dataSourcesHref } from '@/components/app/dataSourcesHref';
 import { RecipeDetailRouteLoading } from '@/components/recipes/RecipeDetailRouteLoading';
 import { RecipeReadError } from '@/components/recipes/RecipeReadError';
-import { recipesAfterDeleteHref } from '@/components/recipes/recipesAfterDeleteHref';
-import { useAddressNotice } from '@/hooks/useAddressNotice';
 import { useUserProfile } from '@/hooks/useUserProfile';
 import { reportErrorToSentry } from '@/lib/sentryErrorReporter';
 import { openFoodInNewTab } from '@/components/foods/foodHref';
@@ -134,35 +131,33 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
     // query, counting only retries that loaded every name, so its recoveries move focus to the Ingredients heading
     // (not the title) and only when the button the cook pressed is gone.
     const unreachableRetry = useRefreshNotice(query, { recovered: isUnreachableRecovery });
+    const snackbar = useSnackbar();
     const { detail: detailCopy } = useMessages(recipeMessages);
     const { detailActions } = useMessages(recipeActionMessages);
-    const editorCopy = useMessages(editorMessages);
 
-    // E8: the editor finished and navigated here with `?done=<outcome>[.<refusal>]`; say how it finished once. The
-    // parameter is the reader's to forge: only the exact spellings count.
-    //
-    // A refusal in it (the editor withheld a Private the server would refuse) is not said by the snackbar. The same effect
-    // keeps it as a CLAIM, for this recipe, because it is the only place that sees the value before the parameter leaves
-    // the address, and it runs after the page mounted, so the live region below is filled one render after it exists.
+    // E8: the editor said how it finished before it navigated. The one thing it leaves in the address is a refused
+    // Private (`?privateRefused=<refusal>`, the reader's to forge: only the exact spellings count). This effect keeps
+    // it as a CLAIM, for this recipe, and takes it off the address WITHOUT a navigation (`history.replaceState`), so a
+    // reload or a copied link does not claim it again. Next folds that `replaceState` into `useSearchParams`, so the
+    // parameter is gone from the read too and the effect does not run again. The page is told after it mounted, so the
+    // live region below is filled one render after it exists.
     // ⛔ A claim is not a fact: `visibilityNoticeOf` says it only when the owner's own public recipe and the profile agree.
     const [finishRefusalFor, setFinishRefusalFor] = useState<string | undefined>(undefined);
-    const keepFinishRefusal = useCallback(
-        (value: string): void => {
-            if (parseFinishedParam(value)?.privateRefused !== undefined) {
-                setFinishRefusalFor(id);
-            }
-        },
-        [id],
-    );
-    useAddressNotice(
-        FINISHED_OUTCOME_PARAM,
-        (value) => {
-            const finished = parseFinishedParam(value);
+    const refusalParam = useSearchParams().get(PRIVATE_REFUSED_PARAM);
+    const refusal = parsePrivateRefusalParam(refusalParam);
+    useEffect(() => {
+        if (refusal === undefined) {
+            return;
+        }
 
-            return finished === undefined ? undefined : finishedNoticeOf(finished, editorCopy);
-        },
-        keepFinishRefusal,
-    );
+        const url = new URL(window.location.href);
+
+        // Set after mount on purpose: the alert region below is spoken only on a change.
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- reason in the line above
+        setFinishRefusalFor(id);
+        url.searchParams.delete(PRIVATE_REFUSED_PARAM);
+        window.history.replaceState(null, '', `${url.pathname}${url.search}${url.hash}`);
+    }, [id, refusal]);
 
     const recipe = query.data;
     // A write of this recipe on the wire (the editor left with a checkpoint in flight) makes Delete unavailable until it
@@ -184,9 +179,12 @@ const SettledRecipeDetail: FC<SettledRecipeDetailProps> = ({ id, detail }) => {
             onVersions: () => router.push(versionsHref as Route),
             // A copy needs a real edit before it can be published (FR-005b), so it opens in the editor.
             onCloned: (createdId) => router.push(`/${locale}/recipes/${createdId}/edit` as Route),
-            // "Recipe deleted" is said by the page this lands on: a snackbar raised here would die with this page's
-            // shell (`recipesAfterDeleteHref`).
-            onDeleted: () => router.push(recipesAfterDeleteHref(locale) as Route),
+            // The one snackbar host outlives this page, so "Recipe deleted" is said before the push and the address
+            // stays clean.
+            onDeleted: () => {
+                snackbar.show({ message: detailActions.recipeDeleted });
+                router.push(`/${locale}/recipes` as Route);
+            },
             // The make-public refusal's Open food: a new tab, so this page stays where the cook is (private foods spec D5).
             onOpenFood: (foodId) => {
                 openFoodInNewTab(locale, foodId);

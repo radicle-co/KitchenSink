@@ -6,11 +6,11 @@
     "coverage": {
         "components": 106,
         "implementations": 168,
-        "props": 1391,
+        "props": 1395,
         "documentedComponents": 106,
         "implementationsWithModuleDoc": 168,
         "implementationsWithComponentDoc": 154,
-        "documentedProps": 1152,
+        "documentedProps": 1156,
         "classifiedComponents": 99,
         "componentsWithPatternTag": 106,
         "crossPlatformComponents": 62
@@ -8325,6 +8325,8 @@
             "dir": "packages/apps/commise/ui/src/iconButton",
             "kind": "presentational",
             "patterns": [
+                "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: `.focus()` has no declarative form.",
+                "Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the\n    `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).",
                 "Decorator — `PressScale` adds the press motion and owns the one `Pressable`",
                 "Decorator — `PressScale` adds the press motion around the button",
                 "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
@@ -8342,7 +8344,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row. A disabled control is refused but stays focusable, and dims to 40%.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row. A disabled control is refused but stays focusable, and dims to 40%.\n\nPresentational: props → JSX, with no data and no mutation. Its one effect is the host's focus request, taken once\nthrough `useFocusRequest`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8355,6 +8357,10 @@
                         {
                             "name": "pattern",
                             "text": "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the DOM focus API — a level-triggered focus request, acknowledged once taken. It is the one\n    reason this leaf holds a ref: `.focus()` has no declarative form."
                         }
                     ],
                     "description": "The design-system icon button.",
@@ -8378,6 +8384,15 @@
                             "required": false,
                             "defaultValue": "false",
                             "description": "Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a\ncancelled click; native `disabled`), and it dims to 40% on both platforms.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks for focus on the button: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on\n`Button`: it stands until {@link onFocusRequestHandled} acknowledges it.",
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         },
                         {
@@ -8446,6 +8461,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         },
                         {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the button has taken a requested focus; the host clears its request here.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
                             "name": "onPress",
                             "type": "() => void",
                             "typeDetail": null,
@@ -8467,7 +8491,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
@@ -8479,7 +8505,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a\n`hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow\nwith the text: an icon-only control keeps its pixel size. A press fills the circle with the surface's press row, and\na disabled control dims to 40% and cannot be pressed. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a\n`hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow\nwith the text: an icon-only control keeps its pixel size. A press fills the circle with the surface's press row, and\na disabled control dims to 40% and cannot be pressed. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data and no mutation. Its one effect is the host's focus request, taken once\nthrough `useFocusRequest`.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -8488,6 +8514,10 @@
                         {
                             "name": "pattern",
                             "text": "Decorator — `PressScale` adds the press motion and owns the one `Pressable`"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the\n    `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form)."
                         }
                     ],
                     "description": "The native design-system icon button.",
@@ -8532,6 +8562,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
                         },
                         {
+                            "name": "focusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "A host asks for focus on the button: keyboard focus on web, the screen-reader cursor on native. A LEVEL, as on\n`Button`: it stands until {@link onFocusRequestHandled} acknowledges it.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
                             "name": "icon",
                             "type": "enum",
                             "typeDetail": [
@@ -8597,6 +8636,15 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         },
                         {
+                            "name": "onFocusRequestHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Called once the button has taken a requested focus; the host clears its request here.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
                             "name": "onPress",
                             "type": "() => void",
                             "typeDetail": null,
@@ -8627,7 +8675,9 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         }
                     ],
-                    "usesRefApi": [],
+                    "usesRefApi": [
+                        "useRef"
+                    ],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,

@@ -98,3 +98,39 @@ describe('IconButton (web)', () => {
         expect(button.className).not.toContain('opacity-60');
     });
 });
+
+describe('IconButton (web), a focus request', () => {
+    const requested = (focusRequested: boolean, onFocusRequestHandled = vi.fn<() => void>()) => (
+        <div>
+            <IconButton
+                icon="x"
+                accessibilityLabel="Cancel"
+                onPress={vi.fn()}
+                focusRequested={focusRequested}
+                onFocusRequestHandled={onFocusRequestHandled}
+            />
+            <button type="button">Elsewhere</button>
+        </div>
+    );
+
+    it('moves focus to the button and acknowledges, once', () => {
+        const handled = vi.fn<() => void>();
+        const { rerender } = render(requested(false, handled));
+
+        expect(document.activeElement).toBe(document.body);
+
+        rerender(requested(true, handled));
+        rerender(requested(true, handled));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+
+    it('takes a request it mounts with', () => {
+        const handled = vi.fn<() => void>();
+        render(requested(true, handled));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel' }));
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+});

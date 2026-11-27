@@ -16,7 +16,6 @@ import { styled, View } from 'tamagui';
 import { Icon } from '../icon/Icon.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { PressScale } from '../pressScale/PressScale.native.js';
-import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { dimmedOpacity } from '../tokens/scale.js';
 import { ICON_BUTTON_CIRCLE_PX, type IconButtonProps } from './props.js';
 
@@ -34,6 +33,8 @@ const Circle = styled(View, {
     variants: {
         // The one dim every disabled control shares (`tokens/scale.ts`).
         dimmed: { true: { opacity: dimmedOpacity } },
+        // The surface's press row: the sub-theme the nearest `ToneScope` states carries it as `backgroundPress`.
+        pressed: { true: { backgroundColor: '$backgroundPress' } },
     } as const,
 });
 
@@ -65,8 +66,6 @@ export const IconButton: FC<IconButtonNativeProps> = ({
     expanded,
     description,
 }) => {
-    const pressFill = usePressFill();
-
     return (
         <PressScale
             ref={ref}
@@ -78,7 +77,7 @@ export const IconButton: FC<IconButtonNativeProps> = ({
         >
             {({ pressed }) => (
                 <Frame width={touchFloor()} height={touchFloor()}>
-                    <Circle dimmed={disabled} backgroundColor={pressed && !disabled ? pressFill : undefined}>
+                    <Circle dimmed={disabled} pressed={pressed && !disabled}>
                         <Icon name={icon} size={24} tone={tone} />
                     </Circle>
                 </Frame>

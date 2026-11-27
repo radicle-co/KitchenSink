@@ -1,7 +1,7 @@
 /**
- * @module @commise/ui/input — the native step button of the {@link Stepper}: the shared icon button inside the stepper's
+ * @module @commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's
  * own frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS, 48 dp
- * on Android). The icon button is seated over the line by a point, so its own target is the whole frame.
+ * on Android), with the icon button over it.
  *
  * Presentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that
  * imports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.
@@ -14,20 +14,34 @@ import { styled, View } from 'tamagui';
 import { IconButton } from '../iconButton/IconButton.native.js';
 import type { IconName } from '../icon/props.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
+import { dimmedOpacity } from '../tokens/scale.js';
 
-/** The frame: the control line and the paper fill, round. */
+/** The seat: as wide as the touch floor, holding the frame layer and the icon button one over the other. */
+const StepSeat = styled(View, { name: 'StepperStepSeat', alignItems: 'center', justifyContent: 'center' });
+
+/**
+ * The frame layer: a circle on the neutral surface with its control line, under the icon button. A layer of its own, so
+ * a button at its bound dims the whole control once: this layer to 40%, and the icon button's own circle and glyph to
+ * 40%, never one inside the other. Kept, so the dim (`opacity`) never moves what is above it
+ * (`nativeFlattenFlips.test.ts`).
+ */
 const StepFrame = styled(View, {
     name: 'StepperStepFrame',
-    alignItems: 'center',
-    justifyContent: 'center',
+    position: 'absolute',
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
     borderWidth: 1,
     borderColor: '$lineControl',
     backgroundColor: '$paper',
     borderRadius: '$full',
-});
+    collapsable: false,
 
-/** Seats the icon button over the frame's line by a point. */
-const StepSeat = styled(View, { name: 'StepperStepSeat', margin: -1, collapsable: false });
+    variants: {
+        dimmed: { true: { opacity: dimmedOpacity } },
+    } as const,
+});
 
 /** What one step button needs. */
 export interface StepperButtonProps {
@@ -48,16 +62,15 @@ export const StepperButton: FC<StepperButtonProps> = ({ icon, accessibilityLabel
     const target = touchFloor();
 
     return (
-        <StepFrame width={target} height={target}>
-            <StepSeat>
-                <IconButton
-                    icon={icon}
-                    accessibilityLabel={accessibilityLabel}
-                    {...(description === undefined ? {} : { description })}
-                    disabled={disabled}
-                    onPress={onPress}
-                />
-            </StepSeat>
-        </StepFrame>
+        <StepSeat width={target} height={target}>
+            <StepFrame width={target} height={target} dimmed={disabled} />
+            <IconButton
+                icon={icon}
+                accessibilityLabel={accessibilityLabel}
+                {...(description === undefined ? {} : { description })}
+                disabled={disabled}
+                onPress={onPress}
+            />
+        </StepSeat>
     );
 };

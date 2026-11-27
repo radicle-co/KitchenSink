@@ -17,19 +17,33 @@ import { MAX_SCALED_SERVINGS, MIN_SCALED_SERVINGS } from '@kitchensink/recipe-co
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';
 import { ServingScaleControl } from '../ServingScaleControl.js';
 
-/** The step frame: the nearest ancestor of a step button with a 1px border, which must not hold the other button. */
-function stepFrameOf(button: Element, other: Element): Element {
-    let frame = button.parentElement;
+/**
+ * The frame layer of a step button: the one bordered element in the button's seat (the nearest ancestor of the button
+ * that holds one outside the button). It throws when there is none or more than one, when the seat holds the other
+ * button, and when the frame is the button, inside it or around it.
+ */
+function stepFrameOf(button: HTMLElement, other: HTMLElement): HTMLElement {
+    let seat = button.parentElement;
 
-    while (frame !== null && getComputedStyle(frame).borderTopWidth !== '1px') {
-        frame = frame.parentElement;
+    while (seat !== null) {
+        const framed = Array.from(seat.querySelectorAll<HTMLElement>('*')).filter(
+            (candidate) => !button.contains(candidate) && getComputedStyle(candidate).borderTopWidth === '1px',
+        );
+
+        if (framed.length > 0) {
+            const [frame] = framed;
+
+            if (framed.length !== 1 || frame === undefined || seat.contains(other) || frame.contains(button)) {
+                throw new Error('The step button seat is not one button and one frame layer.');
+            }
+
+            return frame;
+        }
+
+        seat = seat.parentElement;
     }
 
-    if (frame === null || frame.contains(other)) {
-        throw new Error('The step button has no frame of its own.');
-    }
-
-    return frame;
+    throw new Error('The step button has no frame layer.');
 }
 
 vi.mock('react-native', async (importOriginal) => {

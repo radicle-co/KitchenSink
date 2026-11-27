@@ -8404,11 +8404,11 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
                     "dir": "packages/apps/commise/ui/src/input",
-                    "moduleDoc": "@commise/ui/input — the native step button of the {@link Stepper}: the shared icon button inside the stepper's\nown frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS, 48 dp\non Android). The icon button is seated over the line by a point, so its own target is the whole frame.\n\nPresentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that\nimports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.",
+                    "moduleDoc": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's\nown frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS, 48 dp\non Android), with the icon button over it.\n\nPresentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that\nimports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/input — the native step button of the {@link Stepper}: the shared icon button inside the stepper's"
+                            "text": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's"
                         },
                         {
                             "name": "pattern",

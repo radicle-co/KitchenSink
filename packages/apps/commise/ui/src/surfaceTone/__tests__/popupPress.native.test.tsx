@@ -11,7 +11,7 @@
  * renders its `pressed` branch and turns `onPress` into a click; everything above it is the real code.
  */
 import { cleanup, fireEvent, screen } from '@testing-library/react';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { render, resolvedColour } from '../../testing/tamaguiTesting.native.js';
 import { useState, type FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -52,7 +52,17 @@ function paintedUnder(element: HTMLElement): string {
         throw new Error('Nothing at or under the element paints a background.');
     }
 
-    return background(painted);
+    // A Tamagui theme token (the icon button's press fill) is a CSS variable jsdom does not resolve: read it through
+    // `resolvedColour`, which follows the variable from the element's own theme class (decisions/0118 addendum 8).
+    const colour = background(painted).startsWith('var(')
+        ? resolvedColour(painted, 'backgroundColor')
+        : background(painted);
+
+    if (colour.startsWith('var(')) {
+        throw new Error('The painted background is a theme variable that did not resolve.');
+    }
+
+    return colour;
 }
 
 describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surface', (scheme) => {

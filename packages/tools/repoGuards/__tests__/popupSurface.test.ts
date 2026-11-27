@@ -8,7 +8,7 @@
  * The rule, read with the TypeScript parser: an app module that imports a Radix dialog, alert dialog, popover or dropdown
  * menu, or the `Modal` adapter (`@commise/ui/modal`, the one door to React Native's `Modal`, itself held by
  * `modalAdapterImports.test.ts`), must also use the surface recipe: `surfaceToneClass`, `SURFACE_TONE_CLASS`, `Surface`,
- * `SurfaceToneScope`, `ToneScope`, `surfaceFill` or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
+ * `SurfaceToneScope`, `ToneScope`, `surfaceFill`, `HeroButton` (it states `FOCUS_RING_CLASS.floating` itself, in `HERO_DISC_CLASS`, so a lightbox whose control is one states it by delegation) or `BottomSheetPanel` (the sheet root, which states `paperOverlay` itself, so
  * a module that only composes it states it by delegation); or, for a popup with no surface of its own (a lightbox, whose controls float over a
  * scrim), `FOCUS_RING_CLASS.floating`. A tooltip is not a surface (it is inverse and holds no control), so
  * `@radix-ui/react-tooltip` is not in the rule.
@@ -51,6 +51,8 @@ const STATES_SURFACE = new Set([
     'ToneScope',
     'surfaceFill',
     'BottomSheetPanel',
+    // The control over a photo: it carries its own disc and floating ring, so a lightbox whose only control is one states it.
+    'HeroButton',
 ]);
 
 /**
@@ -123,6 +125,11 @@ describe('the popup surface reader', () => {
         readonly flagged: boolean;
         readonly file?: string;
     }[] = [
+        {
+            shape: 'a lightbox whose only control is the hero button, which floats over the scrim',
+            source: `import * as Dialog from '@radix-ui/react-dialog';\nimport { HeroButton } from '@commise/ui/hero-button';\nexport const A = () => <Dialog.Content><HeroButton icon="x" label="Close" onPress={go} /></Dialog.Content>;`,
+            flagged: false,
+        },
         {
             shape: 'a Radix dialog with no surface',
             source: `import * as Dialog from '@radix-ui/react-dialog';\nexport const A = () => <Dialog.Content className="bg-white" />;`,

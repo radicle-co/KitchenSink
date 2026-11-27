@@ -18,6 +18,35 @@ import type { StepperProps } from '../props.js';
  * value announced politely through `@commise/ui/live-region`, and a button at its bound disabled.
  */
 
+/**
+ * The frame layer of a step button: the one bordered element in the button's seat (the nearest ancestor of the button
+ * that holds one outside the button). It throws when there is none or more than one, when the seat holds the other
+ * button, and when the frame is the button, inside it or around it.
+ */
+function frameOf(button: HTMLElement, other: HTMLElement): HTMLElement {
+    let seat = button.parentElement;
+
+    while (seat !== null) {
+        const framed = Array.from(seat.querySelectorAll<HTMLElement>('*')).filter(
+            (candidate) => !button.contains(candidate) && getComputedStyle(candidate).borderTopWidth === '1px',
+        );
+
+        if (framed.length > 0) {
+            const [frame] = framed;
+
+            if (framed.length !== 1 || frame === undefined || seat.contains(other) || frame.contains(button)) {
+                throw new Error('The step button seat is not one button and one frame layer.');
+            }
+
+            return frame;
+        }
+
+        seat = seat.parentElement;
+    }
+
+    throw new Error('The step button has no frame layer.');
+}
+
 afterEach(cleanup);
 
 // The count and the label are the house `Text`, which needs the design system's provider.
@@ -129,8 +158,8 @@ describe('Stepper (native)', () => {
         expect(screen.getByRole('button', { name: 'More servings' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    // TEST-CHANGE (decisions/0118 addendum 5): the button is the shared icon button inside the stepper's own bordered
-    // frame, so the size is read on that frame (the nearest ancestor with a 1 px border) and on the button's own frame.
+    // TEST-CHANGE (decisions/0118 addenda 5 and 7): the button is the shared icon button over the stepper's own frame
+    // layer in one seat, so the size is read on that frame layer and on the button's own frame.
     it.each([
         ['ios', '44px'],
         ['android', '48px'],
@@ -143,19 +172,9 @@ describe('Stepper (native)', () => {
                 ['More servings', 'plus', 'Fewer servings'],
             ] as const) {
                 const button = screen.getByRole('button', { name });
-                let frame = button.parentElement;
-
-                while (frame !== null && getComputedStyle(frame).borderTopWidth !== '1px') {
-                    frame = frame.parentElement;
-                }
-
-                if (frame === null) {
-                    throw new Error(`${name} has no bordered frame.`);
-                }
-
+                const frame = frameOf(button, screen.getByRole('button', { name: other }));
                 const inner = present(button.firstElementChild, `the ${name} frame`);
 
-                expect(frame.contains(screen.getByRole('button', { name: other })), `${os} ${name}`).toBe(false);
                 expect(getComputedStyle(frame).width, `${os} ${name}`).toBe(size);
                 expect(getComputedStyle(frame).height, `${os} ${name}`).toBe(size);
                 expect(getComputedStyle(inner).width, `${os} ${name}`).toBe(size);
@@ -167,14 +186,20 @@ describe('Stepper (native)', () => {
         });
     });
 
-    // CL-ICONBTN: a button at its bound dims to the one 40% every disabled control shares, and its live neighbour does not.
-    it('dims the button at its bound to the shared disabled level, and only that one', () => {
+    // CL-ICONBTN: the whole control dims once at a bound (designer D90 addendum): the frame layer to 40%, and the icon
+    // button's own circle to 40%, neither inside the other. Its live neighbour dims neither.
+    it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
         render(<Servings initial={1} />);
-        const circleOf = (name: string): Element =>
-            present(screen.getByRole('button', { name }).firstElementChild?.firstElementChild, `the ${name} circle`);
+        const fewer = screen.getByRole('button', { name: 'Fewer servings' });
+        const more = screen.getByRole('button', { name: 'More servings' });
+        const circleOf = (button: HTMLElement): Element =>
+            present(button.firstElementChild?.firstElementChild, 'the circle');
+        const dimmed = String(dimmedOpacity);
 
-        expect(getComputedStyle(circleOf('Fewer servings')).opacity).toBe(String(dimmedOpacity));
-        expect(getComputedStyle(circleOf('More servings')).opacity).not.toBe(String(dimmedOpacity));
+        expect(getComputedStyle(frameOf(fewer, more)).opacity).toBe(dimmed);
+        expect(getComputedStyle(circleOf(fewer)).opacity).toBe(dimmed);
+        expect(getComputedStyle(frameOf(more, fewer)).opacity).not.toBe(dimmed);
+        expect(getComputedStyle(circleOf(more)).opacity).not.toBe(dimmed);
     });
 
     // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the

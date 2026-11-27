@@ -31,7 +31,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
-import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { rgb, systemScheme } from '../../testing/systemColorScheme.js';
 import { role } from '../../tokens/colors.js';
 import { themeFor } from '../../theme/themeFor.js';
@@ -139,7 +139,7 @@ describe('IconButton (native) contract', () => {
             held.pressed = true;
             renderWithTamagui(<IconButton icon="x" accessibilityLabel="Clear" onPress={vi.fn()} />, scheme);
 
-            expect(getComputedStyle(circleOf(screen.getByRole('button', { name: 'Clear' }))).backgroundColor).toBe(
+            expect(resolvedColour(circleOf(screen.getByRole('button', { name: 'Clear' })), 'backgroundColor')).toBe(
                 rgb(themeFor(scheme).press.canvas),
             );
         });

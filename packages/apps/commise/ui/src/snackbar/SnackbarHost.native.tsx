@@ -38,7 +38,7 @@ import { UndoSnackbar } from './UndoSnackbar.native.js';
 import { useSnackbarQueue } from './useSnackbarQueue.js';
 
 /** The native snackbar host. */
-export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
+export const SnackbarHost: FC<SnackbarHostProps> = ({ children, subject }) => {
     const queue = useSnackbarQueue();
     const readInsets = useContext(PopupInsetsContext);
     const [bottom, setBottom] = useState(SNACKBAR_GAP);
@@ -52,9 +52,14 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             setOutlets((stack) => unregisterOutlet(stack, entry.token));
         };
     }, []);
-    const { current } = queue;
+    const { current, observeSubject } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
+
+    // The person the snackbars belong to: a change from a known person closes the one showing.
+    useEffect(() => {
+        observeSubject(subject);
+    }, [observeSubject, subject]);
 
     // Whether a screen reader is running, now and as it changes.
     useEffect(() => {

@@ -17670,7 +17670,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`). Web only for now.",
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`).",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],
@@ -17726,7 +17726,7 @@
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`). Web only for now.",
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`).",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],

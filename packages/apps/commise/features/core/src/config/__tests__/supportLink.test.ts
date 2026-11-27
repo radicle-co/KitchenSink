@@ -20,6 +20,7 @@ describe('supportLinkOf', () => {
         expect(supportLinkOf('https://commise.app/help?recipe=old', ID)).toBe(`https://commise.app/help?recipe=${ID}`);
     });
 
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- the http URL is the input that the https rule must refuse
     it.each([undefined, '', '   ', 'support', 'http://commise.app/support', 'javascript:alert(1)', 'ftp://x.test/a'])(
         'is no link for %j',
         (address) => {

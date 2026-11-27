@@ -72,7 +72,11 @@ describe('LOCK_NOTE_WORDING_BY_CHOICE', () => {
     });
 
     it('has no entry for a paid website or "I wrote this": their one wording is the text they always showed', () => {
-        expect(Object.keys(LOCK_NOTE_WORDING_BY_CHOICE).sort()).toEqual(['book', 'fromPerson', 'publicWeb']);
+        expect(Object.keys(LOCK_NOTE_WORDING_BY_CHOICE).sort((a, b) => a.localeCompare(b))).toEqual([
+            'book',
+            'fromPerson',
+            'publicWeb',
+        ]);
     });
 });
 

@@ -23552,7 +23552,7 @@
             "kind": "presentational",
             "patterns": [
                 "Adapter — `onOpen` wraps the platform's URL opener",
-                "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+                "Visitor — an exhaustive switch over the discriminated union `SourceFieldView` (`sourceFieldViewOf`)"
             ],
             "platforms": [
                 "web",
@@ -23575,7 +23575,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceFieldView` (`sourceFieldViewOf`)"
                         }
                     ],
                     "description": "The Source row.",
@@ -23667,7 +23667,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceRowModel`"
+                            "text": "Visitor — an exhaustive switch over the discriminated union `SourceFieldView` (`sourceFieldViewOf`)"
                         },
                         {
                             "name": "pattern",

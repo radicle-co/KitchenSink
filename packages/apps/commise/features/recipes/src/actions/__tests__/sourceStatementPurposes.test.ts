@@ -34,7 +34,9 @@ describe('answersFor: the answers each purpose offers (designer D1, D3)', () => 
         ['change', ['authored', 'publicWeb', 'paidSite', 'book', 'fromPerson']],
         ['downgrade', ['book', 'paidSite']],
     ])('%s offers exactly its answers, in order', (surface, expected) => {
-        expect([...answersFor(surface)].sort()).toEqual([...expected].sort());
+        expect([...answersFor(surface)].sort((a, b) => a.localeCompare(b))).toEqual(
+            [...expected].sort((a, b) => a.localeCompare(b)),
+        );
     });
 
     it('never offers a refused answer to a confirmed "I wrote this": no web page, no person', () => {

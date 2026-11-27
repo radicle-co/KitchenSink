@@ -166,6 +166,7 @@ describe('the optional support address (ADR-0100)', () => {
         );
     });
 
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- the http URL is the input that the https rule must refuse
     it.each(['commise.app/support', 'http://commise.app/support', 'javascript:alert(1)'])(
         'refuses %s',
         async (value) => {

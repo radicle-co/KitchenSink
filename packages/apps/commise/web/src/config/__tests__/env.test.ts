@@ -170,6 +170,7 @@ describe('the optional support address (ADR-0100)', () => {
         expect(env['NEXT_PUBLIC_SUPPORT_URL']).toBe('https://commise.app/support');
     });
 
+    // eslint-disable-next-line sonarjs/no-clear-text-protocols -- the http URL is the input that the https rule must refuse
     it.each(['commise.app/support', 'http://commise.app/support', 'javascript:alert(1)'])(
         'refuses %s, so a mistyped value fails the build and never ships a dead or unsafe link',
         async (value) => {

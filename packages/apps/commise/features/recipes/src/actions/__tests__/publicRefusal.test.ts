@@ -40,6 +40,12 @@ const facts = (over: Partial<PublicRefusalFacts>): PublicRefusalFacts => ({
     ...over,
 });
 
+type Combination = Pick<PublicRefusalFacts, 'sourceType' | 'sourceKind' | 'statementKind'>;
+
+/** One of each of the held and corrected states, for a combination of the three enums. */
+const heldAndCorrected = (combination: Combination): PublicRefusalFacts[] =>
+    [false, true].flatMap((held) => [false, true].map((corrected) => ({ ...combination, held, corrected })));
+
 describe('publicRefusalOf: the decision table', () => {
     const rows: ReadonlyArray<readonly [string, Partial<PublicRefusalFacts>, PublicRefusal]> = [
         ['from another person', { statementKind: 'fromPerson' }, 'fromPerson'],
@@ -134,11 +140,7 @@ describe('publicRefusalOf: the decision table', () => {
         ];
         const combinations: PublicRefusalFacts[] = Object.values(RecipeSourceType).flatMap((sourceType) =>
             kinds.flatMap((sourceKind) =>
-                statements.flatMap((statementKind) =>
-                    [false, true].flatMap((held) =>
-                        [false, true].map((corrected) => ({ sourceType, sourceKind, statementKind, held, corrected })),
-                    ),
-                ),
+                statements.flatMap((statementKind) => heldAndCorrected({ sourceType, sourceKind, statementKind })),
             ),
         );
 

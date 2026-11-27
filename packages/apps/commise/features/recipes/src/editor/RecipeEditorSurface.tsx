@@ -378,7 +378,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                                 rowStatementSheet.reset();
                                 setRowSheet(sheet);
                             }}
-                            {...(askHref === undefined ? {} : { askHref })}
+                            askHref={askHref}
                             focusSignal={downgraded?.n ?? 0}
                         />
                         {/* Kept mounted: the first refusal is a change of its signal, so it takes focus and the scroll. */}

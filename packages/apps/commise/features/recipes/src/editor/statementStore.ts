@@ -27,7 +27,7 @@ export interface StatementState {
     /** What the cook answered, held for the session so Publish asks once. */
     readonly answer: StatementWrite | undefined;
     /** What the Source row's own sheet answered; it rides the next write, and clears when a write carried it. */
-    readonly row?: RowAnswer | undefined;
+    readonly row?: RowAnswer;
 }
 
 /** The store {@link createStatementStore} makes. */

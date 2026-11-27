@@ -1074,7 +1074,7 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
 
     it("the Source row's button opens its own sheet, and Confirm hands the editor the answer for that sheet", async () => {
         const user = userEvent.setup();
-        const answerRowStatement = vi.fn();
+        const answerRowStatement = vi.fn<UseRecipeEditorResult['answerRowStatement']>();
         mount({ editorOver: { answerRowStatement } });
 
         await user.click(screen.getByRole('button', { name: 'Not from a web page? Say where it’s from' }));
@@ -1082,10 +1082,10 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
         await user.click(within(sheet).getByRole('radio', { name: /From another person/u }));
         await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
 
-        expect(answerRowStatement).toHaveBeenCalledExactlyOnceWith(
-            expect.objectContaining({ statement: expect.objectContaining({ kind: 'fromPerson' }) }),
-            'firstAnswer',
-        );
+        expect(answerRowStatement).toHaveBeenCalledOnce();
+        const [write, forSheet] = answerRowStatement.mock.calls[0] ?? [];
+        expect(write?.statement?.kind).toBe('fromPerson');
+        expect(forSheet).toBe('firstAnswer');
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 

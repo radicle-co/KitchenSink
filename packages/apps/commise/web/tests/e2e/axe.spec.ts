@@ -14,6 +14,9 @@ import { signInWithTicket } from './utils/auth';
  * Rules that already fail on a page are listed in {@link KNOWN}, one entry per rule per page, each with the issue that
  * tracks the fix. The list can only shrink: a new violation anywhere fails the spec, and an entry whose rule no longer
  * fails fails it too, so a fixed page cannot keep its exemption.
+ *
+ * Known limit: an entry names a rule, not an element, so a second element that breaks the same rule on the same page
+ * passes. Narrow the entry to the element when a page has more than one.
  */
 const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const;
 

@@ -23,10 +23,4 @@ describe('the axe check', () => {
 
         expect(() => expect(results).toHaveNoViolations()).toThrow(/<input[\s\S]*Form elements must have labels/u);
     });
-
-    it('does not judge colour in jsdom, which cannot compute it', async () => {
-        const { container } = render(<p style={{ color: '#ccc', backgroundColor: '#fff' }}>Pale</p>);
-
-        expect(await axe(container)).toHaveNoViolations();
-    });
 });

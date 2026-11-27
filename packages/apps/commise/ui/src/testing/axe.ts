@@ -5,15 +5,18 @@
  */
 import { configureAxe, toHaveNoViolations } from 'jest-axe';
 
+/** The matcher `toHaveNoViolations`, which `jest-axe` types for Jest only. */
+interface AxeMatchers<R = unknown> {
+    toHaveNoViolations(): R;
+}
+
 declare module 'vitest' {
-    // `jest-axe` types its matcher for Jest, so Vitest's `expect` gets its own declaration.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-unused-vars -- Vitest's own `Assertion<T = any>` shape, which an augmentation must repeat
-    interface Assertion<T = any> {
-        toHaveNoViolations(): void;
-    }
-    interface AsymmetricMatchersContaining {
-        toHaveNoViolations(): void;
-    }
+    /*
+     * Vitest declares `Matchers<T = any>`, and an augmentation must repeat its parameters exactly. Merging
+     * `AxeMatchers` into it adds the matcher to `expect` and to the asymmetric matchers, with no member of its own.
+     */
+    /* eslint-disable-next-line @typescript-eslint/no-explicit-any, @typescript-eslint/no-empty-object-type -- above */
+    interface Matchers<T = any> extends AxeMatchers<T> {}
 }
 
 /**

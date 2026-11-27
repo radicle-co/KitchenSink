@@ -95,7 +95,8 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                         </div>
                     </div>
                 )}
-                {/* A column that fills the region, so a short sheet still puts its footer at the bottom. While the footer is
+                {/* A column that fills the region, so a short sheet still puts its footer at the bottom. While the
+                    footer is
                 pinned, its height is the region's scroll padding, so the browser scrolls a focused row clear of it
                 (SC 2.4.11, technique C43). It reserves its scrollbar gutter when it holds a `DialogActions` row (the row's marker,
                 `:has()`), so a scrollbar arriving or leaving never changes the row's width and never flips the actions. */}

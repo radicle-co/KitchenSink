@@ -171,7 +171,8 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 </p>
                             )}
 
-                            {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only in
+                            {/* A failed restore of THIS version, shown where the cook pressed Restore rather than only
+                                in
                             the list behind the dialog (`namelessLineCopy.md` §5). */}
                             {restoreErrorText !== undefined && (
                                 <p
@@ -182,7 +183,8 @@ export const VersionPreviewModal: FC<VersionPreviewModalProps> = ({
                                 </p>
                             )}
 
-                            {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a preview
+                            {/* Pinned above the body, never scrolled away: it answers the one question a cook opens a
+                                preview
                             with, what a restore changes. */}
                             {showContent && diffFromCurrent !== undefined && (
                                 <p className="text-body-sm italic text-ink-muted">

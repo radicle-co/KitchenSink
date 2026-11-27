@@ -69,7 +69,8 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                                 {body}
                             </AlertDialog.Description>
                         ) : (
-                            // One description element holding both paragraphs, so the dialog is described by the body and the note.
+                            // One description element holding both paragraphs, so the dialog is described by the body
+                            // and the note.
                             <AlertDialog.Description asChild>
                                 <div className="flex flex-col gap-2 text-body text-ink-muted">
                                     <p>{body}</p>

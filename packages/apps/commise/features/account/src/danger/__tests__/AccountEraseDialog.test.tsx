@@ -359,7 +359,7 @@ describe('AccountEraseDialog (web) — offers the snackbar an outlet', () => {
         expectProbeHandedBack();
     });
 
-    it('scrolls in an inner box, so the outlet, which is absolute in the dialog, stays put while the content scrolls', () => {
+    it('scrolls in an inner box, so the absolute outlet stays put while the content scrolls', () => {
         render(<WithHost open />);
         const dialog = screen.getByRole('dialog');
         const scroller = screen.getByRole('heading', { level: 2 }).parentElement as HTMLElement;

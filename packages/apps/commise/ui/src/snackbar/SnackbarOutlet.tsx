@@ -5,7 +5,8 @@
  *
  * While a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen
  * readers, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts
- * one outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet registers with the host and keeps a polite `status` region
+ * one outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet
+ * registers with the host and keeps a polite `status` region
  * in place, empty until the host hands it the snackbar, so the change is announced. Only the outlet on top draws, and
  * the host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.
  *
@@ -27,7 +28,8 @@ export interface SnackbarOutletProps {
     /** How many windows deep this sheet is: 1 when opened from the page, 2 inside another sheet, and so on. */
     readonly depth: number;
     /**
-     * How tall the window's pinned foot is in px; the snackbar sits 16 above it. Unset: 16 above the window's foot. Not a
+     * How tall the window's pinned foot is in px; the snackbar sits 16 above it. Unset: 16 above the window's foot. Not
+     * a
      * dependency of the registration: a foot that re-measures must not make this outlet the latest one at its depth.
      */
     readonly footHeight?: number;

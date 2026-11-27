@@ -171,7 +171,8 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                             )}
                             <Dialog.Close
                                 aria-label={detail.lightboxClose}
-                                // Touch floor: `TOUCH_TARGET_CLASS.fixed` (44px) everywhere — this is overlay chrome on a
+                                // Touch floor: `TOUCH_TARGET_CLASS.fixed` (44px) everywhere — this is overlay chrome on
+                                // a
                                 // full-screen image, so there is no desktop-density reason to shrink it.
                                 className={`absolute right-4 top-4 flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center rounded-full bg-paper text-ink shadow-lg transition hover:bg-paper ${FOCUS_RING_CLASS.floating}`}
                             >

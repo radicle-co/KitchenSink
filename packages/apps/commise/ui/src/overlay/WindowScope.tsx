@@ -25,7 +25,8 @@ import { OverlayDepthContext } from './overlayDepthContext.js';
 export interface WindowScopeProps {
     /** The window's content. */
     readonly children?: ReactNode;
-    /** How tall the window's pinned foot is in px, so the snackbar sits 16 above it. Unset: 16 above the window's foot. */
+    /** How tall the window's pinned foot is in px, so the snackbar sits 16 above it. Unset: 16 above the window's foot.
+    /** */
     readonly footHeight?: number;
 }
 

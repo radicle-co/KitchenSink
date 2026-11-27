@@ -65,7 +65,8 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
                     className={`fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col rounded-lg ${surfaceToneClass('paperOverlay')} shadow-lg`}
                 >
                     {/* The dialog does not scroll itself, so the snackbar's outlet, which is absolute in it, stays
-                        put while this box scrolls. The container query sits here: its content box is what the buttons fill. */}
+                        put while this box scrolls. The container query sits here: its content box is what the buttons
+                        fill. */}
                     <WindowScope>
                         <div className="@container/dialog flex min-h-0 flex-col gap-4 overflow-y-auto p-6">
                             <Dialog.Title className="text-section-title text-ink">{erase.title}</Dialog.Title>

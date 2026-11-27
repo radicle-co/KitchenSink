@@ -3,7 +3,8 @@
  * the real `SnackbarHost` and the real window (nothing mocked): the snackbar is drawn inside the window, a keyboard
  * reaches Undo and Undo works, and closing the window hands the same snackbar back.
  *
- * Each window's test file mounts `<SnackbarHost><SnackbarProbe /><TheWindow /></SnackbarHost>`, so the shape of the three
+ * Each window's test file mounts `<SnackbarHost><SnackbarProbe /><TheWindow /></SnackbarHost>`, so the shape of the
+ * three
  * checks lives once and a window cannot pass with a weaker one.
  *
  * @pattern Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press

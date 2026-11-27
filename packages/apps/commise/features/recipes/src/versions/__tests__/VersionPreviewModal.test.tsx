@@ -849,7 +849,8 @@ describe('VersionPreviewModal (web) — offers the snackbar an outlet', () => {
             render(<WithHost open />);
 
             // 80 (the row) + 24 (the dialog's own bottom padding) + 16, as `calc(104px + 1rem)`.
-            // Kills: no footHeight (covers the buttons) and forgetting the padding (sits 24 too low, over the buttons' edge).
+            // Kills: no footHeight (covers the buttons) and forgetting the padding (sits 24 too low, over the buttons'
+            // edge).
             const regions = within(screen.getByRole('dialog')).getAllByRole('status', { hidden: true });
 
             expect(regions.some((region) => region.style.bottom === 'calc(104px + 1rem)')).toBe(true);

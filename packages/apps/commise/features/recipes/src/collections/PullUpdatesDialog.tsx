@@ -143,7 +143,9 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
 
                         <div ref={setFoot} className="pb-6">
                             <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                                {/* A Radix slot, so it wears the Button surface rather than being one: the ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's fill class. */}
+                                {/* A Radix slot, so it wears the Button surface rather than being one: the
+                                    ConfirmDialog's Keep, `x` included. It has no `width` prop, so it takes the row's
+                                    fill class. */}
                                 <Dialog.Close
                                     className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
                                 >
@@ -151,7 +153,8 @@ export const PullUpdatesDialog: FC<PullUpdatesDialogProps> = ({
                                     {pull.cancel}
                                 </Dialog.Close>
                                 {showDiff && diff !== undefined && (
-                                    // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to pull is a
+                                    // Busy keeps focus on the control just pressed (the Button's `busy`); nothing to
+                                    // pull is a
                                     // rule the press did not cause, so it disables natively.
                                     <Button
                                         icon="check"

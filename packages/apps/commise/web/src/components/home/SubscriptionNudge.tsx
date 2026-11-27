@@ -89,7 +89,8 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                         <p className="text-meta text-ink-muted">{home.nudge.body}</p>
                         <div ref={setFoot} className="pb-[calc(2rem+env(safe-area-inset-bottom))]">
                             <div className="flex justify-end gap-3">
-                                {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is mobile's "later" glyph. */}
+                                {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is
+                                    mobile's "later" glyph. */}
                                 <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>
                                     <Icon name="clock" size={20} />
                                     {home.nudge.dismiss}

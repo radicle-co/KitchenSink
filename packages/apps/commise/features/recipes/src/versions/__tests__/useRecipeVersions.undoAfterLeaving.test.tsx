@@ -23,6 +23,7 @@ afterEach(cleanup);
 
 const GONE = commonMessages.en.undoGone;
 const FAILED = commonMessages.en.undoFailed;
+const CONFLICT = 'Can’t undo. The recipe changed since. Open its versions to check.';
 
 const json = (status: number, body: unknown): Response =>
     new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -175,7 +176,7 @@ describe('the version restore Undo, after its page unmounted', () => {
         expect(realErrors(consoleError)).toEqual([]);
     });
 
-    it('marks the recipe and its history stale by id after a 409, and shows neither message', async () => {
+    it('marks the recipe and its history stale by id after a 409, and says the recipe changed since', async () => {
         const { queryClient, consoleError } = await setup(() =>
             json(409, { statusCode: 409, message: 'Version conflict', error: 'Conflict' }),
         );
@@ -187,7 +188,7 @@ describe('the version restore Undo, after its page unmounted', () => {
             expect(queryClient.getQueryState(recipeServiceKeys.recipeVersions('rec_1'))?.isInvalidated).toBe(true);
         });
         await undoSettled(queryClient);
-        expect(statusText()).toBe('');
+        expect(statusText()).toBe(CONFLICT);
         expect(realErrors(consoleError)).toEqual([]);
     });
 
@@ -207,7 +208,7 @@ describe('the version restore Undo, after its page unmounted', () => {
         expect(realErrors(consoleError)).toEqual([]);
     });
 
-    it('shows neither message for a 403, which a later try cannot fix', async () => {
+    it('says it could not undo for a 403', async () => {
         const { consoleError, restorePosts, queryClient } = await setup(() =>
             json(403, { statusCode: 403, message: 'Forbidden', error: 'Forbidden' }),
         );
@@ -218,7 +219,7 @@ describe('the version restore Undo, after its page unmounted', () => {
             expect(restorePosts).toHaveLength(2);
         });
         await undoSettled(queryClient);
-        expect(statusText()).toBe('');
+        expect(statusText()).toBe(FAILED);
         expect(realErrors(consoleError)).toEqual([]);
     });
 });

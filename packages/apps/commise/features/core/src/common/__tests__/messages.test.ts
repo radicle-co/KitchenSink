@@ -16,7 +16,7 @@ describe('commonMessages', () => {
         expect(commonMessages.en.undoGone).not.toContain("'");
     });
 
-    it('says an Undo failed for now, and that the change is still in place, with the typographic apostrophe', () => {
-        expect(commonMessages.en.undoFailed).toBe('Can’t undo right now. The change is still in place.');
+    it('says an Undo failed, and that the change is still in place, with the typographic apostrophe', () => {
+        expect(commonMessages.en.undoFailed).toBe('Can’t undo. The change is still in place.');
     });
 });

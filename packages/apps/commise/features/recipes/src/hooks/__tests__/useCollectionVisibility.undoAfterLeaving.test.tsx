@@ -191,6 +191,8 @@ describe('the collection visibility Undo, after its page unmounted', () => {
     it.each([
         ['a 500', () => json(500, { statusCode: 500, message: 'Internal server error' })],
         ['a network failure', () => Promise.reject(new TypeError('Failed to fetch'))],
+        ['a 403', () => json(403, { statusCode: 403, message: 'Forbidden', error: 'Forbidden' })],
+        ['a 409', () => json(409, { statusCode: 409, message: 'Conflict', error: 'Conflict' })],
     ] as const)('says it could not undo, and not that it is gone, for %s', async (_name, answer) => {
         const { calls, consoleError, queryClient } = await setup(answer);
 
@@ -201,22 +203,6 @@ describe('the collection visibility Undo, after its page unmounted', () => {
         });
         await undoSettled(queryClient);
         expect(statusText()).toBe(FAILED);
-        expect(realErrors(consoleError)).toEqual([]);
-    });
-
-    it.each([
-        ['a 403', () => json(403, { statusCode: 403, message: 'Forbidden', error: 'Forbidden' })],
-        ['a 409', () => json(409, { statusCode: 409, message: 'Conflict', error: 'Conflict' })],
-    ] as const)('shows neither message for %s, which a later try cannot fix', async (_name, answer) => {
-        const { calls, consoleError, queryClient } = await setup(answer);
-
-        fireEvent.click(screen.getByRole('button', { name: 'Undo' }));
-
-        await vi.waitFor(() => {
-            expect(calls.filter((method) => method !== 'GET')).toHaveLength(2);
-        });
-        await undoSettled(queryClient);
-        expect(statusText()).toBe('');
         expect(realErrors(consoleError)).toEqual([]);
     });
 });

@@ -15,8 +15,8 @@ export interface CommonMessages {
      */
     readonly undoGone: string;
     /**
-     * What an Undo says when it failed for now, a failure a later try can fix (the server or the network). It says the
-     * change is still in place, because that is what the cook needs to know.
+     * What an Undo says when it failed for any reason but "it was deleted": the server or network failed, or the change
+     * was refused. It says the change is still in place, because that is what the cook needs to know.
      */
     readonly undoFailed: string;
 }
@@ -25,6 +25,6 @@ export interface CommonMessages {
 export const commonMessages: LocalizedMessages<CommonMessages> = {
     en: {
         undoGone: 'Can’t undo. It was deleted.',
-        undoFailed: 'Can’t undo right now. The change is still in place.',
+        undoFailed: 'Can’t undo. The change is still in place.',
     },
 };

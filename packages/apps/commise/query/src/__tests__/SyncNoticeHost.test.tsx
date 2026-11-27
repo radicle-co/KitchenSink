@@ -5,6 +5,7 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeSyncNoticeCopy } from '../__fixtures__/makeSyncNoticeCopy.js';
 import { SyncNoticeHost } from '../SyncNoticeHost.js';
 
 const world = vi.hoisted(() => ({
@@ -28,19 +29,7 @@ vi.mock('../syncProvider.js', () => ({
     }),
 }));
 
-const copy = {
-    regionLabel: 'Sync status',
-    offlineTitle: 'You’re offline',
-    offlineBodyNone: 'Saved here.',
-    offlineBodyOne: '{count} change is saved here.',
-    offlineBodyOther: '{count} changes are saved here.',
-    syncingTitle: 'Back online',
-    syncingBodyOne: 'Syncing {count} change…',
-    syncingBodyOther: 'Syncing {count} changes…',
-    unreadableTitle: 'Some work on this device couldn’t be opened',
-    unreadableBody: 'We can’t show it or send it, and it can’t be recovered.',
-    unreadableDismiss: 'Dismiss',
-};
+const copy = makeSyncNoticeCopy();
 
 afterEach(() => {
     cleanup();

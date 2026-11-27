@@ -69,6 +69,8 @@ export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) 
         ? cookingNoticeStateOf(offline, copy)
         : syncNoticeState({ offline, pendingCount, parkedCount, wasOffline: recovering }, copy);
 
+    const quiet = cooking && windowOpen;
+
     return (
         <SyncNoticeStack active={unreadable || state.kind !== 'hidden'}>
             <UnreadableWorkNotice
@@ -80,7 +82,7 @@ export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) 
                     setDismissedAt(unreadableCount);
                 }}
             />
-            <SyncNotice state={state} regionLabel={copy.regionLabel} quiet={cooking && windowOpen} />
+            <SyncNotice state={state} regionLabel={copy.regionLabel} quiet={quiet} />
         </SyncNoticeStack>
     );
 };
@@ -105,7 +107,9 @@ export interface SyncNoticeAnnouncementProps {
  */
 export const SyncNoticeAnnouncement: FC<SyncNoticeAnnouncementProps> = ({ copy, form, children }) => {
     const state = cookingNoticeStateOf(useIsOffline(), copy);
-    const text = form === 'cooking' && state.kind === 'offline' ? state.title : '';
+    const text = state.kind === 'offline' ? state.title : '';
 
-    return <WindowAnnouncementContext value={text}>{children}</WindowAnnouncementContext>;
+    return (
+        <WindowAnnouncementContext value={{ text, speaks: form === 'cooking' }}>{children}</WindowAnnouncementContext>
+    );
 };

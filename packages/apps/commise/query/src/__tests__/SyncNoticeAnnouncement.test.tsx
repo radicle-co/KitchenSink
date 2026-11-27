@@ -7,6 +7,7 @@ import { cleanup, render, screen } from '@testing-library/react';
 import { useContext, type JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeSyncNoticeCopy } from '../__fixtures__/makeSyncNoticeCopy.js';
 import { SyncNoticeAnnouncement } from '../SyncNoticeHost.js';
 
 const world = vi.hoisted(() => ({ offline: false }));
@@ -16,19 +17,7 @@ vi.mock('../syncProvider.js', () => ({
     useSyncQueue: () => ({ pendingCount: 0, failures: [], unreadableCount: 0 }),
 }));
 
-const copy = {
-    regionLabel: 'Sync status',
-    offlineTitle: 'You’re offline',
-    offlineBodyNone: 'Saved here.',
-    offlineBodyOne: '{count} change is saved here.',
-    offlineBodyOther: '{count} changes are saved here.',
-    syncingTitle: 'Back online',
-    syncingBodyOne: 'Syncing {count} change…',
-    syncingBodyOther: 'Syncing {count} changes…',
-    unreadableTitle: 'Some work on this device couldn’t be opened',
-    unreadableBody: 'We can’t show it or send it, and it can’t be recovered.',
-    unreadableDismiss: 'Dismiss',
-};
+const copy = makeSyncNoticeCopy();
 
 afterEach(() => {
     cleanup();
@@ -37,7 +26,9 @@ afterEach(() => {
 
 /** A window's side of the channel: it prints what it is handed. */
 function Reader(): JSX.Element {
-    return <output>{useContext(WindowAnnouncementContext)}</output>;
+    const { text, speaks } = useContext(WindowAnnouncementContext);
+
+    return <output>{`${speaks ? 'speaks' : 'silent'}:${text}`}</output>;
 }
 
 const handed = (form: 'app' | 'cooking'): string => {
@@ -55,18 +46,18 @@ describe('SyncNoticeAnnouncement', () => {
         world.offline = true;
 
         // Kills: no provider, and a title that is not the notice's own.
-        expect(handed('cooking')).toBe('You’re offline');
+        expect(handed('cooking')).toBe('speaks:You’re offline');
     });
 
     it('hands the windows nothing in the cooking form while online', () => {
         // Kills: a title held after the connection came back.
-        expect(handed('cooking')).toBe('');
+        expect(handed('cooking')).toBe('speaks:');
     });
 
-    it('hands the windows nothing in the app form, even offline', () => {
+    it('hands the windows the title but no leave to speak it in the app form, even offline', () => {
         world.offline = true;
 
-        // Kills: the app form announcing, which S11 does not cover.
-        expect(handed('app')).toBe('');
+        // Kills: the app form announcing, and a form that hides the title (a change of form would then look like news).
+        expect(handed('app')).toBe('silent:You’re offline');
     });
 });

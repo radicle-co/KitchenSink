@@ -272,7 +272,13 @@ describe('AuthGate — the offline title under an open window', () => {
 
         return (
             <>
-                <Text onPress={() => report(route)}>focus route</Text>
+                <Text
+                    onPress={() => {
+                        report(route);
+                    }}
+                >
+                    focus route
+                </Text>
                 <OverlayHost visible transparent onDismissRequest={() => undefined}>
                     <Text>window body</Text>
                 </OverlayHost>

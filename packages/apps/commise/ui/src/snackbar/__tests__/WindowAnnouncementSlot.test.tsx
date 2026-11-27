@@ -38,9 +38,9 @@ const slotOf = (id: string): Element => {
 };
 
 /** The windows, handed the announcement the way a notice mount hands it. */
-function Windows({ text, inner = false, open = true }: Props): JSX.Element {
+function Windows({ text, speaks = true, inner = false, open = true }: Props): JSX.Element {
     return (
-        <WindowAnnouncementContext value={text}>
+        <WindowAnnouncementContext value={{ text, speaks }}>
             <SnackbarHost>
                 {open ? (
                     <Box id="outer">
@@ -60,6 +60,7 @@ const InnerWindow = (): JSX.Element => (
 
 interface Props {
     readonly text: string;
+    readonly speaks?: boolean;
     readonly inner?: boolean;
     readonly open?: boolean;
 }
@@ -135,6 +136,55 @@ describe('the web window announcement slot', () => {
         rerender(<Windows text={TITLE} />);
 
         // Kills: speaking on becoming the top again, when the window above it closed and the text did not change.
+        expect(slotOf('outer').textContent).toBe('');
+    });
+
+    it('speaks the title again for a spell that begins after the window opened over a standing one', () => {
+        const { rerender } = render(<Windows text={TITLE} />);
+
+        rerender(<Windows text="" />);
+        rerender(<Windows text={TITLE} />);
+
+        // Kills: a slot that stays silent for good once the window opened over a standing announcement.
+        expect(slotOf('outer').textContent).toBe(TITLE);
+    });
+
+    it('stays silent for the window below when a window opens over it and closes again', () => {
+        const { rerender } = render(<Windows text="" />);
+
+        rerender(<Windows text={TITLE} />);
+        expect(slotOf('outer').textContent).toBe(TITLE);
+
+        rerender(<Windows text={TITLE} inner />);
+        rerender(<Windows text={TITLE} />);
+
+        // Kills: a slot that does not note it left the top, so it speaks the same title again when it is back on top.
+        expect(slotOf('outer').textContent).toBe('');
+    });
+
+    it('stays silent when the form starts to speak over a title that was already there', () => {
+        const { rerender } = render(<Windows text={TITLE} speaks={false} />);
+
+        // Kills: speaking while the form does not announce.
+        expect(slotOf('outer').textContent).toBe('');
+
+        rerender(<Windows text={TITLE} />);
+
+        // Kills: treating a change of form as a change of text, which says an old title again.
+        expect(slotOf('outer').textContent).toBe('');
+
+        rerender(<Windows text="" />);
+        rerender(<Windows text={TITLE} />);
+
+        expect(slotOf('outer').textContent).toBe(TITLE);
+    });
+
+    it('speaks nothing for a title that arrives while the form does not speak', () => {
+        const { rerender } = render(<Windows text="" speaks={false} />);
+
+        rerender(<Windows text={TITLE} speaks={false} />);
+
+        // Kills: a slot that ignores the form and speaks the app form's offline notice.
         expect(slotOf('outer').textContent).toBe('');
     });
 });

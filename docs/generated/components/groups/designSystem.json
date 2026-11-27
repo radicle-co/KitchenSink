@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 101,
-        "implementations": 163,
-        "props": 1254,
-        "documentedComponents": 101,
-        "implementationsWithModuleDoc": 163,
-        "implementationsWithComponentDoc": 149,
-        "documentedProps": 1062,
+        "components": 103,
+        "implementations": 165,
+        "props": 1256,
+        "documentedComponents": 103,
+        "implementationsWithModuleDoc": 165,
+        "implementationsWithComponentDoc": 151,
+        "documentedProps": 1064,
         "classifiedComponents": 94,
-        "componentsWithPatternTag": 101,
+        "componentsWithPatternTag": 103,
         "crossPlatformComponents": 62
     },
     "components": [
@@ -3005,7 +3005,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content\n  box, not the viewport — with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content\n  box, not the viewport — with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.\n- A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the action row: the row and the\n  dialog's bottom padding are wrapped in one box, whose height is the snackbar's foot.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -12000,6 +12000,82 @@
             ]
         },
         {
+            "id": "designSystem/overlay/WindowScope",
+            "name": "WindowScope",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/overlay",
+            "kind": "unclassified",
+            "patterns": [
+                "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "WindowScope",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/overlay/WindowScope.tsx",
+                    "dir": "packages/apps/commise/ui/src/overlay",
+                    "moduleDoc": "@commise/ui/window-scope — what makes a web window a window for the snackbar: one level deeper than the\nwindow around it, with an outlet inside it for the snackbar host to draw in.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside it, hides the rest of the page from screen readers and\ncloses it on a press outside, so a snackbar drawn at the page's foot cannot be reached. Every web window mounts one\n`WindowScope` inside its Radix content, so the snackbar shown while it is open is drawn inside it. It is the web\ntwin of native's `OverlayHost`, and the one home of that rule: a window that mounts its own outlet and its own depth\nis a window that can forget one of them.\n\nIt renders no element of its own: its children, then the outlet, last, so Undo follows the window's own controls in\nthe focus order. The outlet is `absolute`, so the box around the scope must be the window's `fixed` box and must not\nscroll itself.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/window-scope — what makes a web window a window for the snackbar: one level deeper than the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
+                        }
+                    ],
+                    "description": "One window's scope: the depth for its children and the snackbar's outlet.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The window's content and, when it has one, the height of its pinned foot."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The content, then the outlet."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The window's content.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/WindowScope.tsx"
+                        },
+                        {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "How tall the window's pinned foot is in px, so the snackbar sits 16 above it. Unset: 16 above the window's foot.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/WindowScope.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/pendingBar/PendingBar",
             "name": "PendingBar",
             "group": "designSystem",
@@ -17046,7 +17122,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/sheet/Sheet.tsx",
                     "dir": "packages/apps/commise/ui/src/sheet",
-                    "moduleDoc": "@commise/ui/sheet — the web design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nFull screen below `sm`, the house centred dialog from `sm` (`max-w-lg`, `max-h-[85vh]`); `size=\"full\"` holds the\ndialog at 85% of the viewport, and `size=\"page\"` is a page-sized sheet: the whole visible height, up to the detail\ncolumn. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.\nThis leaf adds what Radix does not:\n\n- `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and\n  `describedBy` (Radix spreads these props after its own, so they win);\n- focus to the title on open, unless `screenReaderLanding=\"content\"` leaves the landing to the content (Radix does not\n  fire this when content already took focus, so content that focuses itself on mount keeps it either way), and back\n  to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus only to an owned trigger);\n- the visible box while an on-screen keyboard is open, as `--sheet-visible-height` and `--sheet-visible-top`, so the\n  sheet sits inside the visual viewport instead of under the keyboard: below `sm` its top is the box's top (which\n  follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);\n- `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus\n  is back on the opener;\n- the snackbar's outlet inside the content, so a snackbar shown while the sheet is open can be reached.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
+                    "moduleDoc": "@commise/ui/sheet — the web design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nFull screen below `sm`, the house centred dialog from `sm` (`max-w-lg`, `max-h-[85vh]`); `size=\"full\"` holds the\ndialog at 85% of the viewport, and `size=\"page\"` is a page-sized sheet: the whole visible height, up to the detail\ncolumn. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.\nThis leaf adds what Radix does not:\n\n- `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and\n  `describedBy` (Radix spreads these props after its own, so they win);\n- focus to the title on open, unless `screenReaderLanding=\"content\"` leaves the landing to the content (Radix does not\n  fire this when content already took focus, so content that focuses itself on mount keeps it either way), and back\n  to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus only to an owned trigger);\n- the visible box while an on-screen keyboard is open, as `--sheet-visible-height` and `--sheet-visible-top`, so the\n  sheet sits inside the visual viewport instead of under the keyboard: below `sm` its top is the box's top (which\n  follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);\n- `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus\n  is back on the opener;\n- the snackbar's outlet inside the content (`SheetPanel` mounts a `WindowScope`), so a snackbar shown while the sheet is\n  open can be reached.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17561,15 +17637,6 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/SheetPanel.tsx"
                         },
                         {
-                            "name": "outlet",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The snackbar's place, drawn last inside the panel so it comes after the footer in the focus order. The panel\ntells it how tall the pinned footer is (`--sheet-footer-inset`), so the snackbar sits 16 above the footer.",
-                            "declaredIn": "packages/apps/commise/ui/src/sheet/SheetPanel.tsx"
-                        },
-                        {
                             "name": "title",
                             "type": "string",
                             "typeDetail": null,
@@ -17763,7 +17830,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content. While mounted, the outlet registers with the host and keeps a polite `status` region\nin place, empty until the host hands it the snackbar, so the change is announced. Only the outlet on top draws, and\nthe host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA sheet with a pinned footer sets `--sheet-footer-inset` to the footer's height on the panel around the outlet, so\nthe snackbar sits 16 above the footer and the footer's actions stay clear. With no footer, or once the footer scrolls\nwith the content, the variable is unset and the offset is the 16 above.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet registers with the host and keeps a polite `status` region\nin place, empty until the host hands it the snackbar, so the change is announced. Only the outlet on top draws, and\nthe host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA window with a pinned foot passes its height as `footHeight`, so the snackbar sits 16 above the foot and the foot's\nactions stay clear. With no foot, or once the foot scrolls with the content, it is unset and the offset is the 16.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17778,7 +17845,7 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - How deep the sheet is nested."
+                            "text": "props - How deep the window is nested, and how tall its pinned foot is."
                         },
                         {
                             "name": "returns",
@@ -17799,6 +17866,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "How many windows deep this sheet is: 1 when opened from the page, 2 inside another sheet, and so on.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx"
+                        },
+                        {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "How tall the window's pinned foot is in px; the snackbar sits 16 above it. Unset: 16 above the window's foot. Not a\ndependency of the registration: a foot that re-measures must not make this outlet the latest one at its depth.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx"
                         }
                     ],
@@ -19952,6 +20028,63 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/testing/SnackbarProbe",
+            "name": "SnackbarProbe",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/testing",
+            "kind": "unclassified",
+            "patterns": [
+                "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SnackbarProbe",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/testing/windowSnackbar.tsx",
+                    "dir": "packages/apps/commise/ui/src/testing",
+                    "moduleDoc": "testing/window-snackbar — the probe and the three checks every web window's snackbar outlet owes, run against\nthe real `SnackbarHost` and the real window (nothing mocked): the snackbar is drawn inside the window, a keyboard\nreaches Undo and Undo works, and closing the window hands the same snackbar back.\n\nEach window's test file mounts `<SnackbarHost><SnackbarProbe /><TheWindow /></SnackbarHost>`, so the shape of the three\nchecks lives once and a window cannot pass with a weaker one.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "testing/window-snackbar — the probe and the three checks every web window's snackbar outlet owes, run against"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
+                        }
+                    ],
+                    "description": "A button, outside the window, that shows the probe's snackbar.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The button."
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Shows a snackbar through the nearest host when pressed."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
                         "orchestration": false
                     }
                 }

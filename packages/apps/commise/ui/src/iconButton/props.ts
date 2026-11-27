@@ -13,6 +13,16 @@ export interface IconButtonProps {
     readonly icon: IconName;
     /** The control's accessible name, already localised by the caller. */
     readonly accessibilityLabel: string;
-    /** Called once per press. */
+    /** Called once per press, and never while {@link disabled}. */
     readonly onPress: () => void;
+    /** The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear. */
+    readonly tone?: IconButtonTone;
+    /**
+     * Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a
+     * cancelled click; native `disabled`), and it dims to 40% on both platforms.
+     */
+    readonly disabled?: boolean;
 }
+
+/** The colours of the glyph. They are never stacked: a control has one. */
+export type IconButtonTone = 'ink' | 'inkMuted';

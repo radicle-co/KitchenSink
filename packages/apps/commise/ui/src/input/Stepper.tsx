@@ -15,20 +15,21 @@
  */
 import { useState, type FC } from 'react';
 
-import { refusedPressProps } from '../button/busyControlProps.js';
-import { Icon } from '../icon/Icon.js';
 import type { IconName } from '../icon/props.js';
+import { IconButton } from '../iconButton/IconButton.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.js';
 import { stepFrom, type StepperProps } from './props.js';
-import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
-import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 
-/** A step button: a fixed 44 CSS px circle on the neutral surface. */
-const STEP =
-    `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full border border-line-control bg-paper text-ink ` +
-    `${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset} ` +
-    'aria-disabled:cursor-not-allowed aria-disabled:opacity-40';
+/** The step button's seat: a 44 CSS px box the frame layer and the icon button share. */
+const STEP_SEAT = 'relative isolate inline-flex size-[44px] shrink-0';
+
+/**
+ * The frame layer: a circle on the neutral surface with its 1 px control line, under the icon button (`-z-10` inside
+ * the seat's own stacking context, so the in-flow button paints over it). It is a layer of its own so a button at its
+ * bound dims the whole control once: this layer to 40%, and the icon button's own circle and glyph to 40%, never one
+ * inside the other.
+ */
+const STEP_FRAME = '-z-10 absolute inset-0 rounded-full border border-line-control bg-paper';
 
 /** The web design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
@@ -50,24 +51,22 @@ export const Stepper: FC<StepperProps> = ({
         const next = stepFrom(value, step, min, max);
 
         return (
-            <button
-                type="button"
-                aria-label={name}
-                {...refusedPressProps({
-                    unavailable: next === null,
-                    onClick: () => {
+            <span className={STEP_SEAT}>
+                <span aria-hidden className={`${STEP_FRAME}${next === null ? ' opacity-40' : ''}`} />
+                <IconButton
+                    icon={glyph}
+                    accessibilityLabel={name}
+                    disabled={next === null}
+                    onPress={() => {
                         if (next === null) {
                             return;
                         }
 
                         onChange(next);
                         setSpoken((previous) => ({ text: announce(next), occurrence: previous.occurrence + 1 }));
-                    },
-                })}
-                className={STEP}
-            >
-                <Icon name={glyph} size={20} />
-            </button>
+                    }}
+                />
+            </span>
         );
     };
 

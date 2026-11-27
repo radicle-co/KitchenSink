@@ -20,10 +20,10 @@ import { useState, type FC } from 'react';
 
 import { useFocusOnSignal } from '../dialogFocus/useFocusOnSignal.js';
 import { Icon } from '../icon/Icon.js';
+import { IconButton } from '../iconButton/IconButton.js';
 import { FieldLabel } from '../input/FieldLabel.js';
 import type { SearchFieldProps } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 
 /** The pill. Its start padding clears the glyph and its end padding the clear control. */
 const FIELD =
@@ -31,10 +31,8 @@ const FIELD =
     'placeholder:text-ink-muted [&::-webkit-search-cancel-button]:appearance-none ' +
     FOCUS_RING_CLASS.offset;
 
-/** The clear control: a 44 px target inside the pill's end. */
-const CLEAR =
-    `absolute inset-y-0 end-0.5 my-auto inline-flex ${TOUCH_TARGET_CLASS.fixed} items-center justify-center rounded-full text-ink-muted ` +
-    `hover:text-ink ${FOCUS_RING_CLASS.offset}`;
+/** Where the clear control sits: the pill's end, centred. The control itself is the shared icon button. */
+const CLEAR_SLOT = 'absolute inset-y-0 end-0.5 flex items-center';
 
 /** The web design-system search field. */
 export const SearchField: FC<SearchFieldProps> = ({
@@ -84,17 +82,17 @@ export const SearchField: FC<SearchFieldProps> = ({
                     className={FIELD}
                 />
                 {value === '' ? null : (
-                    <button
-                        type="button"
-                        aria-label={clearLabel}
-                        onClick={() => {
-                            onChangeText('');
-                            setClears((count) => count + 1);
-                        }}
-                        className={CLEAR}
-                    >
-                        <Icon name="x" size={20} />
-                    </button>
+                    <span className={CLEAR_SLOT}>
+                        <IconButton
+                            icon="x"
+                            accessibilityLabel={clearLabel}
+                            tone="inkMuted"
+                            onPress={() => {
+                                onChangeText('');
+                                setClears((count) => count + 1);
+                            }}
+                        />
+                    </span>
                 )}
             </div>
         </div>

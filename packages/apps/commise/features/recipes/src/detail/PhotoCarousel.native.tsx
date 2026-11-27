@@ -29,7 +29,7 @@
  *     chevrons need to page the strip.
  */
 import { useMessages } from '@commise/i18n/react';
-import { Icon } from '@commise/ui/icon';
+import { HeroButton } from '@commise/ui/hero-button';
 import { carouselBox } from '@commise/ui/layout';
 import { Modal } from '@commise/ui/modal';
 import { nativeTokens } from '@commise/ui/native';
@@ -164,21 +164,23 @@ export const PhotoCarousel: FC<PhotoCarouselProps> = ({ photos, title }) => {
                                     style={styles.lightboxImage}
                                 />
                             </View>
-                            <Pressable
-                                accessibilityRole="button"
-                                accessibilityLabel={detail.lightboxClose}
-                                onPress={() => setActiveIndex(null)}
+                            <View
                                 style={[
-                                    styles.close,
-                                    { backgroundColor: colors.paper },
+                                    styles.closeSlot,
                                     {
                                         top: insets.top + nativeTokens.spacing[2],
                                         right: insets.right + nativeTokens.spacing[2],
                                     },
                                 ]}
                             >
-                                <Icon name="x" size={24} tone="ink" />
-                            </Pressable>
+                                <HeroButton
+                                    icon="x"
+                                    label={detail.lightboxClose}
+                                    onPress={() => {
+                                        setActiveIndex(null);
+                                    }}
+                                />
+                            </View>
                         </View>
                     </SurfaceToneScope>
                 </Modal>
@@ -195,13 +197,6 @@ const styles = StyleSheet.create({
     lightbox: { flex: 1 },
     lightboxPhotoBox: { flex: 1 },
     lightboxImage: { width: '100%', height: '100%' },
-    // 48 dp: Material's floor, the stricter of it and Apple's 44 pt, and the Sheet's Close.
-    close: {
-        position: 'absolute',
-        width: 48,
-        height: 48,
-        borderRadius: nativeTokens.radius.full,
-        alignItems: 'center',
-        justifyContent: 'center',
-    },
+    // The hero button inside is the touch floor (48 dp on Android, the Sheet's Close), so the slot only places it.
+    closeSlot: { position: 'absolute' },
 });

@@ -3,10 +3,10 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 32,
+        "cross-platform-props-diverge": 33,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 111,
+        "platform-singleton": 112,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -484,6 +484,17 @@
             ]
         },
         {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "designSystem/iconButton/IconButton",
+            "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: accessibilityLabel disabled icon onPress tone",
+                "native: accessibilityLabel description disabled expanded icon onPress ref tone"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/input/Input",
@@ -510,6 +521,16 @@
             "sourcePath": "packages/apps/commise/ui/src/input/Stepper.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/input/StepperButton",
+            "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
         },
         {
             "rule": "ref-api",

@@ -24,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
+import { ICON_BUTTON_CLASS, ICON_BUTTON_TONE_CLASS } from '../../iconButton/IconButton.js';
 import { ActionMenu } from '../ActionMenu.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
 
@@ -394,6 +395,38 @@ describe('ActionMenu (web) — the overhaul contract', () => {
 
             expect(classes).toContain('size-[44px]');
             expect(classes).not.toContain('bg-photo-chip');
+        });
+
+        // New: the plain trigger keeps its Radix element and takes the shared icon button's recipe and press motion.
+        it('is built from the shared icon button recipe, inside its press motion', () => {
+            const trigger = renderAppearance();
+
+            expect(trigger.className.split(' ')).toEqual(
+                expect.arrayContaining([...ICON_BUTTON_CLASS.split(' '), ICON_BUTTON_TONE_CLASS.ink]),
+            );
+            expect(trigger.parentElement?.className).toContain('active:scale-[0.98]');
+        });
+
+        // New: the plain trigger dims to the one 40% that every disabled control shares, as on native (it was 60%).
+        // The hero disc over a photo keeps its own 60%.
+        it.each([
+            ['plain', 'aria-disabled:opacity-40', 'aria-disabled:opacity-60'],
+            ['disc', 'aria-disabled:opacity-60', 'aria-disabled:opacity-40'],
+        ] as const)('dims an unavailable %s trigger to %s only', (appearance, dim, other) => {
+            render(
+                <ActionMenu
+                    triggerLabel="More actions for Lamb"
+                    title="Lamb"
+                    closeLabel="Close"
+                    items={[{ id: 'versions', label: 'Version history', onSelect: vi.fn() }]}
+                    appearance={appearance}
+                    unavailable
+                />,
+            );
+            const classes = screen.getByRole('button', { name: 'More actions for Lamb' }).className.split(' ');
+
+            expect(classes).toContain(dim);
+            expect(classes).not.toContain(other);
         });
 
         it('is the hero disc over a photo when asked: a 44 px photoChip disc, still a menu button', () => {

@@ -5,15 +5,15 @@
     "layer": "design-system",
     "coverage": {
         "components": 104,
-        "implementations": 167,
-        "props": 1261,
+        "implementations": 166,
+        "props": 1260,
         "documentedComponents": 104,
-        "implementationsWithModuleDoc": 167,
-        "implementationsWithComponentDoc": 153,
-        "documentedProps": 1069,
+        "implementationsWithModuleDoc": 166,
+        "implementationsWithComponentDoc": 152,
+        "documentedProps": 1068,
         "classifiedComponents": 97,
         "componentsWithPatternTag": 104,
-        "crossPlatformComponents": 63
+        "crossPlatformComponents": 62
     },
     "components": [
         {
@@ -18128,10 +18128,9 @@
                 "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
             ],
             "platforms": [
-                "web",
-                "native"
+                "web"
             ],
-            "crossPlatform": true,
+            "crossPlatform": false,
             "propsDiverge": false,
             "documented": true,
             "implementations": [
@@ -18140,11 +18139,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link WindowAnnouncementSlot}: the visually hidden polite region in each\nopen window that speaks the announcement the window on top is handed.\n\nIt is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a\nwindow presents, and a hook is never called after the outlet's early return.\n\nOrchestration of one decision: it reads the window's announcement and hands it to the live region.",
+                    "moduleDoc": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden\npolite region in each open window that speaks the announcement the window on top is handed.\n\nIt is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a\nwindow presents, and a hook is never called after the outlet's early return. `LiveRegion` resolves to its web or\nnative leaf at bundle time, so this file needs no native twin.\n\nOrchestration of one decision: it reads the window's announcement and hands it to the live region.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/snackbar — the web {@link WindowAnnouncementSlot}: the visually hidden polite region in each"
+                            "text": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden"
                         },
                         {
                             "name": "pattern",
@@ -18173,53 +18172,6 @@
                             "defaultValue": null,
                             "description": "Whether this window's outlet is the one on top.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx"
-                        }
-                    ],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
-                    }
-                },
-                {
-                    "name": "WindowAnnouncementSlot",
-                    "platform": "native",
-                    "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.native.tsx",
-                    "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link WindowAnnouncementSlot}: the visually hidden polite region in each\npresenting window that speaks the announcement the window on top is handed.\n\nIt is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a\nwindow presents, and a hook is never called after the outlet's early return.\n\nOrchestration of one decision: it reads the window's announcement and hands it to the live region.",
-                    "moduleTags": [
-                        {
-                            "name": "module",
-                            "text": "@commise/ui/snackbar — the native {@link WindowAnnouncementSlot}: the visually hidden polite region in each"
-                        },
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
-                        }
-                    ],
-                    "description": "One window's announcement slot.",
-                    "tags": [
-                        {
-                            "name": "param",
-                            "text": "props - Whether the window is on top."
-                        },
-                        {
-                            "name": "returns",
-                            "text": "A polite status region, empty until there is news."
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [
-                        {
-                            "name": "isTop",
-                            "type": "boolean",
-                            "typeDetail": null,
-                            "required": true,
-                            "defaultValue": null,
-                            "description": "Whether this window's outlet is the one on top.",
-                            "declaredIn": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.native.tsx"
                         }
                     ],
                     "usesRefApi": [],

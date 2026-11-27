@@ -10,8 +10,6 @@
  */
 import { createContext, useContext, useState } from 'react';
 
-import { SnackbarOutletContext } from './snackbarOutletContext.js';
-
 /** What the page below the windows has to say, and whether it is the kind of notice a window speaks. */
 export interface WindowAnnouncement {
     /** The notice text, or `''` when there is none. It is handed down even when the window must not speak it. */
@@ -74,13 +72,4 @@ export function useWindowAnnouncement(isTop: boolean): string {
     }
 
     return announcement === seen.silenced ? '' : announcement;
-}
-
-/**
- * Whether any window is open over the page: a host has an outlet on top.
- *
- * @returns `true` while a window is open; `false` with none, and outside a host.
- */
-export function useWindowOpen(): boolean {
-    return useContext(SnackbarOutletContext)?.top !== undefined;
 }

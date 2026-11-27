@@ -6,7 +6,7 @@
         "cross-platform-props-diverge": 32,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 110,
+        "platform-singleton": 111,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -1224,6 +1224,16 @@
             "evidence": [
                 "action",
                 "message"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/snackbar/WindowAnnouncementSlot",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

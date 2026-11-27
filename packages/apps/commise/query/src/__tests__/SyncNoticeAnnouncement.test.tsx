@@ -8,7 +8,7 @@ import { useContext, type JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeSyncNoticeCopy } from '../__fixtures__/makeSyncNoticeCopy.js';
-import { SyncNoticeAnnouncement } from '../SyncNoticeHost.js';
+import { SyncNoticeAnnouncement } from '../SyncNoticeAnnouncement.js';
 
 const world = vi.hoisted(() => ({ offline: false }));
 

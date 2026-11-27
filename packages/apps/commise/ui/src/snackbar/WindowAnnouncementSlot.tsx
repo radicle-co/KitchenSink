@@ -1,11 +1,12 @@
 'use client';
 
 /**
- * @module @commise/ui/snackbar — the web {@link WindowAnnouncementSlot}: the visually hidden polite region in each
- * open window that speaks the announcement the window on top is handed.
+ * @module @commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden
+ * polite region in each open window that speaks the announcement the window on top is handed.
  *
  * It is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a
- * window presents, and a hook is never called after the outlet's early return.
+ * window presents, and a hook is never called after the outlet's early return. `LiveRegion` resolves to its web or
+ * native leaf at bundle time, so this file needs no native twin.
  *
  * Orchestration of one decision: it reads the window's announcement and hands it to the live region.
  *

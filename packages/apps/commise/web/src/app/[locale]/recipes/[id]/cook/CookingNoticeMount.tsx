@@ -12,7 +12,8 @@
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { CookingNoticeSlot } from '@commise/features-cooking/web';
 import { useMessages } from '@commise/i18n/react';
-import { SyncNoticeAnnouncement, SyncNoticeHost } from '@commise/query/sync-notice-host';
+import { SyncNoticeAnnouncement } from '@commise/query/sync-notice-announcement';
+import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import type { FC, ReactNode } from 'react';
 
 /** Props for {@link CookingNoticeMount}. */

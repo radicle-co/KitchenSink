@@ -230,7 +230,7 @@ describe('iconOnlyControls', () => {
             FEATURE,
         );
 
-        expect(found).toMatchObject({ line: 4, text: expect.stringContaining('<button>') });
+        expect(found).toMatchObject({ line: 4, text: '<button>' });
     });
 
     it('counts each control once, however its handler and tag both qualify it', () => {

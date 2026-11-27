@@ -12,7 +12,7 @@ import type { CookingRecipe } from '../cookingViewProps.js';
 import type { TimerStep } from './timerCopy.js';
 
 /**
- * The step a timer belongs to, as {@link timerLabel} reads it.
+ * The step a timer belongs to, as `timerLabel` reads it.
  *
  * @param timer - The timer's recipe, stored step index and step digest.
  * @param recipe - The recipe now open, or `undefined` when none is.

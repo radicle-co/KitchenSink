@@ -26,7 +26,7 @@ export const UNCARDED: Readonly<Record<string, string>> = {
     ButtonLabel:
         "The native Button's label (the Text `cardTitle` role coloured by the Button's surface). A part of Button, never placed on its own; the Button card covers it.",
     StepperButton:
-        "The native Stepper's step button: the shared icon button inside the stepper's own frame, in a file of its own so the Tamagui parts stay apart from the stepper's React Native styling. A part of Stepper, never placed on its own; the Stepper card covers it.",
+        "The native Stepper's step button: the shared icon button inside the stepper's own frame, in a file of its own. A part of Stepper, never placed on its own; the Stepper card covers it.",
     RadioRowContent:
         "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
     RadioMark:

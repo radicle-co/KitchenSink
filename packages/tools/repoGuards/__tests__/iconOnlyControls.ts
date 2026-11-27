@@ -55,9 +55,7 @@ const isSymbol = (text: string): boolean => /^[^\p{L}\p{N}\s]{1,2}$/u.test(text.
 
 /** The expression a block returns when `return` is its only statement. */
 const soleReturn = (block: ts.Block): ts.Expression | undefined => {
-    const [only] = block.statements;
-
-    return block.statements.length === 1 && ts.isReturnStatement(only) ? only.expression : undefined;
+    return block.statements.length === 1 ? block.statements.find(ts.isReturnStatement)?.expression : undefined;
 };
 
 type Opening = ts.JsxOpeningElement | ts.JsxSelfClosingElement;
@@ -181,7 +179,11 @@ export function iconOnlyControls(source: string, fileName: string): readonly Ico
         if (ts.isJsxElement(node)) {
             const only = contentOf(node.children);
 
-            return depth <= WRAPPER_DEPTH && only.length === 1 && isGlyphNode(only[0], depth + 1, seen);
+            return (
+                depth <= WRAPPER_DEPTH &&
+                only.length === 1 &&
+                only.every((child) => isGlyphNode(child, depth + 1, seen))
+            );
         }
 
         return false;
@@ -220,7 +222,7 @@ export function iconOnlyControls(source: string, fileName: string): readonly Ico
             const control =
                 only.length === 1 &&
                 isInteractive(node.openingElement) &&
-                isGlyphNode(only[0], 1, new Set()) &&
+                only.every((child) => isGlyphNode(child, 1, new Set())) &&
                 !usesRecipe(node.openingElement);
 
             if (control) {

@@ -44,6 +44,7 @@ import {
     isSearchRateLimitedError,
     isSourceBusyError,
     isUnauthorizedError,
+    isServiceUnreachableError,
     isUnexpectedResponseError,
 } from '../index.js';
 
@@ -334,7 +335,26 @@ describe('FoodServiceClient — a body that is not JSON maps by its status', () 
             isUnexpectedResponseError,
         ],
         ['a 503 HTML page', 503, 'text/html', '<html><body>503 Service Unavailable</body></html>', isSourceBusyError],
-        ['the ALB’s 404', 404, 'text/plain; charset=utf-8', 'Not Found', isNotFoundError],
+        ['the ALB’s 404', 404, 'text/plain; charset=utf-8', 'Not Found', isServiceUnreachableError],
+        ['a 404 HTML page', 404, 'text/html', '<html><body>404 Not Found</body></html>', isServiceUnreachableError],
+        ['a 404 with no body', 404, 'text/plain', '', isServiceUnreachableError],
+        [
+            'a 404 in Nest’s default JSON',
+            404,
+            'application/json',
+            JSON.stringify({ statusCode: 404, message: 'Cannot GET /x', error: 'Not Found' }),
+            isNotFoundError,
+        ],
+        ['a 404 whose body is a JSON array', 404, 'application/json', '[]', isNotFoundError],
+        ['a 404 whose body is a JSON string', 404, 'application/json', '"Not Found"', isServiceUnreachableError],
+        ['a 404 whose body is JSON null', 404, 'application/json', 'null', isServiceUnreachableError],
+        [
+            'a 404 in the food envelope',
+            404,
+            'application/json',
+            JSON.stringify({ code: 'FOOD_NOT_FOUND', message: 'gone' }),
+            isNotFoundError,
+        ],
         ['a plain 401', 401, 'text/plain', 'Unauthorized', isUnauthorizedError],
     ];
 
@@ -363,7 +383,8 @@ describe('FoodServiceClient — a body that is not JSON maps by its status', () 
             );
 
             expect(thrown).toSatisfy(isTyped);
-            expect(thrown).toHaveProperty('status', status);
+            // The balancer's 404 is reported as the 503 it stands for, so nothing that reads `404` as "gone" sees it.
+            expect(thrown).toHaveProperty('status', isTyped === isServiceUnreachableError ? 503 : status);
         });
     });
 });

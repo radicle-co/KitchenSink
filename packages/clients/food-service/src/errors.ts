@@ -169,10 +169,11 @@ export function isRemoteFoodGoneError(error: unknown): error is RemoteFoodGoneEr
  * or the connection failed). Both mean the same thing to a reader: "back off and retry", so they share one typed error
  * rather than a parallel transport hierarchy.
  *
- * Only a `503` that came in a response is a {@link SourceBusyError}, and only it carries a `status`. A transport failure
- * has no status, keeps the underlying error in {@link cause}, and has no `retryAfterSeconds`. The difference matters to
- * a WRITE: a refusal was not processed, but a dropped socket may follow a committed write, so a caller that retries on a
- * status never replays it.
+ * Only an answer that came in a response carries a `status`: a `503` is a {@link SourceBusyError}, and the load
+ * balancer's own `404` is a {@link ServiceUnreachableError}. Both mean "not processed", because the balancer forwarded
+ * nothing. A transport failure has no status, keeps the underlying error in {@link cause}, and has no
+ * `retryAfterSeconds`. The difference matters to a WRITE: a refusal was not processed, but a dropped socket may
+ * follow a committed write, so a caller that retries on a status never replays it.
  */
 export class FetchUnavailableError extends FoodServiceClientError {
     /** Seconds the caller should wait before retrying (from `Retry-After`, when present). */
@@ -218,6 +219,31 @@ export class SourceBusyError extends FetchUnavailableError {
 /** Type guard for {@link SourceBusyError}. */
 export function isSourceBusyError(error: unknown): error is SourceBusyError {
     return error instanceof SourceBusyError;
+}
+
+/**
+ * The shared load balancer answered `404` with its own fixed `text/plain` page, because no rule routed the request to
+ * food (ADR-0003, `packages/infra/global/lib/platform/SharedAlbStack.ts`, the listener's default action). Food itself
+ * always answers a `404` with a JSON object, so a body that is not a JSON object or array is the balancer: food did
+ * not answer, and nothing was processed. Reading it as {@link NotFoundError} hid an outage behind a missing food. Its
+ * `503` is not a `404`, so nothing that branches on `status === 404` misreads it, and it is not a
+ * {@link SourceBusyError}, which means food answered busy. The recipe client has the same rule for the same page.
+ */
+export class ServiceUnreachableError extends FetchUnavailableError {
+    /** Always `503`: the status this error is reported as, never the `404` the balancer sent. */
+    public override readonly status: number;
+
+    public constructor(message = 'The food service did not answer the request') {
+        super(undefined, message);
+        this.name = 'ServiceUnreachableError';
+        this.status = 503;
+        Object.setPrototypeOf(this, ServiceUnreachableError.prototype);
+    }
+}
+
+/** Type guard for {@link ServiceUnreachableError}. */
+export function isServiceUnreachableError(error: unknown): error is ServiceUnreachableError {
+    return error instanceof ServiceUnreachableError;
 }
 
 /**

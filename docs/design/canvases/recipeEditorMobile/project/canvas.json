@@ -1522,48 +1522,6 @@
       "h": 2208,
       "title": "Recipe editor, why Public is refused (mobile, iPad 820)"
     },
-    "RecipeEditorSourceLockIphone390.dc.html": {
-      "x": 0,
-      "y": 24489,
-      "w": 390,
-      "h": 5811,
-      "title": "Recipe editor, the Source row locked (mobile, iPhone 390)"
-    },
-    "RecipeEditorSourceLockAndroid384.dc.html": {
-      "x": 470,
-      "y": 24489,
-      "w": 384,
-      "h": 5818,
-      "title": "Recipe editor, the Source row locked (mobile, Android 384)"
-    },
-    "RecipeEditorSourceLockIpad820.dc.html": {
-      "x": 934,
-      "y": 24489,
-      "w": 820,
-      "h": 5194,
-      "title": "Recipe editor, the Source row locked (mobile, iPad 820)"
-    },
-    "RecipeEditorSourceSheetIphone390.dc.html": {
-      "x": 0,
-      "y": 30707,
-      "w": 390,
-      "h": 5015,
-      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPhone 390)"
-    },
-    "RecipeEditorSourceSheetAndroid384.dc.html": {
-      "x": 470,
-      "y": 30707,
-      "w": 384,
-      "h": 5110,
-      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, Android 384)"
-    },
-    "RecipeEditorSourceSheetIpad820.dc.html": {
-      "x": 934,
-      "y": 30707,
-      "w": 820,
-      "h": 4756,
-      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPad 820)"
-    },
     "RecipeEditorPublicCopyIphone390.dc.html": {
       "x": 0,
       "y": 23565,
@@ -1577,6 +1535,48 @@
       "w": 384,
       "h": 832,
       "title": "Recipe editor, copy of a public recipe (mobile, Android 384)"
+    },
+    "RecipeEditorSourceLockIphone390.dc.html": {
+      "x": 0,
+      "y": 24809,
+      "w": 390,
+      "h": 5811,
+      "title": "Recipe editor, the Source row locked (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceLockAndroid384.dc.html": {
+      "x": 470,
+      "y": 24809,
+      "w": 384,
+      "h": 5818,
+      "title": "Recipe editor, the Source row locked (mobile, Android 384)"
+    },
+    "RecipeEditorSourceLockIpad820.dc.html": {
+      "x": 934,
+      "y": 24809,
+      "w": 820,
+      "h": 5194,
+      "title": "Recipe editor, the Source row locked (mobile, iPad 820)"
+    },
+    "RecipeEditorSourceSheetIphone390.dc.html": {
+      "x": 0,
+      "y": 31027,
+      "w": 390,
+      "h": 5015,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceSheetAndroid384.dc.html": {
+      "x": 470,
+      "y": 31027,
+      "w": 384,
+      "h": 5110,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, Android 384)"
+    },
+    "RecipeEditorSourceSheetIpad820.dc.html": {
+      "x": 934,
+      "y": 31027,
+      "w": 820,
+      "h": 4756,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1796,14 +1796,14 @@
     "RecipeEditorRefusalNoticeIphone390.dc.html",
     "RecipeEditorRefusalNoticeAndroid384.dc.html",
     "RecipeEditorRefusalNoticeIpad820.dc.html",
+    "RecipeEditorPublicCopyIphone390.dc.html",
+    "RecipeEditorPublicCopyAndroid384.dc.html",
     "RecipeEditorSourceLockIphone390.dc.html",
     "RecipeEditorSourceLockAndroid384.dc.html",
     "RecipeEditorSourceLockIpad820.dc.html",
     "RecipeEditorSourceSheetIphone390.dc.html",
     "RecipeEditorSourceSheetAndroid384.dc.html",
-    "RecipeEditorSourceSheetIpad820.dc.html",
-    "RecipeEditorPublicCopyIphone390.dc.html",
-    "RecipeEditorPublicCopyAndroid384.dc.html"
+    "RecipeEditorSourceSheetIpad820.dc.html"
   ],
   "notes": {
     "row0": {

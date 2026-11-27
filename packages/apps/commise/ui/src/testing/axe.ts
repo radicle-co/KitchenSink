@@ -1,9 +1,11 @@
 /**
  * @module testing/axe — the ONE axe check every web component test runs: the WCAG 2.1 A and AA rules, with colour
- * contrast off because jsdom cannot compute colour (the browser spec checks it). The rule set is stated here and
- * nowhere else, so a test never copies it. {@link toHaveNoViolations} is registered by `testing/axeSetup`.
+ * contrast off because jsdom cannot compute colour (the browser spec checks it). The tags are `testing/axeTags`, which
+ * the browser spec reads too, so a test never copies the rule set. {@link toHaveNoViolations} is registered by `testing/axeSetup`.
  */
 import { configureAxe, toHaveNoViolations } from 'jest-axe';
+
+import { AXE_TAGS } from './axeTags.js';
 
 /** The matcher `toHaveNoViolations`, which `jest-axe` types for Jest only. */
 interface AxeMatchers<R = unknown> {
@@ -27,7 +29,7 @@ declare module 'vitest' {
  * @sideEffect Runs axe-core over the document.
  */
 export const axe = configureAxe({
-    runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] },
+    runOnly: { type: 'tag', values: [...AXE_TAGS] },
     rules: { 'color-contrast': { enabled: false } },
 });
 

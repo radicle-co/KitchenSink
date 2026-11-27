@@ -52,6 +52,7 @@
         "./testing/measure-text": "./src/testing/measureText.ts",
         "./testing/window-snackbar": "./src/testing/windowSnackbar.tsx",
         "./testing/axe": "./src/testing/axe.ts",
+        "./testing/axe-tags": "./src/testing/axeTags.ts",
         "./testing/axe-setup": "./src/testing/axeSetup.ts",
         "./button": "./src/button/index.ts",
         "./icon-button": "./src/iconButton/index.ts",

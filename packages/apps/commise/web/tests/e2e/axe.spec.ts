@@ -2,6 +2,8 @@ import AxeBuilder from '@axe-core/playwright';
 import { expect, test } from '@playwright/test';
 import type { Page } from '@playwright/test';
 
+import { AXE_TAGS } from '@commise/ui/testing/axe-tags';
+
 import { route } from './utils/basePath';
 import { makeCollection, makeRecipeDetail, mockRecipeApi, readViewerAppId } from './utils/recipeApi';
 import { signInWithTicket } from './utils/auth';
@@ -18,7 +20,6 @@ import { signInWithTicket } from './utils/auth';
  * Known limit: an entry names a rule, not an element, so a second element that breaks the same rule on the same page
  * passes. Narrow the entry to the element when a page has more than one.
  */
-const TAGS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'] as const;
 
 /** A rule that fails today on one page: the rule id, the page's path, and the issue that tracks the fix. */
 interface KnownViolation {
@@ -39,7 +40,7 @@ const RECIPE_TITLE = 'Axe Check Soup';
 
 /** Checks a page: its violated rules must be exactly the known ones for it, and a failure names the elements. */
 async function expectOnlyKnown(page: Page, at: PagePath): Promise<void> {
-    const { violations } = await new AxeBuilder({ page }).withTags([...TAGS]).analyze();
+    const { violations } = await new AxeBuilder({ page }).withTags([...AXE_TAGS]).analyze();
     const known = KNOWN.filter((entry) => entry.page === at).map((entry) => entry.rule);
     const where = violations.map(
         (violation) => `${violation.id}: ${violation.nodes.map((node) => node.html).join(' | ')}`,

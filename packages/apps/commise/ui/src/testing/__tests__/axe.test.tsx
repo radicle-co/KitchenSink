@@ -23,4 +23,11 @@ describe('the axe check', () => {
 
         expect(() => expect(results).toHaveNoViolations()).toThrow(/<input[\s\S]*Form elements must have labels/u);
     });
+
+    it('judges the AA rules too: an input with a name but an invalid autocomplete token fails', async () => {
+        const { container } = render(<input aria-label="Name" autoComplete="nope" />);
+        const results = await axe(container);
+
+        expect(() => expect(results).toHaveNoViolations()).toThrow(/autocomplete-valid/u);
+    });
 });

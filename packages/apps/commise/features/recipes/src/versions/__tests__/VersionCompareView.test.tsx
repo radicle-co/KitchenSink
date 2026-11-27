@@ -111,6 +111,22 @@ describe('VersionCompareView (web)', () => {
         expect(onClose).toHaveBeenCalledTimes(1);
     });
 
+    // New: the close control is the shared icon button in muted ink, with a 24 glyph.
+    it('draws its close control as the shared icon button', () => {
+        render(
+            <VersionCompareView
+                open
+                version={old}
+                diff={compareWithCurrent(old, current, 'en', lineNames)}
+                onClose={vi.fn()}
+            />,
+        );
+        const close = screen.getByRole('button', { name: 'Close compare' });
+
+        expect(close.className.split(' ')).toEqual(expect.arrayContaining(['size-[44px]', 'text-ink-muted']));
+        expect(close.querySelector('svg')?.getAttribute('width')).toBe('24');
+    });
+
     it('renders nothing while closed', () => {
         render(<VersionCompareView open={false} onClose={vi.fn()} />);
 

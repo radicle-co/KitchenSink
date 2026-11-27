@@ -27,12 +27,12 @@ import * as RadixPopover from '@radix-ui/react-popover';
 import { useContext, useId, useRef, useState, type FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
+import { IconButton } from '../iconButton/IconButton.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import type { PopoverProps } from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
-import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /**
  * The busy glyph, in the icon's own box: `currentColor`, and still under `prefers-reduced-motion` (it then shows as a
@@ -117,12 +117,7 @@ export const Popover: FC<PopoverProps> = ({
                             {typeof children === 'function' ? children(close) : children}
                         </div>
                     </div>
-                    <RadixPopover.Close
-                        aria-label={closeLabel}
-                        className={`flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink-muted transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
-                    >
-                        <Icon name="x" size={20} />
-                    </RadixPopover.Close>
+                    <IconButton icon="x" accessibilityLabel={closeLabel} tone="inkMuted" onPress={close} />
                 </RadixPopover.Content>
             </RadixPopover.Portal>
         </RadixPopover.Root>

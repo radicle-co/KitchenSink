@@ -33,6 +33,7 @@ import { useContext, useId, useRef, useState, type FC } from 'react';
 import { BUSY_CONTROL_CLASS } from '../button/busyControlProps.js';
 import { HERO_DISC_CLASS } from '../heroButton/HeroButton.js';
 import { Icon } from '../icon/Icon.js';
+import { ICON_BUTTON_CLASS, ICON_BUTTON_DISABLED_CLASS, ICON_BUTTON_TONE_CLASS } from '../iconButton/IconButton.js';
 import { PopupInsetsContext, type PopupInsets } from '../popupInsets/popupInsetsContext.js';
 import {
     actionNamed,
@@ -41,16 +42,12 @@ import {
     type ActionMenuProps,
     type ActionMenuSnapshot,
 } from './props.js';
+import { PressScale } from '../pressScale/PressScale.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
-import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { TOUCH_TARGET_CLASS } from '../touchTarget/touchTargetClass.js';
 import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
 
 /** The space the menu keeps from the viewport's edge, and from the page's chrome. */
 const EDGE = 8;
-
-/** The bare ⋯ of a row: 44 px, with a hover wash. */
-const PLAIN_TRIGGER_CLASS = `inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-full text-ink transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`;
 
 /** An item: a 44 px row, highlighted in `pearl`. */
 const ITEM = `flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 text-body outline-none ${PRESS_FILL_CLASS.highlighted} data-[disabled]:cursor-default data-[disabled]:opacity-60`;
@@ -136,16 +133,24 @@ export const ActionMenu: FC<ActionMenuProps> = ({
         setOpen(next);
     };
 
+    const trigger = (
+        <DropdownMenu.Trigger
+            ref={triggerNode}
+            aria-label={triggerLabel}
+            aria-disabled={unavailable || undefined}
+            className={
+                appearance === 'disc'
+                    ? `${HERO_DISC_CLASS} ${BUSY_CONTROL_CLASS}`
+                    : `${ICON_BUTTON_CLASS} ${ICON_BUTTON_TONE_CLASS.ink} ${ICON_BUTTON_DISABLED_CLASS}`
+            }
+        >
+            <Icon name="ellipsis" size={24} />
+        </DropdownMenu.Trigger>
+    );
+
     return (
         <DropdownMenu.Root open={open} onOpenChange={onOpenChange}>
-            <DropdownMenu.Trigger
-                ref={triggerNode}
-                aria-label={triggerLabel}
-                aria-disabled={unavailable || undefined}
-                className={`${appearance === 'disc' ? HERO_DISC_CLASS : PLAIN_TRIGGER_CLASS} ${BUSY_CONTROL_CLASS}`}
-            >
-                <Icon name="ellipsis" size={24} />
-            </DropdownMenu.Trigger>
+            {appearance === 'disc' ? trigger : <PressScale>{trigger}</PressScale>}
             <DropdownMenu.Portal>
                 <DropdownMenu.Content
                     align="end"

@@ -16,9 +16,10 @@
  * @pattern Adapter over `@commise/ui/text-input` — the label, glyph and clear control are the primitive's
  */
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
+import { StyleSheet, View, type TextInput as NativeTextInput } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
+import { IconButton } from '../iconButton/IconButton.native.js';
 import { FieldLabel } from '../input/FieldLabel.native.js';
 import { fieldLabelId } from '../input/props.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
@@ -26,7 +27,6 @@ import { TextInput } from '../textInput/TextInput.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SearchFieldProps } from './props.js';
-import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 import { useFocusInputOnSignal } from './useFocusInputOnSignal.native.js';
 
@@ -83,17 +83,15 @@ export const SearchField: FC<SearchFieldProps> = ({
                     style={[styles.input, { color: colors.ink }]}
                 />
                 {value === '' ? null : (
-                    <Pressable
-                        role="button"
-                        aria-label={clearLabel}
+                    <IconButton
+                        icon="x"
+                        accessibilityLabel={clearLabel}
+                        tone="inkMuted"
                         onPress={() => {
                             onChangeText('');
                             setClears((count) => count + 1);
                         }}
-                        style={[styles.clear, { minWidth: touchFloor(), minHeight: touchFloor() }]}
-                    >
-                        <Icon name="x" size={20} />
-                    </Pressable>
+                    />
                 )}
             </Surface>
         </View>
@@ -115,5 +113,4 @@ const styles = StyleSheet.create({
         paddingEnd: nativeTokens.spacing[1],
     },
     input: { flex: 1, minHeight: INPUT_MIN_HEIGHT },
-    clear: { alignItems: 'center', justifyContent: 'center', borderRadius: nativeTokens.radius.full },
 });

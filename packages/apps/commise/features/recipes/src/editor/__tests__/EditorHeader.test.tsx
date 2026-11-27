@@ -2,8 +2,8 @@
  * The web editor header at large text sizes: only the title may truncate (the H1 repeats it); the save status shows
  * nowhere else, so it wraps, and the bar has a minimum height, not a fixed one, so it grows to hold it.
  */
-import { cleanup, render, screen } from '@testing-library/react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { EditorHeader } from '../EditorHeader';
 
@@ -44,5 +44,23 @@ describe('EditorHeader (web): scaled text', () => {
 
         expect(bar.className).toMatch(/\bmin-h-14\b/);
         expect(bar.className).not.toMatch(/(^|\s)h-14\b/);
+    });
+});
+
+describe('EditorHeader (web): the close control', () => {
+    afterEach(cleanup);
+
+    // New: the × is the shared icon button, a round 44 target, not a hand-built square one.
+    it('is the shared icon button, and reports a press once', () => {
+        const onClose = vi.fn();
+        render(<EditorHeader title="Edit recipe" status={STATUS} closeLabel="Close editor" onClose={onClose} />);
+        const close = screen.getByRole('button', { name: 'Close editor' });
+
+        expect(close.className.split(' ')).toEqual(expect.arrayContaining(['rounded-full', 'size-[44px]']));
+        expect(close.className).not.toContain('rounded-md');
+
+        fireEvent.click(close);
+
+        expect(onClose).toHaveBeenCalledTimes(1);
     });
 });

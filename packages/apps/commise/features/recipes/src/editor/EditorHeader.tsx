@@ -13,9 +13,7 @@
  * @pattern Adapter over external DOM geometry — the node reaches `usePinnedFooter` through a callback ref into state
  */
 import { ActionMenu } from '@commise/ui/action-menu';
-import { Icon } from '@commise/ui/icon';
-import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
-import { TOUCH_TARGET_CLASS } from '@commise/ui/touch-target';
+import { IconButton } from '@commise/ui/icon-button';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
 import type { FC } from 'react';
 
@@ -34,14 +32,7 @@ export const EditorHeader: FC<WebEditorHeaderProps> = ({ title, status, closeLab
         id={EDITOR_HEADER_ID}
         className={`sticky top-0 z-30 flex min-h-14 items-center gap-2 border-b border-line-divider ${surfaceToneClass('paper')} px-2`}
     >
-        <button
-            type="button"
-            aria-label={closeLabel}
-            onClick={onClose}
-            className={`inline-flex ${TOUCH_TARGET_CLASS.fixed} shrink-0 items-center justify-center rounded-md text-ink ${FOCUS_RING_CLASS.offset}`}
-        >
-            <Icon name="x" size={24} />
-        </button>
+        <IconButton icon="x" accessibilityLabel={closeLabel} onPress={onClose} />
         <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3">
             <h1 className="shrink-0 truncate text-bar-title text-ink">{title}</h1>
             {status !== undefined && <p className="min-w-0 text-meta text-ink-muted">{status}</p>}

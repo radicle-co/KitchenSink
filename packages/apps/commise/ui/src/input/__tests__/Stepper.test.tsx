@@ -31,6 +31,35 @@ function Servings(props: Partial<StepperProps> & { readonly initial?: number }) 
     );
 }
 
+/**
+ * The frame layer of a step button: the one bordered element in the button's seat (the nearest ancestor of the button
+ * that holds one outside the button). It throws when there is none or more than one, when the seat holds the other
+ * button, and when the frame is the button, inside it or around it.
+ */
+function frameOf(button: HTMLElement, other: HTMLElement): HTMLElement {
+    let seat = button.parentElement;
+
+    while (seat !== null) {
+        const framed = Array.from(seat.querySelectorAll<HTMLElement>('.border-line-control')).filter(
+            (candidate) => !button.contains(candidate),
+        );
+
+        if (framed.length > 0) {
+            const [frame] = framed;
+
+            if (framed.length !== 1 || seat.contains(other) || frame.contains(button)) {
+                throw new Error('The step button seat is not one button and one frame layer.');
+            }
+
+            return frame;
+        }
+
+        seat = seat.parentElement;
+    }
+
+    throw new Error('The step button has no frame layer.');
+}
+
 describe('Stepper (web)', () => {
     it('is a group named by its label, showing the value in tabular digits', () => {
         render(<Servings />);
@@ -137,25 +166,47 @@ describe('Stepper (web)', () => {
         expect(screen.getByRole('button', { name: 'Fewer' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('draws 44px round buttons with the minus and plus glyphs and the focusRing', () => {
+    // Rewritten: the button is the shared icon button over the stepper's own frame layer, in one seat. The ring
+    // and the glyph are on the button. The 44 px size, the round shape, the paper fill and the control line are on
+    // the frame layer, which is beside the button, never around it, so a dim cannot stack.
+    it('draws 44px round framed buttons with the minus and plus glyphs and the focusRing', () => {
         render(<Servings />);
 
-        for (const [name, glyph] of [
-            ['Fewer servings', 'lucide-minus'],
-            ['More servings', 'lucide-plus'],
+        for (const [name, glyph, other] of [
+            ['Fewer servings', 'lucide-minus', 'More servings'],
+            ['More servings', 'lucide-plus', 'Fewer servings'],
         ] as const) {
             const button = screen.getByRole('button', { name });
+            const frame = frameOf(button, screen.getByRole('button', { name: other }));
 
             expect(button.className.split(/\s+/u)).toEqual(
-                expect.arrayContaining([
-                    'size-[44px]',
-                    'rounded-full',
-                    'border-line-control',
-                    'focus-visible:ring-focus-ring',
-                ]),
+                expect.arrayContaining(['focus-visible:ring-focus-ring', 'size-[44px]']),
             );
             expect(button.querySelector(`svg.${glyph}`)).not.toBeNull();
+            expect(frame.className.split(/\s+/u)).toEqual(
+                expect.arrayContaining(['rounded-full', 'bg-paper', 'border-line-control']),
+            );
+            // Paint order, which jsdom cannot see: the frame sits under the button inside the seat's own stacking
+            // context. Without both classes the positioned frame paints over the button and hides its glyph.
+            expect(frame.className.split(/\s+/u)).toContain('-z-10');
+            expect(frame.parentElement?.className.split(/\s+/u)).toContain('isolate');
+            // Size: the seat is the 44 px box, and the frame fills it edge to edge.
+            expect(frame.parentElement?.className.split(/\s+/u)).toContain('size-[44px]');
+            expect(frame.className.split(/\s+/u)).toEqual(expect.arrayContaining(['absolute', 'inset-0']));
         }
+    });
+
+    // New: the whole control dims once at a bound. The frame layer goes to 40% and the icon button's own circle
+    // and glyph go to 40%, neither inside the other.
+    it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
+        render(<Servings initial={1} />);
+        const fewer = screen.getByRole('button', { name: 'Fewer servings' });
+        const more = screen.getByRole('button', { name: 'More servings' });
+
+        expect(frameOf(fewer, more).className.split(/\s+/u)).toContain('opacity-40');
+        expect(fewer.className.split(/\s+/u)).toContain('aria-disabled:opacity-40');
+        expect(frameOf(more, fewer).className.split(/\s+/u)).not.toContain('opacity-40');
+        expect(more.getAttribute('aria-disabled')).toBeNull();
     });
 
     // The row must fit 320 px at 200% text: the gap is 2, the count's MINIMUM width is 1.5rem (a minimum, so a

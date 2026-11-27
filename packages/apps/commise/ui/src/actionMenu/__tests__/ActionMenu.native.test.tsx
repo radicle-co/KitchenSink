@@ -24,12 +24,13 @@ import { formatRgb } from 'culori';
 
 import { render, renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
 import { role } from '../../tokens/colors.js';
+import { dimmedOpacity } from '../../tokens/scale.js';
 import { ActionMenu } from '../ActionMenu.native.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
 
 const state = vi.hoisted(() => ({
     modal: undefined as ComponentProps<typeof ModalType> | undefined,
-    os: undefined as 'ios' | undefined,
+    os: undefined as 'ios' | 'android' | undefined,
     /** Each menu item's hint and disabled state, by its accessibility label: what a screen reader is given. */
     items: new Map<string, { readonly hint: string | undefined; readonly disabled: boolean }>(),
 }));
@@ -93,13 +94,25 @@ const renderMenu = () => {
 };
 
 describe('ActionMenu (native)', () => {
-    it('is a named, collapsed button at least 48 dp square', () => {
+    // Rewritten: the trigger is the shared icon button, so its target is the platform touch floor (44 on iOS,
+    // 48 on Android). The row reads it on the frame inside the button, not on a min size on the button.
+    it.each([
+        ['ios', '44px'],
+        ['android', '48px'],
+    ] as const)('is a named, collapsed button at the platform touch floor (%s)', (os, side) => {
+        // The file's `react-native` mock reads the platform from `state.os`, which `beforeEach` clears.
+        state.os = os;
+
         const { trigger } = renderMenu();
-        const style = getComputedStyle(trigger);
+        const frame = trigger.firstElementChild;
+
+        if (frame === null) {
+            throw new Error('The trigger has no frame.');
+        }
 
         expect(trigger.getAttribute('aria-expanded')).toBe('false');
-        expect(Number.parseFloat(style.minWidth)).toBeGreaterThanOrEqual(48);
-        expect(Number.parseFloat(style.minHeight)).toBeGreaterThanOrEqual(48);
+        expect(getComputedStyle(frame).width).toBe(side);
+        expect(getComputedStyle(frame).height).toBe(side);
     });
 
     it('a tap opens a sheet listing the items, in order, as menu items', () => {
@@ -297,6 +310,35 @@ describe('ActionMenu (native)', () => {
 
         expect(trigger.getAttribute('aria-disabled')).toBe('true');
         expect(screen.queryByRole('menuitem')).toBeNull();
+    });
+
+    // New: the plain trigger is the shared icon button, so an unavailable one dims to the one 40% that every
+    // disabled control shares (it was 60%), and a live one is not dimmed.
+    it('dims the plain trigger to the shared disabled level only while unavailable', () => {
+        const draw = (unavailable: boolean) => (
+            <ActionMenu
+                triggerLabel="Actions for Saffron"
+                title="Saffron"
+                closeLabel="Close actions for Saffron"
+                items={[{ id: 'remove', label: 'Remove ingredient', onSelect: vi.fn() }]}
+                unavailable={unavailable}
+            />
+        );
+
+        const circleOpacity = (): string => {
+            const circle = screen.getByRole('button', { name: 'Actions for Saffron' }).firstElementChild
+                ?.firstElementChild;
+
+            return circle === undefined || circle === null ? '' : getComputedStyle(circle).opacity;
+        };
+
+        const { rerender } = render(draw(true));
+
+        expect(circleOpacity()).toBe(String(dimmedOpacity));
+
+        rerender(draw(false));
+
+        expect(circleOpacity()).not.toBe(String(dimmedOpacity));
     });
 });
 

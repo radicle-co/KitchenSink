@@ -4,9 +4,11 @@ import { fireEvent } from '@testing-library/dom';
 import { useState, type ReactElement } from 'react';
 
 import { Text } from '../../text/Text.native.js';
+import { present } from '../../testing/present.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { renderWithTamagui, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
 import { nativeTokens } from '../../tokens/native.js';
+import { dimmedOpacity } from '../../tokens/scale.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Stepper } from '../Stepper.native.js';
 import type { StepperProps } from '../props.js';
@@ -15,6 +17,35 @@ import type { StepperProps } from '../props.js';
  * Stepper (native) — `[−] value [+]`, buttons 44 pt on iOS and 48 dp on Android, the value in tabular digits, the new
  * value announced politely through `@commise/ui/live-region`, and a button at its bound disabled.
  */
+
+/**
+ * The frame layer of a step button: the one bordered element in the button's seat (the nearest ancestor of the button
+ * that holds one outside the button). It throws when there is none or more than one, when the seat holds the other
+ * button, and when the frame is the button, inside it or around it.
+ */
+function frameOf(button: HTMLElement, other: HTMLElement): HTMLElement {
+    let seat = button.parentElement;
+
+    while (seat !== null) {
+        const framed = Array.from(seat.querySelectorAll<HTMLElement>('*')).filter(
+            (candidate) => !button.contains(candidate) && getComputedStyle(candidate).borderTopWidth === '1px',
+        );
+
+        if (framed.length > 0) {
+            const [frame] = framed;
+
+            if (framed.length !== 1 || seat.contains(other) || frame.contains(button)) {
+                throw new Error('The step button seat is not one button and one frame layer.');
+            }
+
+            return frame;
+        }
+
+        seat = seat.parentElement;
+    }
+
+    throw new Error('The step button has no frame layer.');
+}
 
 afterEach(cleanup);
 
@@ -127,30 +158,48 @@ describe('Stepper (native)', () => {
         expect(screen.getByRole('button', { name: 'More servings' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    it('sizes each button at 44pt on iOS and 48dp on Android, drawing minus and plus', () => {
-        for (const [os, size] of [
-            ['ios', '44px'],
-            ['android', '48px'],
-        ] as const) {
-            withPlatformOs(os, () => {
-                const { unmount } = render(<Servings />);
+    // Rewritten: the button is the shared icon button over the stepper's own frame layer in one seat, so the size
+    // is read on that frame layer and on the button's own frame.
+    it.each([
+        ['ios', '44px'],
+        ['android', '48px'],
+    ] as const)('sizes each framed button at the touch floor on %s, drawing minus and plus', (os, size) => {
+        withPlatformOs(os, () => {
+            render(<Servings />);
 
-                for (const [name, glyph] of [
-                    ['Fewer servings', 'minus'],
-                    ['More servings', 'plus'],
-                ] as const) {
-                    const button = screen.getByRole('button', { name });
+            for (const [name, glyph, other] of [
+                ['Fewer servings', 'minus', 'More servings'],
+                ['More servings', 'plus', 'Fewer servings'],
+            ] as const) {
+                const button = screen.getByRole('button', { name });
+                const frame = frameOf(button, screen.getByRole('button', { name: other }));
+                const inner = present(button.firstElementChild, `the ${name} frame`);
 
-                    expect(getComputedStyle(button).minWidth, `${os} ${name}`).toBe(size);
-                    expect(getComputedStyle(button).minHeight, `${os} ${name}`).toBe(size);
-                    expect(button.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(
-                        glyph,
-                    );
-                }
+                expect(getComputedStyle(frame).width, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(frame).height, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(inner).width, `${os} ${name}`).toBe(size);
+                expect(getComputedStyle(inner).height, `${os} ${name}`).toBe(size);
+                expect(button.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconName']).toBe(
+                    glyph,
+                );
+            }
+        });
+    });
 
-                unmount();
-            });
-        }
+    // New: the whole control dims once at a bound. The frame layer goes to 40% and the icon button's own circle
+    // goes to 40%, neither inside the other. Its live neighbour dims neither.
+    it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
+        render(<Servings initial={1} />);
+        const fewer = screen.getByRole('button', { name: 'Fewer servings' });
+        const more = screen.getByRole('button', { name: 'More servings' });
+        const circleOf = (button: HTMLElement): Element =>
+            present(button.firstElementChild?.firstElementChild, 'the circle');
+        const dimmed = String(dimmedOpacity);
+
+        expect(getComputedStyle(frameOf(fewer, more)).opacity).toBe(dimmed);
+        expect(getComputedStyle(circleOf(fewer)).opacity).toBe(dimmed);
+        expect(getComputedStyle(frameOf(more, fewer)).opacity).not.toBe(dimmed);
+        expect(getComputedStyle(circleOf(more)).opacity).not.toBe(dimmed);
     });
 
     // Pins the row's 8 gap and the count's 24 minimum width, as inline styles that jsdom reads. It does not check the

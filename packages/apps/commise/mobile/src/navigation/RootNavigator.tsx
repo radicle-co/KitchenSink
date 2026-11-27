@@ -16,6 +16,7 @@
  *
  * @pattern Composition root — the back-intercept chain, the navigation container, the snackbar host and the root stack
  */
+import { useAuth } from '@clerk/expo';
 import { DefaultTheme, NavigationContainer, type Theme as NavigationTheme } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { BackInterceptProvider } from '@commise/ui/back-intercept';
@@ -46,6 +47,8 @@ function TaskLayout({ children }: { readonly children: JSX.Element }): JSX.Eleme
 
 /** The app's navigation and its one snackbar host. */
 export function RootNavigator(): JSX.Element {
+    // Whom the snackbars belong to: one showing never outlives the cook who raised it (sign-out, account change).
+    const { userId } = useAuth();
     const { colors, scheme } = useTheme();
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
@@ -87,7 +90,7 @@ export function RootNavigator(): JSX.Element {
                 }}
             >
                 <PopupInsetsContext value={readInsets}>
-                    <SnackbarHost>
+                    <SnackbarHost subject={userId}>
                         <RootStack.Navigator
                             screenOptions={{
                                 headerShown: false,

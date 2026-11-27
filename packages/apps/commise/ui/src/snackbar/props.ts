@@ -67,7 +67,7 @@ export interface SnackbarHostProps {
     /**
      * Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change
      * from a known subject closes the snackbar showing, so it never shows to the next person (see
-     * `SnackbarStore.observeSubject`). Web only for now.
+     * `SnackbarStore.observeSubject`).
      */
     readonly subject?: string | null;
 }

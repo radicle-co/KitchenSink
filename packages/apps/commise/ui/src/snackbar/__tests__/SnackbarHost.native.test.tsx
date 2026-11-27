@@ -228,4 +228,51 @@ describe('SnackbarHost (native): withdraw', () => {
         expect(screen.getByRole('status').textContent).toBe('');
         expect(onTimeout).not.toHaveBeenCalled();
     });
+
+    it('closes the snackbar when the subject goes from a user to null, with no action and no commit', () => {
+        const onAction = vi.fn();
+        const onTimeout = vi.fn();
+        const input = { message: 'Removed Pasta', action: { label: 'Undo', onAction }, onTimeout };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={null}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        advance(60_000);
+
+        expect(screen.getByRole('status').textContent).toBe('');
+        expect(onAction).not.toHaveBeenCalled();
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('closes the snackbar on a change of account, and keeps it while the subject is still loading', () => {
+        const input = { message: 'Removed Pasta' };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={undefined}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject="u2">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(screen.getByRole('status').textContent).toBe('');
+    });
 });

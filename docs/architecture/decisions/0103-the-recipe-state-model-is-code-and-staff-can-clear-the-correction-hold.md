@@ -11,7 +11,7 @@
   rest of ADR-0100 stands, including the CHECK that refuses a held public recipe.
 - **Relates to:** [ADR-0074](0074-content-source-check.md), whose read rule the model cites and does not own.
   [ADR-0038](0038-authored-food-withdrawal.md): the clause-level `Supersedes:` form.
-- **Drivers:** the owner's rulings of 2026-11-27, and the state-model plan (draft 3).
+- **Drivers:** the owner's rulings of 2026-11-27, and the state-model plan.
 
 ## Context
 
@@ -59,6 +59,11 @@ the recipe off Public for good, until a migration ran. Staff need a way to lift 
 3. **Holds are a set of independent facts.** Each hold is its own stored fact. A hold either forces a recipe private
    by a CHECK, or hides it from readers in the read rule, as its own conjunct beside ADR-0074's. No column holds "the"
    restriction.
+4. **Refusal names on the wire.** `details.reason` takes the `REFUSAL_*` names, which is a one-way door once a client
+   ships. For a window the server and the client accept the old and the new reason together. An installed mobile
+   client sends and reads the old reason strings, so the client accepts both for one release. The server keeps sending
+   the old value until the mobile floor version reads the new one. Then the old values go. The top-level error codes
+   stay.
 
 ## Consequences
 
@@ -69,9 +74,6 @@ the recipe off Public for good, until a migration ran. Staff need a way to lift 
 - **Trust model.** The database proves only that a clear record for the same recipe was written in the same
   transaction. The service's database role can write both the record and the column. A compromised service can clear a
   hold, and the record is the evidence. This is the same trust as for corrections (ADR-0100).
-- **Refusal names on the wire.** `details.reason` takes the `REFUSAL_*` names, which is a one-way door once a client
-  ships. An installed mobile client sends and reads the old reason strings, so the client accepts both the old and the
-  new reason for one release. The server keeps sending the old value until the mobile floor version reads the new one.
 - The ratchet is now a ratchet with one audited exit. A forged or insider clear needs the scope and writes a record in
   the same transaction. It cannot make a recipe public by itself.
 - The 0092 column comment, "never cleared", changes with the migration that adds the clear.

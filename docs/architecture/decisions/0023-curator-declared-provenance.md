@@ -2,7 +2,7 @@
 
 - **Status**: Accepted
 - **Date**: 2026-08-19
-- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): the three columns it names are now `recipes.origin`. The rule stands.
+- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): its `sourceType` (`imported_public`, `imported_physical`, `imported_paid`) is now `recipes.origin` (`publicDomain`, `book`, `paidSite`). The rule stands.
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): §1: the curator grant carries a public-domain record, judged by the rolling gate in `016-FR-015k`, and public-domain text under the grant is open to the web when that record passes. No `sourceType` value is added. Every other decision here stands.
 - **Amended by:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md): §1a: `POST /api/v1/recipes` also takes the cook's `statement` (a pasted web link), and a `PATCH` takes it until the first publish. The statement never reads the grant and sets a source kind, so a web copy is private only. The curator's `source` and its grant are unchanged.
 - **Amended by:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md): §1b, the sentence on the current label: the cook's one-way downgrade starts only from a confirmed "I wrote this".

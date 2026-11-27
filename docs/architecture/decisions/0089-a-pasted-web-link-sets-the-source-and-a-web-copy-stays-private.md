@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-10
-- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): the three columns it names are now `recipes.origin`. The rule stands.
+- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): its `sourceKind` and `sourceType` are now `recipes.origin` (`webPage`, `book`, `paidSite`). The rule stands.
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md) §1a: `POST /api/v1/recipes` now also takes the cook's
   `statement`, and a `PATCH` takes it, also after the first publish. The curator's `source` and its grant are unchanged.
   [ADR-0072](0072-bulk-recipe-import.md) §9: the statement list and the table of labels. A web statement is private

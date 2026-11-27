@@ -123,14 +123,14 @@
         {
             "name": "ORIGIN_OWN",
             "label": "Written by you (owner), Written by {cook} (reader)",
-            "labelKey": "ORIGIN_OWN.owner, ORIGIN_OWN.reader",
+            "labelKey": ["ORIGIN_OWN.owner", "ORIGIN_OWN.reader"],
             "viewer": "both"
         },
         {
             "name": "ORIGIN_WEB_PAGE",
             "label": "From a web page",
             "labelKey": "ORIGIN_WEB_PAGE",
-            "viewer": "owner"
+            "viewer": "owner (private only)"
         },
         {
             "name": "ORIGIN_BOOK",
@@ -182,8 +182,8 @@
         },
         {
             "name": "VIEW_ADAPTED_BY_COOK",
-            "label": "Adapted by you (owner), Adapted by {cook} (reader); also .heading, .headingNoCitation.book|paidSite|webPage, .earnedToast",
-            "labelKey": "VIEW_ADAPTED_BY_COOK.owner, VIEW_ADAPTED_BY_COOK.reader",
+            "label": "Adapted by you (owner), Adapted by {cook} (reader). Headings: Adapted by you from | Adapted by {cook} from; ...from a cookbook or magazine | a paid website | a web page (both forms). Toast (owner only): Changes saved. This recipe is now marked Adapted by you.",
+            "labelKey": ["VIEW_ADAPTED_BY_COOK.owner", "VIEW_ADAPTED_BY_COOK.reader"],
             "viewer": "both"
         },
         {
@@ -207,7 +207,7 @@
         {
             "name": "VIEW_HIDDEN_AFTER_REPORT",
             "label": "Hidden after a report. Only you can see it now. (owner), This recipe isn’t available right now. (reader)",
-            "labelKey": "publicPage.hiddenOwner, publicPage.hiddenReader",
+            "labelKey": ["publicPage.hiddenOwner", "publicPage.hiddenReader"],
             "viewer": "both"
         },
         {
@@ -241,21 +241,15 @@
             "viewer": "any"
         },
         {
-            "name": "publicPage.report",
+            "name": "REPORT_ACTION",
             "label": "Report a problem",
             "labelKey": "publicPage.report",
             "viewer": "any"
         },
         {
-            "name": "publicPage.reportSignIn.title",
-            "label": "Sign in to report a problem",
-            "labelKey": "publicPage.reportSignIn.title",
-            "viewer": "signed-out reader"
-        },
-        {
-            "name": "publicPage.reportSignIn.body",
-            "label": "A report hides this recipe until we check it, so we need to know who sent it.",
-            "labelKey": "publicPage.reportSignIn.body",
+            "name": "REPORT_SIGN_IN",
+            "label": "Sign in to report a problem. A report hides this recipe until we check it, so we need to know who sent it.",
+            "labelKey": ["publicPage.reportSignIn.title", "publicPage.reportSignIn.body"],
             "viewer": "signed-out reader"
         },
         {
@@ -266,11 +260,29 @@
             "hint": "It stays private. You can say where it’s from later."
         },
         {
-            "name": "ORIGIN_WEB_PAGE.withSite",
+            "name": "ORIGIN_WEB_PAGE_WITH_SITE",
             "label": "From {site}",
             "labelKey": "ORIGIN_WEB_PAGE.withSite",
-            "viewer": "any",
+            "viewer": "owner (private only)",
             "note": "{site} is the bare host. With no site: From a web page. Not shown under the Source heading."
+        },
+        {
+            "name": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "label": "Saved as private",
+            "labelKey": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "viewer": "owner"
+        },
+        {
+            "name": "VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "label": "Made private after a check",
+            "labelKey": "VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "viewer": "owner"
+        },
+        {
+            "name": "REPORT_LIMIT_REACHED",
+            "label": "You’ve reported a lot of recipes today. Try again tomorrow. (proposal; 020 sets the limit)",
+            "labelKey": "REPORT_LIMIT_REACHED",
+            "viewer": "signed-in reader"
         }
     ],
     "refusals": [
@@ -278,19 +290,22 @@
             "reason": "policy.webPage",
             "name": "REFUSAL_POLICY_WEB_PAGE",
             "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
-            "labelKey": "publicRefusal.policyWebPage"
+            "labelKey": "publicRefusal.policyWebPage",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "policy.book",
             "name": "REFUSAL_POLICY_BOOK",
             "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
-            "labelKey": "publicRefusal.policyBook"
+            "labelKey": "publicRefusal.policyBook",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "policy.paidSite",
             "name": "REFUSAL_POLICY_PAID_SITE",
             "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
-            "labelKey": "publicRefusal.policyPaidSite"
+            "labelKey": "publicRefusal.policyPaidSite",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "fromPerson",
@@ -493,7 +508,7 @@
             "from": "ORIGIN_UNSTATED, or any origin while SOURCE_UNCONFIRMED",
             "event": "ANSWER_*",
             "actor": "cook",
-            "guard": "SOURCE_UNCONFIRMED, and not from a person (stored, or attested with no statement); web, book and paid need a link or citation, which appends evidence and forces private",
+            "guard": "sourceLockOf = open (so SOURCE_UNCONFIRMED, and not from a person, stored or attested); web, book and paid need a link or citation, which appends evidence and forces private",
             "to": "the answer's origin"
         },
         {
@@ -607,7 +622,7 @@
             "event": "REVIEW_FOUND_TOO_CLOSE",
             "actor": "system",
             "guard": "the async review of a public recipe",
-            "to": "PUBLISHED,PRIVATE at once; owner notified; VIEW_TOO_CLOSE_AFTER_REVIEW",
+            "to": "PUBLISHED,PRIVATE at once; owner notified; VIEW_TOO_CLOSE_AFTER_REVIEW. With no free private slot it still goes private, over the limit (FORCE_PRIVATE, ADR-0073)",
             "pending": "the review feature"
         },
         {
@@ -693,21 +708,39 @@
         },
         {
             "axis": "lifecycleAudience",
-            "from": "PUBLISHED,PUBLIC, with a source check pending",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
             "event": "SAVE",
             "actor": "cook",
             "guard": "the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Today the editor sends it private (#412), which this replaces",
             "to": "PUBLISHED,PUBLIC, with the check rerun",
-            "pending": "020, P10 (#412)"
+            "pending": "P10 (#412)"
         },
         {
             "axis": "lifecycleAudience",
-            "from": "PUBLISHED,PUBLIC, with a source check pending",
-            "event": "RERUN_CHECK_FAILS",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "RERUN_CHECK_FAILS_IN_SAVE",
             "actor": "system",
-            "guard": "the check on the new text fails",
-            "to": "PUBLISHED,PRIVATE, with VIEW_TOO_CLOSE_SAVED_PRIVATE",
-            "pending": "020, P10 (#412)"
+            "guard": "the check on the new text fails inside the save",
+            "to": "PUBLISHED,PRIVATE, with VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "pending": "P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "RERUN_CHECK_FAILS_LATER",
+            "actor": "system",
+            "guard": "the check fails after the cook left the editor. With no free private slot it still goes private, over the limit (FORCE_PRIVATE, ADR-0073), and is not refused",
+            "to": "PUBLISHED,PRIVATE, with VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "pending": "P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "SITE_CLAIM_NOT_CONFIRMED",
+            "actor": "system",
+            "guard": "once 016 FR-069 site claims exist: the claim to the site is not confirmed",
+            "to": "PUBLISHED,PRIVATE, with the box line: We couldn’t confirm that {site} is your site, so this recipe can’t be public.",
+            "pending": "016 FR-069"
         }
     ],
     "creations": [
@@ -911,5 +944,12 @@
         "CREDIT_*",
         "COOKING_SESSION_*",
         "SOURCE_ROW_*"
+    ],
+    "decisions": [
+        {
+            "id": "Q16",
+            "decision": "A cook saves an edit to a public recipe whose source holds it off Public: it stays public and the check reruns on the new text. It goes private only if the check fails (P10, #412).",
+            "by": "owner, 2026-11-27"
+        }
     ]
 }

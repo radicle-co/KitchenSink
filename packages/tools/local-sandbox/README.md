@@ -37,3 +37,16 @@ there wins over the shift from `LOCAL_SANDBOX_PORT`.
   closed. Once every checkout has this change, the limit is gone.
 - The services' LOCAL e2e suites use the default stack's ports from any checkout, with the variable set or
   not. A session on another stack that runs them writes test data into the default stack.
+
+## The rerun limit of `maestro:lanes`
+
+A flow that failed twice gets no third run. The door counts failed runs for each flow on one platform (and one iOS
+device), one HEAD commit and one flow file. A new commit or a fixed flow file starts the count again. A lane that
+ended before its flow gave a result counts as a failure. A pass clears the count. A run that never reached a lane
+counts nothing. The history is `rerunHistory.json` in the state folder, and entries older than 7 days are dropped.
+
+When the door refuses, it exits with code 3 and starts no service, user or device. File a problem report, then rerun
+with `MAESTRO_PROBLEM='<reference>'`. A reference buys one run. A one-off flow is counted by its file name and
+content, not by its run folder. A problem report is the written account of a harness failure that you give to the
+people who own the test tools. A run stopped by the operator or killed from outside counts nothing, so the limit is a
+guard rail and not a security boundary.

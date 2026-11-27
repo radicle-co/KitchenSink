@@ -11,7 +11,7 @@ import { setImmediate } from 'node:timers/promises';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { NEVER_LOST, type DeviceAdapter, type LanePlatform, type LaneSpec } from '../laneTypes.js';
-import { runLaneRun, type LaneRunDeps } from '../laneRun.js';
+import { RERUN_REFUSED_EXIT, runLaneRun, type LaneRunDeps } from '../laneRun.js';
 import { spawnRunner, type LaneChild } from '../laneProcess.js';
 import type { SharedServices } from '../sharedServices.js';
 import type { StopSignal } from '../stopGroups.js';
@@ -1453,5 +1453,224 @@ describe('runLaneRun: a flow passes only on a recorded pass, and the door says s
 
         expect(resultLines(events)).toEqual(['android oneOff/run1/shots: NO RESULT, screenshots not evidence']);
         expect(code).not.toBe(0);
+    });
+});
+
+describe('runLaneRun: the rerun limit', () => {
+    const noLanes = [
+        'startServices',
+        'createRunUsers',
+        'resetLanes',
+        'setupLane',
+        'prepareHost',
+        'startDevice',
+        'stopServices',
+    ];
+
+    const started = (events: readonly string[]): string[] =>
+        events.filter((event) => noLanes.some((word) => event.startsWith(word)));
+
+    const results = (flows: Readonly<Record<string, 'passed' | 'failed' | 'skipped'>>): Partial<LaneRunDeps> => ({
+        selectFlows: () => Promise.resolve({ flows: Object.keys(flows), notes: [], owed: [] }),
+        pack: () => Promise.resolve(Object.keys(flows)),
+        checkScreens: () =>
+            Promise.resolve({ code: 0, results: new Map([['android', new Map(Object.entries(flows))]]) }),
+    });
+
+    it('asks once, with the flows each platform will run, before any service, user or device', async () => {
+        const asked = vi.fn((): readonly string[] => []);
+        const { deps, events } = harness({ checkRerun: asked, recordRerun: vi.fn() });
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], requested: 1, selection: 'all' });
+
+        expect(asked).toHaveBeenCalledTimes(1);
+        expect(asked).toHaveBeenCalledWith([
+            { platform: 'android', flows: ['a', 'b', 'c', 'd'] },
+            { platform: 'ios', flows: ['a', 'b', 'c', 'd'] },
+        ]);
+        expect(events.indexOf('lock')).toBeLessThan(events.indexOf('startServices'));
+    });
+
+    it('refuses with its own exit code, starts nothing and releases the lock (mutant: it still starts)', async () => {
+        const refusal = 'maestro:lanes: refused a (android) at 1a2b3c4: 2 failed runs; file a problem report';
+        const record = vi.fn();
+        const { deps, events } = harness({ checkRerun: () => [refusal], recordRerun: record });
+
+        const code = await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(code).toBe(RERUN_REFUSED_EXIT);
+        expect(code).not.toBe(1);
+        expect(events).toContain(`log ${refusal}`);
+        expect(started(events)).toEqual([]);
+        expect(events.at(-1)).toBe('unlock');
+        expect(record).not.toHaveBeenCalled();
+    });
+
+    it('refuses before a preflight too, because a preflight can touch the Mac', async () => {
+        const { deps, events } = harness({ checkRerun: () => ['refused'], recordRerun: vi.fn() });
+        const preflight = vi.fn();
+
+        await runLaneRun(
+            { ...deps, adapterFor: (platform) => ({ ...fakeAdapter(events, platform), preflight }) },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        expect(preflight).not.toHaveBeenCalled();
+    });
+
+    it('does not ask when no platform has a flow to run, so a run of nothing is never refused', async () => {
+        const asked = vi.fn((): readonly string[] => []);
+        const record = vi.fn();
+        const { deps } = harness({
+            checkRerun: asked,
+            recordRerun: record,
+            selectFlows: () => Promise.resolve({ flows: [], notes: [], owed: [] }),
+        });
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).toBe(0);
+        expect(asked).not.toHaveBeenCalled();
+        expect(record).not.toHaveBeenCalled();
+    });
+
+    it('records a pass as not failed and any other ending as failed (mutant: a skip counts as a pass)', async () => {
+        const record = vi.fn();
+        const { deps } = harness({
+            checkRerun: () => [],
+            recordRerun: record,
+            ...results({ a: 'passed', b: 'failed', c: 'skipped' }),
+            // d has no recorded result at all: the lane stopped quietly.
+            selectFlows: () => Promise.resolve({ flows: ['a', 'b', 'c', 'd'], notes: [], owed: [] }),
+            pack: () => Promise.resolve(['a', 'b', 'c', 'd']),
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(record).toHaveBeenCalledTimes(1);
+        expect(record).toHaveBeenCalledWith([
+            { platform: 'android', flow: 'a', failed: false },
+            { platform: 'android', flow: 'b', failed: true },
+            { platform: 'android', flow: 'c', failed: true },
+            { platform: 'android', flow: 'd', failed: true },
+        ]);
+    });
+
+    it('records each platform’s flows under its own platform', async () => {
+        const record = vi.fn();
+        const { deps } = harness({
+            checkRerun: () => [],
+            recordRerun: record,
+            checkScreens: () =>
+                Promise.resolve({
+                    code: 0,
+                    results: new Map<string, ReadonlyMap<string, 'passed' | 'failed'>>([
+                        ['android', new Map([['a', 'passed']])],
+                        ['ios', new Map([['a', 'failed']])],
+                    ]),
+                }),
+            selectFlows: () => Promise.resolve({ flows: ['a'], notes: [], owed: [] }),
+            pack: () => Promise.resolve(['a']),
+        });
+
+        await runLaneRun(deps, { platforms: ['android', 'ios'], requested: 1, selection: 'all' });
+
+        expect(record).toHaveBeenCalledWith([
+            { platform: 'android', flow: 'a', failed: false },
+            { platform: 'ios', flow: 'a', failed: true },
+        ]);
+    });
+
+    it('records a one-off by the id it was staged under', async () => {
+        const record = vi.fn();
+        const ids = ['oneOff/run1/shots'];
+        const { deps } = harness({
+            checkRerun: () => [],
+            recordRerun: record,
+            stageOneOffs: () => ({ ids, remove: () => undefined }),
+            checkScreens: () => Promise.resolve({ code: 0, results: new Map([['android', new Map()]]) }),
+        });
+
+        await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        expect(record).toHaveBeenCalledWith([{ platform: 'android', flow: 'oneOff/run1/shots', failed: true }]);
+    });
+
+    it('counts every flow as failed when the lane was lost before a result (mutant: it counts nothing)', async () => {
+        let loseTunnel!: (error: Error) => void;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const record = vi.fn();
+        const { events, deps } = harness({ checkRerun: () => [], recordRerun: record });
+
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: () =>
+                    fakeLaneChild({
+                        onStart: () => {
+                            setTimeout(() => {
+                                loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                            }, 20);
+                        },
+                        onStop: (_signal, finish) => {
+                            finish(143);
+                        },
+                    }),
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited');
+        expect(record).toHaveBeenCalledWith(
+            ['a', 'b', 'c', 'd'].map((flow) => ({ platform: 'android', flow, failed: true })),
+        );
+    });
+
+    it('counts nothing when the run failed before any lane started (mutant: a pre-lane failure counts)', async () => {
+        const record = vi.fn();
+        const { deps } = harness({
+            checkRerun: () => [],
+            recordRerun: record,
+            createRunUsers: () => Promise.reject(new Error('Clerk refused the erasure subject')),
+        });
+
+        await expect(runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).rejects.toThrow(
+            'Clerk refused',
+        );
+        expect(record).not.toHaveBeenCalled();
+    });
+
+    it('counts nothing for a run the operator stopped', async () => {
+        const record = vi.fn();
+        let stopped = false;
+        const { deps } = harness({
+            checkRerun: () => [],
+            recordRerun: record,
+            aborted: () => stopped,
+            spawnLane: () =>
+                fakeLaneChild({
+                    onStart: () => {
+                        stopped = true;
+                    },
+                    onStop: (_signal, finish) => {
+                        finish(143);
+                    },
+                }),
+        });
+        const run = runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
+
+        // The operator's stop ends the fake lane, as the signal handler does.
+        await setImmediate();
+        const code = await Promise.race([run, new Promise<number>((resolve) => setTimeout(() => resolve(-1), 3000))]);
+
+        expect(record).not.toHaveBeenCalled();
+        expect(code).not.toBe(RERUN_REFUSED_EXIT);
+    });
+
+    it('takes no check and no record when the door brings none (the existing runs are unchanged)', async () => {
+        const { deps } = harness(results({ a: 'passed' }));
+
+        expect(await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' })).toBe(0);
     });
 });

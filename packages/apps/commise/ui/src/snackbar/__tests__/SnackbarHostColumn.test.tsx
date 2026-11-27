@@ -7,7 +7,7 @@ import { SnackbarHost } from '../SnackbarHost.js';
 import { useSnackbar } from '../useSnackbar.js';
 
 /**
- * Where the web host centres the snackbar across the viewport (issue 508, designer D21 and D95): over the content
+ * Where the web host centres the snackbar across the viewport (issue 508): over the content
  * column the page states, never over the sidebar, and over the whole viewport where no page states one. The column is a
  * measured box, so a change of it (a sidebar collapse) moves the status region with no fixed sidebar width anywhere.
  * Written before the change.

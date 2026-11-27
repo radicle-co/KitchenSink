@@ -5,9 +5,12 @@
  * with the text: an icon-only control keeps its pixel size. A press fills the circle with the surface's press row, and
  * a disabled control dims to 40% and cannot be pressed. Styled with Tamagui only (ADR-0080).
  *
- * Presentational: props → JSX, with no data, no mutation and no effect of its own.
+ * Presentational: props → JSX, with no data and no mutation. Its one effect is the host's focus request, taken once
+ * through `useFocusRequest`.
  *
  * @pattern Decorator — `PressScale` adds the press motion and owns the one `Pressable`
+ * @pattern Adapter over the screen-reader focus API — a level-triggered focus request moves the cursor to the
+ *     `Pressable` through `PressScale`'s handle (`AccessibilityInfo.sendAccessibilityEvent` has no declarative form).
  */
 import { useComposedRefs } from '@radix-ui/react-compose-refs';
 import { useRef, type FC, type Ref } from 'react';
@@ -74,7 +77,13 @@ export const IconButton: FC<IconButtonNativeProps> = ({
     const node = useRef<NativeView>(null);
     // The host's own `ref` and this button's focus request name the same node.
     const composed = useComposedRefs(ref, node);
-    useFocusRequest(focusRequested, () => moveScreenReaderFocus(node.current), onFocusRequestHandled);
+    useFocusRequest(
+        focusRequested,
+        () => {
+            moveScreenReaderFocus(node.current);
+        },
+        onFocusRequestHandled,
+    );
 
     return (
         <PressScale

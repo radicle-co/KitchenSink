@@ -5,7 +5,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import type { TimerRowAction } from '../props.js';
-import { timerRowActions } from '../timerRowActions.js';
+import { timerRowActions, type TimerActionSlot } from '../timerRowActions.js';
 
 const action = (label: string): TimerRowAction => ({ label, onPress: vi.fn<() => void>() });
 
@@ -31,7 +31,7 @@ describe('timerRowActions', () => {
     });
 
     it('keeps one slot for Pause and Resume, so the button is the same one', () => {
-        const slotOf = (state: Parameters<typeof timerRowActions>[0]): string | undefined =>
+        const slotOf = (state: Parameters<typeof timerRowActions>[0]): TimerActionSlot | undefined =>
             timerRowActions(state)[0]?.slot;
         const a = action('a');
 

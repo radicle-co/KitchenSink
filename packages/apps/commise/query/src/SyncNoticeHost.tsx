@@ -15,6 +15,7 @@
  * @pattern Orchestration — it reads the queue's facts, maps them through pure Specifications, and hands the result
  *     to presentational leaves; it renders no markup of its own.
  */
+import { useWindowOpen } from '@commise/ui/snackbar';
 import { SyncNotice, SyncNoticeStack, UnreadableWorkNotice } from '@commise/ui/sync-notice';
 import { useState, type FC } from 'react';
 
@@ -40,6 +41,8 @@ export interface SyncNoticeHostProps {
 /** Renders the app-wide connectivity + unsynced-work notice. */
 export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) => {
     const offline = useIsOffline();
+    // While a window is open over the cooking screen it speaks the title itself, so the page notice stays silent.
+    const windowOpen = useWindowOpen();
     const { pendingCount, failures, unreadableCount } = useSyncQueue();
     const parkedCount = failures.length;
     // "Back online" needs a past offline spell, which the queue's facts do not carry: kept here, derived during render
@@ -66,6 +69,8 @@ export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) 
         ? cookingNoticeStateOf(offline, copy)
         : syncNoticeState({ offline, pendingCount, parkedCount, wasOffline: recovering }, copy);
 
+    const quiet = cooking && windowOpen;
+
     return (
         <SyncNoticeStack active={unreadable || state.kind !== 'hidden'}>
             <UnreadableWorkNotice
@@ -77,7 +82,7 @@ export const SyncNoticeHost: FC<SyncNoticeHostProps> = ({ copy, form = 'app' }) 
                     setDismissedAt(unreadableCount);
                 }}
             />
-            <SyncNotice state={state} regionLabel={copy.regionLabel} />
+            <SyncNotice state={state} regionLabel={copy.regionLabel} quiet={quiet} />
         </SyncNoticeStack>
     );
 };

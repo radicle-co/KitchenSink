@@ -17,10 +17,12 @@ import { Surface } from '../surfaceTone/Surface.js';
 import type { SyncNoticeProps } from './props.js';
 
 /** The app-wide connectivity + unsynced-work notice. */
-export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel }) => (
+export const SyncNotice: FC<SyncNoticeProps> = ({ state, regionLabel, quiet = false }) => (
     // ⚠️ The region is mounted even while hidden, so a state change ANNOUNCES. A region that appears with its
     // text already in place is not reliably read out — the same reason `RefreshNotice` mounts its own empty.
-    <div role="status" aria-label={regionLabel} className="px-4">
+    // ⚠️ `quiet` drops the role AND the name, never adds `aria-live="off"`: a name on a div with no role is
+    // prohibited by ARIA 1.2, and an `aria-live` attribute would exempt the notice from the dialog's hiding.
+    <div role={quiet ? undefined : 'status'} aria-label={quiet ? undefined : regionLabel} className="px-4">
         {state.kind !== 'hidden' && (
             <Surface tone="muted" className="rounded-lg px-4 py-3">
                 <p className="text-body-sm font-semibold text-ink">{state.title}</p>

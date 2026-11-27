@@ -82,3 +82,34 @@ describe('SyncNotice (web)', () => {
         expect(region.querySelectorAll('p')).toHaveLength(1);
     });
 });
+
+describe('SyncNotice (web) while a window is open over it', () => {
+    const offline = { kind: 'offline', title: 'You’re offline' } as const;
+
+    it('drops its status role and its name, and keeps its text, so it cannot speak', () => {
+        render(<SyncNotice state={offline} regionLabel={LABEL} quiet />);
+
+        const region = screen.getByText('You’re offline').closest('div.px-4');
+
+        // Kills: the prop ignored (the page notice speaks as well as the window), and a name kept on a role-less div,
+        // which ARIA 1.2 prohibits.
+        expect(region?.getAttribute('role')).toBeNull();
+        expect(region?.getAttribute('aria-label')).toBeNull();
+        // Kills: `aria-live="off"`, which would exempt the notice from the dialog's hiding of the page.
+        expect(region?.hasAttribute('aria-live')).toBe(false);
+        expect(screen.queryByRole('status')).toBeNull();
+        expect(screen.getByText('You’re offline')).toBeDefined();
+    });
+
+    it('is a named polite status region again once the window has closed, over the same text', () => {
+        const { rerender } = render(<SyncNotice state={offline} regionLabel={LABEL} quiet />);
+
+        rerender(<SyncNotice state={offline} regionLabel={LABEL} />);
+
+        // Kills: a leaf that stays quiet after the window closes.
+        const region = screen.getByRole('status', { name: LABEL });
+
+        expect(region.textContent).toContain('You’re offline');
+        expect(region.hasAttribute('aria-live')).toBe(false);
+    });
+});

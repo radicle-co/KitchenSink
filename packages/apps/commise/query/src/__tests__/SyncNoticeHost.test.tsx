@@ -5,15 +5,21 @@
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { makeSyncNoticeCopy } from '../__fixtures__/makeSyncNoticeCopy.js';
 import { SyncNoticeHost } from '../SyncNoticeHost.js';
 
 const world = vi.hoisted(() => ({
     offline: false,
+    windowOpen: false,
     pendingCount: 0,
     failures: [] as readonly unknown[],
     unreadableCount: 0,
 }));
 
+vi.mock('@commise/ui/snackbar', async (importOriginal) => ({
+    ...(await importOriginal<typeof import('@commise/ui/snackbar')>()),
+    useWindowOpen: () => world.windowOpen,
+}));
 vi.mock('../useIsOffline.js', () => ({ useIsOffline: () => world.offline }));
 vi.mock('../syncProvider.js', () => ({
     useSyncQueue: () => ({
@@ -23,23 +29,12 @@ vi.mock('../syncProvider.js', () => ({
     }),
 }));
 
-const copy = {
-    regionLabel: 'Sync status',
-    offlineTitle: 'You’re offline',
-    offlineBodyNone: 'Saved here.',
-    offlineBodyOne: '{count} change is saved here.',
-    offlineBodyOther: '{count} changes are saved here.',
-    syncingTitle: 'Back online',
-    syncingBodyOne: 'Syncing {count} change…',
-    syncingBodyOther: 'Syncing {count} changes…',
-    unreadableTitle: 'Some work on this device couldn’t be opened',
-    unreadableBody: 'We can’t show it or send it, and it can’t be recovered.',
-    unreadableDismiss: 'Dismiss',
-};
+const copy = makeSyncNoticeCopy();
 
 afterEach(() => {
     cleanup();
     world.offline = false;
+    world.windowOpen = false;
     world.pendingCount = 0;
     world.failures = [];
     world.unreadableCount = 0;
@@ -230,5 +225,34 @@ describe('SyncNoticeHost — cooking form', () => {
         show();
 
         expect(screen.getByText('3 changes are saved here.')).toBeTruthy();
+    });
+});
+
+describe('SyncNoticeHost under an open window', () => {
+    it('goes quiet in the cooking form: the window speaks the title, so the page notice must not', () => {
+        world.offline = true;
+        world.windowOpen = true;
+        render(<SyncNoticeHost copy={copy} form="cooking" />);
+
+        // Kills: a host that never passes `quiet`, which makes the page notice and the window speak the title twice.
+        expect(screen.queryByRole('status', { name: 'Sync status' })).toBeNull();
+        expect(screen.getByText('You’re offline')).toBeDefined();
+    });
+
+    it('stays a status region in the cooking form while no window is open', () => {
+        world.offline = true;
+        render(<SyncNoticeHost copy={copy} form="cooking" />);
+
+        // Kills: a host that is quiet whenever it is offline.
+        expect(screen.getByRole('status', { name: 'Sync status' })).toBeDefined();
+    });
+
+    it('stays a status region in the app form even with a window open', () => {
+        world.offline = true;
+        world.windowOpen = true;
+        render(<SyncNoticeHost copy={copy} />);
+
+        // Kills: quiet in the app form, which has no window announcement and would be silent to the cook.
+        expect(screen.getByRole('status', { name: 'Sync status' })).toBeDefined();
     });
 });

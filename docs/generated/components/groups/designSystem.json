@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 103,
-        "implementations": 165,
-        "props": 1257,
-        "documentedComponents": 103,
-        "implementationsWithModuleDoc": 165,
-        "implementationsWithComponentDoc": 151,
-        "documentedProps": 1065,
-        "classifiedComponents": 96,
-        "componentsWithPatternTag": 103,
+        "components": 104,
+        "implementations": 166,
+        "props": 1260,
+        "documentedComponents": 104,
+        "implementationsWithModuleDoc": 166,
+        "implementationsWithComponentDoc": 152,
+        "documentedProps": 1068,
+        "classifiedComponents": 97,
+        "componentsWithPatternTag": 104,
         "crossPlatformComponents": 62
     },
     "components": [
@@ -17839,7 +17839,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet\nregisters with the host and keeps a polite `status` region in place, empty until the host hands it the snackbar, so\nthe change is announced. Only the outlet on top draws, and the host draws in its own place only while no outlet is\nregistered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA window with a pinned foot passes its height as `footHeight`, so the snackbar sits 16 above the foot and the foot's\nactions stay clear. With no foot, or once the foot scrolls with the content, it is unset and the offset is the 16.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet\nregisters with the host and keeps a polite `status` region in place, empty until the host hands it the snackbar, so\nthe change is announced. Just before that region it keeps an announcement slot, which speaks what a notice on the\npage below cannot say while the window hides the page (`WindowAnnouncementSlot`). Only the outlet on top draws, and\nthe host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA window with a pinned foot passes its height as `footHeight`, so the snackbar sits 16 above the foot and the foot's\nactions stay clear. With no foot, or once the foot scrolls with the content, it is unset and the offset is the 16.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17858,7 +17858,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The sheet's status region, holding the snackbar when this outlet is on top; nothing outside a host."
+                            "text": "The announcement slot, then the sheet's status region holding the snackbar when this outlet is on top;\nnothing outside a host."
                         },
                         {
                             "name": "sideEffect",
@@ -18112,6 +18112,73 @@
                     "docSignals": {
                         "presentational": false,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/snackbar/WindowAnnouncementSlot",
+            "name": "WindowAnnouncementSlot",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/snackbar",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "WindowAnnouncementSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx",
+                    "dir": "packages/apps/commise/ui/src/snackbar",
+                    "moduleDoc": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden\npolite region in each open window that speaks the announcement the window on top is handed.\n\nIt is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a\nwindow presents, and a hook is never called after the outlet's early return. `LiveRegion` resolves to its web or\nnative leaf at bundle time, so this file needs no native twin.\n\nOrchestration of one decision: it reads the window's announcement and hands it to the live region.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
+                        }
+                    ],
+                    "description": "One window's announcement slot.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the window is on top."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A polite status region, empty until there is news."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "isTop",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether this window's outlet is the one on top.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]
@@ -19321,6 +19388,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "quiet",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Web only: a window is open over the page and speaks the notice itself, so the notice must not. The region keeps\nits text and loses its status role and its name, so it is not a live region at all. The native leaf has no live\nregion and ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/syncNotice/props.ts"
+                        },
+                        {
                             "name": "regionLabel",
                             "type": "string",
                             "typeDetail": null,
@@ -19367,6 +19443,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "quiet",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: a window is open over the page and speaks the notice itself, so the notice must not. The region keeps\nits text and loses its status role and its name, so it is not a live region at all. The native leaf has no live\nregion and ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/syncNotice/props.ts"
+                        },
                         {
                             "name": "regionLabel",
                             "type": "string",

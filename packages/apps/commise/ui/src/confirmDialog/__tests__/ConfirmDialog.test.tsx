@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach } from 'vitest';
@@ -11,6 +11,7 @@ import {
     expectProbeUndoReachable,
     showProbe,
     SnackbarProbe,
+    snackbarRegionOf,
 } from '../../testing/windowSnackbar.js';
 import { Sheet } from '../../sheet/Sheet.js';
 import { ConfirmDialog } from '../ConfirmDialog.js';
@@ -370,7 +371,7 @@ describe('ConfirmDialog (web) offers the snackbar an outlet', () => {
         render(<WithHost open />);
 
         // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole dialog.
-        expect(within(screen.getByRole('alertdialog')).getByRole('status').style.bottom).toBe('calc(88px + 1rem)');
+        expect(snackbarRegionOf(screen.getByRole('alertdialog')).style.bottom).toBe('calc(88px + 1rem)');
     });
 });
 

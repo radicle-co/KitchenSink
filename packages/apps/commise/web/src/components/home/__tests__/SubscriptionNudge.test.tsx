@@ -14,7 +14,7 @@
  * `mobile/tests/components/home/SubscriptionNudge.native.test.tsx`.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, within } from '@testing-library/react';
+import { cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState } from 'react';
 
@@ -25,6 +25,7 @@ import {
     expectProbeInside,
     expectProbeUndoReachable,
     showProbe,
+    snackbarRegionOf,
     SnackbarProbe,
 } from '@commise/ui/testing/window-snackbar';
 
@@ -223,6 +224,7 @@ describe('SubscriptionNudge (web) — offers the snackbar an outlet', () => {
         render(<WithHost open />);
 
         // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole sheet.
-        expect(within(screen.getByRole('dialog')).getByRole('status').style.bottom).toBe('calc(104px + 1rem)');
+        // The sheet holds the announcement slot and the snackbar region, so the region is found through the helper.
+        expect(snackbarRegionOf(screen.getByRole('dialog')).style.bottom).toBe('calc(104px + 1rem)');
     });
 });

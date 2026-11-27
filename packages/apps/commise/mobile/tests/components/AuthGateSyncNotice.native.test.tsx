@@ -18,6 +18,8 @@ import { appendToQuarantine, createMemoryOutboxStore, storeKeyFor } from '@kitch
 import { AuthGate } from '../../src/components/AuthGate.js';
 import { ReportFocusedRootRouteContext } from '../../src/navigation/focusedRootRoute.js';
 import { useAuth } from '../../src/hooks/useAuth.js';
+import { OverlayHost } from '@commise/ui/overlay';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { render } from '@commise/ui/testing/tamagui';
 
 vi.mock('../../src/hooks/useAuth', () => ({ useAuth: vi.fn() }));
@@ -260,5 +262,85 @@ describe('AuthGate — the cooking form of the notice', () => {
 
         expect(screen.getByText('Back online')).toBeTruthy();
         expect(screen.getByText('Syncing 1 change…')).toBeTruthy();
+    });
+});
+
+describe('AuthGate — the offline title under an open window', () => {
+    /** Stands in for a screen with a window open: it reports the focused route and opens one native window. */
+    function WindowScreen({ route }: { readonly route: string }): JSX.Element {
+        const report = useContext(ReportFocusedRootRouteContext);
+
+        return (
+            <>
+                <Text
+                    onPress={() => {
+                        report(route);
+                    }}
+                >
+                    focus route
+                </Text>
+                <OverlayHost visible transparent onDismissRequest={() => undefined}>
+                    <Text>window body</Text>
+                </OverlayHost>
+            </>
+        );
+    }
+
+    /** The window's polite live regions that are not a snackbar's `status` region: its announcement slots. */
+    function slotsInWindow(): HTMLElement[] {
+        const win = screen.getByText('window body').closest<HTMLElement>('[aria-modal="true"]');
+
+        return [...(win?.querySelectorAll<HTMLElement>('[aria-live="polite"]') ?? [])].filter(
+            (node) => node.getAttribute('role') !== 'status',
+        );
+    }
+
+    function appWithWindow(route: string): void {
+        render(
+            <SyncProvider subject="user_a" send={vi.fn()} store={createMemoryOutboxStore()}>
+                <AuthGate>
+                    {/* The app mounts its one host below the gate, so the windows sit inside it. */}
+                    <SnackbarHost>
+                        <WindowScreen route={route} />
+                    </SnackbarHost>
+                </AuthGate>
+            </SyncProvider>,
+        );
+        fireEvent.click(screen.getByText('focus route'));
+    }
+
+    it('⛔ speaks the title once inside the window when the connection drops while cooking', () => {
+        appWithWindow('CookingMode');
+
+        expect(slotsInWindow().map((node) => node.textContent)).toEqual(['']);
+
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+
+        // Kills: the announcement mounted nowhere (the window says nothing, and the notice below it is out of
+        // reach), and one mounted outside the gate's children (no window can read it).
+        expect(slotsInWindow().map((node) => node.textContent)).toEqual(['You’re offline']);
+    });
+
+    it('⛔ speaks nothing in the window in the app form, where the notice is not the window announcement', () => {
+        appWithWindow('Tabs');
+
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+
+        // Kills: the app form announcing.
+        expect(slotsInWindow().map((node) => node.textContent)).toEqual(['']);
+    });
+
+    it('speaks nothing for an offline notice that was already up when the window opened', () => {
+        act(() => {
+            onlineManager.setOnline(false);
+        });
+        appWithWindow('CookingMode');
+
+        // Kills: speaking on becoming the top window.
+        expect(slotsInWindow().map((node) => node.textContent)).toEqual(['']);
     });
 });

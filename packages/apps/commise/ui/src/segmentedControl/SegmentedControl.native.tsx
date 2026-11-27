@@ -138,8 +138,8 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
 };
 
 /**
- * The segment's face as Tamagui props, so the `Elevated` carries the fill and the count of React Native `style` uses does
- * not grow. A transparent 1 pt edge sits on every segment; the selected one colours it `lineControl`
+ * The segment's face as Tamagui props, so the `Elevated` carries the fill and the count of React Native `style`
+ * uses does not grow. A transparent 1 pt edge sits on every segment; the selected one colours it `lineControl`
  * (`componentFixes.md` §8), so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
  */
 const segmentFace = {

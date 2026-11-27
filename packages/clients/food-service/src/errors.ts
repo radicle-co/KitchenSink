@@ -172,8 +172,8 @@ export function isRemoteFoodGoneError(error: unknown): error is RemoteFoodGoneEr
  * Only an answer that came in a response carries a `status`: a `503` is a {@link SourceBusyError}, and the load
  * balancer's own `404` is a {@link ServiceUnreachableError}. Both mean "not processed", because the balancer forwarded
  * nothing. A transport failure has no status, keeps the underlying error in {@link cause}, and has no
- * `retryAfterSeconds`. The difference matters to a WRITE: a refusal was not processed, but a dropped socket may follow a
- * committed write, so a caller that retries on a status never replays it.
+ * `retryAfterSeconds`. The difference matters to a WRITE: a refusal was not processed, but a dropped socket may
+ * follow a committed write, so a caller that retries on a status never replays it.
  */
 export class FetchUnavailableError extends FoodServiceClientError {
     /** Seconds the caller should wait before retrying (from `Retry-After`, when present). */

@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 165,
         "implementationsWithComponentDoc": 151,
         "documentedProps": 1064,
-        "classifiedComponents": 94,
+        "classifiedComponents": 96,
         "componentsWithPatternTag": 103,
         "crossPlatformComponents": 62
     },
@@ -12006,7 +12006,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/overlay",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
             ],
@@ -12033,7 +12033,7 @@
                             "text": "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
                         }
                     ],
-                    "description": "One window's scope: the depth for its children and the snackbar's outlet.",
+                    "description": "One window's scope: the depth for its children and the snackbar's outlet. Presentational: its props and one context\nread in, JSX out, with no data of its own and no effect.",
                     "tags": [
                         {
                             "name": "param",
@@ -12069,7 +12069,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -20040,7 +20040,7 @@
             "packageName": "@commise/ui",
             "layer": "design-system",
             "dir": "packages/apps/commise/ui/src/testing",
-            "kind": "unclassified",
+            "kind": "orchestration",
             "patterns": [
                 "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
             ],
@@ -20067,7 +20067,7 @@
                             "text": "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
                         }
                     ],
-                    "description": "A button, outside the window, that shows the probe's snackbar.",
+                    "description": "A button, outside the window, that shows the probe's snackbar. Orchestration of one press: it reads the host's\n`show` and hands it the probe's message and Undo.",
                     "tags": [
                         {
                             "name": "returns",
@@ -20085,7 +20085,7 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
-                        "orchestration": false
+                        "orchestration": true
                     }
                 }
             ]

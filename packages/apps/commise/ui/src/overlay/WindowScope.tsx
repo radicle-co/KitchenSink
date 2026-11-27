@@ -30,7 +30,8 @@ export interface WindowScopeProps {
 }
 
 /**
- * One window's scope: the depth for its children and the snackbar's outlet.
+ * One window's scope: the depth for its children and the snackbar's outlet. Presentational: its props and one context
+ * read in, JSX out, with no data of its own and no effect.
  *
  * @param props - The window's content and, when it has one, the height of its pinned foot.
  * @returns The content, then the outlet.

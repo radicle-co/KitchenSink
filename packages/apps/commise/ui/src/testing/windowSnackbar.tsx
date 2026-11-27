@@ -23,7 +23,8 @@ export const PROBE_MESSAGE = 'Probe shown';
 export const probeUndo: Mock<() => void> = vi.fn<() => void>();
 
 /**
- * A button, outside the window, that shows the probe's snackbar.
+ * A button, outside the window, that shows the probe's snackbar. Orchestration of one press: it reads the host's
+ * `show` and hands it the probe's message and Undo.
  *
  * @returns The button.
  * @sideEffect Shows a snackbar through the nearest host when pressed.

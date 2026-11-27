@@ -1116,6 +1116,12 @@ jobs:
                   npm ci
             - name: Verify the committed contract artifacts match the generator output
               run: npm run contract:verify
+            # The recipe state model's tables and JSON are written from the recipe-core module (ADR-0103). Same shape as the
+            # step above: run the tool that OWNS the files, fail on a difference. It is read-only here (`--check`).
+            - name: Verify the recipe state model document matches the module
+              run: npm run recipeState:verify
+            - name: Recipe state model generator (integration)
+              run: npm run test:integration --workspace=@kitchensink/recipe-state-doc
 
     test:
         name: Test (${{ matrix.group }})

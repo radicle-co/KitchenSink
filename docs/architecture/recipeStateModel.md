@@ -42,9 +42,9 @@ Contents:
 - The code is the source (ADR-0103). The tables and mermaid blocks between `<!-- recipeState:begin ID -->` and
   `<!-- recipeState:end ID -->` markers are written by the generator in `packages/tools/recipeStateDoc`, together with
   `recipeStateModel.json`. CI fails on a diff. The prose stays hand-written.
-- The module and the generator come with the build plan's PR 2. Until then this document is the authority, and the
-  tables between markers are already in the generator's format. If the document and the JSON differ, the document is
-  right and the JSON is wrong.
+- The module (`packages/shared/recipe-core/src/recipeState/`) and the generator came with the build plan's PR 2. The
+  tables between markers and the JSON are generated from them: edit the module, or the document's own words in the
+  generator's `docProse.ts`, and run `npm run recipeState:generate`. CI runs `npm run recipeState:verify`.
 - A planned item is marked `pending` with the work that builds it. Nothing at runtime reads a planned item.
 - In the JSON, a refusal has a `reason` and a `name`, the `REFUSAL_*` name (4.5). The reasons main uses today are the `PUBLIC_REFUSALS` constant in `publicRefusal.ts`, which `publicRefusalNames.test.ts` holds to this list. The other `reason` values are new names. The
   `reason` values move to the `REFUSAL_*` names when the code does.
@@ -327,21 +327,30 @@ come only from the predicates `holdSpecification.ts` exports. `chipOf` calls the
 - `VIEW_ADAPTED_BY_COOK` has owner and reader forms of its headings. A recipe that earns the fact can go public (P4),
   so a reader sees the heading.
 
-    | Name                                    | Owner (en)                                               | Reader (en)                                   |
-    | --------------------------------------- | -------------------------------------------------------- | --------------------------------------------- |
-    | `.heading` (over the citation and link) | Adapted by you from                                      | Adapted by {cook} from                        |
-    | `.headingNoCitation.book`               | Adapted by you from a cookbook or magazine               | Adapted by {cook} from a cookbook or magazine |
-    | `.headingNoCitation.paidSite`           | Adapted by you from a paid website                       | Adapted by {cook} from a paid website         |
-    | `.headingNoCitation.webPage`            | Adapted by you from a web page                           | Adapted by {cook} from a web page             |
-    | `.earnedToast`                          | Changes saved. This recipe is now marked Adapted by you. | none (owner only)                             |
+<!-- recipeState:begin 4.8-1 -->
 
-    The editor key `adaptedEarned` maps to `.earnedToast`. The earned heading stays "Adapted by you from". The
-    not-earned heading is `SOURCE_HEADING` "Source".
+| Name                                    | Owner (en)                                 | Reader (en)                                   |
+| --------------------------------------- | ------------------------------------------ | --------------------------------------------- |
+| `.heading` (over the citation and link) | Adapted by you from                        | Adapted by {cook} from                        |
+| `.headingNoCitation.book`               | Adapted by you from a cookbook or magazine | Adapted by {cook} from a cookbook or magazine |
+| `.headingNoCitation.paidSite`           | Adapted by you from a paid website         | Adapted by {cook} from a paid website         |
+| `.headingNoCitation.webPage`            | Adapted by you from a web page             | Adapted by {cook} from a web page             |
+| `.earnedSentence`                       | This recipe is now marked Adapted by you.  | none (owner only)                             |
+
+<!-- recipeState:end 4.8-1 -->
+
+The editor key `adaptedEarned` maps to `.earnedSentence`. It is not a toast of its own. It is a second sentence that
+P4a's `finishedNoticeOf` adds after whichever outcome sentence applies, the save outcome ("Changes saved.") or the
+publish outcome ("Recipe published."), so "Changes saved." appears once in the notice. `noticeWithEarned` in
+recipe-core holds the rule. `finishedNoticeOf` is on main. P4a wires `noticeWithEarned` into it, with the earned fact
+and the `adaptedEarned` key, which are not on main yet. The earned heading stays "Adapted by you from". The not-earned
+heading is `SOURCE_HEADING` "Source".
 
 - **The web-page label with a site.** `ORIGIN_WEB_PAGE.withSite` is "From {site}". `{site}` is the bare host, with no
   scheme and no `www.`, inside isolates (4.9). With no site that is safe to show, the label is "From a web page". A paid
   site never names a site (ADR-0093 §4), so `ORIGIN_PAID_SITE` stays "From a paid website". Under the detail page's
-  "Source" heading the page shows the site link alone. "From {site}" shows only where there is no heading: cards, list
+  "Source" heading the page keeps the source's credit line (such as `source_attribution`) and adds the site link to it.
+  The link never replaces the credit line. "From {site}" shows only where there is no heading: cards, list
   rows and the editor's rights line. The retired-names guard does not count `rightsLabel` until the editor's key is
   renamed.
 - Only the owner sees hold labels (4.6). A reader of a hidden recipe sees `publicPage.hiddenReader`.
@@ -541,7 +550,7 @@ stateDiagram-v2
 | ----------------------------- | --------------- | ------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------- |
 | DPr                           | `MAKE_PUBLIC`   | cook          | `refusalOf` = none. No slot needed                                                                                                                                                       | DPu       |
 | DPu                           | `MAKE_PRIVATE`  | cook          | none                                                                                                                                                                                     | DPr       |
-| DPr / DPu                     | `PUBLISH`       | cook          | requirements. A slot for a private recipe. The cook accepts the Publish sheet                                                                                                            | PPr / PPu |
+| DPr / DPu                     | `PUBLISH`       | cook          | requirements. A slot for a private recipe. The cook accepts the Publish sheet. `refusalOf` = none for a public recipe                                                                    | PPr / PPu |
 | PPr                           | `MAKE_PUBLIC`   | cook          | `refusalOf` = none, which includes no `HOLD_SOURCE_CORRECTED`. The cook accepts the Publish sheet                                                                                        | PPu       |
 | PPu                           | `MAKE_PRIVATE`  | cook          | a slot (ADR-0073 allows over-limit only for `FORCE_PRIVATE`)                                                                                                                             | PPr       |
 | PPu                           | `FORCE_PRIVATE` | system, staff | the origin answer forces private, or a staff correction. A staff correction always makes the recipe private. For a new answer that can open Public, it also sets `HOLD_SOURCE_CORRECTED` | PPr       |
@@ -770,21 +779,24 @@ task. It touches the import's `HOLD_REASONS`, the client's `facts.held`, `public
 ### 7.1 One module
 
 A folder `packages/shared/recipe-core/src/recipeState/`, pure, exported through the package's existing `src/index.ts`
-entry. File names follow `docs/CODING_STANDARDS.md` §1 (camelCase, no hyphens). Neither the folder nor any of these
-names exists on main.
+entry. File names follow `docs/CODING_STANDARDS.md` §1 (camelCase, no hyphens). PR 2 built the folder and the files
+below.
 
-| File                    | Holds                                                                                                                                   |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `recipeStateValues.ts`  | the stored-value objects of 4.2 and the codec and derived types of 4.3, kept apart                                                      |
-| `originCodec.ts`        | `originOf(answer)` and the wire codec (`OriginRead`). It reuses `privateRuleOf` and `sourceLockOf`                                      |
-| `transitions.ts`        | `TRANSITIONS`: enforced edges only, as `{ axis, from, event, actor, guard, to }`                                                        |
-| `plannedTransitions.ts` | `PLANNED`: the rows of 5.8, as `{ …, pending }`. Nothing at runtime reads it                                                            |
-| `creations.ts`          | `CREATIONS`: the rows of 5.7                                                                                                            |
-| `nextState.ts`          | `canTransition(axis, from, event, facts)` and `nextState(axis, from, event, facts): State \| Refusal`. Guards are named predicates here |
-| `refusalOf.ts`          | `refusalOf(facts)`                                                                                                                      |
-| `labelledNames.ts`      | `LABELLED_NAMES` with each name's key shape, and `RETIRED_NAMES`                                                                        |
+| File                    | Holds                                                                                                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `recipeStateValues.ts`  | the stored-value objects of 4.2 and the codec and derived types of 4.3, kept apart                                                                                                  |
+| `transitions.ts`        | `TRANSITIONS`: enforced edges only, as `{ axis, from, event, actor, guard, to }`                                                                                                    |
+| `plannedTransitions.ts` | `PLANNED`: the rows of 5.8, as `{ …, pending }`. Nothing at runtime reads it                                                                                                        |
+| `creations.ts`          | `CREATIONS`: the rows of 5.7                                                                                                                                                        |
+| `nextState.ts`          | `canTransition(axis, from, event, facts)` and `nextState(axis, from, event, facts)`, which answers `{ ok: true, to }` or `{ ok: false, refusal }`. Guards are named predicates here |
+| `refusalOf.ts`          | `refusalOf(facts)`                                                                                                                                                                  |
+| `labelledNames.ts`      | `LABELLED_NAMES` with each name's key shape                                                                                                                                         |
+| `retiredNames.ts`       | `RETIRED_NAMES`                                                                                                                                                                     |
+| `earnedNotice.ts`       | `noticeWithEarned`: the earned sentence is added after the outcome sentence (4.8)                                                                                                   |
 
-`chipOf` and `viewOf` come with the first UI slice that renders them, and with 020's predicates.
+`originCodec.ts` (`originOf(answer)` and the wire codec `OriginRead`, which reuse `privateRuleOf` and `sourceLockOf`)
+comes with PR 3, the origin migration. `chipOf` and `viewOf` come with the first UI slice that renders them, and with
+020's predicates.
 
 **Patterns.** A State Machine as a transition table (Table-Driven), with Specification for guards. The table plus TS
 discriminated unions and an exhaustive switch meet Visitor's intent, so no library is needed. XState fits a running
@@ -802,8 +814,9 @@ actor. These are stored facts judged by a pure function on both sides, so a tabl
 - A generator (planned, PR 2), `packages/tools/recipeStateDoc` (camelCase, like `e2ePlan` and `designArtifact`), writes
   `recipeStateModel.json` from the module. It rewrites the tables and mermaid blocks of `recipeStateModel.md`
   between markers. The prose stays hand-written. CI fails on a diff.
-- Until the generator lands (PR 2), the doc from PR 1 is the authority. PR 1 already writes its tables between the
-  markers, in the generator's format.
+- The generator landed in PR 2. `npm run recipeState:generate` writes the blocks and the JSON, and
+  `npm run recipeState:verify` is the CI check. The module's TRANSITIONS and PLANNED tables are the source for 5.1 to
+  5.8, and the document's own words for each row are in the generator's `docProse.ts`.
 
 ### 7.4 Guards and tests
 

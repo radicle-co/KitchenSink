@@ -63,7 +63,9 @@
         "local:down": "npm run down --workspace=@kitchensink/local-sandbox",
         "local:audit": "npm run audit --workspace=@kitchensink/local-sandbox",
         "local:maestro": "npm run maestro --workspace=@kitchensink/local-sandbox --",
-        "local:dev": "npm run defaultStackOnly --workspace=@kitchensink/local-sandbox -- local:dev && npm run local:up && turbo run dev"
+        "local:dev": "npm run defaultStackOnly --workspace=@kitchensink/local-sandbox -- local:dev && npm run local:up && turbo run dev",
+        "recipeState:generate": "npm run generate --workspace=packages/tools/recipeStateDoc",
+        "recipeState:verify": "npm run verify --workspace=packages/tools/recipeStateDoc"
     },
     "//dependencies": "The CDK CLI is a runtime dependency of the DEPLOY, not a build tool: the deploy workflows prune devDependencies mid-job and every `cdk deploy` necessarily runs after that, so as a devDependency it was removed and each `npx cdk` resolved an unpinned CLI from the registry inside the production deploy. Excluded from the service images by .dockerignore. Keep the range equal to the workspaces' so npm hoists one copy. See postPruneToolchain.test.ts.",
     "overrides": {

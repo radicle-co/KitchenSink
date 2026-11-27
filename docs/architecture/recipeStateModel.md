@@ -94,26 +94,12 @@ Contents:
 
 - `recipes.origin text NOT NULL DEFAULT 'unstated'`, with a CHECK on the eight values above. "Unstated" is a value,
   not NULL, so every row names its origin.
-- The column comes in by expand and contract (ADR-0104). **PR 3 (expand)** adds `origin` and backfills it. It moves
-  every reader, writer, function and trigger to it. It keeps `source_type`, `source_kind` and `statement_kind`, and a
-  sync trigger keeps the four in step. **A later contract PR** drops the three old columns. It waits for every deployed
-  reader of them, the Drizzle declarations included, and for one release with no rollback after the deployed service
-  stopped reading and writing them.
-- The CHECKs that pair the three columns are restated on `origin`, and the old ones stay until the contract PR. The
-  restated rules allow every row the old ones allow, with one exception: ADR-0104's new CHECK, which refuses
-  `imported_physical` and `imported_paid` rows with no kind and no statement, shapes no writer produces. For example,
-  today's schema allows `book` and `paidSite` with no citation, so `origin` does too. Any other stricter rule is its
-  own decision.
-- `publicDomain` is written only with the grant `recipes:import:public` (DD18, ADR-0023). Only the column it is
-  stored in changes.
-- `commiseWritten` is written only by the 003B publish (5.7). PR 3 owns the value: it adds `commiseWritten` to the
-  origin values, adds `commise_written` to the old `source_type` CHECK (only so the sync trigger can mirror it), and
-  adds it to the sync mapping, the codec and the parity table. Before #511 merges, it moves the 003B data model's `source_type = 'commise_written'` and its CHECKs to `recipes.origin = 'commiseWritten'`, so the 003B plan names only `origin`.
-- **Kept as they are:** the attestation `choice` (`authored`, `publicWeb`, `book`, `paidSite`, `fromPerson`,
-  `cleared`, `publicConfirm`), the import item `statement_kind` and the evidence `source_kind`. These are answer words
-  or facts about one piece of evidence. One codec in recipe-core maps an answer to an origin.
-- **The wire is unchanged in PR 3.** The codec maps `origin` to today's wire fields (`statement.kind` and the
-  rest). A wire change is its own decision.
+- The column replaces `source_type`, `source_kind` and `statement_kind` on `recipes`. ADR-0104 says how it lands.
+- `publicDomain` is written only with the grant `recipes:import:public` (DD18, ADR-0023).
+  `commiseWritten` is written only by the 003B publish (5.7).
+- **Kept as they are:** the attestation `choice`, the import item `statement_kind` and the evidence `source_kind`.
+  These are answer words or facts about one piece of evidence. One codec in recipe-core maps an answer to an origin.
+- **The wire is unchanged.** The codec maps `origin` to today's wire fields. A wire change is its own decision.
 
 ### 4.3 Codec and derived types (never stored)
 
@@ -207,7 +193,7 @@ A recipe that is "from another person" only by an attestation (no stored stateme
   and the new reason for one release. The server keeps sending the old value until the mobile floor version reads the
   new one (ADR-0103). Every client branch on a reason moves in the same PR, with a test per name that asserts the
   specific line and not the generic error.
-  The rename changes `FORBIDDEN_REASONS` in both `apiError.schema.ts` files (the service and `packages/schemas`) and reruns `contract:generate`. The detail controller compares `SOURCE_CONFLICT` as a raw string, and the outbox parks the lock error. Both move in the same PR.
+  The rename changes `INVALID_VISIBILITY_REASONS` in the service's `apiError.schema.ts` (`contract:generate` copies it to `packages/schemas`) and `SOURCE_LOCKED_REASON` in `recipe.error.ts`. Both move in the same PR as the client branches.
 - The 003B answer codes (I-67) are not recipe refusals. They live under `PUBLIC_VERSION_JOB_*` with one casing.
 - Bulk import's write-side refusal for a `detected` item (ADR-0074 §3a, the first) is an `IMPORT_ITEM_*` issue.
 - A signed-out reader's Report is not a refusal. It opens the sign-in sheet (4.8.1).
@@ -224,7 +210,7 @@ Each hold names its enforcement:
   `MAKE_PUBLIC` with the hold's refusal.
 - **Read-rule hide.** The recipe keeps the audience the cook chose. The read rule hides it from readers. The term sits
   as its own conjunct beside the ADR-0074 hold in the read rule's twins, the way 003B's `readerMarketTerm` does. It
-  never goes inside `holdSpecification.ts`.
+  never goes inside `holdSpecification.ts` (planned, 020).
 
 <!-- recipeState:begin 4.6-1 -->
 
@@ -482,7 +468,7 @@ at the top of the content, for the owner only. These boxes are not the too-close
 - **Refusals** are whole sentences (4.5).
 - **Slots-full notice.** Both choices have equal weight. Neither is preselected.
 - **Publish sheet.** It states the audience in two full sentences. The exact words come in SPECIFY.
-- **Ingredient tag.** `ingredientMatching/messages.ts#tag` becomes "Matching…", so "Checking" means only the public
+- **Ingredient tag.** `ingredientMatching/messages.ts` (`tag`) becomes "Matching…", so "Checking" means only the public
   check.
 - **"Adapted"** appears only in "Adapted by you" and its forms in 4.8.
 - **Attested wording.** An answer string behind a `statement*.v1` key, or behind `publicConfirm.v1`, is attested text.
@@ -814,7 +800,7 @@ actor. These are stored facts judged by a pure function on both sides, so a tabl
 
 ### 7.3 The docs follow the code
 
-- A generator, `packages/tools/recipeStateDoc` (camelCase, like `e2ePlan` and `designArtifact`), writes
+- A generator (planned, PR 2), `packages/tools/recipeStateDoc` (camelCase, like `e2ePlan` and `designArtifact`), writes
   `recipeStateModel.json` from the module. It rewrites the tables and mermaid blocks of `recipeStateModel.md`
   between markers. The prose stays hand-written. CI fails on a diff.
 - Until the generator lands (PR 2), the doc from PR 1 is the authority. PR 1 already writes its tables between the
@@ -822,7 +808,7 @@ actor. These are stored facts judged by a pure function on both sides, so a tabl
 
 ### 7.4 Guards and tests
 
-In `packages/tools/repoGuards/__tests__/`, reading source through the existing stripper:
+These guards are planned (PR 4). They go in `packages/tools/repoGuards/__tests__/` and read source through the existing stripper:
 
 1. `recipeStateLabelSet.test.ts`: the keys of `recipeStateMessages.en` equal `LABELLED_NAMES`, in each name's shape. A shape is a suffix on the name's key, such as `.owner`, `.reader` and `.withSite`, so `ORIGIN_WEB_PAGE` has the keys `ORIGIN_WEB_PAGE` and `ORIGIN_WEB_PAGE.withSite`. A name never has a second internal name for a shape.
 2. `recipeStateRetiredNamesRatchet.test.ts`: each `RETIRED_NAMES` entry is counted in production source, live specs,

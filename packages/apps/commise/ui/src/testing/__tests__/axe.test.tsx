@@ -9,6 +9,7 @@
  * (`label-content-name-mismatch`) is a wcag21a rule, so dropping the tag makes that entry stale and fails the spec.
  */
 import { render } from '@testing-library/react';
+import { createElement } from 'react';
 import { describe, expect, it } from 'vitest';
 
 import { Button } from '../../button/Button.js';
@@ -25,20 +26,27 @@ describe('the axe check', () => {
         const { container } = render(<input type="text" />);
         const results = await axe(container);
 
-        expect(() => expect(results).toHaveNoViolations()).toThrow(/<input[\s\S]*Form elements must have labels/u);
+        expect(() => {
+            expect(results).toHaveNoViolations();
+        }).toThrow(/<input[\s\S]*Form elements must have labels/u);
     });
 
+    // `createElement`, not JSX: the markup is wrong on purpose, and the lint rule that reads JSX would refuse it.
     it('judges the AA rules too: an input with a name but an invalid autocomplete token fails', async () => {
-        const { container } = render(<input aria-label="Name" autoComplete="nope" />);
+        const { container } = render(createElement('input', { 'aria-label': 'Name', autoComplete: 'nope' }));
         const results = await axe(container);
 
-        expect(() => expect(results).toHaveNoViolations()).toThrow(/autocomplete-valid/u);
+        expect(() => {
+            expect(results).toHaveNoViolations();
+        }).toThrow(/autocomplete-valid/u);
     });
 
     it('judges the wcag2aa rules too: text in a language code that does not exist fails', async () => {
         const { container } = render(<div lang="xx-nope">Text</div>);
         const results = await axe(container);
 
-        expect(() => expect(results).toHaveNoViolations()).toThrow(/valid-lang/u);
+        expect(() => {
+            expect(results).toHaveNoViolations();
+        }).toThrow(/valid-lang/u);
     });
 });

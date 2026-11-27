@@ -45,9 +45,10 @@ async function expectOnlyKnown(page: Page, at: PagePath): Promise<void> {
         (violation) => `${violation.id}: ${violation.nodes.map((node) => node.html).join(' | ')}`,
     );
 
-    expect(violations.map((violation) => violation.id).sort(), `axe on ${at}:\n${where.join('\n')}`).toEqual(
-        [...known].sort(),
-    );
+    expect(
+        violations.map((violation) => violation.id).sort((a, b) => a.localeCompare(b)),
+        `axe on ${at}:\n${where.join('\n')}`,
+    ).toEqual([...known].sort((a, b) => a.localeCompare(b)));
 }
 
 test.describe('accessibility (axe, WCAG 2.1 A and AA)', () => {

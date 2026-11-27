@@ -1,0 +1,25 @@
+import { describe, expect, it } from 'vitest';
+
+import { cookingStepsOf } from '../cookingSteps.js';
+import { stepDigest } from '../stepDigest.js';
+import { stepDigestsOf } from '../stepDigestsOf.js';
+
+/**
+ * `stepDigestsOf` is the one rule for "the digest of each step the cook walks", aligned with `cookingStepsOf`.
+ */
+const step = (stepNumber: number, instruction: string) => ({ stepNumber, instruction });
+
+describe('stepDigestsOf', () => {
+    it('gives one digest of the raw instruction per step with text, aligned with cookingStepsOf', () => {
+        const steps = [step(1, 'Chop.'), step(2, '   '), step(3, 'Roast\nfor an hour.')];
+
+        const digests = stepDigestsOf(steps);
+
+        expect(digests).toHaveLength(cookingStepsOf(steps).length);
+        expect(digests).toEqual([stepDigest('Chop.'), stepDigest('Roast\nfor an hour.')]);
+    });
+
+    it('is empty for no steps', () => {
+        expect(stepDigestsOf([])).toEqual([]);
+    });
+});

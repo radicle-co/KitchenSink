@@ -16,7 +16,6 @@ import { foodPageMessages } from '@commise/features-recipes/food-page';
 import { FoodDetailScreen } from '@commise/features-recipes/food-page/mobile';
 import { useMessages } from '@commise/i18n/react';
 import { useIsOffline } from '@commise/query';
-import { useBackIntercept } from '@commise/ui/back-intercept';
 import { useSnackbar } from '@commise/ui/snackbar';
 import type { NativeStackScreenProps, createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useCallback, useEffect, type JSX } from 'react';
@@ -174,15 +173,11 @@ function FoodDetailRoute({ navigation, route }: TaskProps<'FoodDetail'>): JSX.El
 /**
  * Cooking mode. It sits on the root stack above the tabs, so leaving POPS it onto the recipe page it was started from;
  * Edit REPLACES it with the editor and Home pops to the Home tab, so Back from where the cook lands never re-enters it,
- * and a step pushes nothing. The edge-swipe is off on the screen's options; Android Back leaves like the Back control.
+ * and a step pushes nothing. The edge-swipe is off on the screen's options. The cooking screen takes Android Back
+ * itself, so it leaves like the Back control and says what Exit says.
  */
 function CookingModeRoute({ navigation, route }: TaskProps<'CookingMode'>): JSX.Element {
     const { recipeId } = route.params;
-    useBackIntercept(() => {
-        navigation.goBack();
-
-        return true;
-    });
 
     return (
         <CookingModeScreen

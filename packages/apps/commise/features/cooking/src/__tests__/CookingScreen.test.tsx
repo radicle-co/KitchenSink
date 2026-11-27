@@ -1,13 +1,16 @@
+import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
-import { CookMarksProvider } from '@commise/features-recipes/cook';
-import type { ComponentProps, FC, ReactNode } from 'react';
+import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
 
+import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.js';
 import { htmlElementOf } from '../__fixtures__/htmlElementOf.js';
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { CookingScreen } from '../CookingScreen.js';
+import { cookingMessages } from '../messages.js';
+import type { TimerStore } from '../timer/timerStore.js';
 import { PREVIEW_IN_BODY } from '../cookingLayout.js';
 import { DONE_SETTLE_MS } from '../doneSettle.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
@@ -52,9 +55,7 @@ vi.mock('@commise/ui/keep-awake', async (importOriginal) => {
 });
 
 // The ingredients list reads the cook marks the app root provides, so every render here sits in the same provider.
-const Marks: FC<{ readonly children: ReactNode }> = ({ children }) => (
-    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
-);
+const { Wrapper: Marks } = makeCookingWrapper();
 
 const TITLE = 'Weeknight roast';
 
@@ -77,7 +78,7 @@ const ready = (over: Partial<Extract<CookingScreenRead, { kind: 'ready' }>> = {}
 });
 
 function setup(read: CookingScreenRead = ready()) {
-    const props: CookingScreenProps = { read, onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+    const props: CookingScreenProps = { read, recipeId: 'r1', onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
     const view = render(<CookingScreen {...props} />, { wrapper: Marks });
 
     return { ...props, ...view };
@@ -444,6 +445,7 @@ describe('CookingScreen: a step', () => {
 
         rerender(
             <CookingScreen
+                recipeId="r1"
                 read={ready({
                     recipe: makeCookingRecipe({
                         id: 'r1',
@@ -468,6 +470,7 @@ describe('CookingScreen: a step', () => {
 
         rerender(
             <CookingScreen
+                recipeId="r2"
                 read={ready({
                     recipe: makeCookingRecipe({
                         id: 'r2',
@@ -968,7 +971,15 @@ describe('CookingScreen: the names a cook hears on the way to Done', () => {
 
 describe('CookingScreen: the read wins over the session at the join', () => {
     const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
-        view.rerender(<CookingScreen read={read} onLeave={view.onLeave} onEdit={view.onEdit} onHome={view.onHome} />);
+        view.rerender(
+            <CookingScreen
+                read={read}
+                recipeId="r1"
+                onLeave={view.onLeave}
+                onEdit={view.onEdit}
+                onHome={view.onHome}
+            />,
+        );
 
     const finish = () => {
         for (let step = 1; step <= 6; step++) {
@@ -1138,7 +1149,13 @@ describe('CookingScreen: what the live region says after a tick', () => {
 
 describe('CookingScreen: focus recovery inside a page that has its own landmarks', () => {
     const inPage = () => {
-        const props: CookingScreenProps = { read: ready(), onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+        const props: CookingScreenProps = {
+            read: ready(),
+            recipeId: 'r1',
+            onLeave: vi.fn(),
+            onEdit: vi.fn(),
+            onHome: vi.fn(),
+        };
 
         return render(
             <main>
@@ -1169,5 +1186,81 @@ describe('CookingScreen: focus recovery inside a page that has its own landmarks
         fireEvent.click(then);
 
         expect(document.activeElement).toBe(screen.getByRole('checkbox', { name: 'Heat 1.5 tbsp. oil.' }));
+    });
+});
+
+/**
+ * Leaving with a timer of this recipe still going: Exit and Back on step 1 say so first, then leave, in every state the
+ * screen can be in. A timer of another recipe says nothing. The real store, the real host and the real copy.
+ */
+describe('CookingScreen: leaving with a timer', () => {
+    const en = resolveMessages(cookingMessages, 'en');
+    const RICE = fillTemplate(en.exit.timerRunningWeb, { label: 'Rice' });
+    const startTimer = (store: TimerStore, recipeId: string): void => {
+        store.start({
+            recipeId,
+            stepIndex: 0,
+            stepDigest: 's1:0000000d',
+            label: { kind: 'typed', text: 'Rice' },
+            origin: { kind: 'added' },
+            durationMs: 60_000,
+        });
+    };
+    const mount = (read: CookingScreenRead, timerOf?: string) => {
+        const { store, Wrapper } = makeCookingWrapper();
+
+        if (timerOf !== undefined) {
+            startTimer(store, timerOf);
+        }
+
+        const ways = { onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+        render(<CookingScreen read={read} recipeId="r1" {...ways} />, { wrapper: Wrapper });
+
+        return ways;
+    };
+
+    it('says the timer keeps running on Exit, then leaves', () => {
+        const ways = mount(ready(), 'r1');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('says it on Back from step 1, which leaves to the recipe', () => {
+        const ways = mount(ready(), 'r1');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Back to the recipe' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('says it from the loading frame too, by the route\u2019s recipe id', () => {
+        const ways = mount({ kind: 'pending', retry: vi.fn() }, 'r1');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves with no message when no timer runs', () => {
+        const ways = mount(ready());
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.queryByText(/timer/u)).toBeNull();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves with no message when the only timer is another recipe\u2019s', () => {
+        const ways = mount(ready(), 'other');
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.queryByText(/timer/u)).toBeNull();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
     });
 });

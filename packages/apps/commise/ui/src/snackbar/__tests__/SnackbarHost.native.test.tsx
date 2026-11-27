@@ -164,6 +164,33 @@ describe('SnackbarHost (native)', () => {
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
     });
+
+    it('follows the page it landed on: the same snackbar moves when the reader reports other chrome', () => {
+        // A message shown while leaving cooking mode is shown over no tab bar, then the recipe page lands under it.
+        const view = render(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 34 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        showFrom('Removed Pasta');
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('50px');
+
+        // A new reader function, as the navigator makes one when the foot changes.
+        view.rerender(
+            <PopupInsetsContext value={() => ({ top: 0, bottom: 83 })}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </SnackbarHost>
+            </PopupInsetsContext>,
+        );
+
+        expect(screen.getByText('Removed Pasta')).toBeTruthy();
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('99px');
+    });
 });
 
 describe('UndoSnackbar (native)', () => {

@@ -6,6 +6,8 @@
     "exports": {
         "./mobile": "./src/mobileEntry.ts",
         "./storeReview": "./src/storeReview/storeReviewRecord.ts",
+        "./testing/mobile": "./src/__fixtures__/makeCookingWrapper.native.tsx",
+        "./testing/web": "./src/__fixtures__/makeCookingWrapper.tsx",
         "./web": "./src/webEntry.ts"
     },
     "scripts": {

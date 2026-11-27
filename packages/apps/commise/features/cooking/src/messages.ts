@@ -197,6 +197,16 @@ interface CookingAddTimerMessages {
     readonly secondsUnit: string;
 }
 
+/** What cooking mode says on the way out while a timer of this recipe is still counting or paused. */
+export interface CookingExitMessages {
+    /** A running timer (contains `{label}`). It says where the timer rings, so each platform has its own sentence. */
+    readonly timerRunningWeb: string;
+    /** The same on the phone: the timer rings only while the app is on screen (contains `{label}`). */
+    readonly timerRunningNative: string;
+    /** A paused timer (contains `{label}`). */
+    readonly timerPaused: string;
+}
+
 /** Every string the cooking surface says. */
 export interface CookingMessages {
     readonly top: CookingTopMessages;
@@ -211,6 +221,7 @@ export interface CookingMessages {
     readonly gone: CookingGoneMessages;
     readonly allSteps: CookingAllStepsMessages;
     readonly timer: CookingTimerMessages;
+    readonly exit: CookingExitMessages;
     readonly duration: CookingDurationMessages;
     readonly alarm: CookingAlarmMessages;
     readonly addTimer: CookingAddTimerMessages;
@@ -297,6 +308,11 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         },
         timer: {
             stepLabel: 'Step\u00a0{n}',
+        },
+        exit: {
+            timerRunningWeb: 'Your {label} timer keeps running. It rings only while this tab is open.',
+            timerRunningNative: 'Your {label} timer keeps running. It rings only while Commise is on screen.',
+            timerPaused: 'Your {label} timer is paused. Open cooking mode to start it again.',
         },
         duration: {
             hoursMinutes: '{h} h {m}',

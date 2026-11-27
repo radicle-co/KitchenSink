@@ -6,13 +6,13 @@
  * the window is doubled, because the band is read from its width: 390 is one column, 900 is two (800 and wider).
  * Every control is found by its accessible name, which is what a screen reader reads.
  */
-import { CookMarksProvider, useServingScale } from '@commise/features-recipes/cook';
+import { useServingScale } from '@commise/features-recipes/cook';
 import { render } from '@commise/ui/testing/tamagui';
 import { cleanup, fireEvent, renderHook, screen, within } from '@testing-library/react';
-import type { FC, ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
+import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.native.js';
 import { makeRecipeIngredientView } from '../__fixtures__/makeRecipeIngredientView.js';
 import { CookingScreen } from '../CookingScreen.native.js';
 import type { CookingScreenRead } from '../cookingViewProps.js';
@@ -34,9 +34,7 @@ vi.mock('react-native', async (importOriginal) => {
     };
 });
 
-const Wrapper: FC<{ readonly children: ReactNode }> = ({ children }) => (
-    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
-);
+const { Wrapper } = makeCookingWrapper();
 
 let counter = 0;
 
@@ -69,7 +67,7 @@ function open(options: { readonly width: number; readonly servings?: number; rea
 
     return render(
         <Wrapper>
-            <CookingScreen read={read} onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />
+            <CookingScreen read={read} recipeId="r1" onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />
         </Wrapper>,
     );
 }

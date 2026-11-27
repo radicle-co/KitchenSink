@@ -9,6 +9,7 @@
  * @pattern Visitor — an exhaustive switch over the read-level screen state, each case picking one render component
  */
 import { useMessages } from '@commise/i18n/react';
+import { useBackIntercept } from '@commise/ui/back-intercept';
 import type { StateNoticeProps } from '@commise/ui/state-notice';
 import type { FC } from 'react';
 import { useWindowDimensions } from 'react-native';
@@ -26,6 +27,7 @@ import type { LoadingPhase } from './loadingPhase.js';
 import { cookingMessages, type CookingMessages } from './messages.js';
 import { useCookingEntry } from './cookingEntry.js';
 import { cookingEntryViewOf } from './cookingEntryView.js';
+import { useExitMessageWays } from './timer/useExitMessageWays.js';
 
 /** The disabled pair's handler while loading: a disabled control is never pressed. */
 const noop = (): void => undefined;
@@ -69,8 +71,22 @@ const loadingFrame = ({ copy, phase, narrow, onLeave }: LoadingFrameInput) => (
 );
 
 /** The native cooking screen. */
-export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, onHome }) => {
+export const CookingScreen: FC<CookingScreenProps> = ({ read, recipeId, ...routeWays }) => {
     const copy = useMessages(cookingMessages);
+    // Every way out says so first when this recipe's timer is still going: the one place, for the loading frame, the
+    // notices and the session alike.
+    const { onLeave, onEdit, onHome } = useExitMessageWays(
+        routeWays,
+        recipeId,
+        read.kind === 'ready' ? read.recipe : undefined,
+        copy.exit.timerRunningNative,
+    );
+    // Android Back leaves like the Back control, so it says so too: it goes through the same wrapped `onLeave`.
+    useBackIntercept(() => {
+        onLeave();
+
+        return true;
+    });
     const entry = useCookingEntry(read, onEdit);
     // The window is read once, here, because a leaf never reads the device. Both rules are measured in text, like web's
     // rem container queries: the width and height are divided by the cook's text size, so the largest text on a wide phone

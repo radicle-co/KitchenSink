@@ -6,6 +6,10 @@
  * READER: a function the popup calls each time it places itself. A reader rather than a value, because the chrome's
  * extent is layout, read at the moment of placement (on each scroll and resize), never at render.
  *
+ * A native reader's IDENTITY must change whenever its value changes, because the native snackbar host re-renders on the
+ * context value and reads the reader while it renders. A reader that stays the same function while its answer changes
+ * leaves a snackbar at the old foot.
+ *
  * @pattern Dependency Injection through a React context — the page provides the reader, the popup consumes it, and
  *     neither imports the other
  */

@@ -19,7 +19,7 @@ export default function CookingLoading(): React.JSX.Element {
 
     return (
         <CookingNoticeMount>
-            <CookingScreen read={{ kind: 'pending', retry: noop }} {...ways} />
+            <CookingScreen read={{ kind: 'pending', retry: noop }} recipeId={id} {...ways} />
         </CookingNoticeMount>
     );
 }

@@ -11,10 +11,10 @@ import {
     type TimerOrderEntry,
     type TimerState,
 } from '@kitchensink/cooking-core';
-import { useContext, useMemo, useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 
-import { TimerStoreContext } from './timerContext.js';
 import type { TimerStore } from './timerStore.js';
+import { useTimerStore } from './useTimerStore.js';
 
 /** What a screen reads and calls. */
 export interface CookingTimers {
@@ -38,11 +38,7 @@ const serverSnapshot = (): TimerState => NO_TIMER;
  * @throws {Error} When no `TimerProvider` is above.
  */
 export function useCookingTimers(): CookingTimers {
-    const store = useContext(TimerStoreContext);
-
-    if (store === null) {
-        throw new Error('useCookingTimers needs a TimerProvider above it.');
-    }
+    const store = useTimerStore();
 
     const state = useSyncExternalStore(store.subscribe, store.getSnapshot, serverSnapshot);
 

@@ -4,6 +4,7 @@
  */
 import { LocaleProvider } from '@commise/i18n/react';
 import { onlineManager } from '@tanstack/react-query';
+import { makeCookingWrapper } from '@commise/features-cooking/testing/web';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -17,6 +18,8 @@ vi.mock('next/navigation', () => ({
     useRouter: () => ({ replace: replaceMock }),
 }));
 
+const { Wrapper: CookingProviders } = makeCookingWrapper();
+
 afterEach(() => {
     cleanup();
     act(() => {
@@ -29,7 +32,9 @@ describe('CookingLoading', () => {
     it('draws the loading frame, and its Exit replaces the route with the recipe page', async () => {
         render(
             <LocaleProvider locale="en">
-                <CookingLoading />
+                <CookingProviders>
+                    <CookingLoading />
+                </CookingProviders>
             </LocaleProvider>,
         );
 
@@ -42,7 +47,9 @@ describe('CookingLoading', () => {
     it('shows the offline notice above the top bar while offline, and none while online', () => {
         const frame = (
             <LocaleProvider locale="en">
-                <CookingLoading />
+                <CookingProviders>
+                    <CookingLoading />
+                </CookingProviders>
             </LocaleProvider>
         );
         const { unmount } = render(frame);

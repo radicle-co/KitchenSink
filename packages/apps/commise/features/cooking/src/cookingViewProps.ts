@@ -33,15 +33,24 @@ export type CookingScreenRead =
     | { readonly kind: 'gone' }
     | { readonly kind: 'ready'; readonly recipe: CookingRecipe; readonly viewerIsOwner: boolean };
 
-/** Props for `CookingScreen`, on both platforms. */
-export interface CookingScreenProps {
-    readonly read: CookingScreenRead;
+/** Where each way out of cooking mode goes. */
+export interface CookingWays {
     /** Exit, Back on step 1, and Back to the recipe: to the recipe page, by route, never by history. */
     readonly onLeave: () => void;
     /** To the editor, replacing the cook route: the owner's Edit recipe on a recipe with no steps, and where an owner's draft link goes. */
     readonly onEdit: () => void;
     /** Go to Home from a recipe that is gone. */
     readonly onHome: () => void;
+}
+
+/** Props for `CookingScreen`, on both platforms. */
+export interface CookingScreenProps extends CookingWays {
+    readonly read: CookingScreenRead;
+    /**
+     * The recipe id of the route, known before the read settles. The exit message names only this recipe's timer, also
+     * while the recipe loads.
+     */
+    readonly recipeId: string;
 }
 
 /** A control the cook presses: its visible label, an optional fuller accessible name, and what it does. */

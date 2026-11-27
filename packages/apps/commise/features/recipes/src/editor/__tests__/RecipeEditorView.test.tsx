@@ -9,6 +9,9 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { focusManager } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import '@commise/ui/testing/resize-observer';
+import { SnackbarHost, useSnackbar } from '@commise/ui/snackbar';
+import { reportResizeOf, resizeObserver } from '@commise/ui/testing/resize-observer';
 import { useContext, type ReactElement } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -1243,5 +1246,54 @@ describe('a paste into the page', () => {
         await userEvent.setup().click(screen.getByText('details body'));
 
         expect(setField).not.toHaveBeenCalled();
+    });
+});
+
+describe('the snackbar follows the action bar while it shows', () => {
+    /** The host's region is the status that is placed from the foot; the page has others. */
+    const hostBottom = (): string | undefined =>
+        screen.getAllByRole('status').find((region) => region.style.bottom !== '')?.style.bottom;
+
+    const ShowButton = (): ReactElement => {
+        const { show } = useSnackbar();
+
+        return (
+            <button type="button" onClick={() => show({ message: 'Saved' })}>
+                show
+            </button>
+        );
+    };
+
+    afterEach(() => {
+        resizeObserver.observed.clear();
+        vi.restoreAllMocks();
+    });
+
+    it('sits 16 above the bar, and moves with the bar when it grows after the snackbar showed', () => {
+        let barHeight = 80;
+
+        Object.defineProperty(document.documentElement, 'clientHeight', { configurable: true, value: 800 });
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function (this: HTMLElement) {
+            const isBar = this.id === EDITOR_ACTION_BAR_ID;
+
+            return { height: isBar ? barHeight : 0, top: isBar ? 800 - barHeight : 0, bottom: 0 } as DOMRect;
+        });
+        render(
+            <SnackbarHost>
+                <ShowButton />
+                {view(makeEditorResult())}
+            </SnackbarHost>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'show' }));
+
+        expect(hostBottom()).toBe('96px');
+
+        barHeight = 144;
+        act(() => {
+            reportResizeOf(resizeObserver.observed);
+        });
+
+        // Kills: an editor that never tells the host its bar resized, which leaves the snackbar over the action bar.
+        expect(hostBottom()).toBe('160px');
     });
 });

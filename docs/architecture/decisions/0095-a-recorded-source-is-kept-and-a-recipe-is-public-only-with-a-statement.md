@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-15
+- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): the three columns it names are now `recipes.origin`. The rule stands.
 - **Amends:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md) §6. Removing a source
   still leaves visibility alone. But the removed source stays on record and keeps the recipe out of Public.
 - **Amends:** [ADR-0023](0023-curator-declared-provenance.md). A body with no statement no longer means "the cook wrote

@@ -1883,6 +1883,10 @@ The check uses AI, and it searches the wider internet as well as the source the 
   Commise-written public version (`016-FR-077`) carries "Report a problem". A report MUST hide the version from every
   public surface at once, and it stays hidden until a staff member looks and decides. The decision is recorded like any
   other reviewer decision, and a hide sends the cook a statement of reasons (`016-FR-018`).
+  Only a signed-in cook can report ("Sign in to report"). A signed-out reader who taps "Report a problem" gets the
+  sign-in sheet of `003A` US4 first, and the report form opens on the same recipe after sign-in. Nothing is sent until
+  the cook submits it, so every report is traceable to an account. The plan sets a per-cook report limit and the review
+  queue, and the designer writes the refusal line for the limit. _(Owner ruling, 2026-11-27.)_
 
 ### Non-Functional Requirements _(constitution-derived)_
 

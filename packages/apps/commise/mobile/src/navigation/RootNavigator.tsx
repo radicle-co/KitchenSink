@@ -58,7 +58,8 @@ export function RootNavigator(): JSX.Element {
     const insets = useSafeAreaInsets();
     const [tabBarHeight, setTabBarHeight] = useState(0);
     const [dockHeight, setDockHeight] = useState(0);
-    const [onTabs, setOnTabs] = useState(true);
+    const [focusedRoute, setFocusedRoute] = useState<string | undefined>('Tabs');
+    const onTabs = focusedRoute === 'Tabs';
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
 
     // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the
@@ -92,8 +93,16 @@ export function RootNavigator(): JSX.Element {
                 // keeps the last session's focus.
                 onReady={() => reportFocusedRoot(focusedRootRouteOf(navigationRef.getRootState()))}
                 onStateChange={(state) => {
-                    setOnTabs(focusedRootRouteOf(state) === 'Tabs');
-                    reportFocusedRoot(focusedRootRouteOf(state));
+                    const route = focusedRootRouteOf(state);
+
+                    // A dock's height belongs to the screen that reported it: a new focused route starts with none, and
+                    // a dock that comes back into view reports again.
+                    if (route !== focusedRoute) {
+                        setDockHeight(0);
+                    }
+
+                    setFocusedRoute(route);
+                    reportFocusedRoot(route);
                 }}
             >
                 <PageFootContext value={footHeight}>

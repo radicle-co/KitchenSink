@@ -260,8 +260,8 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
                     scrolled: node.scrollTop,
                 };
             }),
-            // The title row is the nearest ancestor of Close that holds the Sheet's title, found by its exact name because
-            // the body holds section headings too. It never holds Done, which would make it the whole Sheet.
+            // The title row is the nearest ancestor of Close that holds the Sheet's title, found by its exact name
+            // because the body holds section headings too. It never holds Done, which would make it the whole Sheet.
             close.evaluate((element, title) => {
                 const isTitle = (node: Element): boolean =>
                     [...node.querySelectorAll('[role="heading"], h1, h2, h3')].some(

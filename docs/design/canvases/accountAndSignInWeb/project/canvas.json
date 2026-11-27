@@ -378,7 +378,7 @@
       "x": 1360,
       "y": 14442,
       "w": 1280,
-      "h": 9100,
+      "h": 9280,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (web, 1280)"
     },
     "AccountCloseLicenceStatesWeb390.dc.html": {
@@ -392,26 +392,26 @@
       "x": 470,
       "y": 24102,
       "w": 390,
-      "h": 9900,
+      "h": 10100,
       "title": "Profile, erase my data, licence reminder, donation and receipt code (web, 390)"
     },
     "ErasureNoticeEmailHtml600Web.dc.html": {
       "x": 0,
-      "y": 34562,
+      "y": 34762,
       "w": 600,
       "h": 6340,
       "title": "Erasure notice email, HTML at 600 px"
     },
     "ErasureNoticeEmailHtml320Web.dc.html": {
       "x": 680,
-      "y": 34562,
+      "y": 34762,
       "w": 320,
       "h": 8240,
       "title": "Erasure notice email, HTML at 320 px"
     },
     "ErasureNoticeEmailTextWeb.dc.html": {
       "x": 1080,
-      "y": 34562,
+      "y": 34742,
       "w": 600,
       "h": 6120,
       "title": "Erasure notice email, plain text"

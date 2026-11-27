@@ -55,6 +55,14 @@ describe('installMissingCdkDependencies', () => {
         ]);
         // The install sees the allow-scripts variable empty. Mutation: pass `process.env` and it holds the user's list.
         expect(call[2]).toMatchObject({ encoding: 'utf8', env: { npm_config_allow_scripts: '' } });
+
+        // Exactly these two options: an extra key such as `shell: true` must fail.
+        const options = call[2];
+
+        expect(typeof options === 'object' && options !== null ? Object.keys(options).sort() : options).toEqual([
+            'encoding',
+            'env',
+        ]);
         expect(result).toEqual({ installed: [app.packageDir], failed: [] });
     });
 

@@ -17,6 +17,7 @@ import {
     RateLimitedError,
     RequesterLimitReachedError,
     SearchRateLimitedError,
+    ServiceUnreachableError,
     SourceBusyError,
     UnauthorizedError,
     UnexpectedResponseError,
@@ -45,6 +46,7 @@ describe('shouldRetryFoodServiceFailure — what may answer next time', () => {
     it.each<[string, unknown]>([
         ['a transport failure', new FetchUnavailableError(undefined, 'failed', new TypeError('fetch failed'))],
         ['food answering busy', new SourceBusyError(5)],
+        ['the load balancer answering for food', new ServiceUnreachableError()],
         // The token is minted again for each attempt, and on mobile the first can be empty while Clerk loads.
         ['a refused token', new UnauthorizedError()],
         ['an unmapped 502', new UnexpectedResponseError(502)],

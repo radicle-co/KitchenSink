@@ -1,5 +1,5 @@
 {
-    "note": "Same values as docs/architecture/recipeStateModel.md. The code is the source (ADR-0103); this file is written by the generator once it lands. A refusal has a reason and a name, the REFUSAL_* name. The reasons main uses today are the PUBLIC_REFUSALS constant in publicRefusal.ts, which publicRefusalNames.test.ts holds to this list. The other reason values are new names.",
+    "note": "Same values as docs/architecture/recipeStateModel.md. Its section 2 is the authority rule: the document and this file are written from the same source, and where they differ the document is right.",
     "axes": [
         {
             "name": "lifecycle",

@@ -39,7 +39,8 @@ fourth vocabulary.
       page is `webPage`, decided by the kind and never by whether a link is present. Keep the three old columns.
     - **`commiseWritten` has one owner, this change.** It adds `commiseWritten` to the `origin` values, adds
       `commise_written` to the old `source_type` CHECK (only so the sync trigger can mirror it during the window), and
-      adds it to the sync mapping, the codec and the parity table. The 003B plan (#511) names only `origin`.
+      adds it to the sync mapping, the codec and the parity table. Before #511 merges, it moves the 003B data model's
+      `source_type = 'commise_written'` and its CHECKs to `recipes.origin = 'commiseWritten'`.
     - **A sync trigger,** `recipes_origin_sync` (BEFORE INSERT OR UPDATE), keeps the four columns in step from whichever
       side a statement changed. A write from the previous release sets only the triple and the trigger derives
       `origin`. A write from the new service sets `origin` and the trigger derives the triple. On insert a non-default
@@ -81,7 +82,8 @@ fourth vocabulary.
    "from another person" carry no source (0087).
 4. **`publicDomain` is written only with the grant `recipes:import:public`.** Only the column it is stored in changes.
 5. **`commiseWritten` is written only by the 003B publish.** The value is added by the expand change (Decision 2),
-   and the 003B plan (#511) names only `origin`.
+   and #511 moves the 003B data model's `source_type = 'commise_written'` and its CHECKs to
+   `recipes.origin = 'commiseWritten'` before it merges.
 6. **These stay as they are:** the attestation `choice` (`authored`, `publicWeb`, `book`, `paidSite`, `fromPerson`,
    `cleared`, `publicConfirm`), the import item's `statement_kind` and the evidence `source_kind`. They are answer
    words, or facts about one piece of evidence. One codec in recipe-core maps an answer to an origin.
@@ -99,9 +101,9 @@ fourth vocabulary.
   insert, a correction relabel and an erasure.
 - A recipe that is "from another person" only by an attestation stays `unstated` plus the attestation fact. It is not
   folded into `person`, because an attestation is appended to another table with no update to `recipes`.
-- The expand change lands before the 003B plan's migration and after the open source-lock change merges. Migration
-  numbers are taken at merge.
-- The 003B plan's columns and ADR-0102 §3 name `origin` and not `source_type`. The merge order is #523, then the expand change, then #511.
+- The expand change lands before any reader of `origin`, and after the source-lock change. Migration numbers are taken
+  at merge.
+- The 003B data model names `origin` and not `source_type` once #511 has moved it, as Decision 5 requires.
 
 ## Alternatives considered
 

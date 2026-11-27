@@ -51,7 +51,7 @@ const counts: FileCounts = Object.fromEntries(
 
 describe('icon-only controls only fall', () => {
     it('reads real uses, so an empty baseline cannot pass by reading nothing', () => {
-        // A file that still holds one: SheetPanel moved onto `IconButton`, so it no longer reads as one.
+        // A file that still builds one by hand, so the count is read from real code and is above zero.
         expect(counts['packages/apps/commise/features/recipes/src/discovery/DiscoveryFooter.tsx']).toBeGreaterThan(0);
     });
 

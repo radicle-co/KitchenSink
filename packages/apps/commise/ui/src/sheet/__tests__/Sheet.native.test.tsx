@@ -272,8 +272,8 @@ describe('Sheet (native)', () => {
         expectWindowIsTheModal(dialog());
     });
 
-    // Rewritten for owner ruling D98: Close is the shared icon button, so its target is the icon button's frame (the
-    // button's first element child): 44pt on iOS and 48dp on Android, and no longer a 48 dp minimum on both.
+    // Close is the shared icon button, so its target is the icon button's frame (the button's first element child):
+    // 44pt on iOS and 48dp on Android, not a 48 dp minimum on both.
     it('closes through Close, named by closeLabel and the icon button target: 44pt on iOS, 48dp on Android', () => {
         for (const [os, size] of [
             ['ios', '44px'],

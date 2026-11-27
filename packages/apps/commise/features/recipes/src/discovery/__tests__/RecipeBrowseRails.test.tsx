@@ -216,9 +216,9 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
         return track;
     }
 
-    // Rewritten for owner ruling D98: the buttons are the shared icon button, which has no class of its own for
-    // visibility, so the box that holds them carries `hidden pointer-fine:inline-flex`. The row finds that box by what it
-    // holds: the nearest ancestor of Next whose classes hold `pointer-fine:inline-flex`, and it holds no Previous.
+    // The buttons are the shared icon button, which has no class of its own for visibility, so the box around each
+    // carries `hidden pointer-fine:inline-flex`. The row finds that box by what it holds: the nearest ancestor of Next
+    // whose classes hold `pointer-fine:inline-flex`, and it holds no Previous.
     it('are drawn for a fine pointer only, named Previous and Next, in the Trending heading row', () => {
         renderRails();
         const next = screen.getAllByRole('button', { name: 'Next' })[0];
@@ -246,8 +246,8 @@ describe('RecipeBrowseRails (web) — Previous and Next', () => {
         }
     });
 
-    // Rewritten for owner ruling D98: the shared icon button sets `aria-disabled` only while unavailable and leaves it off
-    // otherwise, so an available button reads no attribute where it once read "false". The unavailable rows are unchanged.
+    // The shared icon button sets `aria-disabled` only while unavailable and leaves it off otherwise, so an available
+    // button reads no attribute (null), and an unavailable one reads "true".
     it('disable Previous at the start and Next at the end', () => {
         renderRails();
         const track = geometry(0);

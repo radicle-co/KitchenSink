@@ -52,7 +52,10 @@ const railTitle = (id: RecipeBrowseRailId, m: DiscoveryMessages): string => {
  */
 const SECTION_STAGGER_MS = 80;
 
-/** The box round Previous or Next: they show for a fine pointer only (`pointer-fine:`); a touch screen has the swipe and the peek. */
+/**
+ * The box around Previous or Next: they show for a fine pointer only (`pointer-fine:`); a touch screen has the swipe
+ * and the peek.
+ */
 const FINE_POINTER_ONLY = 'hidden shrink-0 pointer-fine:inline-flex';
 
 /** One curated rail: its heading, Previous and Next, and "see all" over its body. */

@@ -110,8 +110,8 @@ describe('Sheet (web)', () => {
         expect(screen.getByRole('dialog').hasAttribute('aria-describedby')).toBe(false);
     });
 
-    // Rewritten for owner ruling D98: Close is the shared icon button, so its target is the icon button's 44 px square
-    // (every token of `ICON_BUTTON_CLASS`) and no longer a 48 px one.
+    // Close is the shared icon button, so its target is the icon button's 44 px square (every token of
+    // `ICON_BUTTON_CLASS`), not a 48 px one.
     it('closes through Close, named by closeLabel and the icon button target (44 px square)', async () => {
         const onOpenChange = vi.fn();
         const user = await openHost(<Host onOpenChange={onOpenChange} />);

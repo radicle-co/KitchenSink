@@ -98,6 +98,7 @@
         "./modal": "./src/modal/Modal.native.tsx",
         "./photo": "./src/photo/Photo.native.tsx",
         "./overlay": "./src/overlay/index.ts",
+        "./window-scope": "./src/overlay/WindowScope.tsx",
         "./layout": "./src/layout/index.ts",
         "./pinned-footer": "./src/layout/usePinnedFooter.ts",
         "./text-input": "./src/textInput/TextInput.native.tsx",

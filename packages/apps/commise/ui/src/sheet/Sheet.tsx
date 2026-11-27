@@ -16,18 +16,17 @@
  *   follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);
  * - `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus
  *   is back on the opener;
- * - the snackbar's outlet inside the content, so a snackbar shown while the sheet is open can be reached.
+ * - the snackbar's outlet inside the content (`SheetPanel` mounts a `WindowScope`), so a snackbar shown while the sheet is
+ *   open can be reached.
  *
  * A presentational component: controlled by `open`, it fetches nothing and holds no domain state.
  *
  * @pattern Adapter over `@radix-ui/react-dialog` — the skeleton and the collapse are `SheetPanel`'s Template Method.
  */
 import * as Dialog from '@radix-ui/react-dialog';
-import { useContext, useId, type CSSProperties, type FC } from 'react';
+import { useId, type CSSProperties, type FC } from 'react';
 
 import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
-import { OverlayDepthContext } from '../overlay/overlayDepthContext.js';
-import { SnackbarOutlet } from '../snackbar/SnackbarOutlet.js';
 import type { SheetProps } from './props.js';
 import { SheetPanel } from './SheetPanel.js';
 import { useVisualViewportKeyboard } from './useVisualViewportKeyboard.js';
@@ -117,7 +116,6 @@ export const Sheet: FC<SheetProps> = ({
 }) => {
     const titleId = useId();
     const shapeFromSm = presentation === 'dialog' ? DIALOG_FROM_SM : FROM_SM[size];
-    const depth = useContext(OverlayDepthContext) + 1;
     const returnFocus = useReturnFocusOnClose(open);
     const visible = useVisualViewportKeyboard();
     const style =
@@ -159,12 +157,10 @@ export const Sheet: FC<SheetProps> = ({
                         closeLabel={closeLabel}
                         toolbar={toolbar}
                         footer={footer}
-                        // Inside the dialog's content, last: Radix leaves anything outside an open dialog unreachable.
-                        outlet={<SnackbarOutlet depth={depth} />}
                         keyboardOpen={visible !== null}
                         onClose={() => onOpenChange(false)}
                     >
-                        <OverlayDepthContext value={depth}>{children}</OverlayDepthContext>
+                        {children}
                     </SheetPanel>
                 </Dialog.Content>
             </Dialog.Portal>

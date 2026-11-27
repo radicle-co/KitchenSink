@@ -81,6 +81,16 @@ describe('SearchField (web)', () => {
         expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
     });
 
+    // CL-ICONBTN: the clear control is the shared icon button, in muted ink, drawn as a 24 glyph in its 44 target.
+    it('draws the clear control as the shared icon button: muted ink and a 24 glyph', () => {
+        render(<Search initial="lemon" />);
+        const clear = screen.getByRole('button', { name: 'Clear search' });
+
+        expect(tokensOf(clear)).toEqual(expect.arrayContaining(['text-ink-muted']));
+        expect(tokensOf(clear)).not.toContain('text-ink');
+        expect(clear.querySelector('svg')?.getAttribute('width')).toBe('24');
+    });
+
     it('shows a 44px clear control while non-empty, which empties the field and puts focus back in it', async () => {
         const user = userEvent.setup();
         render(<Search initial="lemon" />);

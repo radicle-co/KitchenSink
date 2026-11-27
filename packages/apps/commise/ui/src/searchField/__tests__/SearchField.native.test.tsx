@@ -5,6 +5,7 @@ import { fireEvent } from '@testing-library/dom';
 import { AccessibilityInfo } from 'react-native';
 import { useState } from 'react';
 
+import { present } from '../../testing/present.js';
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { SearchField } from '../SearchField.native.js';
@@ -111,6 +112,17 @@ describe('SearchField (native)', () => {
         expect(screen.queryByRole('button', { name: 'Clear search' })).toBeNull();
     });
 
+    // CL-ICONBTN: the clear control is the shared icon button, in muted ink, with a 24 glyph in its 44 circle.
+    it('draws the clear control as the shared icon button: muted ink and a 24 glyph', () => {
+        render(<Search initial="lemon" />);
+        const glyph = document.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')[1];
+
+        expect(glyph?.dataset['iconSize']).toBe('24');
+        expect(glyph?.dataset['iconColor']).toBe(role.inkMuted);
+    });
+
+    // TEST-CHANGE (decisions/0118): the clear control is the shared icon button, so its 44 pt / 48 dp target is the
+    // frame inside its Pressable, not a min size on the Pressable. The row reads that frame.
     it('gives the clear control a 44pt target on iOS and 48dp on Android', () => {
         for (const [os, size] of [
             ['ios', '44px'],
@@ -118,10 +130,14 @@ describe('SearchField (native)', () => {
         ] as const) {
             withPlatformOs(os, () => {
                 const { unmount } = render(<Search initial="lemon" />);
-                const clear = getComputedStyle(screen.getByRole('button', { name: 'Clear search' }));
+                const frame = present(
+                    screen.getByRole('button', { name: 'Clear search' }).firstElementChild,
+                    'the clear control frame',
+                );
+                const style = getComputedStyle(frame);
 
-                expect(clear.minWidth, os).toBe(size);
-                expect(clear.minHeight, os).toBe(size);
+                expect(style.width, os).toBe(size);
+                expect(style.height, os).toBe(size);
                 unmount();
             });
         }

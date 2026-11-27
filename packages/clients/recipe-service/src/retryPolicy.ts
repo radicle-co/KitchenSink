@@ -69,6 +69,7 @@ import {
     isVersionLineUnrestorableError,
     isPullDriftError,
     isRecipeServiceClientError,
+    isServiceUnreachableError,
     isSourceUnavailableError,
     isUnauthorizedError,
     isUnexpectedResponseError,
@@ -125,8 +126,9 @@ export function shouldRetryRecipeServiceFailure(error: unknown): boolean {
         return true;
     }
 
-    // The food service did not answer, which is its own transient state.
-    if (isSourceUnavailableError(error)) {
+    // The food service did not answer, or the load balancer found no recipe service behind its rule: both are
+    // transient outages, and neither says anything about the item asked for.
+    if (isSourceUnavailableError(error) || isServiceUnreachableError(error)) {
         return true;
     }
 

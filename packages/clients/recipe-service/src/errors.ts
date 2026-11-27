@@ -321,6 +321,26 @@ export function isSourceUnavailableError(error: unknown): error is SourceUnavail
 }
 
 /**
+ * A `404` whose body is not a JSON object: the shared ALB's own answer for a host or path with no rule (ADR-0003).
+ * The recipe service did not answer and nothing was done there. It is its own class, with its own `503` and
+ * `SERVICE_UNREACHABLE`, because `status` and `code` are what logs and alerts read: it is not a food outage
+ * (`SourceUnavailableError`), and it must not carry the wire's `404`, which anything that branches on `404` would
+ * read as "the item is gone". `503` is also the sync vocabulary for "not processed".
+ */
+export class ServiceUnreachableError extends RecipeServiceClientError {
+    public constructor(message = 'The recipe service did not answer the request') {
+        super(message, 503, 'SERVICE_UNREACHABLE');
+        this.name = 'ServiceUnreachableError';
+        Object.setPrototypeOf(this, ServiceUnreachableError.prototype);
+    }
+}
+
+/** Type guard for {@link ServiceUnreachableError}. */
+export function isServiceUnreachableError(error: unknown): error is ServiceUnreachableError {
+    return error instanceof ServiceUnreachableError;
+}
+
+/**
  * The parse job's 24-hour TTL has passed — a `409 PARSE_JOB_EXPIRED` from `POST /{id}/retry` or
  * `PATCH /{id}/lines/{lineIndex}` (plan U9).
  *

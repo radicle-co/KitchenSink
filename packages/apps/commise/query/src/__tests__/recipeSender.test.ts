@@ -24,13 +24,14 @@ import {
     InvalidVisibilityError,
     PrivateFoodsOnPublicRecipeError,
     PrivateSlotsFullError,
+    RecipeServiceClient,
     RecipeServiceClientError,
     SourceUnavailableError,
     VersionConflictError,
 } from '@kitchensink/recipe-service-client';
 import type { VersionConflictSide } from '@kitchensink/recipe-core';
 import { makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { classifyFailure, resendsWhenParked, type OutboxRecord } from '@kitchensink/sync';
+import { classifyFailure, resendsWhenParked, type IntentKind, type OutboxRecord } from '@kitchensink/sync';
 
 import { recipeSender } from '../recipeSender.js';
 
@@ -414,14 +415,55 @@ describe('recipeSender — a delete that meets a 404', () => {
         });
     });
 
-    it.each([
-        ['no code (the ALB answering a host with no rule)', new NotFoundError('Not Found')],
-        ['the route-level NOT_FOUND', new NotFoundError('no route', 'NOT_FOUND')],
-    ])('⛔ stays a failed 404 with %s', async (_name, error) => {
-        const deleteRecipe = vi.fn().mockRejectedValue(error);
+    it('⛔ stays a failed 404 with the route-level NOT_FOUND', async () => {
+        const deleteRecipe = vi.fn().mockRejectedValue(new NotFoundError('no route', 'NOT_FOUND'));
         const send = recipeSender(() => ({ deleteRecipe }) as never);
 
         expect(await send(record('delete', { id: 'r1' }))).toStrictEqual({ outcome: 'failed', status: 404 });
+    });
+
+    /**
+     * ⛔ THROUGH THE REAL CLIENT: the ALB's own 404 for a host with no rule carries no service body and forwards
+     * nothing. It reads as service-unreachable, so every write is NOT PROCESSED (`503`, re-sent by the drain) and a
+     * delete is never done. Replaces a row that stood a `NotFoundError` in for this response, which the client can no
+     * longer produce.
+     */
+    it.each<[IntentKind, unknown]>([
+        ['delete', { id: 'r1' }],
+        [
+            'create',
+            {
+                input: {
+                    title: 'Soup',
+                    ingredients: [
+                        { ingredientId: '3f2b8c1e-5d4a-4e6b-9c7d-1a2b3c4d5e6f', quantity: { kind: 'exact', value: 6 } },
+                    ],
+                    steps: [{ instruction: 'Simmer.' }],
+                    servings: 4,
+                    prepTimeMinutes: 10,
+                    cookTimeMinutes: 20,
+                    totalTimeMinutes: 30,
+                },
+            },
+        ],
+        ['update', { id: 'r1', input: { expectedVersion: 5, title: 'Soup' } }],
+    ])('⛔ a %s that meets the ALB code-less 404 is not processed (503)', async (kind, payload) => {
+        const albFetch: typeof fetch = () =>
+            Promise.resolve(new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } }));
+        const client = new RecipeServiceClient({
+            baseUrl: 'https://recipes.example.test',
+            token: 'tok',
+            fetch: albFetch,
+        });
+        const send = recipeSender(() => client);
+
+        const result = await send(record(kind, payload));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 503 });
+        // Not terminal: the write is sent again after the outage.
+        expect(classifyFailure({ entity: 'recipe', intentKind: kind, localId: 'r1', status: 503 })).not.toBe(
+            'terminal',
+        );
     });
 
     /**

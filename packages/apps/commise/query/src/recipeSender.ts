@@ -66,10 +66,11 @@ const NOT_IMPLEMENTED: RecipeSendResult = { outcome: 'failed', status: 501 };
 const SESSION_ENDED: RecipeSendResult = { outcome: 'failed', status: 401 };
 
 /**
- * The service's own statement that it did NOTHING: `502 SOURCE_UNAVAILABLE`, a route that needed the food service and
- * could not ask it. Reported as `503`, the sync vocabulary for "not processed" (`@kitchensink/retry-after`), so the drain
- * retries it. A gateway's code-less 502/504 keeps its own status, which `classifyFailure` reads as unknown, because only
- * the service's code distinguishes the two.
+ * The service's own statement that it did NOTHING: `502 SOURCE_UNAVAILABLE`, a route that needed the food service
+ * and could not ask it. Reported as `503`, the sync vocabulary for "not processed" (`@kitchensink/retry-after`), so
+ * the drain retries it. A gateway's code-less 502/504 keeps its own status, which `classifyFailure` reads as unknown,
+ * because the request may have reached the service before the gateway gave up. The load balancer's own `404` (`503
+ * SERVICE_UNREACHABLE`) needs no branch: it already carries `503`, and it forwards nothing, so nothing was processed.
  */
 const NOT_PROCESSED: RecipeSendResult = { outcome: 'failed', status: 503 };
 

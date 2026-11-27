@@ -4,15 +4,15 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 104,
-        "implementations": 166,
-        "props": 1260,
-        "documentedComponents": 104,
-        "implementationsWithModuleDoc": 166,
-        "implementationsWithComponentDoc": 152,
-        "documentedProps": 1068,
-        "classifiedComponents": 97,
-        "componentsWithPatternTag": 104,
+        "components": 105,
+        "implementations": 167,
+        "props": 1272,
+        "documentedComponents": 105,
+        "implementationsWithModuleDoc": 167,
+        "implementationsWithComponentDoc": 153,
+        "documentedProps": 1080,
+        "classifiedComponents": 98,
+        "componentsWithPatternTag": 105,
         "crossPlatformComponents": 62
     },
     "components": [
@@ -7128,14 +7128,14 @@
             "patterns": [
                 "Decorator — `PressScale` adds the press motion and owns the one `Pressable`",
                 "Decorator — `PressScale` adds the press motion around the button",
-                "Style Recipe — `TOUCH_TARGET_CLASS.fixed` and the focus ring and press fill rows are the whole look"
+                "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
             ],
             "platforms": [
                 "web",
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -7143,7 +7143,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row. A disabled control is refused but stays focusable, and dims to 40%.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7155,7 +7155,7 @@
                         },
                         {
                             "name": "pattern",
-                            "text": "Style Recipe — `TOUCH_TARGET_CLASS.fixed` and the focus ring and press fill rows are the whole look"
+                            "text": "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
                         }
                     ],
                     "description": "The design-system icon button.",
@@ -7170,6 +7170,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The control's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a\ncancelled click; native `disabled`), and it dims to 40% on both platforms.",
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         },
                         {
@@ -7243,7 +7252,19 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Called once per press.",
+                            "description": "Called once per press, and never while {@link disabled}.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\""
+                            ],
+                            "required": false,
+                            "defaultValue": "ink",
+                            "description": "The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear.",
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         }
                     ],
@@ -7259,7 +7280,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
                     "dir": "packages/apps/commise/ui/src/iconButton",
-                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a\n`hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow\nwith the text: an icon-only control keeps its pixel size. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a\n`hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow\nwith the text: an icon-only control keeps its pixel size. A press fills the circle with the surface's press row, and\na disabled control dims to 40% and cannot be pressed. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -7285,6 +7306,33 @@
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         },
                         {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A longer explanation for the screen reader, read after the name (an error the control cannot fix).",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a\ncancelled click; native `disabled`), and it dims to 40% on both platforms.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "expanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the control opens something, and whether it is open. Absent means it is not a disclosure.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
                             "name": "icon",
                             "type": "enum",
                             "typeDetail": [
@@ -7355,7 +7403,28 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Called once per press.",
+                            "description": "Called once per press, and never while {@link disabled}.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<View>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The pressable, for moving the screen-reader cursor onto it.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\""
+                            ],
+                            "required": false,
+                            "defaultValue": "ink",
+                            "description": "The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear.",
                             "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
                         }
                     ],
@@ -8307,6 +8376,156 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/input/StepperButton",
+            "name": "StepperButton",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/input",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — the control line and the surface are added around the icon button"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "StepperButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/input",
+                    "moduleDoc": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's\nown frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS,\n48 dp on Android), with the icon button over it.\n\nPresentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that\nimports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — the control line and the surface are added around the icon button"
+                        }
+                    ],
+                    "description": "The native step button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The field's error, read after the name (React Native has no `aria-describedby`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the stepper is at this button's bound.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The glyph: minus or plus.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press, and never while disabled.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

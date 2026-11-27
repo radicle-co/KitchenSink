@@ -24,6 +24,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
+import { ICON_BUTTON_CLASS, ICON_BUTTON_TONE_CLASS } from '../../iconButton/IconButton.js';
 import { ActionMenu } from '../ActionMenu.js';
 import type { ActionMenuItem, ActionMenuProps } from '../props.js';
 
@@ -394,6 +395,16 @@ describe('ActionMenu (web) — the overhaul contract', () => {
 
             expect(classes).toContain('size-[44px]');
             expect(classes).not.toContain('bg-photo-chip');
+        });
+
+        // CL-ICONBTN: the plain trigger keeps its Radix element and takes the shared icon button's recipe and press motion.
+        it('is built from the shared icon button recipe, inside its press motion', () => {
+            const trigger = renderAppearance();
+
+            expect(trigger.className.split(' ')).toEqual(
+                expect.arrayContaining([...ICON_BUTTON_CLASS.split(' '), ICON_BUTTON_TONE_CLASS.ink]),
+            );
+            expect(trigger.parentElement?.className).toContain('active:scale-[0.98]');
         });
 
         it('is the hero disc over a photo when asked: a 44 px photoChip disc, still a menu button', () => {

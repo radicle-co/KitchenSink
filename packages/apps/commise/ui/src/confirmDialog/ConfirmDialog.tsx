@@ -10,11 +10,13 @@
  *   box, not the viewport — with the destructive one on top; side by side above it, Keep first.
  * - Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores
  *   focus only to an owned trigger, and every caller opens this from a sibling.
+ * - A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the action row: the row and the
+ *   dialog's bottom padding are wrapped in one box, whose height is the snackbar's foot.
  *
  * @pattern Adapter over `@radix-ui/react-alert-dialog`, composing the design-system `DialogActions` row
  */
 import * as AlertDialog from '@radix-ui/react-alert-dialog';
-import type { FC } from 'react';
+import { useState, type FC } from 'react';
 
 import { Button } from '../button/Button.js';
 import { BUTTON_LABEL_ROLE } from '../button/props.js';
@@ -23,6 +25,8 @@ import { DialogActions } from '../dialogActions/DialogActions.js';
 import { dialogActionSlotClass } from '../dialogActions/dialogActionsClass.js';
 import { useReturnFocusOnClose } from '../dialogFocus/useReturnFocusOnClose.js';
 import { Icon } from '../icon/Icon.js';
+import { useRenderedHeight } from '../layout/useRenderedHeight.js';
+import { WindowScope } from '../overlay/WindowScope.js';
 import type { ConfirmDialogProps } from './props.js';
 import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
@@ -46,6 +50,8 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
     // Snapshots whatever had focus at the render where `open` flips true — the edge guard lives in the hook,
     // so a busy/error re-render while open cannot re-snapshot a control inside the dialog.
     const onCloseAutoFocus = useReturnFocusOnClose(open);
+    const [foot, setFoot] = useState<HTMLElement | null>(null);
+    const footHeight = useRenderedHeight(foot, 0);
 
     return (
         <AlertDialog.Root open={open} onOpenChange={(next) => (next ? undefined : onKeep())}>
@@ -54,57 +60,63 @@ export const ConfirmDialog: FC<ConfirmDialogProps> = ({
                 <AlertDialog.Content
                     aria-modal="true"
                     onCloseAutoFocus={onCloseAutoFocus}
-                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
+                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex w-[calc(100%-2rem)] max-w-md -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-xl ${surfaceToneClass('paperOverlay')} px-6 pt-6 shadow-lg`}
                 >
-                    <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
-                    {note === undefined ? (
-                        <AlertDialog.Description className="text-body text-ink-muted">{body}</AlertDialog.Description>
-                    ) : (
-                        // One description element holding both paragraphs, so the dialog is described by the body and the note.
-                        <AlertDialog.Description asChild>
-                            <div className="flex flex-col gap-2 text-body text-ink-muted">
-                                <p>{body}</p>
-                                <p>{note}</p>
-                            </div>
-                        </AlertDialog.Description>
-                    )}
-                    {error === undefined || busy ? null : (
-                        <p role="alert" className="text-body text-danger-text">
-                            {error}
-                        </p>
-                    )}
-                    {busy && busyLabel !== undefined ? (
-                        <span role="status" className="text-meta text-ink-muted">
-                            {busyLabel}
-                        </span>
-                    ) : null}
-                    {unavailable !== undefined && !busy ? (
-                        <span role="status" className="text-meta text-ink-muted">
-                            {unavailable}
-                        </span>
-                    ) : null}
-                    <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
-                        <AlertDialog.Cancel
-                            type="button"
-                            className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
-                        >
-                            {keep.icon === undefined ? null : (
-                                <Icon name={keep.icon} size={20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
-                            )}
-                            <span>{keep.label}</span>
-                        </AlertDialog.Cancel>
-                        <Button
-                            variant="destructive"
-                            tone="confirm"
-                            icon={confirm.icon}
-                            busy={busy}
-                            disabled={unavailable !== undefined}
-                            width="fill"
-                            onPress={onConfirm}
-                        >
-                            {confirm.label}
-                        </Button>
-                    </DialogActions>
+                    <WindowScope footHeight={footHeight}>
+                        <AlertDialog.Title className="text-section-title text-ink">{title}</AlertDialog.Title>
+                        {note === undefined ? (
+                            <AlertDialog.Description className="text-body text-ink-muted">
+                                {body}
+                            </AlertDialog.Description>
+                        ) : (
+                            // One description element holding both paragraphs, so the dialog is described by the body and the note.
+                            <AlertDialog.Description asChild>
+                                <div className="flex flex-col gap-2 text-body text-ink-muted">
+                                    <p>{body}</p>
+                                    <p>{note}</p>
+                                </div>
+                            </AlertDialog.Description>
+                        )}
+                        {error === undefined || busy ? null : (
+                            <p role="alert" className="text-body text-danger-text">
+                                {error}
+                            </p>
+                        )}
+                        {busy && busyLabel !== undefined ? (
+                            <span role="status" className="text-meta text-ink-muted">
+                                {busyLabel}
+                            </span>
+                        ) : null}
+                        {unavailable !== undefined && !busy ? (
+                            <span role="status" className="text-meta text-ink-muted">
+                                {unavailable}
+                            </span>
+                        ) : null}
+                        <div ref={setFoot} className="pb-6">
+                            <DialogActions sideBySideFrom={SIDE_BY_SIDE_FROM}>
+                                <AlertDialog.Cancel
+                                    type="button"
+                                    className={`${buttonSurfaceClass('secondary')} ${dialogActionSlotClass(SIDE_BY_SIDE_FROM)}`}
+                                >
+                                    {keep.icon === undefined ? null : (
+                                        <Icon name={keep.icon} size={20} scaleWith={{ role: BUTTON_LABEL_ROLE }} />
+                                    )}
+                                    <span>{keep.label}</span>
+                                </AlertDialog.Cancel>
+                                <Button
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon={confirm.icon}
+                                    busy={busy}
+                                    disabled={unavailable !== undefined}
+                                    width="fill"
+                                    onPress={onConfirm}
+                                >
+                                    {confirm.label}
+                                </Button>
+                            </DialogActions>
+                        </div>
+                    </WindowScope>
                 </AlertDialog.Content>
             </AlertDialog.Portal>
         </AlertDialog.Root>

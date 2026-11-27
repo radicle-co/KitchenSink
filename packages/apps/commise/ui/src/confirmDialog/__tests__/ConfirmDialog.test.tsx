@@ -1,9 +1,17 @@
 import { describe, it, expect, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach } from 'vitest';
 
+import { SnackbarHost } from '../../snackbar/SnackbarHost.js';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '../../testing/windowSnackbar.js';
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
 
@@ -321,5 +329,46 @@ describe('ConfirmDialog (web) — the overhaul contract', () => {
         expect(tokensOf(screen.getByRole('heading', { name: 'Discard unsaved changes?' }))).toContain(
             'text-section-title',
         );
+    });
+});
+
+describe('ConfirmDialog (web) offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }): JSX.Element {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <ConfirmDialog {...baseProps({ open })} />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('alertdialog'));
+        await expectProbeUndoReachable(screen.getByRole('alertdialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('sits the snackbar 16 above the action row: the row and the dialog padding under it are its foot', () => {
+        // Only the box that holds the buttons and not the title reports a height; the dialog itself reports none.
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+            const holdsButtons =
+                this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
+
+            return new DOMRect(0, 0, 320, holdsButtons && this.querySelector('h2') === null ? 88 : 0);
+        });
+        render(<WithHost open />);
+
+        // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole dialog.
+        expect(within(screen.getByRole('alertdialog')).getByRole('status').style.bottom).toBe('calc(88px + 1rem)');
     });
 });

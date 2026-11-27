@@ -2,6 +2,7 @@ import { cleanup, render } from '@testing-library/react';
 import { useContext, type FC } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { createSnackbarPlacement } from '../../snackbar/snackbarPlacement.js';
 import { PopupInsetsContext } from '../popupInsetsContext.js';
 import { PopupInsetsProvider } from '../PopupInsetsProvider.js';
 import { PopupInsetsRegistryContext, type PopupInsetsEntry, type PopupInsetsRegistry } from '../popupInsetsRegistry.js';
@@ -100,5 +101,54 @@ describe('PopupInsetsProvider', () => {
             ),
         ).not.toThrow();
         expect(seen).toHaveBeenCalledWith(12);
+    });
+
+    it('passes the watch upward in its entry, and re-registers when the watch changes', () => {
+        const { registry, live } = fakeRegistry();
+        const first = vi.fn(() => vi.fn());
+        const second = vi.fn(() => vi.fn());
+        const page = (watch: () => () => void) => (
+            <PopupInsetsRegistryContext value={registry}>
+                <PopupInsetsProvider reader={reader(64)} watch={watch}>
+                    <span />
+                </PopupInsetsProvider>
+            </PopupInsetsRegistryContext>
+        );
+        const { rerender } = render(page(first));
+
+        // Kills: a provider that drops the watch on the way up, so the store never hears of a resize.
+        expect(live[0]?.watch).toBe(first);
+
+        rerender(page(second));
+
+        expect(live).toHaveLength(1);
+        expect(live[0]?.watch).toBe(second);
+        expect(registry.register).toHaveBeenCalledTimes(2);
+    });
+
+    it('stops the old watch once on a new watch, and the last on unmount, through the real store', () => {
+        const placement = createSnackbarPlacement();
+        const stopFirst = vi.fn();
+        const stopSecond = vi.fn();
+        const first = vi.fn(() => stopFirst);
+        const second = vi.fn(() => stopSecond);
+        const page = (watch: () => () => void) => (
+            <PopupInsetsRegistryContext value={placement}>
+                <PopupInsetsProvider reader={reader(64)} watch={watch}>
+                    <span />
+                </PopupInsetsProvider>
+            </PopupInsetsRegistryContext>
+        );
+        const { rerender, unmount } = render(page(first));
+
+        rerender(page(second));
+
+        // Kills: a withdrawal that skips the cleanup, so a replaced watch keeps listening.
+        expect(stopFirst).toHaveBeenCalledOnce();
+        expect(stopSecond).not.toHaveBeenCalled();
+
+        unmount();
+
+        expect(stopSecond).toHaveBeenCalledOnce();
     });
 });

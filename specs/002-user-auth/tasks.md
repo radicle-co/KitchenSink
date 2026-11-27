@@ -65,6 +65,7 @@ T-030 → T-089[P]
 T-030 → T-092[P] ─┐
 T-089 → T-091[P] ─┴─→ T-093[P] → T-094[P]
 T-020, T-021 → T-095[P]
+T-033 → T-096 → T-097
 ```
 
 **Parallelizable tasks ([P])**: T-001, T-010, T-020, T-024, T-030, T-039, T-040, T-050, T-055, T-060, T-064, T-070, T-081, T-084, T-085, T-086, T-087, T-089, T-091, T-092, T-093, T-094, T-095
@@ -273,6 +274,29 @@ T-020, T-021 → T-095[P]
     - **Implements**: REQ-022, REQ-023, REQ-024, REQ-025, REQ-026, REQ-CN-004, REQ-IF-005, FR-022, FR-023, FR-024, FR-025, FR-026, ARCH-016, ARCH-017, MOD-016, MOD-017
     - Execute DB deletion transaction (user-owned cascades). Publish deletion job to SQS for IdP delete worker. Return safe completion response and revoke local session contract.
     - **Acceptance**: DB rows removed immediately; IdP deletion happens async with retry semantics.
+
+- [ ] **T-096** [US-007] Show the licence reminder, the takedown-request link and the erasure receipt code on the close and delete confirm steps, web and mobile — `016-FR-012a`, `016-FR-037` (amended 2026-11-21). The screens are owned by `docs/plans/2026-07-18-002-feat-account-closure-anonymization-plan.md` (U4b, with the erase confirm step's election and warning from U3b)
+    - **Depends on**: T-033; closure plan U3b and U4b (the screens, the election and the code); `016` L121-02 (the notice form's `author_request` ground and receipt-code field, `016-FR-016`, which the takedown link opens); `016` slice 1's licence document (`016-FR-010`, the "Read the licence" target); the copy in `016-FR-012a` (designer, 2026-11-21)
+    - **Acceptance**: component tests for every state on both platforms. The close and delete story flows are in T-097. Device runs happen once per PR at its final head. No new choice; the erasure's recipe election is unchanged. The takedown link is as prominent as Continue. The code is shown once after confirm and is never logged or sent to analytics.
+        - **Layout (both confirms):**
+            - The takedown action is a button-styled link in the SECONDARY variant, following Continue's height and width rules, in the same action group. It is never a body text link and never a second primary.
+            - Web order: Cancel (ghost), the takedown action (secondary), Continue (primary; destructive tone on erase).
+            - Mobile: stacked full width at the same heights, in the order Continue, takedown action, Cancel. The takedown action sits right next to Continue, never below a fold.
+            - The form opens in a new tab (web) or the in-app browser (native), so the confirm and its state stay.
+            - Initial focus is on the confirm heading, not on Continue. The reminder is plain visible text, never behind a disclosure.
+        - **Done step:**
+            - The code is shown in monospace, in blocks of 4, selectable, with a Copy button that uses the existing copy action. The button, its "copied" feedback and the step's only exit use the keys `account.delete.receiptCodeCopy`, `account.delete.receiptCodeCopied` and `account.delete.doneExit` (`016-FR-012a`). On mobile it wraps by block, never mid-block.
+            - The step's only exit stays enabled. There is no "I saved it" checkbox.
+        - **States:**
+            - The close and erase confirms with 0, 1 and many public recipes.
+            - The close confirm at count 0 while copies exist (`.copies` shows).
+            - Erase in the US and in EU/UK.
+            - The done step with the code.
+            - Each at 320 px and in German.
+
+- [ ] **T-097** [US-007] End-of-feature e2e wrap-up: Playwright and Maestro for close and for delete — `016-FR-012a`, `016-FR-037`
+    - **Depends on**: T-096
+    - **Acceptance**: Playwright (web) and Maestro (mobile) story flows for the close and delete confirm steps, written together and run once at the final head of the PR that carries them. Device runs happen once per PR.
 
 ---
 
@@ -561,10 +585,12 @@ T-020, T-021 → T-095[P]
 
 ## Coverage Summary
 
-- **Total tasks**: 61 (T-001, T-002, T-010..T-015, T-020..T-024, T-030..T-041, T-050..T-056, T-060..T-066, T-070..T-075, T-080..T-095)
+- **Total tasks**: 63 (T-001, T-002, T-010..T-015, T-020..T-024, T-030..T-041, T-050..T-056, T-060..T-066, T-070..T-075, T-080..T-097)
     - **Added 2026-08-12**: T-091 (supersede the hand-written contract), T-092 (verify the three drift gates),
       T-093/T-094 (the client half — wire types out of the consumer, responses parsed on receipt), T-095 (Clerk's
       §15-d boundary schemas). T-089 is retained as `[x]` and marked **superseded**, not deleted.
+    - **Added 2026-11-21**: T-096 (the licence reminder, the takedown-request link and the receipt code on the close and delete confirm
+      steps, `016-FR-012a`, `016-FR-037`), T-097 (the end-of-feature e2e wrap-up for close and delete).
 - **Deprecated**: T-035 (MFA — out of scope)
 - **REQ coverage**: REQ-001..REQ-050 addressed across phases.
 - **FR coverage**: FR-001..FR-044 addressed across phases.

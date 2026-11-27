@@ -103,4 +103,61 @@ describe('snackbar placement', () => {
 
         expect(listener).not.toHaveBeenCalled();
     });
+
+    describe('when the chrome resizes while a snackbar shows', () => {
+        /** A page whose chrome can grow, and that tells the store when it did through the `watch` it was given. */
+        const growingPage = () => {
+            const page = { bottom: 64, onChange: undefined as (() => void) | undefined };
+            const stop = vi.fn();
+            const watch = vi.fn((onChange: () => void) => {
+                page.onChange = onChange;
+
+                return stop;
+            });
+
+            return {
+                page,
+                stop,
+                watch,
+                entry: { token: 'page', depth: 1, read: () => ({ top: 0, bottom: page.bottom }), watch },
+            };
+        };
+
+        it('starts watching the chrome when it registers, and follows it to 16 above its new size', () => {
+            const placement = createSnackbarPlacement();
+            const listener = vi.fn();
+            const { page, watch, entry: growing } = growingPage();
+
+            placement.register(growing);
+            placement.subscribe(listener);
+            page.bottom = 128;
+            page.onChange?.();
+
+            // Kills: a store that never starts the watch, which leaves the snackbar over the grown chrome.
+            expect(watch).toHaveBeenCalledOnce();
+            expect(placement.getBottom()).toBe(144);
+            expect(listener).toHaveBeenCalledOnce();
+        });
+
+        it('stops the watch exactly once when the entry withdraws', () => {
+            const placement = createSnackbarPlacement();
+            const { stop, entry: growing } = growingPage();
+            const withdraw = placement.register(growing);
+
+            expect(stop).not.toHaveBeenCalled();
+
+            withdraw();
+
+            // Kills: a withdrawal that forgets the cleanup, which leaves an observer on a page that is gone.
+            expect(stop).toHaveBeenCalledOnce();
+        });
+
+        it('takes an entry without a watch as before', () => {
+            const placement = createSnackbarPlacement();
+
+            placement.register(entry('page', 1, 64));
+
+            expect(placement.getBottom()).toBe(80);
+        });
+    });
 });

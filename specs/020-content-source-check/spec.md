@@ -980,9 +980,9 @@ username. No need to call out family recipes."
       reads the claim or the linked account as it stands then. _(owner-accepted 2026-11-03)_ A person who already holds
       the recipe decides alone, with the claim as evidence. The open default above is settled this way.
     - **Erasure.** The claim is personal data. It is deleted with the account (`026` key entity
-      "Site claim", `016-FR-069`). An outcome that cited it keeps only the claim's opaque id, its method
+      "Site claim", `016-FR-069`). An outcome on a recipe the erasure removes keeps only the claim's opaque id, its method
       and the time it was last checked. It drops the claim's domain, because a personal blog's domain can name a person
-      (FR-063). The data model owes the outcome field that names the claim (ADR-0078). Records keyed on a page or host
+      (FR-063). _(Owner ruling 2026-11-26.)_ On a recipe the erasure keeps public, the outcome keeps only that a site claim cleared it and the date it was cleared, written before the claim is deleted, with no claim id (`016-FR-069`). The data model owes the outcome field that names the claim (ADR-0078), and erasure clears it on a kept recipe. Records keyed on a page or host
       (`recipe_source_keys`, `content_source_decisions`) are about the source, not the claim, and keep their own rules.
 
     _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ **A linked social account clears the own-post hit.** The proof
@@ -1005,7 +1005,7 @@ username. No need to call out family recipes."
       reposted or shared recipe on the cook's own account can pass. The per-recipe statement, the label and takedown
       remain the controls (`016-FR-015j`).
     - **Erasure.** The link and its tokens are deleted with the account (`016-FR-069`). An outcome that cited it keeps
-      only the link's opaque id, its platform and the last check time (FR-063).
+      only the link's opaque id, its platform and the last check time, on a recipe the erasure removes. On a recipe the erasure keeps public, it keeps only that a linked account cleared it and the date, with no link id (FR-063, owner ruling 2026-11-26).
 
 - **FR-012h**: **A copy of a private source cannot be detected.** A family card, a friend's email or a book that is not
   online has no page to find. For those, the controls are the cook's statement, the rights label and takedown
@@ -1154,14 +1154,14 @@ username. No need to call out family recipes."
 - **FR-018a**: Every path that makes a recipe public and published, including account erasure's donation of recipes,
   MUST be subject to FR-002. Because the hold lives in the read rule, no path can go around it. At account erasure
   (owner ruling, 2026-10-26):
-    - A public, published recipe whose current content is allowed stays, as today.
+    - A public, published recipe whose current content is allowed stays, as today. While blocking is on, a public recipe whose latest edit is still being checked has no allowed current content, so it is deleted with the account, although FR-064 shows readers its last approved version until then. The erase step lists these recipes in their own group (`erase.pendingEditHeading`, `erase.pendingEditHelp`, `016-FR-012a`). In shadow or paused mode such a recipe passes the read rule, so it is kept and the group is empty.
     - A private recipe the cook elects to donate MUST be checked, at the moment of election, like any recipe headed
       public. If every part is green it is donated. If not, it goes to a person.
     - A recipe already in review that the cook elects waits the same way.
     - A not-approved recipe is never donated. Its content has a final decision and cannot enter review again.
     - The erasure MUST wait for that person only until the **donation deadline: 14 days** from the request (owner
       ruling, 2026-10-26). The rest of the erasure, the identity scrub and the Clerk deletion
-      included, completes within one month of the request.
+      included, completes within one month of the request. That bound holds only while staff act on the scrub retry alarm and the erasure age alarm: a scrub that keeps failing, or an erasure notice the mail service keeps failing to take (closure plan U3b, Bounce window), holds the erasure open with no give-up (closure plan U3b, Scrub retry; owner ruling 2026-11-26), and the runbook step for that alarm is owed at U3b's build.
     - When the deadline comes, or when every elected recipe is decided, whichever is first, the erasure completes.
       It keeps only recipes the hold Specification allows. Every other recipe is deleted with the account: a recipe in
       review that was not elected, an elected recipe a person did not approve, and an elected recipe still waiting for
@@ -1617,7 +1617,7 @@ rule, written once, not a check per door. The door-by-door analysis that found t
     - **A digest version change is a re-keying migration.** A new version that reads the same fields only changes
       the hash, so each outcome and each person's decision MUST be carried to the new digest. It MUST NOT hide every
       public recipe at once, and it MUST NOT start a mass re-check. A new version that reads MORE fields MUST re-check
-      the new parts. A carried clearance never covers text nobody checked.
+      the new parts. A carried clearance never covers text nobody checked, with one exception: an account erasure carries the allowing outcome and any person's decision on it to the digest of its scrubbed content and starts no check (closure plan U3b, owner ruling 2026-11-26).
     - Nothing is built yet, so the fields above join the `v1` text digest now (data-model §0).
 
 - **FR-059**: **Missing means held.** The hold Specification MUST read every missing or unknown input as held, in
@@ -1680,9 +1680,9 @@ rule, written once, not a check per door. The door-by-door analysis that found t
 
     **Retention and erasure.** The record is kept for `016-FR-052a`'s period, and then it is purged. `016-FR-052b`'s
     pseudonymisation and `016-FR-052c`'s legal holds apply. At account erasure the record is de-identified. It drops
-    every name, email and recipe text. It keeps the cook's opaque app id. Identity keeps that id resolvable without
+    every name, email and recipe text. On a recipe the erasure removes, it keeps the cook's opaque app id, and identity keeps that id resolvable without
     personal data (ADR-0027). _(amended 2026-11-03, owner ruling O16, ADR-0082)_ A record that cites a site claim keeps
-    the claim's opaque id, method and last check time, and drops the claim's domain (FR-012g).
+    the claim's opaque id, method and last check time, and drops the claim's domain. On a recipe the erasure keeps public, it keeps only that a site claim cleared it and the date (FR-012g). _(Owner rulings 2026-11-26.)_ On a recipe the erasure keeps public, the record also keeps no app id, and a record that cites a linked social account keeps only that a linked account cleared it and the date, with no link id. On a recipe the erasure removes, a record that cites a link keeps the link's opaque id, its platform and the last check time.
 
 - **FR-064** _(amended 2026-11-03, owner ruling O10, ADR-0082)_: **An edit to a public recipe never shows unchecked content.** While a new digest is checking or in
   review, the public surfaces MUST NOT serve the new content. Decided: readers see the **last approved version**,
@@ -1714,7 +1714,6 @@ rule, written once, not a check per door. The door-by-door analysis that found t
     - a chef's Home or a claim that fails (`021-FR-010a`, `026-FR-001`). _(amended 2026-11-03, owner ruling O16,
       ADR-0082)_ This live read moves the canonical address only. A failed claim never reopens a recipe it already
       cleared (FR-012g, ADR-0078 §2).
-    - an account suspended, terminated, closed or erased (`021-FR-002` rule 7)
     - a 016 restriction (`021-FR-002` rule 8)
 
     A source page that changes after import is not one of them. We never fetch it again (FR-012), so the import page

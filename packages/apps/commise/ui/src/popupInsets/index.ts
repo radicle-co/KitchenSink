@@ -4,4 +4,10 @@
  */
 export { PopupInsetsContext, type PopupInsets, type PopupInsetsReader } from './popupInsetsContext.js';
 export { PopupInsetsProvider, type PopupInsetsProviderProps } from './PopupInsetsProvider.js';
-export { PopupInsetsRegistryContext, type PopupInsetsEntry, type PopupInsetsRegistry } from './popupInsetsRegistry.js';
+export {
+    PopupInsetsRegistryContext,
+    type PopupInsetsEntry,
+    type PopupInsetsRegistry,
+    type PopupInsetsWatch,
+} from './popupInsetsRegistry.js';
+export { useResizeWatch } from './useResizeWatch.js';

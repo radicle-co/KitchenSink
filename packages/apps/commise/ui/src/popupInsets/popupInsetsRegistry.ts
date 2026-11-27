@@ -12,12 +12,20 @@ import { createContext } from 'react';
 
 import type { PopupInsetsReader } from './popupInsetsContext.js';
 
-/** One provider's entry: its token, how deep it is nested, and the reader that gives its chrome's extent. */
+/**
+ * How a page tells the host that its chrome's size may have changed: the host calls it with what to run, and it returns
+ * the way to stop. It only signals; the host reads the chrome again through the entry's reader.
+ */
+export type PopupInsetsWatch = (onChange: () => void) => () => void;
+
+/** One provider's entry: its token, how deep it is nested, its reader, and, if it can, how it tells of a resize. */
 export interface PopupInsetsEntry {
     readonly token: string;
     /** 1 for a page's provider, 2 for one inside it, and so on. */
     readonly depth: number;
     readonly read: PopupInsetsReader;
+    /** Tells the host when the chrome resizes. Without it the host reads the chrome only when it places. */
+    readonly watch?: PopupInsetsWatch;
 }
 
 /** What the host offers the providers below it. */

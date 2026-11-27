@@ -408,11 +408,14 @@ the policy's recommendation are both visible.
       choice at publish: off by default, or asked once with buttons of equal weight. A separate choice covers the
       cook's photos. Only an adult can make it (`FR-008`). The cook warrants that the recipe is their own work. The
       publish screen MUST say that copies others make cannot be recalled, that CC BY lets the cook ask re-users to
-      remove their name, and that the grant is "irrevocable as far as the law allows". Public pages carry the licence in
+      remove their name, and that the grant "can’t be withdrawn, as far as the law allows". The word "irrevocable" stays only in the licence text the link opens. Public pages carry the licence in
       schema.org `license` ([data-model.md §11](./data-model.md)).
     - **Erasure after CC BY.** Where a cook's name was made public under CC BY and the cook asks for erasure,
       Commise MUST take reasonable steps to tell other controllers, for example a deletion signal on
       any feed.
+    - **The licence survives the account** _(owner rulings 2026-11-21)_. The licence continues after the cook's account is closed, suspended or erased, for the recipes the cook made public and the photos `FR-037` keeps. What continues is limited to display in the Commise library and in other cooks' copies. After an erasure there is no new commercial use, and the takedown request (`FR-016`) stays open to the cook. The clause says the licence is "irrevocable as far as the law allows". It is in plain words and shown prominently at sign-up and on the publish screen. On screen the clause's word "irrevocable" reads "can’t be withdrawn, as far as the law allows"; the word itself stays only in the licence text the link opens.
+        - `legal.licence.survivesAccount.signUp`: "When you make a recipe public, you give Commise a licence to show it, and other cooks can copy it and publish their own versions. The licence covers only recipes you made public. It can’t be withdrawn, as far as the law allows, and it continues if you close or erase your account. After you erase your account, we don’t start any new commercial use of your recipes. You can always ask us to take a recipe down. Read the licence". Placed with the existing terms text, the same size.
+        - `legal.licence.survivesAccount.publish`: "Making this recipe public gives Commise a licence to show it. Other cooks can copy it and publish their own versions, and the licence covers those copies too. The licence can’t be withdrawn, as far as the law allows, and it continues if you close or erase your account. After erasure we don’t start any new commercial use of your recipe. You can always ask us to take it down. Read the licence". Body text above Publish, never behind a disclosure or tooltip.
 
 - **FR-011**: The licence MUST be sufficient to permit the clone chain (`001-FR-005`) — that is, it MUST
   extend to permitting other users to copy published content into their own collections — and this MUST be
@@ -425,6 +428,37 @@ the policy's recommendation are both visible.
   content or erases the account, and the product MUST behave the way the licence says. **Derived copies
   survive both** (C-016-003): a clone is a modified work in the cloner's own collection, not a carbon copy of
   the original, and destroying it would take content from a user who did nothing wrong.
+    - _(Owner rulings 2026-11-21.)_ When a cook closes or erases their account, the confirm step shows a reminder and offers no choice about the recipes they made public. The erasure's donate election for private recipes is unchanged (`020-FR-018a`). The erase reminder states: how many recipes stay public; that they stay under the licence clause (`FR-010`, linked); that they show "a former member"; that names are removed from their text; what happens to their photos (`FR-037`); that their comments no longer show their name; that copies other cooks made stay; and that the cook may object. After the cook confirms, the receipt code is shown once, with how to ask for a takedown after the erasure and that the answer comes within 7 days (`FR-016`). The close reminder states the same facts for a closed account, where the name stays (`021-FR-024`) and no code is given. On both, the takedown-request link is as prominent as Continue, and nothing steers the cook either way. The close and erase screens belong to `docs/plans/2026-07-18-002-feat-account-closure-anonymization-plan.md` (U4b, with the erase confirm step's election and warning from U3b). `002` T-096 adds the reminder and the code to them. The copy, web and mobile (layout and states: `002` T-096):
+        - `account.delete.licenceReminder`: `.lead` "{count, plural, =0 {You have no public recipes.} one {Your # public recipe stays public after your account is erased.} other {Your # public recipes stay public after your account is erased.}}". A bulleted list shows only when the count is above 0, except `.comments`, which always shows: `.name` "Your name is replaced by “a former member”." (reuses the existing "a former member" string, never retyped); `.namesInText` "We remove names, yours and anyone else’s, from their text, such as titles, stories, steps and photo captions. We change as little as we can, and never amounts, times or the order of steps."; by the cook's market (`FR-037`), `.photosFoodOnly` "We keep photos that show only the food, with location and other hidden details removed. We remove all other photos. You can object and ask us to remove the ones we keep." or `.photosKept` "We keep their photos, with location data removed. We remove photos that show people."; `.comments` "Your comments stay, without your name."; `.copies` "Copies other cooks made of your recipes stay up."; `.licence` "You gave Commise a licence to show them when you made them public. Read the licence" (the last two words are the link); `.object` "You can object and ask us to take a recipe down, now or later with your receipt code.".
+        - `account.close.licenceReminder`: `.lead` "{count, plural, =0 {You have no public recipes.} one {Your # public recipe stays public, with your name on it.} other {Your # public recipes stay public, with your name on them.}}"; `.laterErasure` "If your account is erased later, they stay public, with “a former member” instead of your name." (hidden when the count is 0); `.licence` "The licence you gave Commise when you made them public continues after you close your account. Read the licence"; `.copies` "Copies other cooks made of your recipes stay up."; `.object` "You can object and ask us to take a recipe down.". When the count is 0, only `.lead` and `.object` show, plus `.copies` when any copy other cooks made of the cook's recipes exists, because copies outlive the original (`001-FR-005d`).
+        - `account.takedownRequest.link`: "Ask us to take recipes down".
+        - `account.delete.receiptCode`: "Your receipt code". `account.delete.receiptCodeHelp`: "This is the only time we can show this code. Save it somewhere safe. To ask us to take a recipe down later, use the takedown form and enter this code. Once we’ve checked that the request is yours, we hide the recipe until we decide. We decide within 7 days.".
+        - `account.delete.receiptCodeCopy`: "Copy code". `account.delete.receiptCodeCopied`: "Copied", which replaces the button label for 2 seconds and is announced politely once. `account.delete.doneExit`: "Done", the done step's only exit. It goes to the sign-in screen and never reuses "Sign out".
+        - `account.delete.donateWarning`: "{count, plural, =0 {You haven’t chosen any recipes to donate.} one {The recipe you donate becomes public when your account is erased.} other {The # recipes you donate become public when your account is erased.}}". When the count is above 0, `account.delete.donateWarningDetail` follows: "They show “a former member” instead of your name, under the same licence as your other public recipes. After erasure you can’t edit or delete them yourself. To have one taken down, use the takedown form with your receipt code.". Both sit directly under the donate election control on the erase confirm step (closure plan U3b), in body text. They update live as recipes are chosen, and no recipe is ticked in advance.
+        - `erase.pendingEditHeading`: "Public recipes that will be deleted". `erase.pendingEditHelp`: "{count, plural, one {You changed this public recipe, and we’re still checking the change. A recipe can’t stay public until its latest change is checked, so it will be deleted with your account.} other {You changed these # public recipes, and we’re still checking the changes. A recipe can’t stay public until its latest change is checked, so they will be deleted with your account.}}". It is its own group, a sibling of `erase.privateFoodsHeading` and `erase.privateFoodsHelp`, and is never merged into `privateFoodsHelp`: recipes by title, read only, no checkboxes; after the donation list and before the private-foods group; hidden when the count is 0 (`020-FR-018a`).
+        - `erase.donateHelp`: "Recipes you choose here become public when your account is erased. Everything you don’t choose is deleted." It replaces main's sentence, which said donated recipes are permanently unremovable. That is no longer true.
+        - The code strings live in `packages/apps/commise/features/account/src/danger/messages.ts`. The `account.schema.ts` copies (recipe-service, and the generated copy in `packages/schemas/recipe`, DD15) carry the old `donateHelp` sentence. The U3b build changes recipe-service's source and runs `contract:generate`.
+    - _(Owner rulings 2026-11-21.)_ **Erasure outside Commise's screen.**
+        - An erasure that starts from Clerk's delete event or from staff gets the erasure notice email. The erasure makes the receipt code and sends it in this email. If the mail service fails to take it, it is sent again with a new code, and only the latest code matches (closure plan U3b, Bounce window).
+        - The email goes before the address is purged. The send is logged with its message id, its variant and its outcome, never the address.
+        - The cook's public recipes are hidden (`021-FR-002` rule 8) until the email is sent. If the email bounces, the mail service refuses it, or there is no address for any reason other than closure, they are taken down: deleted with the erasure, like a recipe the cook kept private. _(Owner ruling 2026-11-26 for a refused send.)_ Only the mail service's permanent refusal of this message counts as a refused send. A mail service that is busy, paused or failing is retried. From the send they are visible again, until a bounce. A bounce that arrives after the bounce window closes finds nothing, because the erasure then keeps no recipe ids. The recipes then stay up as "a former member", and a takedown request is judged by staff on its evidence (`FR-016`). _(Owner ruling 2026-11-21.)_ An account closed earlier has no address, because closure removes it. Its public recipes stay up as "a former member", because the close reminder counts as the cook's choice. They get no `erasureNotice` hide, no email is sent, and nothing waits for a bounce. No receipt code is shown. Each kept recipe's owner token is computed from a code (`FR-037`) that is made and thrown away, and a later takedown request is judged by staff on its evidence (`FR-016`).
+        - Self-deletion is off in Clerk, so a cook's own erasure always goes through Commise's screen.
+        - An account removed by staff for breaking the rules gets the enforcement variant in every market. `{reasons}` carries that decision's statement of reasons (`FR-018`: the action, the ground, the facts and the automated flag), and `.appeal` always shows (`FR-018`, redress).
+        - The copy, prefix `email.erasureNotice`:
+            - `.subject` "Your Commise account was erased"; `.subjectEnforcement` "We removed your Commise account".
+            - `.intro` "Your Commise account was erased on {date}. This email tells you what happens to your recipes and how to ask us to take one down."; `.introEnforcement` "We removed your Commise account on {date}, because it broke our rules. This email gives our reasons, tells you what happens to your recipes, and how to ask us to take one down.".
+            - Enforcement only, right after the opening: `.reasonsHeading` "Why we removed your account", the `{reasons}` slot, `.appeal` "If you think we got this wrong, you can appeal: {appealUrl}".
+            - `.recipesHeading` "Your recipes"; `.lead` "{count, plural, =0 {You had no public recipes.} one {Your # public recipe stays public.} other {Your # public recipes stay public.}}". When the count is above 0, the list reuses `account.delete.licenceReminder` `.name`, `.namesInText`, `.photosFoodOnly` or `.photosKept` by market, and `.copies`. `.comments` always shows.
+            - `.licence` "You gave Commise a licence to show them when you made them public. Read the licence: {licenceUrl}"; `.takedownHeading` "Ask us to take a recipe down"; `.takedownLink` reuses `account.takedownRequest.link`; `.codeLabel` reuses `account.delete.receiptCode`; `.codeHelp` "This email is the only place we show this code, and we can’t send it again. Keep this email or save the code. To ask us to take a recipe down, use the form above and enter this code. Once we’ve checked that the request is yours, we hide the recipe until we decide. We decide within 7 days.".
+            - `.rightsHeading` "Your rights"; `.object` "You can object to us keeping your recipes public. Use the form above to ask us to take them down."; `.complain` (EU and UK markets only. It is read like the photos rule in `FR-037`, and a market that cannot be read counts as EU and UK) "You can also complain to the data protection authority where you live.".
+        - Layout:
+            - Order: the opening, then the reasons (enforcement only), the recipes, the takedown and the code, and the rights.
+            - HTML: one column of at most 600 px, the system font, no images and no logo. The takedown is the only button: a bulletproof table button in the primary colour. The code sits directly under it, in monospace, in blocks of 4, at 20 px, selectable.
+            - Plain text: the same order, sentence-case headings on their own lines, full URLs on their own lines, and the code alone on its line in blocks of 4.
+            - No tracking pixel, no click tracking and no open tracking.
+            - It is transactional, so it has no unsubscribe footer. The footer is the sender line plus the legal address the other transactional emails use.
+            - It is sent in the cook's last known locale, with English as the fallback. The preheader is the `.lead` sentence.
+        - States: request and enforcement; US (no `.complain`) and EU/UK; 0, 1 and many recipes; HTML at 600 and 320 px; plain text.
 - **FR-012b** _(added 2026-10-29, owner ruling, ADR-0077)_: Where a source page states its own licence, for example in
   its schema.org `license` field, the product MUST follow that licence, including its attribution terms. A page whose
   licence allows it, such as some Creative Commons licences, MAY be shown in full. Any other imported web page is shown
@@ -604,7 +638,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   digital-consent age (`FR-008`). Publishing needs age 16 or over in every market: choosing Public or Both at import, setting a recipe Public, and every other publication surface. The age basis
   is recorded under `FR-008`. A cook under 16 sees no publication surface.
 - **FR-073**: **Detected source evidence.** Source evidence the import detects (`004`) is stored on the recipe,
-  append-only. The cook cannot edit or clear it, and no control lets them.
+  append-only, except the erasure's removal of a cook's own site URL (`FR-037`). The cook cannot edit or clear it, and no control lets them.
 - **FR-074**: **The cook's statement.** The cook's own statement of where a recipe is from stays editable. Each change
   is recorded under `FR-076`. The statement stays editable after the first publish, while the detected evidence stays
   locked (`FR-073`, ADR-0089 §6) (owner ruling, 2026-11-15).
@@ -614,8 +648,8 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   words are `staff-ux-engineer`'s, with a localisation key (`FR-049`).
 - **FR-076**: **Attestation records.** Each statement and each confirmation is recorded with the account, the time and
   the version of the wording shown. The record is kept while the recipe is public, plus 6 years. At account erasure,
-  the owner id on recipes the cook leaves public under `FR-012a` and on their attestations is replaced with a random
-  token that links to no other record.
+  the owner id on recipes the cook leaves public under `FR-012a` and on their attestations is replaced with a token
+  made for that one recipe from the erasure's receipt code, so it links to no other record and no other recipe (`FR-037`).
 - **FR-077**: **Public versions of imported recipes.** The decision is ADR-0093. In brief:
     - The private copy keeps the source's wording, with food matching, and shows the source author's name. A recipe
       made in the manual single-recipe editor is never rewritten automatically.
@@ -634,7 +668,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   4.0 on their own recipe (`FR-010`) and the Public Domain Mark (`FR-015k`) are unchanged.
 - **FR-079**: **The source record.** Every public version keeps an internal source record: the source it came from,
   the detected evidence and the cook's statement it was made under, and which allowlist rule or rewrite made it
-  public. The record is append-only and is never shown to readers.
+  public. The record is append-only, except the erasure's removal of a cook's own site URL (`FR-037`), and is never shown to readers.
 - **FR-080**: **Paid sites.** A site is paid when its page data says `isAccessibleForFree` is false, or its domain is
   on the paid list (data, kept by staff), or it has a metered paywall.
     - A paid-site recipe goes public only as a fully Commise-written page that names no site.
@@ -660,6 +694,13 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
 - **FR-016**: The system MUST provide an electronic notice mechanism, reachable **without an account**, that
   accepts a notice identifying the specific content, the grounds, and the notifier's contact details, and MUST
   issue an acknowledgement with a reference.
+    - _(Owner rulings 2026-11-21.)_ A cook, or a former cook, may use the same form to ask that their own recipes or photos be taken down, ground `author_request`. It works without an account. The request passes one proof of authorship:
+        - an erased cook enters the receipt code from their erasure. It matches a recipe when the token computed from it for that recipe equals the recipe's owner token (`FR-037`, `FR-076`).
+        - a cook whose account still exists, closed or suspended included, passes the identity check staff use to recover a closed account (`docs/plans/2026-07-18-002-feat-account-closure-anonymization-plan.md` U2). An active cook can also take the recipe down themselves.
+        - A receipt code alone finds the cook's kept recipes: the request may leave out the target, and it then covers every kept recipe whose owner token matches the code. The lookup reads only recipes that carry an owner token, never the rest of the library. An erased cook may know only an address that now answers `410` (`FR-037`).
+        - The receipt code holds at least 128 random bits. It travels only in a request body, never in a URL, and request logs redact it. Code attempts are rate limited per client address. A `hidden` answer reveals only that the code matched, which only the code's holder can cause.
+
+        Once the proof passes, the recipe is hidden at once. The hide is a restriction under `021-FR-002` rule 8, and public surfaces follow within `003A-FR-013`'s 5 minutes. Staff then decide on the evidence within 7 days (`FR-017a`). A request that fails the proof hides nothing and is still judged by staff on its evidence. A code lookup that reaches its cost limit is handled the same way, as an unproven request. It hides nothing, gets the `legal.notice.authorRequest.received` acknowledgement, and staff judge it on its evidence. No `author_request` earns a strike, and a failed proof is not misuse (`FR-020`, `FR-062`, `FR-066`). Copies others made stay (`FR-012a`, `FR-015a`; `FR-022` does not apply). The decision goes to the email on the request. The notice records which proof passed and never stores the code. The copy: `legal.notice.grounds.authorRequest` "My own recipe"; `legal.notice.receiptCode` "Receipt code"; `legal.notice.receiptCodeHelp` "If you erased your account, enter the receipt code we showed you then. If not, leave this empty and we’ll check that the recipe is yours." (the field shows only when the ground is "My own recipe", and it is optional). The acknowledgement for a request whose proof passed is `legal.notice.authorRequest.hidden` "Thanks. We’ve hidden the recipe while we look at your request. We’ll decide within 7 days.". For an unproven request it is `legal.notice.authorRequest.received` "Thanks. We’ve got your request. The recipe stays up until we’ve checked that it’s yours. Once we have, we hide it while we decide, and we decide within 7 days.", in the same place and style with the same polite announcement. States: the form with and without a code, each at 320 px and in German.
 - **FR-017**: Notices MUST be processed in a timely, diligent, non-arbitrary and objective manner, and each
   decision MUST record who decided, when, on what ground, and what action was taken.
 - **FR-017a**: "Timely" is measurable, and tiered by grounds: a notice on **`copyright` or `illegal_content`
@@ -708,8 +749,10 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
 - **FR-022**: When a notice is actioned against content that has been cloned, the system MUST identify the
   derived copies and make them actionable in the same decision. Removing only the original MUST NOT be
   recorded as compliance.
+    - _(Owner ruling 2026-11-21.)_ Not for an `author_request`: copies other cooks made stay (`FR-012a`, `FR-016`).
 - **FR-023**: An actioned notice MUST propagate to `015`'s reward ledger, reversing the grant that publication
   earned.
+    - _(Owner ruling 2026-11-21.)_ This includes an actioned `author_request` (`FR-016`).
 - **FR-024**: The system MUST rate-limit or otherwise resist abuse of the notice mechanism **without** refusing
   to receive notices, and MUST record any notice it declines to process along with the reason.
   _(Amended 2026-11-03, ADR-0082.)_ `FR-066` states how a misuse finding can delay processing without refusing to
@@ -972,6 +1015,16 @@ They fill gaps in FR-016 to FR-026 and do not repeat them._
   account use.
 - **FR-037**: Where erasure lawfully retains data, the system MUST record what was retained and the reason,
   and MUST surface that to the user on completion.
+    - _(Owner rulings 2026-11-21.)_ **Recipes kept public at erasure are anonymous**, except a recipe named in a sealed copyright record, which is described as "no name shown" (`FR-052a`).
+        - The owner token on each kept recipe (`FR-076`) is computed from a receipt code of at least 128 random bits and the recipe's own id, so no two kept recipes share a token. The code is shown to the cook once: on the done step of Commise's erase screen, or in the erasure notice email when the erasure started elsewhere (`FR-012a`). Once the erasure completes and, for an erasure that sent the notice email, its bounce window closes (`FR-012a`), nothing on the recipe or kept with the code links either one to the person, except a sealed record under `FR-052a` or, while a takedown request the person made is open, its working data on the notice (`FR-052a` item 2).
+        - Which stored data the erasure rewrites, deletes or keeps for a kept recipe is listed once, in the closure plan's U3b (Kept-recipe disposition).
+        - _(Owner ruling 2026-11-26.)_ The erasure writes no hide of its own. The automatic scrub, the photo check and the photo copies are prepared first. Then one database step replaces the owner, writes the scrubbed text, points the recipe at its new photo copies, renews any public id, and writes the erasure marker (`003A` data-model, Erased owner) last. Readers see the recipe with the cook's name before that step and as "a former member" after it, never anything in between. The erasure notice hide (`FR-012a`) is separate and still applies.
+        - No address of a kept recipe carries a username, and each changed page is sent to search engines to refresh (`021-FR-072`).
+        - Every free-text field is scrubbed of names and personal details: the title, the story, the steps, the ingredient lines, notes, tips, photo captions and alt text, and tags (owner ruling 2026-11-21). Notes, tips, photo captions and alt text are not stored yet. A feature that stores one brings it under this rule. The closure plan's U3b maps each field to its stored columns. Each scrub is the smallest edit that removes the name ("Maya's soup" becomes "Lentil soup", "Grandma Ruth's trick" becomes "a family trick", and "as Maya taught me" is cut). A family word such as "Grandma's" can stay. The scrub is automatic, and no person checks the text (owner ruling 2026-11-26). The scrub removes names only, and it never changes what a recipe means: its amounts, times, order or negations (owner ruling 2026-11-26). A fixed check compares each scrubbed field with its original. The scrub may only remove words, and put at most three words, never a number, in place of what it removed: words from a short fixed list of plain words, or words already in the recipe. In an ingredient line they come only from that line, and a step never takes a word that only another step holds. It may not remove any number from the title, a step or an ingredient line, or a number next to a unit, a time, a temperature or a serving word anywhere else. It may not remove or add a word that changes meaning, anywhere in the recipe: a negation such as not, never, without or don't, or a word such as only, until, unless, or, optional, before or after. It may not change the count or order of the steps or ingredient lines. When it rejects the output, or the scrub cannot run, the erasure stays open and the scrub is retried until it passes, with no take-down and no give-up, and staff are alerted while it keeps failing (owner ruling 2026-11-26; closure plan U3b, Scrub retry). The erasure's own writes start no new 020 check (`020-FR-058`, owner ruling 2026-11-26).
+        - On a kept "Written by you" recipe, the erasure removes the cook's own site address and its host from the recipe's own source fields, the stored source evidence (`FR-073`) and the source record (`FR-079`), whether the site was verified or not. Only a fact with no identifier stays: "source: own site", whether it was verified, and the date. This is the one exception to the append-only rule of `FR-073` and `FR-079`, and it covers other cooks' copies too (their source fields, evidence rows and version history), because the URL names the cook whoever holds the copy: the URL is either encrypted with a per-cook key that the erasure deletes, or replaced by a redaction event that leaves the original unreadable everywhere (owner ruling 2026-11-21; counsel question 14). If a live dispute needs the URL, it goes to the sealed store for that dispute only (`FR-052a`). Every other source, "Adapted from" included, keeps its URL. Until the URL is encrypted when it is stored (owed to the import path, `004`), the redaction event is the method, and crypto-shredding can cover only rows written after that ships.
+        - If the scrub removed a name from the title, the recipe's public id is renewed. In one step, the old id joins the list of retired ids, its row is deleted, and a new row with a new id is added (`003A` data-model, Public id). Its old address answers `410 Gone` for every slug, and nothing maps it to the new one. The retired list holds only the id and links to nothing (`003A-FR-014`, `021-FR-010`). A title with no name keeps its id, and a stale slug redirects as usual. Each changed address is refreshed: the sitemap swaps it, IndexNow is told (`021-FR-029a`, `021-FR-074`), and an operator files the old address with each search engine's own refresh tool (Google's and Bing's). Each step is logged.
+        - The cook's comments stay, shown as "a former member" (`021-FR-070`).
+        - Photos follow the cook's market, read from the account (`025-FR-003`). Until 025 records it, every account is in the US market (`FR-048`). It is never read from the request or the address. In the US market a photo stays with its location data stripped, and a photo that shows a person is removed. In the EU and UK markets photos are dropped, except a photo that shows only food, which stays with its metadata stripped unless the cook objects through `FR-016`. An account whose market cannot be read gets the EU and UK rule (`FR-048a`, `FR-048b`). A photo that shows a person is found the same way as the story scrub. A kept photo's stored original is replaced by its stripped copy (`021-FR-071`) at a new address that shares nothing with its old one. No photo address, before or after erasure, carries the recipe's internal id or the cook's (`003A` data-model, Photo addresses).
 - **FR-038**: The system MUST NOT make a user's own content accessible to an indefinite number of people **by
   default**; publication MUST be an act the user takes. _(This is the requirement `015` exists to satisfy;
   it is a data-protection rule, not a product preference.)_
@@ -1154,6 +1207,17 @@ they do not create a second mechanism.
   so the repeat-infringer policy stays demonstrable.
     - _(Amended, Owner ruling, 2026-11-15.)_ Attestation records follow `FR-076` instead: while the recipe is
       public, plus 6 years.
+    - _(Owner rulings 2026-11-21.)_ **Records after an erasure.**
+        1. Licence-acceptance proof for a kept recipe is the recipe id, the terms version and the date. It never names the person.
+        2. A cook's own takedown request (`FR-016`) keeps its who-asked record only in the sealed store, instead of `FR-052b`'s pseudonymising. While the request is open, the reporter's name, email and the resolved recipe ids are working data on the notice. Staff use them to check identity and send the decision (`FR-016`). When the decision is delivered, they move to the sealed store and the working copy is deleted, on the same timing as `FR-052b`.
+        3. A copyright dispute record that names the person stays sealed. Its recipes are described as "no name shown", never as "anonymous".
+        - **Sealed** means:
+            - a separate store with its own key;
+            - only named legal roles can open it;
+            - every access is logged with the claim it serves;
+            - it is used only for a legal claim or a regulator's request;
+            - it is deleted automatically when the period for bringing a claim ends: 3 years today, under this requirement (counsel question 12).
+        - A sealed record is the only thing that may link a kept recipe to the person (`FR-037`), except the working data of a takedown request the person made, while it is open (item 2). It is never kept on the erasure job.
 - **FR-052b**: A **reporter's name and email** MUST be pseudonymised once the counter-notice window on their
   notice has closed, leaving the notice, its grounds and its decision intact. The reporter is a third party
   who never accepted our terms, nothing requires keeping their contact details past the dispute, and the
@@ -1236,12 +1300,12 @@ FINAL, owner ruling 2026-11-03. It follows `020-FR-075` to `020-FR-078`.
       their site elsewhere on Commise.
     - **Erasure.** The site claim is personal data tied to the cook. The cook's account erasure
       deletes it (`FR-037`). A decision record that cited it is kept de-identified under `FR-052a` and
-      `020-FR-063`. It keeps the claim's opaque id, method and last check time. It drops the claim's domain,
-      because a personal blog's domain can name a person. A claim the cook
+      `020-FR-063`. On a recipe the erasure removes, it keeps the claim's opaque id, method and last check time. It drops the claim's domain,
+      because a personal blog's domain can name a person. _(Owner ruling 2026-11-26.)_ Before the claim is deleted, the erasure records on each recipe it keeps public, whose source the claim cleared, that a site claim cleared its source and the date it was cleared. It keeps no claim id, method or check time, so nothing links the recipe to the claim or the person (closure plan U3b). A claim the cook
       removes (`026-FR-009`) is kept in the removed state while the account exists, because a cleared outcome cites it.
       _(amended 2026-11-03, owner ruling, ADR-0082 §9)_ Erasure also deletes every linked social account and its
       tokens, and revokes the tokens with the platform where the platform allows it. A decision record that cited the
-      link keeps only the link's opaque id, the platform name and the last check time.
+      link keeps only the link's opaque id, the platform name and the last check time, on a recipe the erasure removes. _(Owner ruling 2026-11-26.)_ On a recipe the erasure keeps public, it keeps only that a linked account cleared it and the date it was cleared, with no link id, platform or check time (closure plan U3b).
 - **FR-070** _(added 2026-11-03, owner ruling, ADR-0082 §9)_: **What every user agrees to about removed downloads.**
   The terms of service (`FR-001`) MUST say three things to every user:
     - Users are told when content they downloaded from Commise is removed for legal reasons (`018-FR-029k`).
@@ -1739,6 +1803,26 @@ All three clarifications are resolved (C-016-001 … C-016-003). These remain op
    stays locked (`FR-073`, `FR-074`).
 9. **The 6-month hold on paid content.** Decided 2026-11-15: it counts from the page's publication date, or from the
    first import of that page by any cook (`FR-080`).
+
+## Open questions for counsel
+
+Product questions for counsel. None blocks planning.
+
+1. Can the terms keep the cook's licence after the account is closed or erased, photos included, in every market Commise plans to serve (`FR-010`)?
+2. When a cook's recipe credits other cooks, does that credit rest on a share-alike open licence or on Commise's own licence (`FR-010`, `FR-011`)?
+3. May a suspended cook's recipes still be shown with their name in every market Commise plans to serve (`021-FR-024`)?
+4. Does a cook's name shown on a public recipe count as information the cook made public themselves?
+5. For an erased cook's recipes that stay public, are a generic label, scrubbed free text and no internal link to the person enough for the recipe to count as anonymous data (`FR-037`)?
+6. When must Commise give a cook a statement of reasons for restricting their content, and does that change as Commise grows (`FR-018`)?
+7. If readers already saw a recipe under the cook's name, is it anonymous once the name reads "a former member" and its free text is scrubbed?
+8. Can Commise keep an erased cook's public recipes on the ground that keeping them serves free expression, when the library is run as a business?
+9. Is the clause that keeps the licence after the account ends fair to a consumer as written (`FR-010`, `FR-044`)?
+10. Do the consumer-privacy rules in Commise's launch market apply to Commise yet, at its current size and revenue?
+11. How does an author's right to withdraw their published work fit with a licence that is "irrevocable as far as the law allows"?
+12. How long may each kind of record that survives an erasure be kept, and does that period differ by market (`FR-052a`)?
+13. When an erasure changes a recipe's address or wording, should Commise also ask web archives to update or remove their copies (`FR-037`)?
+14. For a cook's own site URL removed at erasure, which method satisfies erasure for backups: encrypting it with a per-cook key that the erasure deletes, or a redaction event that leaves the original unreadable (`FR-037`, `FR-073`)?
+15. When the erasure scrub edits a recipe's wording to remove a name, must the recipe say it was edited to remove personal details (`FR-037`)?
 
 ---
 

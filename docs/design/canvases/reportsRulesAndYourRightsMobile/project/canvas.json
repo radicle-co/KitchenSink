@@ -170,6 +170,62 @@
       "w": 820,
       "h": 4268,
       "title": "Reports, rules and your rights, report states (mobile, iPad 820)"
+    },
+    "RightsNoticeAuthorRequestIphone390.dc.html": {
+      "x": 0,
+      "y": 15012,
+      "w": 390,
+      "h": 1320,
+      "title": "Reports, rules and your rights, notice, my own recipe, no receipt code (mobile, iPhone 390)"
+    },
+    "RightsNoticeAuthorRequestWithCodeIphone390.dc.html": {
+      "x": 470,
+      "y": 15012,
+      "w": 390,
+      "h": 1320,
+      "title": "Reports, rules and your rights, notice, my own recipe, with receipt code (mobile, iPhone 390)"
+    },
+    "RightsNoticeAuthorRequestHiddenIphone390.dc.html": {
+      "x": 940,
+      "y": 15012,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof passed (mobile, iPhone 390)"
+    },
+    "RightsNoticeAuthorRequestReceivedIphone390.dc.html": {
+      "x": 1410,
+      "y": 15012,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof not passed (mobile, iPhone 390)"
+    },
+    "RightsNoticeAuthorRequestAndroid384.dc.html": {
+      "x": 0,
+      "y": 16892,
+      "w": 384,
+      "h": 1308,
+      "title": "Reports, rules and your rights, notice, my own recipe, no receipt code (mobile, Android 384)"
+    },
+    "RightsNoticeAuthorRequestWithCodeAndroid384.dc.html": {
+      "x": 464,
+      "y": 16892,
+      "w": 384,
+      "h": 1308,
+      "title": "Reports, rules and your rights, notice, my own recipe, with receipt code (mobile, Android 384)"
+    },
+    "RightsNoticeAuthorRequestHiddenAndroid384.dc.html": {
+      "x": 928,
+      "y": 16892,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof passed (mobile, Android 384)"
+    },
+    "RightsNoticeAuthorRequestReceivedAndroid384.dc.html": {
+      "x": 1392,
+      "y": 16892,
+      "w": 384,
+      "h": 832,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof not passed (mobile, Android 384)"
     }
   },
   "order": [
@@ -195,7 +251,15 @@
     "RightsEraseIpad820.dc.html",
     "RightsAiDisclosureIpad820.dc.html",
     "RightsReportStatesIphone390.dc.html",
-    "RightsReportStatesIpad820.dc.html"
+    "RightsReportStatesIpad820.dc.html",
+    "RightsNoticeAuthorRequestIphone390.dc.html",
+    "RightsNoticeAuthorRequestWithCodeIphone390.dc.html",
+    "RightsNoticeAuthorRequestHiddenIphone390.dc.html",
+    "RightsNoticeAuthorRequestReceivedIphone390.dc.html",
+    "RightsNoticeAuthorRequestAndroid384.dc.html",
+    "RightsNoticeAuthorRequestWithCodeAndroid384.dc.html",
+    "RightsNoticeAuthorRequestHiddenAndroid384.dc.html",
+    "RightsNoticeAuthorRequestReceivedAndroid384.dc.html"
   ],
   "notes": {
     "row0": {
@@ -230,6 +294,20 @@
       "x": 0,
       "y": 9924,
       "text": "Reports, rules and your rights: report states, mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLicIphone": {
+      "x": 0,
+      "y": 14752,
+      "text": "Author request: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLicAndroid": {
+      "x": 0,
+      "y": 16632,
+      "text": "Author request: mobile, Android 384 (384 x 832)",
       "kind": "title1",
       "maxW": 2400
     }

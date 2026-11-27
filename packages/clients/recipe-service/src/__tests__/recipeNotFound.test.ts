@@ -2,9 +2,10 @@
  * `isRecipeNotFoundError` — whether a refusal is the recipe service itself saying no active recipe has that id.
  *
  * ⛔ A 404 ALONE IS NOT THAT. The shared ALB answers a host with no listener rule (`recipe-pr-{N}` torn down) with a
- * code-less `text/plain` 404 (ADR-0003), and the service answers a path it does not route with `NOT_FOUND`. Both
- * become a `NotFoundError`, and neither says anything about the recipe. A caller that read them as "already deleted"
- * reported a Discard as done while the recipe still existed, and settled away every parked write of it.
+ * code-less `text/plain` 404 (ADR-0003), which the client reads as a `SourceUnavailableError`, and the service answers
+ * a path it does not route with `NOT_FOUND`, which becomes a `NotFoundError`. Neither says anything about the recipe.
+ * A caller that read them as "already deleted" reported a Discard as done while the recipe still existed, and settled
+ * away every parked write of it.
  */
 import { describe, expect, it } from 'vitest';
 

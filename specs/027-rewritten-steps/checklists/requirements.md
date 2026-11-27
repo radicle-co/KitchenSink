@@ -33,5 +33,5 @@
 
 - FR-036 names Amazon Bedrock and FR-051 names ADR-0024. Both are constraints the owner set, not design choices, so
   they stay in the spec.
-- Every clarification (C-1 to C-21) is assumed and waits for the owner. Conflict 1 (020 Q-4, the label a replace
+- Every clarification (C-1 to C-21) is assumed and waits for the owner, except C-6, C-7 and C-12, which are ruled (2026-11-17). Conflict 1 (020 Q-4, the label a replace
   would follow) is open.

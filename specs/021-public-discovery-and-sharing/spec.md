@@ -30,7 +30,7 @@ to the web in full. What stays private is the full copy of words the cook did no
 paid site. The paragraph above is the 2026-10-27 ruling as given.
 
 _(Amended 2026-11-15. Owner ruling, 2026-11-15, [ADR-0093](../../docs/architecture/decisions/0093-imported-recipes-go-public-only-as-a-commise-written-version.md).)_ There are no facts cards. An imported recipe from a
-source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts,
+source the cook did not write goes public only as a Commise-written version: Commise rewrites the steps from the facts and the source steps (`027-FR-035`),
 and the cook confirms it before it publishes (FR-003, FR-014). The cook's private copy keeps the source's wording and
 is never public. The Overview and Session 2026-11-15 state the rule now in force.
 
@@ -175,19 +175,19 @@ their own routes, and a person reaches them only through a link or a search resu
 
 ### Words used in this spec
 
-| Word                        | Meaning                                                                                                                                                                                                                                                                           |
-| --------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Open recipe**             | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                              |
-| **Indexable**               | An open recipe or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                        |
-| **Public page**             | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                   |
-| **Public view**             | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                               |
-| **Commise-written version** | _(Added 2026-11-15, ADR-0093.)_ The public version of an imported recipe. Commise writes its steps from the facts only, and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
-| **Public domain record**    | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                              |
-| **Not available**           | The one answer for any address that is not an open recipe or an active creator page. It never says why                                                                                                                                                                            |
-| **Share link**              | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                        |
-| **Settle period**           | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                               |
-| **Exit event**              | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                       |
-| **Purge bound**             | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                 |
+| Word                        | Meaning                                                                                                                                                                                                                                                                                                          |
+| --------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Open recipe**             | A recipe that meets the open-to-the-web rule (FR-002). Anyone can read it signed out                                                                                                                                                                                                                             |
+| **Indexable**               | An open recipe or a creator page that search engines are allowed to index (FR-020). Every other public page says `noindex`                                                                                                                                                                                       |
+| **Public page**             | The signed-out web page for one open recipe or one creator page                                                                                                                                                                                                                                                  |
+| **Public view**             | The app's read-only screen for an open recipe or a creator page, reached by a link while signed out                                                                                                                                                                                                              |
+| **Commise-written version** | _(Added 2026-11-15, ADR-0093.)_ The public version of an imported recipe. Commise writes its steps from the facts and the source steps (`027-FR-035`), and the cook confirms it before it publishes. It is an open recipe (FR-003, FR-014). Facts cards, linked cards, book cards and source cards are withdrawn |
+| **Public domain record**    | _(Added 2026-11-03.)_ The curator's record that lets public domain text open (FR-006, `016-FR-015k`)                                                                                                                                                                                                             |
+| **Not available**           | The one answer for any address that is not an open recipe or an active creator page. It never says why                                                                                                                                                                                                           |
+| **Share link**              | The canonical address of a public page, plus an opaque share mark (FR-031)                                                                                                                                                                                                                                       |
+| **Settle period**           | The 72 hours after a recipe first becomes open, or after its checked content changes. During it, the page is open but not indexable                                                                                                                                                                              |
+| **Exit event**              | Anything that takes a recipe or a creator page out of the open set, or changes what its page shows (FR-007)                                                                                                                                                                                                      |
+| **Purge bound**             | How fast an exit event must show on every public surface (FR-061)                                                                                                                                                                                                                                                |
 
 ## User Scenarios & Testing _(mandatory)_
 
@@ -754,7 +754,7 @@ Session 2026-11-15.)_
     8. No decision under 016 removed or restricted it.
 - **FR-003** _(amended 2026-11-15. Owner ruling, 2026-11-15, ADR-0093)_: A public recipe imported from a source the
   cook did not write (a web page, a cookbook, a magazine or a paid site) MUST NOT be open to the web in the source's
-  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts, and the
+  wording. Its only public form is a **Commise-written version**: Commise rewrites the steps from the facts and the source steps (`027-FR-035`), and the
   cook confirms the version before it publishes. FR-014 says what a reader sees. The version is an open recipe under
   FR-002 rule 5 and follows this spec's page, indexing and share rules. These rules hold:
     - The cook chooses Private, Public or Both at import (`004`). Both keeps the private copy and adds the version.
@@ -776,6 +776,14 @@ Session 2026-11-15.)_
   from" link to it. A clone of an open recipe (FR-002 rule 5) can be open. A clone of public domain text is
   `imported_public` too, and it opens under rule 5. _(Amended 2026-11-15, ADR-0093.)_ A clone never copies a cook's
   private copy of an imported recipe, only a public form a reader can see.
+    - _(Added 2026-11-21, owed follow-up work.)_ A cook's copy of a public version (spec 003B) goes public as that
+      cook's adaptation (owner ruling 2026-11-20, "Yes, as their adaptation"), with the earlier cooks named signed out
+      (owner ruling 2026-11-20, "Yes, show names"). This FR owns that work: the "adapted from" link to the source, the
+      credit chain of every earlier cook, the label and byline rules for a copy, and a cook's request to have their
+      name removed from the credit, with what the credit shows in its place. 016's notice form (`016-FR-016`) takes
+      takedown requests only today. Until it
+      ships, 003B keeps only the guard: a copy keeps `source_record_id`, starts private, and every public door
+      refuses it. The account erasure never publishes a recipe that has `source_record_id`.
 - **FR-006** _(amended 2026-11-03, owner rulings, ADR-0082)_: Text imported under the curator grant (ADR-0023 §1, as
   amended by ADR-0082) MUST be open to the web in full only while its **public domain record** passes `016-FR-015k`.
   The label "Public domain" is derived from the grant plus a passing record (`016-FR-015d`). There is no new

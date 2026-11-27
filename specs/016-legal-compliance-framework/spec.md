@@ -391,7 +391,8 @@ the policy's recommendation are both visible.
 - **FR-008**: The system MUST enforce a minimum account age and MUST record the basis on which the account
   was determined to meet it. The floor is the higher of the applicable local digital-consent age and 13.
 - **FR-009**: The system MUST NOT present a user under 16 with any publication surface, in any market (`FR-072`,
-  Owner ruling, 2026-11-15).
+  Owner ruling, 2026-11-15). _Interim exception_: until this spec's age assurance ships, spec 003B (`FR-016`, C-17)
+  lets a cook who confirms "I'm 16 or over" at Publish publish. It ends when that assurance ships (003B T150).
 
 #### B. The content licence — the right to display, clone and derive
 
@@ -658,7 +659,7 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
     - The import rewrites the instructions of every public-facing recipe from a source that is not on the copy-outright
       allowlist, or that `020`'s reviewer check flags. The allowlist is: the cook's own verified site (`FR-067`), an open
       licence stated in the page's structured data (`FR-012b`), public-domain works (`FR-015k`), and US government works.
-    - Every public version: the writer sees the facts only, never the source wording. A similarity check runs on every
+    - Every public version: the writer sees the facts sheet and the source step text only, as `027-FR-035` says, and never the address, the statement or the source title _(amends ADR-0093 §4, ruled 2026-11-17; the feature ADR of spec 003B records it, T004)_. A similarity check runs on every
       save, with a two-way fact and safety check. The cook confirms before it publishes. "Report a problem" hides it
       until staff look (`020`). It uses no source photos and has a descriptive title. AI is disclosed plainly, for
       example "Steps written by Commise with AI, checked by {cook}" (wording to be confirmed, `FR-046`). A free-site
@@ -670,7 +671,8 @@ imported recipes, planned). The reviewer check that flags a source and "Report a
   the detected evidence and the cook's statement it was made under, and which allowlist rule or rewrite made it
   public. The record is append-only, except the erasure's removal of a cook's own site URL (`FR-037`), and is never shown to readers.
 - **FR-080**: **Paid sites.** A site is paid when its page data says `isAccessibleForFree` is false, or its domain is
-  on the paid list (data, kept by staff), or it has a metered paywall.
+  on the paid list (data, kept by staff), or it has a metered paywall. _(Amended by `003B-FR-012b`: a paid-list domain
+  alone is not a clear signal. Only `isAccessibleForFree` false or a metered paywall makes a source paid.)_
     - A paid-site recipe goes public only as a fully Commise-written page that names no site.
     - Where the dish exists in free or independent sources, a consensus recipe is preferred.
     - A paid site's signature recipe is never published from that single source.

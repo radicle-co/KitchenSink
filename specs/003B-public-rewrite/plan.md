@@ -3,79 +3,81 @@
 **Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
 **Input**: `specs/003B-public-rewrite/spec.md`. Each clarification there is ruled where marked, and the rest are assumed and wait for the owner.
 
-**Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
-findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). BLUEPRINT,
-the feature ADR, and `staff-ux-engineer` SPECIFY and EVALUATE are owed before any code.
+**Status**: BLUEPRINT done 2026-11-17. `staff-architect` PLANNING ran on 2026-11-15 (opus). Its pattern register and its
+findings are folded in below and into the spec (FR-015, FR-016, FR-045, FR-065, and the FR-050 title rule). The decisions
+are to be recorded in the paste and link import ADR, owed (T004), and the feature ADR, owed (T004). The build order is in `tasks.md`, with one slice tag per task.
+`staff-ux-engineer` SPECIFY is done (`docs/design/publicVersion/spec.md` and `detailSpec.md`). EVALUATE is owed before launch (T117).
 
 ## Summary
 
 At the end of an import, recipe-service classifies the source with one pure Specification: open, third-party or paid.
 An aggregator follows the third-party rules. A third-party item offers Private, Public or Both. A paid item gets the same offer under the paid-site rules
 (spec FR-017), and stays private only where they hold it back. Public and Both create one public-version job.
-A recipe-workers Lambda runs 027's step-writing engine on a facts snapshot, under its own ADR-0024 call site, and
+A recipe-workers Lambda runs 027's step-writing engine on a facts snapshot and the source step text, under its own ADR-0024 call site, and
 stores the result on the job. The cook reviews it. "Publish" is one Command. In one transaction it re-runs the fact check and the wording
 check on the server. It then writes the public recipe through the hold.
-There are no caps (owner ruling 2026-11-15). Every later save of a public version runs the wording check inside the recipe
-write, against a hashed fingerprint of the source taken at import. The source text itself is never kept for this.
+There are no caps (owner ruling 2026-11-15). Every later write that leaves a public version published and public runs the wording check inside the recipe
+write, against a hashed fingerprint of the source taken at import. The source text itself is never kept for this check. The job keeps the source step text in `source_steps` only until it ends, so a retry sends the writer the same text.
 
 ## Technical Context
 
 **Language/Version**: TypeScript 5.x strict, Node 24.
 **Primary Dependencies**: NestJS 11 (recipe-service), Drizzle ORM, zod + `nestjs-zod`. AWS SDK v3 Bedrock Runtime
 `Converse` through `gatedConverse` (recipe-workers), and SQS. TanStack Query, Tamagui (mobile), Next.js 16 (web).
-**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs.
+**Storage**: recipe PostgreSQL 18. Two new tables, new columns on `recipes` and on the import item, widened CHECKs (the source type and the item choice).
 Expand-only (ADR-0035), with the house two-step CHECK migration pair.
 **Testing**: vitest unit and integration (database mocked, DD12), LOCAL e2e for the migration and the publish
 transaction, worker tests, Playwright, Maestro, and k6 by hand.
 **Target Platform**: web, iOS and Android. recipe-service on Fargate. The worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker and two apps.
 **Performance Goals**: 95% of jobs ready within 30 s (SC-004).
-**Constraints**: facts-only writer input. No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on every
-unknown classification input. Job timeout 10 min.
-**Scale/Scope**: bounded by the one import allowance (ADR-0072 §8), 3 calls per item, and the spend ceiling.
+**Constraints**: writer input is the facts sheet plus the source step text, with no address, statement or source title (ruled 2026-11-17). No Anthropic model. The writer never fetches. A link import fetches on the device first, the server second (ADR-0093). Fail closed on spend and on the open test. An
+unreadable paid, opt-out or signature signal is `unknown` and takes the rewrite path. Job timeout 10 min.
+**Scale/Scope**: bounded by the spend ceiling, one public version per source page, and 3 attempts per holder (the import item, then the saved recipe). A paste spends its import unit only at save (FR-016a, C-24).
 
 ## Constitution Check
 
-| Principle                  | Status | Note                                                                                               |
-| -------------------------- | ------ | -------------------------------------------------------------------------------------------------- |
-| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).           |
-| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.               |
-| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.        |
-| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.   |
-| V Monorepo                 | PASS   | No new package. recipe-workers already depends on recipe-core.                                     |
-| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY owed. One radio group, never disabled. |
-| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                            |
-| IX Patterns / seams        | PASS   | Register below.                                                                                    |
-| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.       |
-| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                      |
-| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                             |
+| Principle                  | Status | Note                                                                                                                                                                                                                              |
+| -------------------------- | ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| I Correctness / types      | PASS   | Classification and job state are discriminated unions. Wire types in-service zod (DD15).                                                                                                                                          |
+| II JSDoc                   | PASS   | `@pattern` on the Specification, the Command, the statechart module and the adapter.                                                                                                                                              |
+| III Imports / organisation | PASS   | No barrels. Subpath exports for the engine modules, as `parsing/parse-prompt` already does.                                                                                                                                       |
+| IV Testing pyramid         | PASS   | Tier matrix below. The fact check, the fingerprint and the classifier each get a mutation suite.                                                                                                                                  |
+| V Monorepo                 | PASS   | No new package: the job-expiry function lives in recipe-core, which recipe-workers already depends on. `@commise/i18n` declares recipe-core for the shipped locale list (003A U12); recipe-service never imports `@commise/i18n`. |
+| VII Accessibility / UX     | PASS   | Every state keyed (spec table). `staff-ux-engineer` SPECIFY done, EVALUATE owed (T117). One radio group, never disabled.                                                                                                          |
+| VIII Cross-platform        | PASS   | Web and mobile in one release (FR-091).                                                                                                                                                                                           |
+| IX Patterns / seams        | PASS   | Register below.                                                                                                                                                                                                                   |
+| ADR-0024 layer 4b          | PASS   | Runs under the one verification role. New `SPEND_CALL_SITES` member `import-public-rewrite`.                                                                                                                                      |
+| ADR-0004 NAT list          | AMEND  | The new VPC Lambda adds a `nat-consumers` row (`natEgressConsumers.test.ts`).                                                                                                                                                     |
+| ADR-0093                   | PASS   | Amended ADR-0082 §5 and §6 already. This feature builds what it rules.                                                                                                                                                            |
 
 ## Engine ownership (decision)
 
 **027 owns the engine's design. 003B depends on it and builds none of it twice.**
 
-| Part                                                                                                                                                                        | Owner | Built by                                                        |
-| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------------------------- |
-| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                            | 027   | Whichever feature lands first (027 build step 1)                |
-| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                        | 027   | Whichever feature lands first                                   |
-| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                     | 027   | Whichever feature lands first. 003B cannot launch without them. |
-| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the rate alarm, the title builder, all UI | 003B  | 003B                                                            |
-| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                 | 027   | 027 only. 003B never takes them.                                |
+| Part                                                                                                                                                                        | Owner | Built by                                      |
+| --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----- | --------------------------------------------- |
+| `recipe-core/src/stepWriting/*`: facts sheet, prompt, answer parser, fact check, shingle measure, `rewriteSteps`                                                            | 027   | 003B, first (027 build step 1)                |
+| `recipe-workers/src/stepWriting/gatedStepWriter.ts` (the adapter half of 027 step 4)                                                                                        | 027   | 003B, first                                   |
+| The bake-off, the pinned model id, the measured thresholds (027 step 5)                                                                                                     | 027   | 003B, first. 003B cannot launch without them. |
+| Import classification, the choice, the public-version job, the worker handler, the review, Publish, the every-save wording guard, the rate alarm, the title builder, all UI | 003B  | 003B                                          |
+| 027's own tables, cache, use ledger and Cooking Mode switch                                                                                                                 | 027   | 027 only. 003B never takes them.              |
 
-003B will probably land first. 027's build step 0 needs 005's use ledger, which is unbuilt. 003B charges operating
+003B builds the engine first. 027's build step 0 needs 005's use ledger, which is unbuilt. 003B charges operating
 cost and needs no ledger.
 
 **Edits made to 027 in the same PR:**
 
-1. `027-FR-045` and its plan: the engine is built first by whichever of 027 or 003B ships first.
-2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text) → { formatVersion, hashes }` uses a
-   keyed, versioned hash, with `jaccard(a, b)` and `containment(sentence, set)`. 027's in-memory check, 003B's stored
-   check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard.
+1. `027-FR-045` and its plan: spec 003B builds the engine first (`027-FR-045`).
+2. `wordShingles.ts`: the measure takes shingle SETS, not text. `fingerprint(text, size, hash) → { formatVersion, hashes }`
+   uses an injected, keyed, versioned hash, with `jaccard(a, b)` and `containment(part, whole)`. 027's in-memory check, 003B's stored
+   check and 020's copy check run through one function. The per-sentence check is containment, not Jaccard. The text
+   fold in front of the shingles is defined in 027 research R3.
 3. `027-FR-032`: no gate. A 027 replace never changes the rights label, and an imported recipe goes public only through 003B-FR-015's two doors. Otherwise "private copy, replace, set public" is a back door.
 4. `027-FR-044`: the banned-word list is one module both guards import (003B FR-064).
 5. `027-FR-043`: no credit key of its own for a public version of an imported recipe. 027 uses 003B's.
-6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot on its job until the flow
-   ends (FR-042). This is a deliberate difference, recorded in both plans.
+6. 027's "Not stored: the facts sheet" stays true for 027. 003B stores a facts snapshot and the source step text (`source_steps`) on its job until the flow
+   ends (FR-033, FR-042). This is a deliberate difference, recorded here and in 027's data model.
 
 **The title is not in the engine.** 027 never changes a title, so a title field only 003B reads is a mode flag.
 003B builds the title in code from the facts sheet (C-8). If the bake-off shows those titles read badly, 003B adds its
@@ -86,7 +88,7 @@ own second pinned prompt behind the same adapter, under its own call site.
 **Prescribed (staff-architect PLANNING, 2026-11-15):**
 
 - **Specification**: `classifySource(input) → open | thirdParty | paid`, pure, an allowlist, fail closed.
-  A second pure Specification, `paidPublicEligibility`, reads opt-outs and signature status. It also reads the
+  A second pure Specification, `paidPublicEligibility`, reads stated opt-outs and clearly read signature status. It also reads the
   publication date, or the first-import date for an undated page, against `PAID_CONTENT_HOLD_MONTHS` (6). It returns
   `allowed` or one reason.
   It lives in `recipe-service/src/import/domain/sourceClassification.ts`, beside the import's visibility rule. It runs
@@ -100,18 +102,19 @@ own second pinned prompt behind the same adapter, under its own call site.
   source from the source records.
 - **Guard in the write transaction**: the wording check runs inside the `RecipesService` write for any recipe that is
   a public version. It covers `update` and version restore (ADR-0058), not just one controller.
-- **Adapter on a Template Method**: 027's `createGatedStepWriter` over `gatedConverse`, with the terminal `budgetSpent`
+- **The copy guard (FR-062a)**: one pure Specification, `copyGuard` in `RS/recipes/domain/visibilityPolicy.ts` (T403, tested first by T190), keyed on `source_record_id` and never on `cloned_from_id`, which erasure can clear. Every public door asks it: Make public, Publish, Both, the later route, an import's public choice and the erasure's publish election. A copy going public as the cook's adaptation is parked with `021-FR-005`.
+- **Adapter on a Template Method**: 027's `createGatedStepWriter` over `gatedConverse`, with the final `budgetSpent`
   override 004-FR-059 already uses.
 
 **Preserved (do not refactor away):**
 
 - `evaluateVisibility` and `provenancePolicy`. The classification is an input to them, not a replacement.
 - The ADR-0074 hold. A public version NOT APPROVED becomes private and takes a slot, over the limit where need be (ADR-0073).
-- The ADR-0073 per-user lock and live count.
+- The ADR-0073 per-user lock and live count, and the lock order of every paste and job transaction: the import header, the item, the allowance, the DD33 lock, the private recipe, then the job (FR-016a). The bulk save takes the same order through `ImportedCreate.beforeLocks` (T314), so there is no deadlock to retry.
 - `gatedConverse`, unrefactored.
 
 **Intent already satisfied (add nothing):** TanStack mutation as Command. The outcome union as Visitor. The unique
-the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key` header).
+`recipes.source_page_key` as the idempotency key (no `Idempotency-Key` header).
 
 ## Cost path under DD21
 
@@ -120,10 +123,11 @@ the unique `recipes.source_page_key` as the idempotency key (no `Idempotency-Key
 - **Charge.** Operating cost (ADR-0024 §6 item 1). Never a cook's use (010-FR-041d, 005-FR-015a).
 - **Per call.** ADR-0024 §6 estimates a recipe-sized call at about 1,750 tokens in and 900 out: about $0.003 on Nova 2
   Lite. The facts sheet is smaller than a full recipe, so this is an upper estimate. The bake-off measures it.
-- **Per item.** At most 3 writer calls (one automatic retry, one by hand, C-7): at most about $0.009.
-- **Per cook.** Bounded by the one import allowance (ADR-0072 §8, `004-FR-061`), at 3 calls per item. There is no separate
-  cap (owner ruling 2026-11-15), so the pool's ceiling is the real bound.
-- **Denial.** Terminal `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
+- **Per holder.** At most 3 writer attempts, counted by the holder (the import item, then the saved recipe) across its jobs (one automatic retry, one by hand, C-7): at most about $0.009 for the attempts, and each re-claim adds one writer call beyond the 3 attempts.
+- **Per cook.** Not bounded by the import allowance (a paste spends its unit only at save, FR-016a). Bounded by one
+  public version per source page and 3 attempts per holder. There is no separate cap (owner ruling 2026-11-15), so the
+  pool's ceiling is the real bound. There is no per-cook read cap and no new ledger channel (owner ruling 2026-11-19). The AI-use metric of FR-086 (calls and cost per import or job, with `Stage` and the outcome) watches the one known loop, read-then-cancel, which is free and could drain the shared pool. That risk is accepted.
+- **Denial.** Final `budgetSpent`, refund in full, ack the message, never redeliver (FR-082). The screen reads the
   counter as a hint only. The reservation is the gate.
 - **ADR-0024 §3** gains a third no-retry path, in the feature ADR. §6's split of operating AI from paid credits is
   still owed before Pro with AI goes on sale, and this call site sits on the operating side.
@@ -148,17 +152,21 @@ specs/003B-public-rewrite/
 ### Source Code (repository root)
 
 ```text
-packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by whichever lands first)
+packages/shared/recipe-core/src/stepWriting/                  # 027's engine (built once, by 003B first: 027-FR-045)
 packages/shared/recipe-core/src/copy/bannedWords.ts            # the one banned-word list (FR-064)
+packages/shared/recipe-core/src/publicVersion/jobExpiry.ts  # subpath ./public-version/job-expiry: the shared job-expiry function (T381)
 packages/services/recipe-service/src/import/domain/sourceClassification.ts
 packages/services/recipe-service/src/import/publicVersion/     # controller, schema, service, DAL, title builder
 packages/services/recipe-service/src/recipes/domain/publicVersionWordingGuard.ts
+packages/services/recipe-service/src/recipes/domain/publishAgeAllowed.ts   # pure predicate (FR-016)
+packages/services/identity/                                    # age_assurances migration, POST /api/v1/me/age-assurance (slice P3b)
 packages/services/recipe-service/src/database/migrations/00NN_public_versions.sql (+ _validate)
 packages/services/recipe-workers/src/handlers/publicVersionWorker.ts
-packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency
+packages/services/recipe-workers/infra/lib/RecipeWorkersStack.ts  # Lambda, queue, DLQ, reserved concurrency, PublicVersionJobSweepBehindAlarm
+packages/services/recipe-workers/src/handlers/bandDrain.ts    # the job sweep, the job retention step (T375) and the import purge run on its 15-minute tick (no new Lambda)
 packages/schemas/recipe                                        # generated copy (contract:generate)
-packages/clients/recipe-service-client                         # hooks for the job, publish, cancel
-packages/apps/commise/features/recipes/src/import/choice/      # statechart, orchestration, render (web + .native)
+packages/clients/recipe-service                                # hooks for the job, publish, cancel, keepPrivate
+packages/apps/commise/features/recipes/src/import/choice/      # statechart (importChoiceMachine), hook (useImportChoice), render (web + .native)
 ```
 
 **Structure Decision**: no new package and no new deployable. One new Lambda inside the existing worker stack.
@@ -167,10 +175,11 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 0. Prerequisites. The evidence record of ADR-0089 §6 is built. The feature ADR is written (label, licence,
    provenance pair, fingerprint format, ADR-0024 §3). `staff-ux-engineer` SPECIFY.
-1. 027 engine core and fingerprint API, test-first with mutation suites (if 027 has not built it).
+1. 027 engine core and fingerprint API, test-first with mutation suites.
 2. Migration and LOCAL e2e: tables, columns, CHECK pairs, unique `source_page_key`, cascade and erasure.
 3. recipe-service: classifier, job API, Publish Command, wording guard, title builder, zod contract,
    `contract:generate`.
+   Slice P9 (server) ships the reader-market gate on the one read rule: a row that carries `source_record_id` (a public version) is shown only to a reader whose market has the switch on (T196, T383), after Publish (P6) and the one switch read (P3, T059). Order: T385 (the truth table) and T196 (wiring) fail first, then T386 (LOCAL e2e, red until the term exists), then T383. The shipped locale list and the move to `en-US` are `003A U12`, and this feature needs it first. 003A owns the public page route, the locale redirects and the cache header (U6) and the read route (U4).
 4. recipe-workers: handler, adapter wiring, infra (Lambda, queue, DLQ, reserved concurrency, NAT row, call site).
 5. Bake-off (027 step 5): pin the model and set the step threshold from the evaluation set (027 owns both). This feature sets the title check's own measure from the same set.
 6. Clients and UI, web and mobile together, after SPECIFY.
@@ -178,26 +187,27 @@ packages/apps/commise/features/recipes/src/import/choice/      # statechart, orc
 
 ## Testing (tiers owed, test-first)
 
-| Tier                 | What                                                                                                                                                                                           |
-| -------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                  |
-| Unit (service)       | Classifier: every allowlist case, every unknown input reads closed, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title.                              |
-| Integration (mocked) | Choice to job. Double publish returns one recipe. Under 16: private only. Paid hold counted from the first import for an undated page. Wording guard on update and restore. Both digest drift. |
-| Worker               | `budgetSpent` terminal and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry. At most 3 calls.                                                        |
-| LOCAL e2e            | Migration applied. CHECK pairs. Unique `source_page_key`. Page key released on delete, rejection, market-off and opt-out. Erasure covers the job table.                                        |
-| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                             |
-| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`.                                                                                     |
-| Playwright / Maestro | US1 Public and Both. US2 Private, and paid held back or allowed. US3 failure and later route, US4 dead end with switch on and off, US5 blocked save.                                           |
+| Tier                 | What                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
+| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Unit (core)          | Fingerprint: same set from same text, format version pinned, keyed hash. Containment vs Jaccard. Mutants: one shingle changed, order changed.                                                                                                                                                                                                                                                                                                                                                                                             |
+| Unit (service)       | Classifier: every allowlist case, every unknown open-test input reads third-party, an unread paid, opt-out or signature signal reads `unknown` and offers the choice, CC BY-NC is not open, `.gov` alone is not open. Title builder never returns the source title. The reader-market truth table and the resolver rows (T385). `wordingCheckDue`, and the copy guard on `source_record_id` for every public door (T190).                                                                                                                 |
+| Integration (mocked) | Choice to job. Double publish returns one recipe. No age claim: the start is not gated, Publish answers `403 ageConfirmNeeded`. Paid hold counted from the first import for an undated page. Wording guard on update, restore, `setVisibility` and the draft publish (T043). Both digest drift. The later-route Start (T145, T326). The reader-market wiring (T196). Cloning a public version keeps `source_record_id` and the credit, starts private and as a draft, and every public door refuses it (T190).                            |
+| Worker               | `budgetSpent` final and acked. Unreadable counter retried. Late result after `cancelled` dropped. 10-minute expiry, where every expiry from `pending` counts one attempt on the holder (the item for path `public`, the recipe for `both` and `later`). At most 3 attempts. Writer calls are the attempts plus the re-claims, counted in `public_writer_calls`. Job sweep on the band drain tick (T207). Job retention step on the same tick, in the tick order of the data model (T374). Purge unit tests (`importPurge.test.ts`, T224). |
+| LOCAL e2e            | Migration applied. CHECKs (1)–(3). Unique `source_page_key`. Page key released on delete, rejection and opt-out. Erasure covers the job table and identity's `age_assurances` row. Age route round trip and k6 by hand (P3b). Job sweep against a real database (T208). keepPrivate and Publish against a real database (T317). The SQL read rule against the TypeScript rule (T386). The CHECK names (T026).                                                                                                                             |
+| Infra (CDK synth)    | `PublicVersionJobSweepBehindAlarm` (T208).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
+| Service e2e + k6     | Job and publish round trip on a deployed preview. k6 on job status reads, by hand.                                                                                                                                                                                                                                                                                                                                                                                                                                                        |
+| Component (both)     | Every state in the spec table. Banned-word guard over `importMessages.choice.*` and `recipes.flowSteps.*`. A cook's copy: the editor's locked source and the copy's credit line. The credit line with `credit.checker` (a cook for the owner of the public version only, else `null`) and `credit.writtenNoCook` (T113, which owns every checker-line test). The visibility field shows Public as a refused card on a copy, and the recipe menu offers no Make public there (T404).                                                       |
+| Playwright / Maestro | One end-of-feature wrap-up task, T402. It holds the Playwright spec and Maestro flow of every story in the MVP, written together and run once, at the wrap-up PR's final head (owner testing rules 2026-11-21). Story tasks name only their unit, component and integration tiers.                                                                                                                                                                                                                                                        |
 
 ## Watch list
 
-- **Facts-only quality.** The steps can read flat. The bake-off measures it before launch.
+- **Writer input.** The writer reads the facts sheet and the source step text in the source language, and never the address, the statement or the source title (027-FR-035, ruled 2026-11-17). The fingerprint check (027-FR-042) guards against copying. The bake-off measures both.
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. SC-001's human audit is the
   backstop.
-- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A lost key version sends a save to retained evidence or to `blocked.rewrite`.
+- **Key custody.** The fingerprint key is a secret in AWS Secrets Manager under this feature, with rotation that keeps old versions readable (FR-050a). A missing key version is an operator fault: a later save answers `503 checkUnavailable` with an alarm, and Publish answers the same `503` and leaves the job `ready`.
 - **Fingerprint permanence.** With no text kept, a fingerprint can never be recomputed. The format version and the key
   version are stored, and a format change keeps the old reader.
 - **Shared pool.** The first operating-cost consumer that a cook's choice triggers. It competes with parse and match
   until ADR-0024 §6's split lands.
-- **Unmerged dependencies.** The evidence record of ADR-0089 §6 is not built. The source record shape can still move.
-- **Open owner rulings.** C-1 to C-23, and the conflicts list in the spec.
+- **Built dependencies.** The evidence record of ADR-0089 §6 is `recipe_source_evidence` (migration 0086) and the cook's acts are `recipe_statement_attestations` (migration 0088, ADR-0095). 003B extends the evidence record (FR-080) and adds a wording key to the closed lists in recipe-core, so those two shapes are fixed and only 003B's own additions can move.
+- **Open owner rulings.** The spec Clarifications, and the conflicts list in the spec.

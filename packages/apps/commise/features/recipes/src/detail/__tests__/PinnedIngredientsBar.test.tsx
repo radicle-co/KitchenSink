@@ -16,6 +16,15 @@ import userEvent from '@testing-library/user-event';
 import type { ReactElement } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { SnackbarHost } from '@commise/ui/snackbar';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+} from '@commise/ui/testing/window-snackbar';
+
 import { idleUnreachableRetry, makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { DetailTestScope } from '../../__fixtures__/detailScope.js';
 import { recipeMessages } from '../../messages.js';
@@ -254,6 +263,45 @@ describe('the pinned ingredients bar (web)', () => {
 
         expect(screen.getByRole('button', { name: 'Ingredients for 4, 13 items, 1 ticked. Show list.' })).toBeTruthy();
         expect(within(showBar()).getByText('13 items · 1 ticked')).toBeTruthy();
+    });
+
+    describe('offers the snackbar an outlet', () => {
+        const openInHost = (): HTMLElement => {
+            render(
+                <SnackbarHost>
+                    <SnackbarProbe />
+                    {view()}
+                </SnackbarHost>,
+            );
+            moveCard('above');
+            fireEvent.click(showBar());
+
+            return screen.getByRole('dialog', { name: 'Ingredients for 4' });
+        };
+
+        it('puts focus on the list panel when it opens, not on the outlet that follows it', () => {
+            const dialog = openInHost();
+
+            // Kills: an open focus that takes the content's last child, which is now the snackbar's outlet.
+            expect(document.activeElement).toBe(dialog.querySelector('[tabindex="-1"]'));
+            expect(document.activeElement?.getAttribute('role')).not.toBe('status');
+        });
+
+        it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+            const dialog = openInHost();
+            showProbe();
+
+            expectProbeInside(dialog);
+            await expectProbeUndoReachable(dialog);
+        });
+
+        it('hands the same snackbar back when it closes', () => {
+            openInHost();
+            showProbe();
+            fireEvent.click(screen.getByRole('button', { name: barName('Hide') }));
+
+            expectProbeHandedBack();
+        });
     });
 
     describe('the list it opens', () => {

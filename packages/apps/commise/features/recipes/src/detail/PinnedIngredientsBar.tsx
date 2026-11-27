@@ -15,15 +15,17 @@
  * copy of the bar, at the same fixed position above the scrim, as the close button, so the bar stays pressable above its
  * own panel. The bar copy and the panel share one frame capped at half the window (`pinnedOverlayLimit`), so the panel
  * takes what the bar leaves and the list scrolls inside it. Radix owns Escape, the scroll lock, hiding the page
- * behind, the Tab loop and the focus return to the trigger.
+ * behind, the Tab loop and the focus return to the trigger. A snackbar shown while it is open is drawn inside the frame,
+ * over the last rows of the list at its foot (`WindowScope`); the panel is focused by id, because the outlet follows it.
  *
  * @pattern Adapter over @radix-ui/react-dialog — the bar is the trigger and, open, the close button of the same dialog.
  */
 import { Icon } from '@commise/ui/icon';
 import { enterTransitionClassName } from '@commise/ui/motion';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import { WindowScope } from '@commise/ui/window-scope';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { FC, ReactNode } from 'react';
+import { useId, type FC, type ReactNode } from 'react';
 
 import type { PinnedBarFacts } from './pinnedBarFacts.js';
 import { PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME } from './pinnedOverlayLimit.js';
@@ -76,46 +78,47 @@ const BarContent: FC<{ readonly facts: PinnedBarFacts; readonly open: boolean }>
 );
 
 /** The pinned bar, its scrim and its list. Whether the list is open is the shell's, handed in as props. */
-export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, open, onOpenChange, children }) => (
-    // `hidden` from a 720 px body: the sticky card does this job there (R2), and the bar never draws.
-    <div className="@min-[45rem]/detail:hidden">
-        <Dialog.Root open={open} onOpenChange={onOpenChange}>
-            <Dialog.Trigger asChild>
-                {/* Open: the dialog draws its own copy; this one stays (Radix returns focus to it) but transparent. */}
-                <button
-                    type="button"
-                    aria-label={facts.name}
-                    className={`${BAR_PLACE} z-40 ${BAR_FACE}${open ? ' opacity-0' : ''}`}
-                >
-                    <BarContent facts={facts} open={open} />
-                </button>
-            </Dialog.Trigger>
-            <Dialog.Portal>
-                <Dialog.Overlay className="fixed inset-0 z-30 bg-scrim" />
-                <Dialog.Content
-                    aria-label={facts.dialogName}
-                    aria-describedby={undefined}
-                    // Focus goes to the panel itself (the content's last child), not to the close button Radix would pick first.
-                    onOpenAutoFocus={(event) => {
-                        event.preventDefault();
+export const PinnedIngredientsBar: FC<PinnedIngredientsBarProps> = ({ facts, open, onOpenChange, children }) => {
+    const panelId = useId();
 
-                        if (
-                            event.target instanceof HTMLElement &&
-                            event.target.lastElementChild instanceof HTMLElement
-                        ) {
-                            event.target.lastElementChild.focus();
-                        }
-                    }}
-                    className={`${BAR_PLACE} z-40 flex flex-col gap-2 ${PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME}`}
-                >
-                    <Dialog.Close aria-label={facts.name} className={`w-full shrink-0 ${BAR_FACE}`}>
-                        <BarContent facts={facts} open />
-                    </Dialog.Close>
-                    <div tabIndex={-1} className={PANEL_CLASS_NAME}>
-                        {children}
-                    </div>
-                </Dialog.Content>
-            </Dialog.Portal>
-        </Dialog.Root>
-    </div>
-);
+    return (
+        // `hidden` from a 720 px body: the sticky card does this job there (R2), and the bar never draws.
+        <div className="@min-[45rem]/detail:hidden">
+            <Dialog.Root open={open} onOpenChange={onOpenChange}>
+                <Dialog.Trigger asChild>
+                    {/* Open: the dialog draws its own copy; this one stays (Radix returns focus to it) but transparent. */}
+                    <button
+                        type="button"
+                        aria-label={facts.name}
+                        className={`${BAR_PLACE} z-40 ${BAR_FACE}${open ? ' opacity-0' : ''}`}
+                    >
+                        <BarContent facts={facts} open={open} />
+                    </button>
+                </Dialog.Trigger>
+                <Dialog.Portal>
+                    <Dialog.Overlay className="fixed inset-0 z-30 bg-scrim" />
+                    <Dialog.Content
+                        aria-label={facts.dialogName}
+                        aria-describedby={undefined}
+                        // Focus goes to the panel itself, by id, not to the close button Radix would pick first. It is not
+                        // the content's last child: the snackbar's outlet follows it.
+                        onOpenAutoFocus={(event) => {
+                            event.preventDefault();
+                            document.getElementById(panelId)?.focus();
+                        }}
+                        className={`${BAR_PLACE} z-40 flex flex-col gap-2 ${PINNED_OVERLAY_WEB_MAX_HEIGHT_CLASS_NAME}`}
+                    >
+                        <WindowScope>
+                            <Dialog.Close aria-label={facts.name} className={`w-full shrink-0 ${BAR_FACE}`}>
+                                <BarContent facts={facts} open />
+                            </Dialog.Close>
+                            <div id={panelId} tabIndex={-1} className={PANEL_CLASS_NAME}>
+                                {children}
+                            </div>
+                        </WindowScope>
+                    </Dialog.Content>
+                </Dialog.Portal>
+            </Dialog.Root>
+        </div>
+    );
+};

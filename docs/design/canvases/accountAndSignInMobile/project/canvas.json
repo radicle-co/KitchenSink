@@ -140,7 +140,7 @@
       "x": 8460,
       "y": 260,
       "w": 390,
-      "h": 1063,
+      "h": 1263,
       "title": "Sign up (mobile, iPhone 390)"
     },
     "SignUpTypingIphone390.dc.html": {
@@ -308,7 +308,7 @@
       "x": 8352,
       "y": 7057,
       "w": 384,
-      "h": 966,
+      "h": 1166,
       "title": "Sign up (mobile, Android 384)"
     },
     "SignUpTypingAndroid384.dc.html": {
@@ -513,6 +513,34 @@
       "w": 820,
       "h": 2724,
       "title": "Data sources, loading and problems (mobile, iPad 820)"
+    },
+    "AccountCloseLicenceStatesIphone390.dc.html": {
+      "x": 0,
+      "y": 19661,
+      "w": 390,
+      "h": 3480,
+      "title": "Profile, close account, licence reminder and takedown (mobile, iPhone 390)"
+    },
+    "AccountEraseLicenceStatesIphone390.dc.html": {
+      "x": 470,
+      "y": 19661,
+      "w": 390,
+      "h": 9980,
+      "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, iPhone 390)"
+    },
+    "AccountCloseLicenceStatesAndroid384.dc.html": {
+      "x": 0,
+      "y": 30201,
+      "w": 384,
+      "h": 3460,
+      "title": "Profile, close account, licence reminder and takedown (mobile, Android 384)"
+    },
+    "AccountEraseLicenceStatesAndroid384.dc.html": {
+      "x": 464,
+      "y": 30201,
+      "w": 384,
+      "h": 9970,
+      "title": "Profile, erase my data, licence reminder, donation and receipt code (mobile, Android 384)"
     }
   },
   "order": [
@@ -587,7 +615,11 @@
     "SignUpFinishIpad820.dc.html",
     "LegalSourcesIpad820.dc.html",
     "LegalSourcesScrolledIpad820.dc.html",
-    "LegalSourcesStatesIpad820.dc.html"
+    "LegalSourcesStatesIpad820.dc.html",
+    "AccountCloseLicenceStatesIphone390.dc.html",
+    "AccountEraseLicenceStatesIphone390.dc.html",
+    "AccountCloseLicenceStatesAndroid384.dc.html",
+    "AccountEraseLicenceStatesAndroid384.dc.html"
   ],
   "notes": {
     "row0": {
@@ -608,6 +640,20 @@
       "x": 0,
       "y": 13561,
       "text": "Account and sign in: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLicIphone": {
+      "x": 0,
+      "y": 19401,
+      "text": "Account closure licence: mobile, iPhone 390 (390 x 844)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLicAndroid": {
+      "x": 0,
+      "y": 29941,
+      "text": "Account closure licence: mobile, Android 384 (384 x 832)",
       "kind": "title1",
       "maxW": 2400
     }

@@ -105,7 +105,7 @@
       "x": 17680,
       "y": 260,
       "w": 1280,
-      "h": 1200,
+      "h": 2100,
       "title": "Recipe editor, who can see it (web, 1280)"
     },
     "RecipeEditorSaveStatusWeb1280.dc.html": {
@@ -595,7 +595,7 @@
       "x": 6110,
       "y": 14956,
       "w": 390,
-      "h": 2348,
+      "h": 3728,
       "title": "Recipe editor, who can see it (web, 390)"
     },
     "RecipeEditorSaveStatusWeb390.dc.html": {

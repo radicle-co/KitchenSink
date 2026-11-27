@@ -30,4 +30,11 @@ describe('the axe check', () => {
 
         expect(() => expect(results).toHaveNoViolations()).toThrow(/autocomplete-valid/u);
     });
+
+    it('judges the wcag2aa rules too: text in a language code that does not exist fails', async () => {
+        const { container } = render(<div lang="xx-nope">Text</div>);
+        const results = await axe(container);
+
+        expect(() => expect(results).toHaveNoViolations()).toThrow(/valid-lang/u);
+    });
 });

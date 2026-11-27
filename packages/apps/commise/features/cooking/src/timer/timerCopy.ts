@@ -12,6 +12,25 @@ import type { CookingDurationMessages, CookingMessages, CookingTimerMessages } f
 /** The whole seconds in a length, rounded down: the copy never shows a fraction of a second. */
 const partsOf = (ms: number): HmsParts => durationParts(Math.floor(Math.max(0, ms) / 1000));
 
+/** A part of a clock, as two digits. */
+const twoDigits = (value: number): string => String(value).padStart(2, '0');
+
+/**
+ * The time left on a running timer, as a clock: "4:30", "1:09:50". A part of a second rounds UP, so the figure never
+ * reads zero while time is left, and it agrees with the spoken length. Digits, not words, so it needs no catalogue
+ * key; the row's spoken name carries the words.
+ *
+ * @param remainingMs - Time left in ms. Negative reads as zero.
+ * @returns Minutes and seconds, with hours when there are any. Pure.
+ */
+export function countdownFigure(remainingMs: number): string {
+    const { hours, minutes, seconds } = durationParts(Math.ceil(Math.max(0, remainingMs) / 1000));
+
+    return hours > 0
+        ? `${String(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
+        : `${String(minutes)}:${twoDigits(seconds)}`;
+}
+
 /** The matched step a timer's name is read from: its 1-based number and the lines the step shows. */
 export interface TimerStep {
     readonly number: number;

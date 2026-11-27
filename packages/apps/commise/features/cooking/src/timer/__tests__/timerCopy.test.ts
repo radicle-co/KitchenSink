@@ -10,6 +10,7 @@ import { cookingMessages } from '../../messages.js';
 import {
     alarmBodyFallback,
     alarmHeadlineFallback,
+    countdownFigure,
     rangLine,
     shownDuration,
     spokenDuration,
@@ -228,5 +229,25 @@ describe('the six Add a timer keys', () => {
         expect(new Set(Object.keys(en.addTimer))).toEqual(
             new Set(['hoursLabel', 'hoursUnit', 'minutesLabel', 'minutesUnit', 'secondsLabel', 'secondsUnit']),
         );
+    });
+});
+
+describe('countdownFigure: the time on the dock row', () => {
+    it.each([
+        [4 * MIN + 30_000, '4:30'],
+        [HOUR + 9 * MIN + 50_000, '1:09:50'],
+        [HOUR, '1:00:00'],
+        [59_000, '0:59'],
+        [10 * MIN, '10:00'],
+        [0, '0:00'],
+        [-5_000, '0:00'],
+    ])('reads %i ms as %s', (ms, shown) => {
+        expect(countdownFigure(ms)).toBe(shown);
+    });
+
+    it('rounds a part of a second up, so the figure never reads zero while time is left', () => {
+        expect(countdownFigure(1)).toBe('0:01');
+        expect(countdownFigure(4 * MIN + 29_001)).toBe('4:30');
+        expect(countdownFigure(4 * MIN + 29_000)).toBe('4:29');
     });
 });

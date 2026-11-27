@@ -11,8 +11,8 @@
  * `SurfaceToneScope`, `ToneScope`, `surfaceFill`, `HeroButton` (it states `FOCUS_RING_CLASS.floating` itself, in
  * `HERO_DISC_CLASS`, so a lightbox whose control is one states it by delegation) or `BottomSheetPanel` (the sheet root,
  * which states `paperOverlay` itself, so a module that only composes it states it by delegation); or, for a popup
- * with no surface of its own (a lightbox, whose controls float over a scrim), `FOCUS_RING_CLASS.floating`. A tooltip is not a surface (it is inverse and holds no control), so
- * `@radix-ui/react-tooltip` is not in the rule.
+ * with no surface of its own (a lightbox, whose controls float over a scrim), `FOCUS_RING_CLASS.floating`. A tooltip is
+ * not a surface (it is inverse and holds no control), so `@radix-ui/react-tooltip` is not in the rule.
  *
  * ⛔ NO BASELINE AND NO ALLOW-LIST. SCOPE: `packages/apps/**` TypeScript minus tests and fixtures (`appSources.ts`).
  *

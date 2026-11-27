@@ -696,10 +696,8 @@ describe('RecipeDetailContainer', () => {
 
     // E8: the editor says how it finished itself, before it navigates (the one snackbar host outlives the page). Only a
     // refused Private travels here, as `?privateRefused=<refusal>`. REWRITTEN: these rows used to read
-    // `?done=<outcome>`
-    // and say it in a snackbar; that address channel is gone, so they now prove the refusal's one-shot parameter and
-    // that
-    // the old one says nothing.
+    // `?done=<outcome>` and say it in a snackbar; that address channel is gone, so they now prove the refusal's
+    // one-shot parameter and that the old one says nothing.
     describe('how the editor finished (E8)', () => {
         const renderDone = async () => {
             const client = createFakeRecipeServiceClient();
@@ -809,8 +807,7 @@ describe('RecipeDetailContainer', () => {
             });
 
             // A forged `?privateRefused=slots` link must not show the sentence on any recipe page: it is confirmed
-            // against what
-            // the page holds from the server (the owner, a public recipe, every slot known used).
+            // against what the page holds from the server (the owner, a public recipe, every slot known used).
             it.each([
                 ['a cook who does not own the recipe', 'usr_other', RecipeVisibility.PUBLIC, FULL],
                 ['the owner of a PRIVATE recipe', OWNER_ID, RecipeVisibility.PRIVATE, FULL],
@@ -900,8 +897,7 @@ describe('RecipeDetailContainer', () => {
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
             // REWRITTEN: "Recipe deleted" used to ride to My recipes in `?deleted=1`. The one snackbar host now
-            // outlives the
-            // page, so it is said here, before the push, and the address stays clean.
+            // outlives the page, so it is said here, before the push, and the address stays clean.
             await vi.waitFor(() => expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes'));
             expect((await screen.findByText('Recipe deleted')).closest('[role="status"]')).not.toBeNull();
         });

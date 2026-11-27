@@ -4,8 +4,7 @@
  * in one query parameter. This is the one place the outcomes and their words are defined.
  *
  * REWRITTEN for the removal of the address-borne notice: the `done` parameter and its reader are gone, so their rows
- * are
- * replaced by the table for `parsePrivateRefusalParam`, which reads the one parameter that is left.
+ * are replaced by the table for `parsePrivateRefusalParam`, which reads the one parameter that is left.
  *
  * REWRITTEN for the stuck-save defect: a finish also says whether the cook's Private was refused (`privateRefusalOf`).
  * REWRITTEN AGAIN (buildSpec §6.4, plan 2026-10-14-009 T3): the refusal is no longer said by the snackbar. The recipe

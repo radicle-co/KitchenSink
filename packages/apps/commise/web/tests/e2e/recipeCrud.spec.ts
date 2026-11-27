@@ -70,9 +70,8 @@ test.describe('recipe CRUD (T079)', () => {
 
         // VIEW — landed on the new recipe's detail.
         await expect(page.getByRole('heading', { name: 'E2E Ratatouille' })).toBeVisible();
-        // E8 (build spec §7.8): the editor says how it finished. The editor says it itself before it navigates (the
-        // one snackbar
-        // host outlives the page), so it is still on screen on the recipe page.
+        // E8 (build spec §7.8): the editor says how it finished. The editor says it itself before it navigates (the one
+        // snackbar host outlives the page), so it is still on screen on the recipe page.
         await expect(page.getByText('Recipe published.')).toBeVisible();
         const createdId = new URL(page.url()).pathname.split('/recipes/')[1]?.split('/')[0];
         expect(createdId).toBeTruthy();

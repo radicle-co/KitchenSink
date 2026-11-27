@@ -6,9 +6,8 @@
  *
  * ⛔ The three outcomes and their words are defined HERE, once, for the editor (which names them), the web editor
  * and the native task route (which show the snackbar), and the web recipe page (which reads the refusal back). So is
- * the
- * one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it. The
- * recipe page says that inline; the snackbar says only the outcome.
+ * the one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it.
+ * The recipe page says that inline; the snackbar says only the outcome.
  *
  * "Add to a collection" after a FIRST publish waits for the chooser sheet (§6.4), which is a separate slice; the first
  * publish is already a distinct outcome so the action can be added without changing a caller.

@@ -364,8 +364,7 @@ const RecipeEditorSession: FC<RecipeEditorSessionProps> = ({ locale, mode, draft
     // The session's navigation port, on the Next router.
     const navigation: EditorNavigation = {
         // E8: the one snackbar host outlives this page, so how the editor finished is said before the push. Only a
-        // refused
-        // Private rides to the recipe page, which says it inline.
+        // refused Private rides to the recipe page, which says it inline.
         finished: (recipeId, finish) => {
             snackbar.show({ message: finishedNoticeOf(finish, editorCopy) });
             const refusal =

@@ -103,6 +103,15 @@ describe('SegmentedControl (native) — route', () => {
         expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
     });
 
+    // The face fills its segment, so the fill and the edge span the whole target rather than shrinking to the label.
+    it('grows every segment face to fill its segment', () => {
+        render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
+
+        for (const name of ['My recipes', 'Collections']) {
+            expect(getComputedStyle(faceOf(screen.getByRole('tab', { name }))).flexGrow).toBe('1');
+        }
+    });
+
     // Designer ruling 2026-11-01 (ADR-0080 §8): a view-switch label is navigation chrome, so it grows to 1.5× at most,
     // size and leading together, and keeps its accessible name.
     it('draws its labels at the 1.5× chrome cap above the system scale, named as before', () => {

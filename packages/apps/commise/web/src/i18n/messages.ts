@@ -80,6 +80,8 @@ export interface WebMessages {
             readonly expandNav: string;
             /** Web's "Back to top" on a long list (§3.6). */
             readonly backToTop: string;
+            /** The accessible name of the landmark the app's one snackbar sits in, after `main` in the page. */
+            readonly notificationsLabel: string;
         };
     };
     /**
@@ -150,6 +152,7 @@ export const webMessages: LocalizedMessages<WebMessages> = {
                 collapseNav: 'Collapse',
                 expandNav: 'Expand sidebar',
                 backToTop: 'Back to top',
+                notificationsLabel: 'Notifications',
             },
         },
         recipes: {

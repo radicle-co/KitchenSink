@@ -12,14 +12,13 @@
  * Presentational: props → JSX.
  */
 import { ActionMenu } from '@commise/ui/action-menu';
-import { Icon } from '@commise/ui/icon';
+import { IconButton } from '@commise/ui/icon-button';
 import { nativeTokens } from '@commise/ui/native';
 import { useTheme } from '@commise/ui/theme';
 import { Surface } from '@commise/ui/surface-tone';
-import { touchFloor } from '@commise/ui/layout';
 import type { FC } from 'react';
 import { Text } from '@commise/ui/text';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import type { EditorHeaderProps } from './frameProps.js';
 
@@ -29,9 +28,7 @@ export const EditorHeader: FC<EditorHeaderProps> = ({ title, status, closeLabel,
 
     return (
         <Surface tone="paper" style={[styles.bar, { borderBottomColor: colors.lineDivider }]}>
-            <Pressable role="button" aria-label={closeLabel} onPress={onClose} hitSlop={4} style={styles.close}>
-                <Icon name="x" size={24} tone="ink" />
-            </Pressable>
+            <IconButton icon="x" accessibilityLabel={closeLabel} onPress={onClose} />
             <View style={styles.titles}>
                 <Text role="heading" typeRole="barTitle" chromeCap="1.5" color="$ink" numberOfLines={1}>
                     {title}
@@ -69,6 +66,5 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
         borderBottomWidth: StyleSheet.hairlineWidth,
     },
-    close: { width: touchFloor(), height: touchFloor(), alignItems: 'center', justifyContent: 'center' },
     titles: { flex: 1, minWidth: 0 },
 });

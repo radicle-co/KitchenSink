@@ -18,7 +18,7 @@
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
-import { BADGE_GLYPH, type BadgeStatus, type StatusBadgeProps } from './props.js';
+import { BADGE_GLYPH, STATUS_BADGE_LABEL_ROLE, type BadgeStatus, type StatusBadgeProps } from './props.js';
 
 /**
  * A neutral badge (`componentFixes.md` §7): `paper` with a 1 px `lineDivider` edge under `inkMuted`, so it reads on the
@@ -50,7 +50,7 @@ export const StatusBadge: FC<StatusBadgeProps> = ({ status, children }) => {
         <span
             className={`inline-flex min-h-6 max-w-full items-center gap-1 rounded-sm px-2 py-0.5 text-caption ${STATUS_CLASS[status]}`}
         >
-            {glyph === null ? null : <Icon name={glyph} size={16} />}
+            {glyph === null ? null : <Icon name={glyph} size={16} scaleWith={{ role: STATUS_BADGE_LABEL_ROLE }} />}
             <span className="min-w-0 break-words">{children}</span>
         </span>
     );

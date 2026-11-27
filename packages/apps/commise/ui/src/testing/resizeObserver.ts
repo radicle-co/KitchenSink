@@ -34,6 +34,17 @@ export interface ResizeObserverRecord {
     observer: ResizeObserver | undefined;
     /** The nodes currently watched. */
     readonly observed: Set<Element>;
+    /** The options each watched node was observed with (`undefined` when it was observed with none). */
+    readonly options: Map<Element, ResizeObserverOptions | undefined>;
+    /** Every live observer with the nodes it watches, for a test that needs the one watching a given node. */
+    readonly observers: Set<WatchingObserver>;
+}
+
+/** One live observer: its callback, itself, and the nodes it watches. */
+export interface WatchingObserver {
+    readonly callback: ResizeObserverCallback;
+    readonly observer: ResizeObserver;
+    readonly nodes: Set<Element>;
 }
 
 /** The record. */
@@ -41,6 +52,8 @@ export const resizeObserver: ResizeObserverRecord = {
     callback: undefined,
     observer: undefined,
     observed: new Set<Element>(),
+    options: new Map<Element, ResizeObserverOptions | undefined>(),
+    observers: new Set(),
 };
 
 /**
@@ -76,21 +89,62 @@ export function reportResize(targets: Iterable<Element> = resizeObserver.observe
     callback([...targets].map(resizeEntryOf), observer);
 }
 
+/**
+ * Fire, for each given node, the callback of every observer that watches it, as a layout pass would. Unlike
+ * {@link reportResize}, which reaches only the observer constructed last, this reaches an observer another library
+ * constructed after it. Wrap it in `act`.
+ *
+ * @sideEffect Calls the callbacks of the observers watching the nodes.
+ * @param targets - The nodes that resized.
+ */
+export function reportResizeOf(targets: Iterable<Element>): void {
+    const nodes = [...targets];
+
+    resizeObserver.observers.forEach((watching) => {
+        const hit = nodes.filter((node) => watching.nodes.has(node));
+
+        if (hit.length > 0) {
+            watching.callback(hit.map(resizeEntryOf), watching.observer);
+        }
+    });
+}
+
+/** Drops a node from the record once no live observer watches it: another observer may still hold it. */
+function forgetUnwatched(node: Element): void {
+    const held = [...resizeObserver.observers].some((watching) => watching.nodes.has(node));
+
+    if (!held) {
+        resizeObserver.observed.delete(node);
+        resizeObserver.options.delete(node);
+    }
+}
+
 globalThis.ResizeObserver = class {
+    private readonly watching: WatchingObserver;
+
     public constructor(callback: ResizeObserverCallback) {
         resizeObserver.callback = callback;
         resizeObserver.observer = this;
+        this.watching = { callback, observer: this, nodes: new Set<Element>() };
+        resizeObserver.observers.add(this.watching);
     }
 
-    public observe(target: Element): void {
+    public observe(target: Element, options?: ResizeObserverOptions): void {
         resizeObserver.observed.add(target);
+        resizeObserver.options.set(target, options);
+        this.watching.nodes.add(target);
     }
 
     public unobserve(target: Element): void {
-        resizeObserver.observed.delete(target);
+        this.watching.nodes.delete(target);
+        forgetUnwatched(target);
     }
 
     public disconnect(): void {
-        resizeObserver.observed.clear();
+        const released = [...this.watching.nodes];
+
+        this.watching.nodes.clear();
+        resizeObserver.observers.delete(this.watching);
+        released.forEach(forgetUnwatched);
     }
 };

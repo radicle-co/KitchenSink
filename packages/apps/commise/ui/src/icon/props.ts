@@ -13,6 +13,8 @@
  * slice 3 deletes.
  */
 import type { Role } from '../tokens/colors.js';
+import type { ChromeCap } from '../text/scaledType.js';
+import type { TypeRole } from '../tokens/typography.js';
 
 /** Every meaning the Registry can draw. */
 export const ICON_NAMES = [
@@ -36,6 +38,8 @@ export const ICON_NAMES = [
     'globe',
     'pencilLine',
     'timer',
+    'pause',
+    'play',
     'sun',
     'check',
     'arrowUp',
@@ -91,6 +95,15 @@ export const MIRROR_IN_RTL: ReadonlySet<IconName> = new Set<IconName>(['chevronL
  */
 export type IconSize = 16 | 20 | 24 | 48;
 
+/**
+ * The label a glyph grows with: its type role and, where the label passes one, the navigation-chrome cap it stops
+ * at, so the glyph never outgrows its own label. The control states the cap once and hands it to the label and to this.
+ */
+export interface IconScaleWith {
+    readonly role: Exclude<TypeRole, 'figureInline'>;
+    readonly chromeCap?: ChromeCap;
+}
+
 /** The cross-platform `Icon` contract shared by the web and native leaves. */
 export interface IconProps {
     /** The meaning to draw. */
@@ -102,6 +115,12 @@ export interface IconProps {
      * inherits nothing, so the native leaf draws in `ink` when it is absent.
      */
     readonly tone?: Role;
+    /**
+     * The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows
+     * with that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at
+     * every text size, which is right for an icon-only control and a decoration.
+     */
+    readonly scaleWith?: IconScaleWith;
     /** Fill the glyph with its own colour. Only the active tab is filled, always with its label weight and bar (§1.7). */
     readonly filled?: boolean;
     /**

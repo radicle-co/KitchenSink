@@ -15,6 +15,9 @@ import { asRecord } from './asRecord.js';
 /** Where the Maestro flows live. The one spelling of the path. */
 export const MAESTRO_DIR = 'packages/apps/commise/mobile/.maestro';
 
+/** The folder under {@link MAESTRO_DIR} where the lane door stages one-off flows for a run. Git ignores it. */
+export const ONE_OFF_DIR = 'oneOff';
+
 /** A flow file's id, the key of its registry row: `recipes/rating` for `<MAESTRO_DIR>/recipes/rating.yaml`. */
 export const flowIdOf = (file: string): string => file.slice(`${MAESTRO_DIR}/`.length).replace(/\.ya?ml$/u, '');
 

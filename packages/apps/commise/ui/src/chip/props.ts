@@ -15,6 +15,8 @@
  */
 import type { ReactNode } from 'react';
 
+import type { TypeRole } from '../tokens/typography.js';
+
 /** A chip that toggles one facet. */
 export interface FilterChipProps {
     readonly kind: 'filter';
@@ -94,3 +96,6 @@ export interface ChoiceRowProps {
 
 /** The cross-platform `ChipRow` contract. */
 export type ChipRowProps = ChipGroupRowProps | ChoiceRowProps;
+
+/** The type role of a chip's label. The label and its glyph (`Icon`'s `scaleWith`) both read it. */
+export const CHIP_LABEL_ROLE = 'caption' satisfies TypeRole;

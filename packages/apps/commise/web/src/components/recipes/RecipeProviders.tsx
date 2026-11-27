@@ -40,9 +40,11 @@ import { useQuerySessionScope } from '@commise/query/session-scope';
 import { RecipeWriteCacheObserver } from '@commise/query/recipe-write-cache';
 import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { OfflineReadSlot } from '@commise/ui/offline-notice';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { useCallback, useMemo, useState } from 'react';
 import type { ReactElement, ReactNode } from 'react';
 
+import { webMessages } from '@/i18n/messages';
 import { webDeviceStore } from '@/components/recipes/deviceSession';
 import { webKeptSessionStore } from '@/components/recipes/keptSessionStore';
 import { webRecentSearchStore } from '@/lib/recentSearchStore';
@@ -58,6 +60,7 @@ import { RECIPE_SERVICE_BASE_URL } from '@/lib/recipeServiceConfig';
  */
 export function RecipeProviders({ children }: { readonly children: ReactNode }): ReactElement {
     const offline = useMessages(offlineNoticeMessages);
+    const { chrome } = useMessages(webMessages).home;
     const { getToken, userId } = useAuth();
     // The one `IsomorphicClerk` for the provider's life: the token proxy reads its LIVE session on every mint.
     const clerk = useClerk();
@@ -147,7 +150,13 @@ export function RecipeProviders({ children }: { readonly children: ReactNode }):
                         {/* S3a.U3: the cook's timers outlive every route and end with the cook, so they are mounted
                             here, above every screen, and fed the same raw `userId` as the device session scope. */}
                         <TimerProvider subject={userId} kept={webKeptSessionStore}>
-                            {children}
+                            {/* U7a: the app's ONE snackbar host, above every page, so a snackbar and its Undo outlive
+                                a page change. Fed the same raw `userId`, so a sign-out or a change of cook closes the
+                                snackbar showing (a recipe's name must never reach the next person at the screen). It
+                                is innermost, so the screens below it can ask for a snackbar. */}
+                            <SnackbarHost label={chrome.notificationsLabel} subject={userId}>
+                                {children}
+                            </SnackbarHost>
                         </TimerProvider>
                     </RecipeServicesTree>
                 </SyncProvider>

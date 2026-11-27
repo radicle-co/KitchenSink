@@ -10,7 +10,7 @@
  * - no decision while the viewer is unknown.
  */
 import { LocaleProvider } from '@commise/i18n/react';
-import { CookMarksProvider } from '@commise/features-recipes/cook';
+import { makeCookingWrapper } from '@commise/features-cooking/testing/web';
 import { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
@@ -18,8 +18,9 @@ import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-clien
 import { SyncProvider, useSyncQueue } from '@commise/query/sync';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { createMemoryOutboxStore } from '@kitchensink/sync';
+import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
+import { act, cleanup, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
@@ -30,12 +31,14 @@ import { CookingRoute } from '@/app/[locale]/recipes/[id]/cook/CookingRoute';
 
 import { makeRecipeDetail } from '../recipes/__fixtures__/recipeFixtures';
 
-/** The route under the cook marks provider the app root mounts: the cooking screen reads the cook's ticks. */
+/** The route under the providers the app root mounts: the cook's ticks, the session's timer and the snackbar host. */
+const { Wrapper: CookingProviders } = makeCookingWrapper();
+
 function CookingRouteWithMarks(): ReactNode {
     return (
-        <CookMarksProvider subject="user_test">
+        <CookingProviders>
             <CookingRoute id="rec_1" />
-        </CookMarksProvider>
+        </CookingProviders>
     );
 }
 
@@ -535,6 +538,63 @@ describe('CookingRoute: the offline notice', () => {
         await screen.findByRole('button', { name: 'Exit cooking mode' });
 
         expect(screen.queryByText(OFFLINE)).toBeNull();
+    });
+
+    describe('under an open window', () => {
+        /** The notice's own text node, found by its wording; its region has no role while a window is open. */
+        const noticeText = (): HTMLElement => screen.getByText(OFFLINE, { selector: 'p' });
+
+        /** The polite live regions inside the open dialog that hold the title. */
+        const spokenInDialog = (): HTMLElement[] =>
+            within(screen.getByRole('dialog'))
+                .getAllByRole('status', { hidden: true })
+                .filter((region) => region.textContent === OFFLINE);
+
+        async function openIngredients(): Promise<void> {
+            render(<SnackbarHost>{cooking(true)}</SnackbarHost>);
+            await userEvent.click(await screen.findByRole('button', { name: 'Ingredients' }));
+            await screen.findByRole('dialog');
+        }
+
+        it("⛔ speaks the title once inside the window, and the page notice is out of the reader's way", async () => {
+            await openIngredients();
+
+            act(() => {
+                onlineManager.setOnline(false);
+            });
+
+            // Kills: no announcement mounted in the route (the window says nothing and the page is hidden from the
+            // reader), and one mounted above the route's windows.
+            expect(spokenInDialog()).toHaveLength(1);
+            // Kills: the notice still a status region (it would speak as well, or in the screen readers that read a
+            // live region under `aria-hidden`), and a notice that is not hidden from the reader by the dialog.
+            expect(screen.queryByRole('status', { name: 'Sync status', hidden: true })).toBeNull();
+            expect(noticeText().closest('[aria-hidden="true"]')).not.toBeNull();
+            expect(noticeText().closest('div.px-4')?.hasAttribute('aria-live')).toBe(false);
+        });
+
+        it('speaks nothing for an offline notice that was already up when the window opened', async () => {
+            act(() => {
+                onlineManager.setOnline(false);
+            });
+            await openIngredients();
+
+            // Kills: speaking on a window becoming the top one.
+            expect(within(screen.getByRole('dialog')).getAllByRole('status', { hidden: true })).toSatisfy(
+                (regions: HTMLElement[]) => regions.every((region) => region.textContent === ''),
+            );
+        });
+
+        it('gives the notice its role back once the window has closed, over the same text', async () => {
+            await openIngredients();
+            act(() => {
+                onlineManager.setOnline(false);
+            });
+            await userEvent.click(screen.getByRole('button', { name: 'Close ingredients' }));
+
+            // Kills: a notice that stays quiet after the window closed.
+            expect(await screen.findByRole('status', { name: 'Sync status' })).toHaveTextContent(OFFLINE);
+        });
     });
 
     it('⛔ says nothing of syncing in cooking mode when it reconnects with a write still going out', async () => {

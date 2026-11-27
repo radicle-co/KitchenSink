@@ -1,13 +1,13 @@
 /**
  * @module @commise/features-recipes/editor — how the editor finished, and what the cook is told about it (E8; build spec
  * §7.8): "Recipe published." after a publish, "Changes saved." after Save changes. The editor hands the host the outcome
- * through `EditorNavigation.finished`; web carries it to the recipe page in a one-shot query parameter, because a snackbar
- * raised before the navigation dies with the old page's shell, and native shows the snackbar straight away.
+ * through `EditorNavigation.finished`; both apps show the snackbar straight away, and only a refused Private travels to
+ * the recipe page, in one query parameter.
  *
- * ⛔ The three outcomes, their wire spelling and their words are defined HERE, once, for the editor (which names them),
- * the web recipe page (which reads the parameter back) and the native task route (which shows the snackbar). So is the
- * one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it. The
- * recipe page says that inline; the snackbar says only the outcome.
+ * ⛔ The three outcomes and their words are defined HERE, once, for the editor (which names them), the web editor
+ * and the native task route (which show the snackbar), and the web recipe page (which reads the refusal back). So is
+ * the one thing a finish adds to its outcome: that the cook's Private was not sent because the server would refuse it.
+ * The recipe page says that inline; the snackbar says only the outcome.
  *
  * "Add to a collection" after a FIRST publish waits for the chooser sheet (§6.4), which is a separate slice; the first
  * publish is already a distinct outcome so the action can be added without changing a caller.
@@ -33,11 +33,11 @@ export interface EditorFinish {
     readonly privateRefused: PrivateRefusal | undefined;
 }
 
-/** The query parameter the web editor sets on the recipe page's URL. */
-export const FINISHED_OUTCOME_PARAM = 'done';
-
-/** Between the outcome and the refusal in the parameter's value (`published.final`). */
-const REFUSAL_SEPARATOR = '.';
+/**
+ * The query parameter the web editor sets on the recipe page's URL, and only when Private was refused: the outcome
+ * itself is shown as a snackbar before the navigation, so it never travels in the address.
+ */
+export const PRIVATE_REFUSED_PARAM = 'privateRefused';
 
 /**
  * The outcome of a hand-off that finished the edit.
@@ -72,37 +72,12 @@ export function finishedNoticeOf(
 }
 
 /**
- * The parameter's value for a finish: the outcome, and `.<refusal>` after it when Private was refused. Pure.
- *
- * @param finish - How the editor finished.
- * @returns `published`, or `published.final`.
- */
-export function finishedParamOf(finish: EditorFinish): string {
-    return finish.privateRefused === undefined
-        ? finish.outcome
-        : `${finish.outcome}${REFUSAL_SEPARATOR}${finish.privateRefused}`;
-}
-
-/**
- * Read a finish back from a URL parameter. A URL is the reader's to forge, so anything that is not exactly an outcome's
- * spelling, optionally followed by one refusal's, is nothing.
+ * Read a refusal back from the recipe page's URL. A URL is the reader's to forge, so anything that is not exactly one
+ * refusal's spelling is nothing.
  *
  * @param value - The parameter's value.
- * @returns The finish, or `undefined`. Pure.
+ * @returns The refusal, or `undefined`. Pure.
  */
-export function parseFinishedParam(value: string | null | undefined): EditorFinish | undefined {
-    const [outcomePart, refusalPart, ...rest] = (value ?? '').split(REFUSAL_SEPARATOR);
-    const outcome = FINISHED_OUTCOMES.find((candidate) => candidate === outcomePart);
-
-    if (outcome === undefined || rest.length > 0) {
-        return undefined;
-    }
-
-    if (refusalPart === undefined) {
-        return { outcome, privateRefused: undefined };
-    }
-
-    const privateRefused = PRIVATE_REFUSALS.find((candidate) => candidate === refusalPart);
-
-    return privateRefused === undefined ? undefined : { outcome, privateRefused };
+export function parsePrivateRefusalParam(value: string | null | undefined): PrivateRefusal | undefined {
+    return PRIVATE_REFUSALS.find((candidate) => candidate === value);
 }

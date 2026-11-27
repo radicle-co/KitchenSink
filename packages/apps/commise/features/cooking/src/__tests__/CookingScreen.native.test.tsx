@@ -10,20 +10,24 @@
  * at the largest text, screen-reader focus on Done's title, and the rule that the focus-line face and the large-title
  * face never share a screen.
  */
-import { CookMarksProvider } from '@commise/features-recipes/cook';
 import { nativeTokens } from '@commise/ui/native';
 import { render } from '@commise/ui/testing/tamagui';
 import { RecipeStatus } from '@kitchensink/recipe-core';
+import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { act, cleanup, fireEvent, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import type { ComponentProps, FC, ReactNode } from 'react';
+import type { ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
+import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.native.js';
 import { CookingScreen } from '../CookingScreen.native.js';
+import { cookingMessages } from '../messages.js';
+import type { TimerStore } from '../timer/timerStore.js';
 import { DONE_SETTLE_MS } from '../doneSettle.js';
 import type { CookingScreenProps, CookingScreenRead } from '../cookingViewProps.js';
+import { installHardwareBackHandler } from '@commise/ui/testing/hardware-back';
 import { pillOf } from '@commise/ui/testing/button-pill';
 
 const user = userEvent.setup({ delay: null });
@@ -77,9 +81,7 @@ vi.mock('react-native', async (importOriginal) => {
 });
 
 // The ingredients list reads the cook marks the app root provides, so every render here sits in the same provider.
-const Marks: FC<{ readonly children: ReactNode }> = ({ children }) => (
-    <CookMarksProvider subject="user_test">{children}</CookMarksProvider>
-);
+const { Wrapper: Marks } = makeCookingWrapper();
 
 const TITLE = 'Weeknight roast';
 
@@ -102,7 +104,7 @@ const ready = (over: Partial<Extract<CookingScreenRead, { kind: 'ready' }>> = {}
 });
 
 function setup(read: CookingScreenRead = ready()) {
-    const props: CookingScreenProps = { read, onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+    const props: CookingScreenProps = { read, recipeId: 'r1', onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
     const view = render(<CookingScreen {...props} />, { wrapper: Marks });
 
     return { ...props, ...view };
@@ -566,6 +568,7 @@ describe('CookingScreen (native): a step', () => {
 
         rerender(
             <CookingScreen
+                recipeId="r1"
                 read={ready({
                     recipe: makeCookingRecipe({
                         id: 'r1',
@@ -590,6 +593,7 @@ describe('CookingScreen (native): a step', () => {
 
         rerender(
             <CookingScreen
+                recipeId="r2"
                 read={ready({
                     recipe: makeCookingRecipe({
                         id: 'r2',
@@ -953,8 +957,17 @@ describe('CookingScreen (native): the names a cook hears on the way to Done', ()
 });
 
 describe('CookingScreen (native): the read wins over the session at the join', () => {
-    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) =>
-        view.rerender(<CookingScreen read={read} onLeave={view.onLeave} onEdit={view.onEdit} onHome={view.onHome} />);
+    const rerenderWith = (view: ReturnType<typeof setup>, read: CookingScreenRead) => {
+        view.rerender(
+            <CookingScreen
+                read={read}
+                recipeId="r1"
+                onLeave={view.onLeave}
+                onEdit={view.onEdit}
+                onHome={view.onHome}
+            />,
+        );
+    };
 
     const finish = async () => {
         for (let step = 1; step <= 6; step++) {
@@ -1199,5 +1212,96 @@ describe('CookingScreen (native): Done', () => {
         expect(screen.getByText('Line 1 of 2')).toBeTruthy();
         expect(screen.queryByText(/You ticked/u)).toBeNull();
         expect(keepAwake.calls.at(-1)).toBe(true);
+    });
+});
+
+/**
+ * Leaving with a timer of this recipe still going: Exit and Back on step 1 say so first, then leave, in every state the
+ * screen can be in. A timer of another recipe says nothing. The real store, the real host and the real copy.
+ */
+describe('CookingScreen: leaving with a timer', () => {
+    const en = resolveMessages(cookingMessages, 'en');
+    const RICE = fillTemplate(en.exit.timerRunningNative, { label: 'Rice' });
+
+    const startTimer = (store: TimerStore, recipeId: string): void => {
+        store.start({
+            recipeId,
+            stepIndex: 0,
+            stepDigest: 's1:0000000d',
+            label: { kind: 'typed', text: 'Rice' },
+            origin: { kind: 'added' },
+            durationMs: 60_000,
+        });
+    };
+
+    const mount = (read: CookingScreenRead, timerOf?: string) => {
+        const { store, Wrapper } = makeCookingWrapper();
+
+        if (timerOf !== undefined) {
+            startTimer(store, timerOf);
+        }
+
+        const ways = { onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
+        render(<CookingScreen read={read} recipeId="r1" {...ways} />, { wrapper: Wrapper });
+
+        return ways;
+    };
+
+    it('says the timer keeps running on Exit, then leaves', async () => {
+        const ways = mount(ready(), 'r1');
+
+        await user.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('says it on Back from step 1, which leaves to the recipe', async () => {
+        const ways = mount(ready(), 'r1');
+
+        await user.click(screen.getByRole('button', { name: 'Back to the recipe' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('says it from the loading frame too, by the route\u2019s recipe id', async () => {
+        const ways = mount({ kind: 'pending', retry: vi.fn() }, 'r1');
+
+        await user.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.getByText(RICE)).toBeTruthy();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves with no message when no timer runs', async () => {
+        const ways = mount(ready());
+
+        await user.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.queryByText(/timer/u)).toBeNull();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('leaves with no message when the only timer is another recipe\u2019s', async () => {
+        const ways = mount(ready(), 'other');
+
+        await user.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(screen.queryByText(/timer/u)).toBeNull();
+        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+    });
+
+    it('says it on Android Back, through the back-intercept registry, then leaves', () => {
+        const back = installHardwareBackHandler();
+        const ways = mount(ready(), 'r1');
+
+        try {
+            expect(back.press()).toBe(true);
+            expect(screen.getByText(RICE)).toBeTruthy();
+            expect(ways.onLeave).toHaveBeenCalledTimes(1);
+        } finally {
+            back.restore();
+        }
     });
 });

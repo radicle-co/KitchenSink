@@ -1,7 +1,7 @@
 # Implementation Plan: Flow Steps (rewritten recipe steps)
 
 **Branch**: single-branch directive | **Date**: 2026-11-15 | **Spec**: [spec.md](./spec.md)
-**Input**: `specs/027-rewritten-steps/spec.md`. Every clarification there is assumed and waits for the owner.
+**Input**: `specs/027-rewritten-steps/spec.md`. Every clarification there is assumed and waits for the owner, except C-6, C-7 and C-12, which are ruled (2026-11-17).
 
 **Status**: Planned, not built. `staff-architect` PLANNING ran on 2026-11-15 (opus) and its pattern register is folded
 in below. BLUEPRINT, `staff-ux-engineer` DISCOVER/DESIGN/SPECIFY and the ADR are owed before any code.
@@ -11,14 +11,13 @@ in below. BLUEPRINT, `staff-ux-engineer` DISCOVER/DESIGN/SPECIFY and the ADR are
 An owner asks for Flow Steps on one recipe. recipe-service checks eligibility (a pure Specification), computes a
 content digest of the saved recipe, and either returns the stored version (cache hit, no model call, no use) or
 creates one pending job (single-flight on `(recipe_id, content_digest)`) and enqueues it. A new recipe-workers Lambda
-builds a facts-only sheet, calls a non-Anthropic Bedrock model through the existing `gatedConverse` reserve/settle
+builds a facts sheet and reads the step text, calls a non-Anthropic Bedrock model through the existing `gatedConverse` reserve/settle
 path under a new call site, parses the answer as data, and runs two deterministic checks (two-way fact multiset,
 wording similarity ceiling). A pass writes the one attached version and charges one use, keyed on the job id. Replace
 is an Apply Command over the stored version through the existing recipe `update` (compare-and-swap on
 `expectedVersion` plus a digest check), so versions, the 020 check and the label rules come for free.
 
-The writer and both checks are one engine in `@kitchensink/recipe-core` (`src/stepWriting/`), consumed first by
-whichever of this feature or spec 003B ships first, then by the other and by 020's suggestion. Each composes it with
+The writer and both checks are one engine in `@kitchensink/recipe-core` (`src/stepWriting/`), built first by spec 003B (FR-045), then consumed by this feature and by 020's suggestion. Each composes it with
 its own call site, charging rule and sink.
 
 ## Technical Context
@@ -32,7 +31,7 @@ worker tests, Playwright (web), Maestro (mobile), k6 by hand.
 **Target Platform**: web + iOS + Android. Recipe-service on Fargate. Worker on Lambda (VPC, NAT consumer).
 **Project Type**: monorepo feature across shared core, one service, one worker, two apps.
 **Performance Goals**: cache hit < 1 s end to end (SC-003). P95 generation ≤ 30 s (SC-004).
-**Constraints**: facts-only writer input. No Anthropic model. No own keys. Fail closed on spend. Never truncate input;
+**Constraints**: writer input is the facts sheet and the step text (no address, statement or source title). No Anthropic model. No own keys. Fail closed on spend. Never truncate input;
 job timeout 10 min.
 **Scale/Scope**: one row per recipe. Generation bounded by the cook's monthly uses (`010-FR-041b`).
 
@@ -60,11 +59,12 @@ No unjustified violation. No Complexity Tracking entry.
 
 - **Pipeline of pure functions**: `buildFactsSheet → buildStepPrompt → (writer port) → parseStepAnswer → checkFacts →
 checkWording`. Each stage its own module and subpath export under `recipe-core/src/stepWriting/`.
-- **Type-pinned input**: `buildStepPrompt(sheet: FactsSheet)` arity pinned with `Exact<Parameters<…>, [FactsSheet]>`
-  like `buildParsePrompt`. System prompt pinned by length and SHA-256. No path can pass step wording.
+- **Type-pinned input**: `buildStepPrompt(sheet: FactsSheet, sourceSteps: SourceSteps)` arity pinned with
+  `Exact<Parameters<…>, [FactsSheet, SourceSteps]>` like `buildParsePrompt`. System prompt pinned by length and SHA-256.
+  No path can pass the address, the statement or the source title.
 - **Adapter on a Template Method**: `createGatedStepWriter(deps, modelId, callSite)` in recipe-workers over
   `gatedConverse`. `gatedConverse` itself is not refactored. Its default "ceiling denial throws and redelivers" is
-  overridden for this step to a terminal `budgetSpent` (010-FR-041d). That override is the contract to test.
+  overridden for this step to a final `budgetSpent` (010-FR-041d). That override is the contract to test.
 - **Outcome union + exhaustive switch = Visitor**: `StepRewriteOutcome = ok | factCheckFailed | tooSimilar |
 budgetSpent | failed`. No visitor machinery.
 - **Strategy at the consumer edge, not in the engine**: 027 composes the engine with call site `step-rewrite-cook`,
@@ -96,29 +96,34 @@ the same fact).
 
 | Part                                                                          | Location                                                                |
 | ----------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| Fact sheet, closed verb/equipment/safety lexicons                             | `packages/shared/recipe-core/src/stepWriting/factsSheet.ts`             |
+| Fact sheet (digits, fractions and unit symbols only, no word lexicons)        | `packages/shared/recipe-core/src/stepWriting/factsSheet.ts`             |
 | Prompt builder + pinned system prompt                                         | `…/stepWriting/stepPrompt.ts`                                           |
 | Answer parser (zod, data only)                                                | `…/stepWriting/stepAnswer.ts`                                           |
 | Two-way fact check                                                            | `…/stepWriting/factCheck.ts`                                            |
 | Hashed fingerprint and the shingle measure (each consumer owns its threshold) | `…/stepWriting/wordShingles.ts` (020's copy check reuses it)            |
 | Content digest                                                                | `…/stepWriting/contentDigest.ts` (pure; used by service and worker)     |
-| Engine `rewriteSteps(sheet, original, writer) → Outcome`                      | `…/stepWriting/rewriteSteps.ts`                                         |
+| Engine `rewriteSteps(sheet, writer, wording) → Outcome`                       | `…/stepWriting/rewriteSteps.ts`                                         |
 | Bedrock writer adapter                                                        | `packages/services/recipe-workers/src/stepWriting/gatedStepWriter.ts`   |
 | Worker handler                                                                | `packages/services/recipe-workers/src/handlers/rewrittenStepsWorker.ts` |
 | API, tables, eligibility, apply                                               | `packages/services/recipe-service/src/recipes/rewrittenSteps/`          |
 
-Amounts, temperatures and durations reuse existing readers: `@kitchensink/shared/cooking` `duration.ts` for times,
-`recipe-import-core` quantity readers for amounts. A second reader would break the "same reader every channel" rule
-(004-FR-057).
+Amounts reuse `readCooksMeasure` in `@kitchensink/recipe-core/parsing/measure-reader`; the temperature reader is new, inside the engine. Durations come from `@kitchensink/cooking-core`
+`duration.ts`, which depends on `recipe-core`, so the fact sheet takes a duration reader as an INJECTED input
+(`buildFactsSheet(recipe, { durations })`); the reverse import would be a cycle. A test in `packages/shared/cooking` runs
+the sheet with the real reader. A second reader would break the "same reader every channel" rule (004-FR-057).
+
+The fingerprint functions take no key and no clock of their own. The keyed hash is an injected
+`KeyedHash = (shingle: string) => bigint`, and `jaccard(a, b)` and `containment(part, whole)` take fingerprint sets. The
+wording limits arrive as the `wording` argument of `rewriteSteps`: `{ source: Fingerprint, hash, limits }`.
 
 ## Key decisions (detail in research.md)
 
-1. Facts-only input for every recipe (R1). 2. Two-way fact multiset across the whole recipe (R2). 3. Similarity is a
+1. Facts sheet plus step text as input for every recipe (R1). 2. Two-way fact multiset across the whole recipe (R2). 3. Similarity is a
    ceiling on reuse, measured on a hashed fingerprint of word 5-shingles, threshold from the evaluation set (R3). 4. Writer chosen by a Bedrock
    bake-off among non-Anthropic models, default candidate Nova 2 Lite (R4). 5. Digest covers steps, ingredient lines and
    language. Validity ignores engine version (R5). 6. One row per recipe (R6). 7. Eligibility needs `firstPublishedAt`,
    so a replace always records a version (R7). 8. Use charged only on `ready`, keyed on job id, through 005's ledger
-   (R8). 9. Terminal `budgetSpent`, never redelivered (R9). 10. Offline copy rides 019's recipe cache (R10).
+   (R8). 9. Final `budgetSpent`, never redelivered (R9). 10. Offline copy rides 019's recipe cache (R10).
 
 ## Project Structure
 
@@ -167,22 +172,22 @@ packages/apps/commise/features/cooking/                # Original / Flow Steps s
 
 ## Testing (tiers owed, test-first)
 
-| Tier                        | What                                                                                                                                                                                                                            |
-| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Unit (core)                 | Sheet extraction per category; prompt arity and SHA pin; answer parser refusals; fact check both directions with mutants (drop one amount, add one, change a duration, drop a safety line, merge/split steps); shingle measure. |
-| Unit (service)              | Eligibility reasons, digest stability (whitespace, order), state union mapping, apply digest/version refusal.                                                                                                                   |
-| Integration (mocked)        | Request hit/miss, concurrent request returns one job, use charged once on ready, none on refusal, 404 for others.                                                                                                               |
-| Worker                      | `budgetSpent` terminal and not redelivered; unreadable counter retried; 10-min expiry → failed; recipe deleted mid-job → discarded, no charge.                                                                                  |
-| LOCAL e2e                   | Migration applied; partial unique index rejects a second pending; cascade on recipe delete; erasure.                                                                                                                            |
-| Service e2e (deployed) + k6 | Request/status/apply round trip; k6 on status reads (hit path).                                                                                                                                                                 |
-| Component (both)            | Every state in spec FR-061, including `busy`; banned-word guard over `recipes.flowSteps.*`.                                                                                                                                     |
-| Playwright / Maestro        | US1 attach + cook; US2 stale + update; US3 replace + restore; US4 budget/out-of-uses/offline.                                                                                                                                   |
+| Tier                        | What                                                                                                                                                                                                                                                                     |
+| --------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Unit (core)                 | Sheet extraction (amounts, temperatures, times, ingredient names); prompt arity and SHA pin; answer parser refusals; fact check both directions with mutants (drop one amount, add one, change a duration, drop an ingredient name, merge/split steps); shingle measure. |
+| Unit (service)              | Eligibility reasons, digest stability (whitespace, order), state union mapping, apply digest/version refusal.                                                                                                                                                            |
+| Integration (mocked)        | Request hit/miss, concurrent request returns one job, use charged once on ready, none on refusal, 404 for others.                                                                                                                                                        |
+| Worker                      | `budgetSpent` final and not redelivered; unreadable counter retried; 10-min expiry → failed; recipe deleted mid-job → discarded, no charge.                                                                                                                              |
+| LOCAL e2e                   | Migration applied; partial unique index rejects a second pending; cascade on recipe delete; erasure.                                                                                                                                                                     |
+| Service e2e (deployed) + k6 | Request/status/apply round trip; k6 on status reads (hit path).                                                                                                                                                                                                          |
+| Component (both)            | Every state in spec FR-061, including `busy`; banned-word guard over `recipes.flowSteps.*`.                                                                                                                                                                              |
+| Playwright / Maestro        | US1 attach + cook; US2 stale + update; US3 replace + restore; US4 budget/out-of-uses/offline.                                                                                                                                                                            |
 
 ## Watch list
 
 - **Fact extraction recall.** A fact the extractor misses is neither sent nor checked. Mitigation: SC-001 human audit;
   the extractor is measured on the evaluation set before any model is chosen.
-- **Quality from facts only.** May read flat. Measured in the bake-off; SC-007 is a hypothesis.
+- **Quality from the facts sheet and the step text.** May read flat or too close to the source. Measured in the bake-off; SC-007 is a hypothesis.
 - **Shared pool.** First cook-funded consumer of the ADR-0024 pool, which the go-live plan (§6) says must split
   before Pro with AI is sold. Not shippable to paying cooks until that split lands.
 - **Open rulings.** 020 Q-4 (label), 020-FR-078 (spend). See spec "Conflicts".

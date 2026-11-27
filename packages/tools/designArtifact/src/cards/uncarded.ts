@@ -10,14 +10,23 @@
 
 /** Surface name to why it has no card. */
 export const UNCARDED: Readonly<Record<string, string>> = {
+    CookingTimerSummary:
+        'The body of a CookingTimerRow: a part placed inside the row frame and never on its own. ' +
+        'The CookingTimerRow card draws it in all three states.',
     HeaderEyebrowBack:
         'The "‹ {parent}" eyebrow Back is a part of the large title header, not a component a screen places: on web it shows only from 840 px and is display: none below, and on native it renders nothing because the pinned bar owns Back. The LargeTitleHeader card covers the header it belongs to.',
+    PopupInsetsProvider:
+        "A page publishes its bottom bar (the tab bar, the editor's action bar) to the snackbar host, so the " +
+        'snackbar rises above it. It renders only its children and draws nothing of its own. ' +
+        'The SnackbarHost card covers the placement it feeds.',
     SafeAreaProvider:
         "Artifact-only native component (a shim over react-native-safe-area-context) that the canvas boards mount to place a screen inside an iPhone's insets. It draws nothing of its own, so a preview would be an empty box.",
     ScrollFrame:
         'Artifact-only native component: the native ScrollHost with plain children, for canvas markup that cannot pass a render-prop child. It is a board device and not a product component, and the product component it wraps (ScrollHost) has the card.',
     ButtonLabel:
         "The native Button's label (the Text `cardTitle` role coloured by the Button's surface). A part of Button, never placed on its own; the Button card covers it.",
+    StepperButton:
+        "The native Stepper's step button: the shared icon button inside the stepper's own frame, in a file of its own. A part of Stepper, never placed on its own; the Stepper card covers it.",
     RadioRowContent:
         "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
     RadioMark:
@@ -56,6 +65,13 @@ export const UNCARDED: Readonly<Record<string, string>> = {
     SheetEngine:
         "Native-only engine of the Sheet (Tamagui's Sheet inside the host's window). Screens place Sheet, which the Sheet card covers.",
     Text: "Native-only text primitive with no web sibling: web sets type with Tailwind's role utilities. A screen names a type role, and the roles are defined in `typography.ts`.",
+    WindowScope:
+        'The web window frame: it deepens the overlay depth and mounts the snackbar outlet where the snackbar ' +
+        'draws while that window is open. It adds no element and has no look of its own. The web twin of ' +
+        'OverlayHost; the SnackbarHost card covers the placement it feeds.',
+    WindowAnnouncementSlot:
+        'The text a window speaks for the page below it: a visually hidden polite region in each open window. It ' +
+        'draws nothing the cook sees and has no look of its own. The SnackbarHost card covers the windows it lives in.',
     ToneScope:
         "Native-only scope that states a surface's tone to Tamagui's theme and to the JS tone context. It draws nothing of its own; Surface and every self-painting root state their tone through it.",
 };

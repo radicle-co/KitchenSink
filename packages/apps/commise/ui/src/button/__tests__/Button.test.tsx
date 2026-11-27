@@ -657,3 +657,21 @@ describe('Button (web) — expanded', () => {
         expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
     });
 });
+
+/**
+ * The glyph of a labelled button is part of its label, so it is in `rem` and follows the browser text size. 1 rem
+ * is 16 px at 1x, so a 20 px glyph is the 20 px it was. jsdom resolves no `rem`, so these pin the declared size.
+ */
+describe('Button (web) glyph follows its label', () => {
+    it.each(['start', 'end'] as const)('draws its %s glyph in rem, not a fixed 20 px', (iconPlacement) => {
+        const { container } = render(
+            <Button icon="plus" iconPlacement={iconPlacement}>
+                Add
+            </Button>,
+        );
+        const svg = container.querySelector<SVGElement>('svg.lucide');
+
+        expect(svg?.style.width).toBe('1.25rem');
+        expect(svg?.style.height).toBe('1.25rem');
+    });
+});

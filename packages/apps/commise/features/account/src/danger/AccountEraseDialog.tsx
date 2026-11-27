@@ -27,13 +27,22 @@ import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
 import { FieldLabel, Input } from '@commise/ui/input';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import { WindowScope } from '@commise/ui/window-scope';
 import * as Dialog from '@radix-ui/react-dialog';
-import type { FC } from 'react';
+import type { FC, ReactNode } from 'react';
 
 import { ACCOUNT_ERASURE_CONFIRMATION_PHRASE, confirmsErasurePhrase } from '../erasure.js';
 import { useMessages } from '@commise/i18n/react';
 import { accountDangerMessages } from './messages.js';
 import type { AccountEraseDialogProps } from './model.js';
+
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg',
+    '-translate-x-1/2 -translate-y-1/2 flex-col rounded-lg',
+    surfaceToneClass('paperOverlay'),
+    'shadow-lg',
+].join(' ');
 
 export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     open,
@@ -54,115 +63,132 @@ export const AccountEraseDialog: FC<AccountEraseDialogProps> = ({
     const canConfirm = confirmsErasurePhrase(phrase) && !submitting;
     const selected = new Set(selectedRecipeIds);
 
+    let donateBody: ReactNode;
+
+    if (recipesLoading) {
+        donateBody = (
+            <p role="status" className="text-meta text-ink-muted">
+                {erase.recipesLoadingLabel}
+            </p>
+        );
+    } else if (recipesError) {
+        donateBody = <p className="text-meta text-ink-muted">{erase.recipesError}</p>;
+    } else if (donatableRecipes.length === 0) {
+        donateBody = <p className="text-meta text-ink-muted">{erase.donateEmpty}</p>;
+    } else {
+        donateBody = (
+            <ul className="flex flex-col gap-1">
+                {donatableRecipes.map((recipe) => (
+                    <li key={recipe.id}>
+                        <label className="flex items-center gap-2 text-body text-ink">
+                            <input
+                                type="checkbox"
+                                checked={selected.has(recipe.id)}
+                                onChange={() => {
+                                    onToggleRecipe(recipe.id);
+                                }}
+                            />
+                            {recipe.title}
+                        </label>
+                    </li>
+                ))}
+            </ul>
+        );
+    }
+
     return (
         // ⛔ No dismissal while `submitting`: the caller's erasure is still in flight, and dismissing unmounts the
         // caller that finishes it.
         <Dialog.Root open={open} onOpenChange={(next) => (next || submitting ? undefined : onCancel())}>
             <Dialog.Portal>
                 <Dialog.Overlay className="fixed inset-0 z-50 bg-scrim" />
-                <Dialog.Content
-                    className={`@container/dialog fixed left-1/2 top-1/2 z-50 flex max-h-[85vh] w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 flex-col gap-4 overflow-y-auto rounded-lg ${surfaceToneClass('paperOverlay')} p-6 shadow-lg`}
-                >
-                    <Dialog.Title className="text-section-title text-ink">{erase.title}</Dialog.Title>
-                    <div className="flex items-start gap-2">
-                        <span aria-hidden="true" className="mt-0.5 shrink-0 text-danger-text">
-                            <Icon name="triangleAlert" size={20} />
-                        </span>
-                        <Dialog.Description className="text-body text-ink-muted">{erase.warning}</Dialog.Description>
-                    </div>
-                    <p className="text-body text-ink-muted">{erase.distinction}</p>
+                <Dialog.Content className={CONTENT_CLASS}>
+                    {/* The dialog does not scroll itself, so the snackbar's outlet, which is absolute in it, stays
+                        put while this box scrolls. The container query sits here: its content box is what the buttons
+                        fill. */}
+                    <WindowScope>
+                        <div className="@container/dialog flex min-h-0 flex-col gap-4 overflow-y-auto p-6">
+                            <Dialog.Title className="text-section-title text-ink">{erase.title}</Dialog.Title>
+                            <div className="flex items-start gap-2">
+                                <span aria-hidden="true" className="mt-0.5 shrink-0 text-danger-text">
+                                    <Icon name="triangleAlert" size={20} />
+                                </span>
+                                <Dialog.Description className="text-body text-ink-muted">
+                                    {erase.warning}
+                                </Dialog.Description>
+                            </div>
+                            <p className="text-body text-ink-muted">{erase.distinction}</p>
 
-                    <section aria-labelledby="erase-donate-heading" className="flex flex-col gap-2">
-                        <h3 id="erase-donate-heading" className="text-label text-ink">
-                            {erase.donateHeading}
-                        </h3>
-                        <p className="text-meta text-ink-muted">{erase.donateHelp}</p>
-                        {recipesLoading ? (
-                            <p role="status" className="text-meta text-ink-muted">
-                                {erase.recipesLoadingLabel}
-                            </p>
-                        ) : recipesError ? (
-                            <p className="text-meta text-ink-muted">{erase.recipesError}</p>
-                        ) : donatableRecipes.length === 0 ? (
-                            <p className="text-meta text-ink-muted">{erase.donateEmpty}</p>
-                        ) : (
-                            <ul className="flex flex-col gap-1" role="list">
-                                {donatableRecipes.map((recipe) => (
-                                    <li key={recipe.id}>
-                                        <label className="flex items-center gap-2 text-body text-ink">
-                                            <input
-                                                type="checkbox"
-                                                checked={selected.has(recipe.id)}
-                                                onChange={() => onToggleRecipe(recipe.id)}
-                                            />
-                                            {recipe.title}
-                                        </label>
-                                    </li>
-                                ))}
-                            </ul>
-                        )}
-                    </section>
+                            <section aria-labelledby="erase-donate-heading" className="flex flex-col gap-2">
+                                <h3 id="erase-donate-heading" className="text-label text-ink">
+                                    {erase.donateHeading}
+                                </h3>
+                                <p className="text-meta text-ink-muted">{erase.donateHelp}</p>
+                                {donateBody}
+                            </section>
 
-                    {blockedRecipes.length === 0 ? null : (
-                        <section aria-labelledby="erase-blocked-heading" className="flex flex-col gap-2">
-                            <h4 id="erase-blocked-heading" className="text-label text-ink">
-                                {erase.privateFoodsHeading}
-                            </h4>
-                            <p className="text-meta text-ink-muted">{erase.privateFoodsHelp}</p>
-                            <ul className="flex flex-col gap-1" role="list">
-                                {blockedRecipes.map((recipe) => (
-                                    <li key={recipe.id} className="text-meta text-ink">
-                                        {recipe.title}
-                                    </li>
-                                ))}
-                            </ul>
-                        </section>
-                    )}
+                            {blockedRecipes.length === 0 ? null : (
+                                <section aria-labelledby="erase-blocked-heading" className="flex flex-col gap-2">
+                                    <h4 id="erase-blocked-heading" className="text-label text-ink">
+                                        {erase.privateFoodsHeading}
+                                    </h4>
+                                    <p className="text-meta text-ink-muted">{erase.privateFoodsHelp}</p>
+                                    <ul className="flex flex-col gap-1">
+                                        {blockedRecipes.map((recipe) => (
+                                            <li key={recipe.id} className="text-meta text-ink">
+                                                {recipe.title}
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </section>
+                            )}
 
-                    <div className="flex flex-col gap-2">
-                        <FieldLabel forId="erase-phrase" label={erase.phraseLabel} />
-                        <p id="erase-phrase-prompt" className="text-meta text-ink-muted">
-                            {erase.phrasePrompt.replace('{phrase}', ACCOUNT_ERASURE_CONFIRMATION_PHRASE)}
-                        </p>
-                        <Input
-                            id="erase-phrase"
-                            value={phrase}
-                            onChangeText={onPhraseChange}
-                            describedBy="erase-phrase-prompt"
-                            autoComplete="off"
-                        />
-                    </div>
+                            <div className="flex flex-col gap-2">
+                                <FieldLabel forId="erase-phrase" label={erase.phraseLabel} />
+                                <p id="erase-phrase-prompt" className="text-meta text-ink-muted">
+                                    {erase.phrasePrompt.replace('{phrase}', ACCOUNT_ERASURE_CONFIRMATION_PHRASE)}
+                                </p>
+                                <Input
+                                    id="erase-phrase"
+                                    value={phrase}
+                                    onChangeText={onPhraseChange}
+                                    describedBy="erase-phrase-prompt"
+                                    autoComplete="off"
+                                />
+                            </div>
 
-                    <div className="flex flex-col-reverse gap-3 @[25rem]/dialog:flex-row @[25rem]/dialog:justify-end">
-                        <Dialog.Close asChild>
-                            <button
-                                type="button"
-                                disabled={submitting}
-                                className={`${buttonSurfaceClass('secondary')} w-full @[25rem]/dialog:w-auto`}
-                            >
-                                <Icon name="x" size={20} />
-                                <span>{erase.cancel}</span>
-                            </button>
-                        </Dialog.Close>
-                        <Button
-                            variant="destructive"
-                            tone="confirm"
-                            icon="trash"
-                            width="fill"
-                            busy={submitting}
-                            disabled={!canConfirm}
-                            onPress={onConfirm}
-                        >
-                            {erase.confirm}
-                        </Button>
-                    </div>
+                            <div className="flex flex-col-reverse gap-3 @[25rem]/dialog:flex-row @[25rem]/dialog:justify-end">
+                                <Dialog.Close asChild>
+                                    <button
+                                        type="button"
+                                        disabled={submitting}
+                                        className={`${buttonSurfaceClass('secondary')} w-full @[25rem]/dialog:w-auto`}
+                                    >
+                                        <Icon name="x" size={20} />
+                                        <span>{erase.cancel}</span>
+                                    </button>
+                                </Dialog.Close>
+                                <Button
+                                    variant="destructive"
+                                    tone="confirm"
+                                    icon="trash"
+                                    width="fill"
+                                    busy={submitting}
+                                    disabled={!canConfirm}
+                                    onPress={onConfirm}
+                                >
+                                    {erase.confirm}
+                                </Button>
+                            </div>
 
-                    {submitting && <p className="text-meta text-ink-muted">{erase.busyLabel}</p>}
-                    {submitError && !submitting && (
-                        <p role="alert" className="text-meta text-danger-text">
-                            {erase.error}
-                        </p>
-                    )}
+                            {submitting ? <p className="text-meta text-ink-muted">{erase.busyLabel}</p> : null}
+                            {submitError && !submitting ? (
+                                <p role="alert" className="text-meta text-danger-text">
+                                    {erase.error}
+                                </p>
+                            ) : null}
+                        </div>
+                    </WindowScope>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

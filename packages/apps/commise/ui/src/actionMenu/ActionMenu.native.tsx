@@ -22,12 +22,19 @@ import { Pressable, StyleSheet, Text, View } from 'react-native';
 
 import { HeroButton } from '../heroButton/HeroButton.native.js';
 import { Icon } from '../icon/Icon.native.js';
+import { IconButton } from '../iconButton/IconButton.native.js';
 import { moveScreenReaderFocus } from '../screenReaderFocus/moveScreenReaderFocus.native.js';
 import { useScreenReaderFocusOnSignal } from '../screenReaderFocus/useScreenReaderFocusOnSignal.native.js';
 import { Sheet } from '../sheet/Sheet.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { actionNamed, type ActionMenuItem, type ActionMenuProps, type ActionMenuSnapshot } from './props.js';
+import {
+    actionNamed,
+    MENU_ITEM_LABEL_ROLE,
+    type ActionMenuItem,
+    type ActionMenuProps,
+    type ActionMenuSnapshot,
+} from './props.js';
 import { useFocusRequest } from '../focusRequest/useFocusRequest.js';
 import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 
@@ -66,7 +73,9 @@ const MenuItem: FC<{
             }}
             style={({ pressed }) => [styles.item, inactive && styles.unavailable, pressed && { backgroundColor: wash }]}
         >
-            {item.icon === undefined ? null : <Icon name={item.icon} size={20} tone={tone} />}
+            {item.icon === undefined ? null : (
+                <Icon name={item.icon} size={20} tone={tone} scaleWith={{ role: MENU_ITEM_LABEL_ROLE }} />
+            )}
             <View style={styles.itemText}>
                 <Text style={[styles.itemLabel, { color: colors[tone] }]}>{item.label}</Text>
                 {unavailable && <Text style={[styles.reason, { color: colors.inkMuted }]}>{reason}</Text>}
@@ -89,7 +98,6 @@ export const ActionMenu: FC<ActionMenuProps> = ({
 }) => {
     const [open, setOpen] = useState(false);
     const { colors } = useTheme();
-    const wash = usePressFill();
     // What the open sheet shows: the actions as they were when the sheet opened.
     const [shown, setShown] = useState<ActionMenuSnapshot>({ items, destructiveItem });
     // The chosen item's key, waiting for the sheet to go.
@@ -150,21 +158,14 @@ export const ActionMenu: FC<ActionMenuProps> = ({
                     />
                 </View>
             ) : (
-                <Pressable
+                <IconButton
                     ref={triggerFocus}
-                    accessibilityRole="button"
+                    icon="ellipsis"
                     accessibilityLabel={triggerLabel}
-                    aria-expanded={open}
-                    // `accessibilityState.disabled` on device; a disabled Pressable keeps the screen-reader cursor.
+                    expanded={open}
                     disabled={unavailable}
                     onPress={openMenu}
-                    style={({ pressed }) => [styles.trigger, pressed && { backgroundColor: wash }]}
-                >
-                    {/* Kept, so `unavailable` (`opacity`) never moves the glyph (`nativeFlattenFlips.test.ts`). */}
-                    <View collapsable={false} style={unavailable ? styles.unavailable : null}>
-                        <Icon name="ellipsis" size={24} />
-                    </View>
-                </Pressable>
+                />
             )}
             <Sheet
                 open={open}
@@ -209,13 +210,6 @@ export const ActionMenu: FC<ActionMenuProps> = ({
 };
 
 const styles = StyleSheet.create({
-    trigger: {
-        minWidth: TARGET_DP,
-        minHeight: TARGET_DP,
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderRadius: TARGET_DP / 2,
-    },
     // The web leaf's `aria-disabled:opacity-60`, so unavailable reads to the eye too.
     unavailable: { opacity: 0.6 },
     item: {
@@ -226,7 +220,7 @@ const styles = StyleSheet.create({
         paddingHorizontal: nativeTokens.spacing[2],
     },
     itemText: { flexShrink: 1 },
-    itemLabel: nativeTokens.type.body,
+    itemLabel: nativeTokens.type[MENU_ITEM_LABEL_ROLE],
     reason: nativeTokens.type.caption,
     divider: { height: 1, marginVertical: nativeTokens.spacing[1] },
 });

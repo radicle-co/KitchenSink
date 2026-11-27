@@ -97,6 +97,7 @@ export const TYPE_ROLE_DOC: Readonly<Record<TypeRole, TypeRoleDoc>> = {
     caption: { group: 'Text', usage: 'Caption.' },
     figureInline: { group: 'Text', usage: 'A number inside a line, set in tabular figures.' },
     figureStat: { group: 'Text', usage: 'Statistic figure.' },
+    figureLarge: { group: 'Text', usage: 'The time in a timer row, set in tabular figures.' },
 };
 
 /** The groups, in the order the artifact lists them. */

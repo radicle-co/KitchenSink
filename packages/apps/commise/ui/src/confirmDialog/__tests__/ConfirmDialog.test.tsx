@@ -4,6 +4,16 @@ import userEvent from '@testing-library/user-event';
 import { useState, type JSX } from 'react';
 import { afterEach } from 'vitest';
 
+import { SnackbarHost } from '../../snackbar/SnackbarHost.js';
+import {
+    expectProbeHandedBack,
+    expectProbeInside,
+    expectProbeUndoReachable,
+    showProbe,
+    SnackbarProbe,
+    snackbarRegionOf,
+} from '../../testing/windowSnackbar.js';
+import { Sheet } from '../../sheet/Sheet.js';
 import { ConfirmDialog } from '../ConfirmDialog.js';
 import type { ConfirmDialogProps } from '../props.js';
 
@@ -322,4 +332,86 @@ describe('ConfirmDialog (web) — the overhaul contract', () => {
             'text-section-title',
         );
     });
+});
+
+describe('ConfirmDialog (web) offers the snackbar an outlet', () => {
+    function WithHost({ open }: { readonly open: boolean }): JSX.Element {
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <ConfirmDialog {...baseProps({ open })} />
+            </SnackbarHost>
+        );
+    }
+
+    it('draws a snackbar shown while it is open inside it, reachable by keyboard, and Undo works', async () => {
+        render(<WithHost open />);
+        showProbe();
+
+        expectProbeInside(screen.getByRole('alertdialog'));
+        await expectProbeUndoReachable(screen.getByRole('alertdialog'));
+    });
+
+    it('hands the same snackbar back when it closes', () => {
+        const { rerender } = render(<WithHost open />);
+        showProbe();
+        rerender(<WithHost open={false} />);
+
+        expectProbeHandedBack();
+    });
+
+    it('sits the snackbar 16 above the action row: the row and the dialog padding under it are its foot', () => {
+        // Only the box that holds the buttons and not the title reports a height; the dialog itself reports none.
+        vi.spyOn(Element.prototype, 'getBoundingClientRect').mockImplementation(function (this: Element) {
+            const holdsButtons =
+                this.querySelector('[data-dialog-actions]') !== null || this.hasAttribute('data-dialog-actions');
+
+            return new DOMRect(0, 0, 320, holdsButtons && this.querySelector('h2') === null ? 88 : 0);
+        });
+        render(<WithHost open />);
+
+        // Kills: no footHeight (the snackbar covers the buttons), and measuring the whole dialog.
+        expect(snackbarRegionOf(screen.getByRole('alertdialog')).style.bottom).toBe('calc(88px + 1rem)');
+    });
+});
+
+describe('ConfirmDialog (web) over a Sheet hands the snackbar between them', () => {
+    /** A confirm opened over a sheet, as a child of it or as its sibling (CollectionSheet renders it as a sibling). */
+    function Over({ confirmOpen, shape }: { readonly confirmOpen: boolean; readonly shape: 'child' | 'sibling' }) {
+        const confirm = <ConfirmDialog {...baseProps({ open: confirmOpen })} />;
+
+        return (
+            <SnackbarHost>
+                <SnackbarProbe />
+                <Sheet
+                    open
+                    onOpenChange={() => undefined}
+                    title="Ingredients"
+                    closeLabel="Close Ingredients"
+                    size="page"
+                >
+                    {shape === 'child' ? confirm : null}
+                </Sheet>
+                {shape === 'sibling' ? confirm : null}
+            </SnackbarHost>
+        );
+    }
+
+    it.each(['child', 'sibling'] as const)(
+        'draws it in the confirm while open and in the sheet again once the confirm closes (%s)',
+        (shape) => {
+            // The sheet opens first and the confirm over it, as a person would meet them.
+            const { rerender } = render(<Over confirmOpen={false} shape={shape} />);
+            rerender(<Over confirmOpen shape={shape} />);
+            showProbe();
+
+            expectProbeInside(screen.getByRole('alertdialog'));
+
+            rerender(<Over confirmOpen={false} shape={shape} />);
+
+            // Kills: a footer re-measure re-registering the sheet's outlet (the sibling shape), and an outlet that
+            // stays registered after its window closes (the snackbar then has nowhere to draw).
+            expectProbeInside(screen.getByRole('dialog', { name: 'Ingredients' }));
+        },
+    );
 });

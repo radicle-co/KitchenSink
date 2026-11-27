@@ -105,7 +105,7 @@
       "x": 17680,
       "y": 260,
       "w": 1280,
-      "h": 1200,
+      "h": 2100,
       "title": "Recipe editor, who can see it (web, 1280)"
     },
     "RecipeEditorSaveStatusWeb1280.dc.html": {
@@ -595,7 +595,7 @@
       "x": 6110,
       "y": 14956,
       "w": 390,
-      "h": 2348,
+      "h": 3728,
       "title": "Recipe editor, who can see it (web, 390)"
     },
     "RecipeEditorSaveStatusWeb390.dc.html": {
@@ -1006,31 +1006,45 @@
     },
     "RecipeEditorSourceLockWeb1280.dc.html": {
       "x": 0,
-      "y": 27332,
+      "y": 27988,
       "w": 1280,
       "h": 3754,
       "title": "Recipe editor, the Source row locked (web, 1280)"
     },
     "RecipeEditorSourceLockWeb390.dc.html": {
       "x": 1360,
-      "y": 27332,
+      "y": 27988,
       "w": 390,
       "h": 5730,
       "title": "Recipe editor, the Source row locked (web, 390)"
     },
     "RecipeEditorSourceSheetWeb1280.dc.html": {
       "x": 0,
-      "y": 33462,
+      "y": 34118,
       "w": 1280,
       "h": 2642,
       "title": "Recipe editor, where it’s from: first answer, change and downgrade (web, 1280)"
     },
     "RecipeEditorSourceSheetWeb390.dc.html": {
       "x": 1360,
-      "y": 33462,
+      "y": 34118,
       "w": 390,
       "h": 4934,
       "title": "Recipe editor, where it’s from: first answer, change and downgrade (web, 390)"
+    },
+    "RecipeEditorPublicCopyWeb1280.dc.html": {
+      "x": 0,
+      "y": 27392,
+      "w": 1280,
+      "h": 378,
+      "title": "Recipe editor, copy of a public recipe (web, 1280)"
+    },
+    "RecipeEditorPublicCopyWeb390.dc.html": {
+      "x": 1360,
+      "y": 27392,
+      "w": 390,
+      "h": 516,
+      "title": "Recipe editor, copy of a public recipe (web, 390)"
     }
   },
   "order": [
@@ -1179,7 +1193,9 @@
     "RecipeEditorSourceLockWeb1280.dc.html",
     "RecipeEditorSourceLockWeb390.dc.html",
     "RecipeEditorSourceSheetWeb1280.dc.html",
-    "RecipeEditorSourceSheetWeb390.dc.html"
+    "RecipeEditorSourceSheetWeb390.dc.html",
+    "RecipeEditorPublicCopyWeb1280.dc.html",
+    "RecipeEditorPublicCopyWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1207,6 +1223,13 @@
       "x": 0,
       "y": 14696,
       "text": "Recipe editor: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowFollow0": {
+      "x": 0,
+      "y": 27132,
+      "text": "Recipe editor, copy of a public recipe: web, 1280 and 390",
       "kind": "title1",
       "maxW": 2400
     }

@@ -8,7 +8,7 @@
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
-import { CookMarksProvider } from '@commise/features-recipes';
+import { makeCookingWrapper } from '@commise/features-cooking/testing/mobile';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -42,11 +42,12 @@ const nextStep = () => screen.getByRole('button', { name: /^(Next step|Start ste
 const onLeave = vi.fn();
 const onEdit = vi.fn();
 const onHome = vi.fn();
-/** The screen under the cook marks provider the app root mounts: the cooking screen reads the cook's ticks. */
+const { Wrapper: CookingProviders } = makeCookingWrapper();
+/** The screen under the providers the app root mounts: ticks, timer, snackbar host and hardware Back. */
 const screenOf = () => (
-    <CookMarksProvider subject="user_test">
+    <CookingProviders>
         <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
-    </CookMarksProvider>
+    </CookingProviders>
 );
 
 beforeEach(() => {
@@ -81,6 +82,17 @@ describe('CookingModeScreen: the read outcomes', () => {
         renderWithRecipeClient(screenOf(), client);
 
         expect(await screen.findByText(stepOf(1, 4))).toBeTruthy();
+    });
+
+    it('hands the route its leave when the cook presses Exit (mutant: onLeave dropped)', async () => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
+        renderWithRecipeClient(screenOf(), client);
+        await screen.findByText(stepOf(1, 4));
+
+        fireEvent.click(screen.getByRole('button', { name: 'Exit cooking mode' }));
+
+        expect(onLeave).toHaveBeenCalledTimes(1);
     });
 
     it('shows a 404 as not available', async () => {

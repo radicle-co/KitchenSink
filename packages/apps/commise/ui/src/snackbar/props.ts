@@ -26,7 +26,7 @@ export interface SnackbarAction {
 
 /** What a screen asks a snackbar to say and do. */
 export interface SnackbarInput {
-    /** The localised message, at most two lines. */
+    /** The localised message. The web snackbar wraps it whole; the native one still clamps it to two lines. */
     readonly message: string;
     /** The one action, if any. */
     readonly action?: SnackbarAction;
@@ -59,6 +59,17 @@ export interface SnackbarApi {
 export interface SnackbarHostProps {
     /** The app the host serves. */
     readonly children: ReactNode;
+    /**
+     * Web: the accessible name of the landmark the snackbar region sits in ("Notifications", localised by the caller).
+     * Absent, the region is a bare status.
+     */
+    readonly label?: string;
+    /**
+     * Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change
+     * from a known subject closes the snackbar showing, so it never shows to the next person (see
+     * `SnackbarStore.observeSubject`).
+     */
+    readonly subject?: string | null;
 }
 
 /** The cross-platform `UndoSnackbar` contract: what the host draws for the snackbar on screen. */

@@ -11,6 +11,7 @@ import {
     render,
     renderWithTamagui,
     resolvedColour,
+    resolvedStyle,
 } from '../../testing/tamaguiTesting.native.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { Button } from '../Button.native.js';
@@ -701,5 +702,59 @@ describe('Button (native) — expanded', () => {
         rerender(<Button variant="ghost">See why</Button>);
 
         expect(screen.getByRole('button', { name: 'See why' }).hasAttribute('aria-expanded')).toBe(false);
+    });
+});
+
+/**
+ * Native: a labelled button's glyph is its 20 pt times the label role's growth under the system text scale, never past
+ * the role's cap (cardTitle stops at 2x). This Button always has a label, so its glyph always grows.
+ */
+describe('Button (native) glyph follows its label', () => {
+    const glyphSizeAt = (scale: number): string | undefined => {
+        const { container, unmount } = renderWithTamagui(<Button icon="plus">Add</Button>, 'light', scale);
+        const size = container.querySelector<HTMLElement>('[data-commise-stub="icon"]')?.dataset['iconSize'];
+
+        unmount();
+
+        return size;
+    };
+
+    it('is the 20 it was at 1x', () => {
+        expect(glyphSizeAt(1)).toBe('20');
+    });
+
+    it('grows with the label: 30 at 1.5x text', () => {
+        expect(glyphSizeAt(1.5)).toBe('30');
+    });
+
+    it('stops at the label role cap: 40 at 3x text', () => {
+        expect(glyphSizeAt(3)).toBe('40');
+    });
+});
+
+describe('Button (native) busy indicator follows its label', () => {
+    /**
+     * The box the busy indicator is given, read as its wrapper's width, at a system text scale. The indicator is scaled
+     * inside it by a Tamagui `scale`, which jsdom does not resolve, so a device run owns the drawn size.
+     */
+    const boxAt = (scale: number): string => {
+        const { container, unmount } = renderWithTamagui(
+            <Button icon="plus" busy>
+                Add
+            </Button>,
+            'light',
+            scale,
+        );
+        const bar = container.querySelector('[role="progressbar"]');
+        const box = bar?.parentElement?.parentElement;
+        const width = box === null || box === undefined ? '' : resolvedStyle(box, 'width');
+
+        unmount();
+
+        return width;
+    };
+
+    it('is 20 at 1x and grows with the label: 30 at 1.5x, and stops at the label cap: 40 at 3x', () => {
+        expect([1, 1.5, 3].map(boxAt)).toEqual(['20px', '30px', '40px']);
     });
 });

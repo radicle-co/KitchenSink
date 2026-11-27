@@ -26,6 +26,7 @@ import type { LoadingPhase } from './loadingPhase.js';
 import { cookingMessages, type CookingMessages } from './messages.js';
 import { useCookingEntry } from './cookingEntry.js';
 import { cookingEntryViewOf } from './cookingEntryView.js';
+import { useExitMessageWays } from './timer/useExitMessageWays.js';
 
 /** The disabled pair's handler while loading: a disabled control is never pressed. */
 const noop = (): void => undefined;
@@ -61,8 +62,16 @@ const loadingFrame = ({ copy, phase, onLeave }: LoadingFrameInput) => (
 );
 
 /** The web cooking screen. */
-export const CookingScreen: FC<CookingScreenProps> = ({ read, onLeave, onEdit, onHome }) => {
+export const CookingScreen: FC<CookingScreenProps> = ({ read, recipeId, ...routeWays }) => {
     const copy = useMessages(cookingMessages);
+    // Every way out says so first when this recipe's timer is still going: the one place, for the loading frame, the
+    // notices and the session alike.
+    const { onLeave, onEdit, onHome } = useExitMessageWays(
+        routeWays,
+        recipeId,
+        read.kind === 'ready' ? read.recipe : undefined,
+        copy.exit.timerRunningWeb,
+    );
     const entry = useCookingEntry(read, onEdit);
 
     const view = cookingEntryViewOf({ ...entry, read, copy, onLeave, onEdit, onHome });

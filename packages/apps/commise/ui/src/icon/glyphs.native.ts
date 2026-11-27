@@ -43,7 +43,9 @@ import LayoutGridGlyph from 'lucide-react-native/icons/layout-grid';
 import ListGlyph from 'lucide-react-native/icons/list';
 import MenuGlyph from 'lucide-react-native/icons/menu';
 import MinusGlyph from 'lucide-react-native/icons/minus';
+import PauseGlyph from 'lucide-react-native/icons/pause';
 import PencilLineGlyph from 'lucide-react-native/icons/pencil-line';
+import PlayGlyph from 'lucide-react-native/icons/play';
 import PlusGlyph from 'lucide-react-native/icons/plus';
 import RefreshCwGlyph from 'lucide-react-native/icons/refresh-cw';
 import RotateCcwGlyph from 'lucide-react-native/icons/rotate-ccw';
@@ -126,4 +128,7 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     layoutGrid: LayoutGridGlyph,
     cookingPot: CookingPotGlyph,
     listChecks: ListChecksGlyph,
+    // The timer row: pause a running timer, and resume a paused one.
+    pause: PauseGlyph,
+    play: PlayGlyph,
 };

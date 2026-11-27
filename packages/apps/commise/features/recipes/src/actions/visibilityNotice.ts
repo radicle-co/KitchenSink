@@ -12,13 +12,13 @@
  * CLAIM), the editor's follow-up was refused after the editor left (`useServerRefusedPrivate`), and the page's own Make
  * private was refused. The generic "we couldn't change who can see this recipe" lives in the same slot.
  *
- * ⛔ THE FINISH CLAIM IS NOT TRUSTED. It arrives as `?done=<outcome>.<reason>` on web, which is a link anyone can write,
- * and the editor withheld that Private, so the server never saw it and there is no server answer to carry. The sentence
- * is therefore only said when every clause of it is TRUE by facts the page already holds from the server: the viewer
- * owns the recipe, the recipe is public, and the profile says Private is refused for this viewer. The words come from
- * the profile's reason, and the link's reason is never read. A forged link then shows nothing to a non-owner, to the
- * owner of a private recipe, or to an entitled owner. The one thing left is an owner who cannot make a recipe private
- * opening a forged link to their own public recipe: the sentence is true there.
+ * ⛔ THE FINISH CLAIM IS NOT TRUSTED. It arrives as `?privateRefused=<refusal>` on web, which is a link anyone can
+ * write, and the editor withheld that Private, so the server never saw it and there is no server answer to carry. The
+ * sentence is therefore only said when every clause of it is TRUE by facts the page already holds from the server: the
+ * viewer owns the recipe, the recipe is public, and the profile says Private is refused for this viewer. The words come
+ * from the profile's reason, and the link's reason is never read. A forged link then shows nothing to a non-owner, to
+ * the owner of a private recipe, or to an entitled owner. The one thing left is an owner who cannot make a recipe
+ * private opening a forged link to their own public recipe: the sentence is true there.
  *
  * Pure.
  *

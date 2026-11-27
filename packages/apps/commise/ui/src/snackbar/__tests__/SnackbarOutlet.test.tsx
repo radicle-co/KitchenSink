@@ -14,6 +14,7 @@ import { useContext, useState, type JSX, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resizeEntryOf } from '../../testing/resizeObserver.js';
+import { snackbarRegionOf } from '../../testing/windowSnackbar.js';
 import { OverlayDepthContext } from '../../overlay/overlayDepthContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
 import { SnackbarHost } from '../SnackbarHost.js';
@@ -189,7 +190,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             screen.getByText('show Ticks cleared').click();
         });
 
-        expect(within(screen.getByRole('dialog', { name: 'Ingredients' })).getByRole('status').textContent).toContain(
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByRole('dialog', { name: 'Ingredients' })).textContent).toContain(
             'Ticks cleared',
         );
 
@@ -249,7 +251,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             </SnackbarHost>,
         );
 
-        expect(within(screen.getByRole('dialog', { name: 'Ingredients' })).getByRole('status').textContent).toBe('');
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByRole('dialog', { name: 'Ingredients' })).textContent).toBe('');
     });
 });
 
@@ -300,11 +303,14 @@ function layOut(heights: { readonly sheet: number; readonly titleRow: number; re
     });
 }
 
-/** The status region of the open sheet, and the box that tells it how tall the footer is. */
-const sheetRegion = (): HTMLElement => within(screen.getByRole('dialog')).getByRole('status');
-const insetOf = (region: HTMLElement): string =>
-    region.closest<HTMLElement>('[style*="--sheet-footer-inset"]')?.style.getPropertyValue('--sheet-footer-inset') ??
-    '';
+/**
+ * The status region of the open sheet, and where its foot sits. REWRITTEN: the sheet used to hand the footer's height
+ * to the outlet through a CSS variable on the panel, which these rows read back. The outlet now takes it as
+ * `footHeight` and sets its own `bottom`, so the rows read that. The window holds the announcement slot and this
+ * region, so it is found through `snackbarRegionOf`, which checks the slot sits right before it.
+ */
+const sheetRegion = (): HTMLElement => snackbarRegionOf(screen.getByRole('dialog'));
+const bottomOf = (region: HTMLElement): string => region.style.bottom;
 
 describe('the snackbar over a sheet footer (web)', () => {
     it("sits the pinned footer's height up, so the 16 gap is above the footer and the actions stay clear", () => {
@@ -312,8 +318,7 @@ describe('the snackbar over a sheet footer (web)', () => {
         layOut({ sheet: 600, titleRow: 56, footer: 80 });
 
         // Kills: an outlet that ignores the footer and draws over its actions (the defect this rule exists for).
-        expect(insetOf(sheetRegion())).toBe('80px');
-        expect(sheetRegion().className).toContain('bottom-[calc(var(--sheet-footer-inset,0px)+1rem)]');
+        expect(bottomOf(sheetRegion())).toBe('calc(80px + 1rem)');
     });
 
     it('follows the footer when it grows', () => {
@@ -321,7 +326,7 @@ describe('the snackbar over a sheet footer (web)', () => {
         layOut({ sheet: 600, titleRow: 56, footer: 80 });
         layOut({ sheet: 600, titleRow: 56, footer: 104 });
 
-        expect(insetOf(sheetRegion())).toBe('104px');
+        expect(bottomOf(sheetRegion())).toBe('calc(104px + 1rem)');
     });
 
     it('adds no inset once the footer scrolls with the content, because it no longer sits at the foot', () => {
@@ -329,7 +334,7 @@ describe('the snackbar over a sheet footer (web)', () => {
         layOut({ sheet: 300, titleRow: 64, footer: 92 });
 
         // Kills: keeping the pinned inset after the flip, which lifts the snackbar off the foot for nothing.
-        expect(insetOf(sheetRegion())).toBe('');
+        expect(bottomOf(sheetRegion())).toBe('');
     });
 
     it('adds no inset to a sheet with no footer', () => {
@@ -339,7 +344,7 @@ describe('the snackbar over a sheet footer (web)', () => {
             </SnackbarHost>,
         );
 
-        expect(insetOf(sheetRegion())).toBe('');
+        expect(bottomOf(sheetRegion())).toBe('');
     });
 
     it("puts Undo after the footer's Clear ticks in the focus order, and never moves focus to it by itself", () => {
@@ -355,5 +360,37 @@ describe('the snackbar over a sheet footer (web)', () => {
             Node.DOCUMENT_POSITION_FOLLOWING,
         );
         expect(document.activeElement).not.toBe(undo);
+    });
+});
+
+describe('SnackbarOutlet (web) footHeight', () => {
+    it('keeps a footer re-measure from taking the snackbar back from a sibling window at the same depth', () => {
+        function Two({ foot }: { readonly foot: number }): JSX.Element {
+            return (
+                <SnackbarHost>
+                    <Shower input={{ message: 'Ticks cleared' }} />
+                    <div data-testid="first">
+                        <SnackbarOutlet depth={1} footHeight={foot} />
+                    </div>
+                    <div data-testid="second">
+                        <SnackbarOutlet depth={1} />
+                    </div>
+                </SnackbarHost>
+            );
+        }
+
+        const { rerender } = render(<Two foot={40} />);
+        showFrom('Ticks cleared');
+
+        expect(regionsHolding('Ticks cleared', screen.getByTestId('second'))).toHaveLength(1);
+
+        rerender(<Two foot={96} />);
+
+        // Kills: footHeight in the registration effect's deps, which re-registers the first outlet as latest and
+        // steals the snackbar.
+        expect(regionsHolding('Ticks cleared', screen.getByTestId('second'))).toHaveLength(1);
+        expect(regionsHolding('Ticks cleared', screen.getByTestId('first'))).toHaveLength(0);
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByTestId('first'), { hidden: true }).style.bottom).toBe('calc(96px + 1rem)');
     });
 });

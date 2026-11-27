@@ -128,6 +128,62 @@
       "w": 390,
       "h": 4476,
       "title": "Reports, rules and your rights, report states (web, 390)"
+    },
+    "RightsNoticeAuthorRequestWeb1280.dc.html": {
+      "x": 0,
+      "y": 13116,
+      "w": 1280,
+      "h": 1180,
+      "title": "Reports, rules and your rights, notice, my own recipe, no receipt code (web, 1280)"
+    },
+    "RightsNoticeAuthorRequestWithCodeWeb1280.dc.html": {
+      "x": 1360,
+      "y": 13116,
+      "w": 1280,
+      "h": 1180,
+      "title": "Reports, rules and your rights, notice, my own recipe, with receipt code (web, 1280)"
+    },
+    "RightsNoticeAuthorRequestHiddenWeb1280.dc.html": {
+      "x": 2720,
+      "y": 13116,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof passed (web, 1280)"
+    },
+    "RightsNoticeAuthorRequestReceivedWeb1280.dc.html": {
+      "x": 4080,
+      "y": 13116,
+      "w": 1280,
+      "h": 860,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof not passed (web, 1280)"
+    },
+    "RightsNoticeAuthorRequestWeb390.dc.html": {
+      "x": 0,
+      "y": 14856,
+      "w": 390,
+      "h": 1320,
+      "title": "Reports, rules and your rights, notice, my own recipe, no receipt code (web, 390)"
+    },
+    "RightsNoticeAuthorRequestWithCodeWeb390.dc.html": {
+      "x": 470,
+      "y": 14856,
+      "w": 390,
+      "h": 1320,
+      "title": "Reports, rules and your rights, notice, my own recipe, with receipt code (web, 390)"
+    },
+    "RightsNoticeAuthorRequestHiddenWeb390.dc.html": {
+      "x": 940,
+      "y": 14856,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof passed (web, 390)"
+    },
+    "RightsNoticeAuthorRequestReceivedWeb390.dc.html": {
+      "x": 1410,
+      "y": 14856,
+      "w": 390,
+      "h": 844,
+      "title": "Reports, rules and your rights, notice, my own recipe, acknowledgement, proof not passed (web, 390)"
     }
   },
   "order": [
@@ -147,7 +203,15 @@
     "RightsEraseWeb390.dc.html",
     "RightsAiDisclosureWeb390.dc.html",
     "RightsReportStatesWeb1280.dc.html",
-    "RightsReportStatesWeb390.dc.html"
+    "RightsReportStatesWeb390.dc.html",
+    "RightsNoticeAuthorRequestWeb1280.dc.html",
+    "RightsNoticeAuthorRequestWithCodeWeb1280.dc.html",
+    "RightsNoticeAuthorRequestHiddenWeb1280.dc.html",
+    "RightsNoticeAuthorRequestReceivedWeb1280.dc.html",
+    "RightsNoticeAuthorRequestWeb390.dc.html",
+    "RightsNoticeAuthorRequestWithCodeWeb390.dc.html",
+    "RightsNoticeAuthorRequestHiddenWeb390.dc.html",
+    "RightsNoticeAuthorRequestReceivedWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -175,6 +239,20 @@
       "x": 0,
       "y": 7820,
       "text": "Reports, rules and your rights: report states, web 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLic1280": {
+      "x": 0,
+      "y": 12856,
+      "text": "Author request: web 1280",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowLic390": {
+      "x": 0,
+      "y": 14596,
+      "text": "Author request: web 390",
       "kind": "title1",
       "maxW": 2400
     }

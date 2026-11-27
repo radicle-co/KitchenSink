@@ -3,8 +3,9 @@
  * screens `useSnackbar` and draws the one snackbar on screen.
  *
  * The snackbar sits in a pass-through overlay over the app, 16 pt above the bottom chrome (read from the page's
- * `PopupInsetsContext` reader as each one shows), in a polite `status` region that is always mounted. ⚠️ Native has
- * no hover, and React Native cannot see where the screen-reader cursor is, so SC 2.2.1's pause is the stronger rule:
+ * `PageFootContext` height while the host renders, so it follows the page it lands on), in a polite `status` region
+ * that is always mounted. ⚠️ Native has no hover, and React Native cannot see where the screen-reader cursor is, so
+ * SC 2.2.1's pause is the stronger rule:
  * while a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own
  * remaining time.
  *
@@ -21,7 +22,7 @@
 import { useCallback, useContext, useEffect, useState, type FC } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
-import { PopupInsetsContext } from '../popupInsets/popupInsetsContext.js';
+import { PageFootContext } from '../popupInsets/pageFootContext.js';
 import { nativeTokens } from '../tokens/native.js';
 import { SNACKBAR_GAP, type SnackbarHostProps } from './props.js';
 import { SnackbarClearanceContext } from './snackbarClearanceContext.js';
@@ -38,10 +39,10 @@ import { UndoSnackbar } from './UndoSnackbar.native.js';
 import { useSnackbarQueue } from './useSnackbarQueue.js';
 
 /** The native snackbar host. */
-export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
+export const SnackbarHost: FC<SnackbarHostProps> = ({ children, subject }) => {
     const queue = useSnackbarQueue();
-    const readInsets = useContext(PopupInsetsContext);
-    const [bottom, setBottom] = useState(SNACKBAR_GAP);
+    // A value read while rendering, so the snackbar follows the page it lands on.
+    const bottom = useContext(PageFootContext) + SNACKBAR_GAP;
     const [screenReader, setScreenReader] = useState(false);
     const [regionHeight, setRegionHeight] = useState(0);
     const [outlets, setOutlets] = useState(NO_OUTLETS);
@@ -52,9 +53,14 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
             setOutlets((stack) => unregisterOutlet(stack, entry.token));
         };
     }, []);
-    const { current } = queue;
+    const { current, observeSubject } = queue;
     const action = current?.input.action;
     const currentId = current?.id;
+
+    // The person the snackbars belong to: a change from a known person closes the one showing.
+    useEffect(() => {
+        observeSubject(subject);
+    }, [observeSubject, subject]);
 
     // Whether a screen reader is running, now and as it changes.
     useEffect(() => {
@@ -119,8 +125,6 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children }) => {
         <SnackbarContext
             value={{
                 show: (input) => {
-                    setBottom(readInsets().bottom + SNACKBAR_GAP);
-
                     return queue.show(input);
                 },
                 withdraw: queue.withdraw,

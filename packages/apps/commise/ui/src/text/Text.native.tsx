@@ -80,6 +80,10 @@ const TextFrame = styled(TamaguiText, {
                 fontFamily: type.figureStat.fontFamily,
                 fontVariant: ['tabular-nums', 'lining-nums'],
             },
+            figureLarge: {
+                fontFamily: type.figureLarge.fontFamily,
+                fontVariant: ['tabular-nums', 'lining-nums'],
+            },
             // Every type role, and only those: a role added to the scale is a type error here until it is styled.
         } as const satisfies Record<TypeRole, object>,
         // Tabular, lining digits in the role's own face, so a figure in a line keeps that line's weight (a rating in

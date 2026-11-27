@@ -33,7 +33,7 @@ import { Icon } from '../icon/Icon.js';
 import { useScrollHost } from '../scrollHost/scrollHostContext.js';
 import { Sheet } from '../sheet/Sheet.js';
 import type { Role } from '../tokens/colors.js';
-import type { SectionIndexItem, SectionIndexProps } from './props.js';
+import { itemLabelRoleOf, REASON_ROLE, type SectionIndexItem, type SectionIndexProps } from './props.js';
 import {
     TONE_GLYPH,
     TONE_ROLE,
@@ -124,7 +124,9 @@ const ListRow: FC<ListRowProps> = ({ item, current, idPrefix, index, height, onC
                 <span
                     className={`flex items-start gap-1.5 text-label ${current ? 'text-ink' : 'font-normal text-ink-muted'}`}
                 >
-                    {item.tone === 'complete' && glyph !== undefined && <Icon name={glyph} size={16} tone="ink" />}
+                    {item.tone === 'complete' && glyph !== undefined && (
+                        <Icon name={glyph} size={16} tone="ink" scaleWith={{ role: itemLabelRoleOf(current) }} />
+                    )}
                     <span className="line-clamp-2">{item.label}</span>
                 </span>
                 {item.reason !== undefined && (
@@ -132,7 +134,9 @@ const ListRow: FC<ListRowProps> = ({ item, current, idPrefix, index, height, onC
                         id={reasonId}
                         className={`flex items-start gap-1 text-caption ${TEXT_CLASS[TONE_ROLE[item.tone]] ?? ''}`}
                     >
-                        {item.tone !== 'complete' && glyph !== undefined && <Icon name={glyph} size={16} />}
+                        {item.tone !== 'complete' && glyph !== undefined && (
+                            <Icon name={glyph} size={16} scaleWith={{ role: REASON_ROLE }} />
+                        )}
                         <span className="line-clamp-2">{item.reason}</span>
                     </span>
                 )}
@@ -178,7 +182,7 @@ const StripItem: FC<StripItemProps> = ({ item, current, reasonId, onChoose }) =>
             >
                 {glyph !== undefined && (
                     <span className={item.tone === 'complete' ? 'text-ink' : toneClass}>
-                        <Icon name={glyph} size={16} />
+                        <Icon name={glyph} size={16} scaleWith={{ role: itemLabelRoleOf(current) }} />
                     </span>
                 )}
                 <span className="truncate">{item.shortLabel ?? item.label}</span>
@@ -296,7 +300,7 @@ export const SectionIndex: FC<SectionIndexProps> = ({
                                     {barCount}
                                 </span>
                             )}
-                            <Icon name="chevronDown" size={20} />
+                            <Icon name="chevronDown" size={20} scaleWith={{ role: 'label' }} />
                         </button>
                         <div aria-hidden="true" className="flex h-1 gap-0.5">
                             {items.map((item) => (

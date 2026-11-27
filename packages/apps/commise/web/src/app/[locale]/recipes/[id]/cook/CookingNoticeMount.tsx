@@ -3,6 +3,7 @@
 /**
  * The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on
  * reconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.
+ * It also hands the open windows the title, so the window on top speaks it while the page below is hidden.
  *
  * Orchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.
  *
@@ -11,6 +12,7 @@
 import { offlineNoticeMessages } from '@commise/features-core/offline';
 import { CookingNoticeSlot } from '@commise/features-cooking/web';
 import { useMessages } from '@commise/i18n/react';
+import { SyncNoticeAnnouncement } from '@commise/query/sync-notice-announcement';
 import { SyncNoticeHost } from '@commise/query/sync-notice-host';
 import type { FC, ReactNode } from 'react';
 
@@ -24,5 +26,9 @@ interface CookingNoticeMountProps {
 export const CookingNoticeMount: FC<CookingNoticeMountProps> = ({ children }) => {
     const copy = useMessages(offlineNoticeMessages);
 
-    return <CookingNoticeSlot notice={<SyncNoticeHost copy={copy} form="cooking" />}>{children}</CookingNoticeSlot>;
+    return (
+        <SyncNoticeAnnouncement copy={copy} form="cooking">
+            <CookingNoticeSlot notice={<SyncNoticeHost copy={copy} form="cooking" />}>{children}</CookingNoticeSlot>
+        </SyncNoticeAnnouncement>
+    );
 };

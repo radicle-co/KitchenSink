@@ -10,7 +10,7 @@ ADR-0039. Ids use the house id type (`recipe-core/src/ids.ts`).
 | `recipe_id`      | id, PK      | FK `recipes(id)` ON DELETE CASCADE. One row per recipe (R6).                                    |
 | `user_id`        | id          | The owner at generation. Erasure deletes by it (FR-024).                                        |
 | `content_digest` | char(64)    | SHA-256 hex of the canonical content (R5). CHECK `~ '^[0-9a-f]{64}$'`.                          |
-| `language`       | text        | BCP 47 of the recipe.                                                                           |
+| `language`       | text        | Lower-case BCP 47 primary language subtag of the recipe (2 or 3 letters).                       |
 | `steps`          | jsonb       | `[{ text: string, covers: number[] }]`, 1..80 items; validated by the zod parser before insert. |
 | `engine_version` | text        | `{modelId}#{promptSha256}`. Audit only (FR-025).                                                |
 | `job_id`         | id          | The job that produced it.                                                                       |
@@ -37,7 +37,7 @@ Indexes:
   the existing pending job.
 - `(user_id) WHERE state = 'pending'`: the 3-per-cook cap (FR-065), checked under the per-user advisory lock the
   service already uses for slots (ADR-0073 shape).
-- Finished jobs are deleted after 7 days by the existing retention sweeper.
+- Finished jobs are deleted 7 days after `finished_at` by the band-drain tick's job retention step (003B data model).
 
 ## State transitions (job)
 
@@ -54,7 +54,7 @@ pending ──digest changed during call──▶ ready        (version reads st
 ## Use charge
 
 005's ledger (unbuilt) with a unique key on `(source='rewrittenSteps', job_id)`. A hold is written when the job is
-created (under the per-user lock), settled to a charge in the `ready` transaction, and released on any other terminal
+created (under the per-user lock), settled to a charge in the `ready` transaction, and released on any other final
 state (research R8).
 
 ## Write ordering
@@ -70,4 +70,4 @@ deletion.
 
 ## Not stored
 
-The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot until the flow ends, because Publish re-checks it.) Logs carry outcome and refusal category only (FR-066).
+The facts sheet, the prompt and the model's raw answer. (Spec 003B differs on purpose: its job keeps a facts snapshot and the source step text (`source_steps`) until a final state, because Publish re-checks the first and a retry resends the second. See 003B data-model.) Logs carry outcome and refusal category only (FR-066).

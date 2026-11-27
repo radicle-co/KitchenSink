@@ -5,7 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { useState, type JSX } from 'react';
 import { Pressable, Text } from 'react-native';
 
-import { PopupInsetsContext } from '../../popupInsets/popupInsetsContext.js';
+import { PageFootContext } from '../../popupInsets/pageFootContext.js';
 import { role } from '../../tokens/colors.js';
 import { SnackbarHost } from '../SnackbarHost.native.js';
 import type { SnackbarHandle, SnackbarInput } from '../props.js';
@@ -153,16 +153,43 @@ describe('SnackbarHost (native)', () => {
 
     it('sits 16pt above the page’s bottom chrome', () => {
         render(
-            <PopupInsetsContext value={() => ({ top: 0, bottom: 80 })}>
+            <PageFootContext value={80}>
                 <SnackbarHost>
                     <Screen input={{ message: 'Removed Pasta' }} />
                 </SnackbarHost>
-            </PopupInsetsContext>,
+            </PageFootContext>,
         );
 
         showFrom('Removed Pasta');
 
         expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('96px');
+    });
+
+    it('follows the page it landed on: the same snackbar moves when the page foot height changes', () => {
+        // A message shown while leaving cooking mode is shown over no tab bar, then the recipe page lands under it.
+        const view = render(
+            <PageFootContext value={34}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </SnackbarHost>
+            </PageFootContext>,
+        );
+
+        showFrom('Removed Pasta');
+
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('50px');
+
+        // The navigator provides a new foot height when the tab bar gives way to the home indicator.
+        view.rerender(
+            <PageFootContext value={83}>
+                <SnackbarHost>
+                    <Screen input={{ message: 'Removed Pasta' }} />
+                </SnackbarHost>
+            </PageFootContext>,
+        );
+
+        expect(screen.getByText('Removed Pasta')).toBeTruthy();
+        expect(getComputedStyle(screen.getByRole('status')).bottom).toBe('99px');
     });
 });
 
@@ -227,5 +254,52 @@ describe('SnackbarHost (native): withdraw', () => {
         expect(answers).toEqual([5000]);
         expect(screen.getByRole('status').textContent).toBe('');
         expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('closes the snackbar when the subject goes from a user to null, with no action and no commit', () => {
+        const onAction = vi.fn();
+        const onTimeout = vi.fn();
+        const input = { message: 'Removed Pasta', action: { label: 'Undo', onAction }, onTimeout };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={null}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        advance(60_000);
+
+        expect(screen.getByRole('status').textContent).toBe('');
+        expect(onAction).not.toHaveBeenCalled();
+        expect(onTimeout).not.toHaveBeenCalled();
+    });
+
+    it('closes the snackbar on a change of account, and keeps it while the subject is still loading', () => {
+        const input = { message: 'Removed Pasta' };
+        const { rerender } = render(
+            <SnackbarHost subject="u1">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        showFrom('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject={undefined}>
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        rerender(
+            <SnackbarHost subject="u2">
+                <Screen input={input} />
+            </SnackbarHost>,
+        );
+        expect(screen.getByRole('status').textContent).toBe('');
     });
 });

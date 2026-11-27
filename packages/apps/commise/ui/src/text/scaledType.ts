@@ -33,6 +33,7 @@ const CEILING: Readonly<Record<Exclude<TypeRole, 'figureInline'>, number>> = {
     label: FONT_SCALE_CAP,
     caption: FONT_SCALE_CAP,
     figureStat: FONT_SCALE_CAP,
+    figureLarge: DISPLAY_FONT_SCALE_CAP,
 };
 
 /**
@@ -51,6 +52,47 @@ export type ChromeCap = (typeof CHROME_CAPS)[number];
  * into a `min()` on the label's size with `Number(...)`.
  */
 export const TAB_LABEL_CHROME_CAP = '1.3' satisfies ChromeCap;
+
+/**
+ * The text scale above which a row's leading glyph gives way to its time (designer ruling): 1.3x. It is not
+ * {@link TAB_LABEL_CHROME_CAP}, which has the same value for a different reason, so each can move alone.
+ */
+const GLYPH_HIDE_ABOVE_SCALE = 1.3;
+
+/** Added to the threshold in px so that exactly 1.3x still shows the glyph, as native's `<=` does. */
+const GLYPH_HIDE_MARGIN_PX = 0.0001;
+
+/**
+ * Whether a leading glyph shows at a system text scale. Native only; web states the same rule in CSS
+ * ({@link leadingGlyphWebStyle}). Pure.
+ *
+ * @param textScale - The system text scale.
+ * @returns `true` up to and including {@link GLYPH_HIDE_ABOVE_SCALE}.
+ */
+export function showsLeadingGlyph(textScale: number): boolean {
+    return textScale <= GLYPH_HIDE_ABOVE_SCALE;
+}
+
+/** The root font size at the default text size, in px: what web text scales from. */
+const ROOT_FONT_PX = 16;
+
+/** The widest a leading glyph's box is: 24 px, the glyph's own size. */
+const GLYPH_BOX_MAX = '1.5rem';
+
+/**
+ * The web rule for {@link showsLeadingGlyph}, as a style: the glyph's box is as wide as 1000 times how far the root
+ * font size is under 1.3 x 16 px, between zero and 24 px, with its overflow hidden. The browser's text-size setting
+ * changes the root font size, so it hides the glyph; page zoom does not, so it never does. The threshold has a 0.0001
+ * px margin, so that exactly 1.3x still shows the glyph, as native does. Pure.
+ */
+export function leadingGlyphWebStyle(): { readonly width: string; readonly overflow: 'hidden' } {
+    const thresholdPx = Math.round((ROOT_FONT_PX * GLYPH_HIDE_ABOVE_SCALE + GLYPH_HIDE_MARGIN_PX) * 10_000) / 10_000;
+
+    return {
+        width: `clamp(0px, calc((${String(thresholdPx)}px - 1rem) * 1000), ${GLYPH_BOX_MAX})`,
+        overflow: 'hidden',
+    };
+}
 
 /** A sized role's size and leading, in px numbers, for a React Native text that cannot be the design-system Text. */
 export interface ScaledTypeSize {

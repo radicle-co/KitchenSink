@@ -21,7 +21,9 @@ import * as RadioGroup from '@radix-ui/react-radio-group';
 import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
+import type { IconProps } from '../icon/props.js';
 import { isModifiedClick } from '../routeLink/isModifiedClick.js';
+import { SEGMENT_LABEL_ROLE } from './nativeSegmentGeometry.js';
 import type { RouteSegmentedControlProps, SegmentedControlProps } from './props.js';
 import { routeSegmentClass, segmentClass, trackClass, type SegmentWidth } from './segmentClass.js';
 
@@ -75,6 +77,9 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
         case 'view': {
             // An icon-only switch takes its glyphs' width; a labelled one shares the row.
             const width: SegmentWidth = props.labelVisibility === 'hidden' ? 'content' : 'share';
+            // Hidden labels leave the glyph the only face, an icon-only control, which stays fixed.
+            const glyphScale: Pick<IconProps, 'scaleWith'> =
+                props.labelVisibility === 'hidden' ? {} : { scaleWith: { role: SEGMENT_LABEL_ROLE } };
 
             return (
                 <RadioGroup.Root
@@ -90,7 +95,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                             value={segment.id}
                             className={segmentClass(segment.id === props.value, width)}
                         >
-                            {segment.icon === undefined ? null : <Icon name={segment.icon} size={20} />}
+                            {segment.icon === undefined ? null : <Icon name={segment.icon} size={20} {...glyphScale} />}
                             {props.labelVisibility === 'hidden' ? (
                                 <span className="sr-only">{segment.label}</span>
                             ) : (

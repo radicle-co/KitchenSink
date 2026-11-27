@@ -3,10 +3,10 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 31,
+        "cross-platform-props-diverge": 33,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 108,
+        "platform-singleton": 112,
         "ref-api": 22,
         "unclassified-layer": 96,
         "undocumented-prop": 234
@@ -484,6 +484,17 @@
             ]
         },
         {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "designSystem/iconButton/IconButton",
+            "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: accessibilityLabel disabled icon onPress tone",
+                "native: accessibilityLabel description disabled expanded icon onPress ref tone"
+            ]
+        },
+        {
             "rule": "ref-api",
             "severity": "violation",
             "component": "designSystem/input/Input",
@@ -510,6 +521,16 @@
             "sourcePath": "packages/apps/commise/ui/src/input/Stepper.tsx",
             "message": "no docblock says whether this is a presentational or an orchestration component",
             "evidence": []
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/input/StepperButton",
+            "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
         },
         {
             "rule": "ref-api",
@@ -775,6 +796,16 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
+            "component": "designSystem/overlay/WindowScope",
+            "sourcePath": "packages/apps/commise/ui/src/overlay/WindowScope.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
             "component": "designSystem/photo/Photo",
             "sourcePath": "packages/apps/commise/ui/src/photo/Photo.native.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
@@ -865,6 +896,16 @@
             "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
             "evidence": [
                 "useRef"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/popupInsets/PopupInsetsProvider",
+            "sourcePath": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {
@@ -1180,7 +1221,7 @@
             "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: depth",
+                "web: depth footHeight",
                 "native: depth footHeight presenting"
             ]
         },
@@ -1209,11 +1250,22 @@
         {
             "rule": "platform-singleton",
             "severity": "review",
-            "component": "designSystem/spinner/Spinner",
-            "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.tsx",
+            "component": "designSystem/snackbar/WindowAnnouncementSlot",
+            "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx",
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "web"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "designSystem/spinner/Spinner",
+            "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: className scaleWith",
+                "native: color scaleWith"
             ]
         },
         {
@@ -1307,6 +1359,16 @@
             "message": "a package that ships to both platforms has only one leaf of this component",
             "evidence": [
                 "native"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/testing/SnackbarProbe",
+            "sourcePath": "packages/apps/commise/ui/src/testing/windowSnackbar.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
             ]
         },
         {

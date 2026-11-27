@@ -267,6 +267,7 @@ yet. The table below is generated from `typeRole`. A size is one of 14, 16, 18 o
 | `caption`      | Inter   | 14               | 500    | 20               |                 |
 | `figureInline` | Inter   | size of its line | 600    | size of its line | tabular, lining |
 | `figureStat`   | Inter   | 18               | 600    | 24               | tabular, lining |
+| `figureLarge`  | Inter   | 28               | 600    | 32               | tabular, lining |
 
 <!-- END generated:typeRoles -->
 
@@ -287,6 +288,7 @@ The default rule of each role:
 | `caption`      | truncate:1                                                        |
 | `figureInline` | never wraps                                                       |
 | `figureStat`   | never wraps                                                       |
+| `figureLarge`  | never wraps                                                       |
 
 - **Manrope sets names only:** the greeting, large titles, the recipe title, a collection name, the monogram cover,
   the wordmark. **It never sets a number.** Every amount, time, count, kcal and serving uses a figure role.
@@ -362,7 +364,8 @@ and `sm` hit areas, chips, row ⋯, the hero discs, the Stepper and the tab item
 | delete                               | `trash-2`         | add photo                        | `image-plus`     |
 | paste steps                          | `list-plus`       | add a timer                      | `timer`          |
 | pull updates                         | `refresh-cw`      | Start cooking / Continue cooking | `cooking-pot`    |
-| Ingredients (cooking mode)           | `list-checks`     |                                  |                  |
+| Ingredients (cooking mode)           | `list-checks`     | pause a timer                    | `pause`          |
+| resume a timer                       | `play`            |                                  |                  |
 
 ### 1.8 Imagery: `RecipeCover` and photos
 

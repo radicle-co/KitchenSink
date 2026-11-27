@@ -4,16 +4,16 @@
     "packageName": "@commise/ui",
     "layer": "design-system",
     "coverage": {
-        "components": 97,
-        "implementations": 155,
-        "props": 1226,
-        "documentedComponents": 97,
-        "implementationsWithModuleDoc": 155,
-        "implementationsWithComponentDoc": 141,
-        "documentedProps": 1034,
-        "classifiedComponents": 90,
-        "componentsWithPatternTag": 97,
-        "crossPlatformComponents": 58
+        "components": 105,
+        "implementations": 167,
+        "props": 1272,
+        "documentedComponents": 105,
+        "implementationsWithModuleDoc": 167,
+        "implementationsWithComponentDoc": 153,
+        "documentedProps": 1080,
+        "classifiedComponents": 98,
+        "componentsWithPatternTag": 105,
+        "crossPlatformComponents": 62
     },
     "components": [
         {
@@ -744,6 +744,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -1022,6 +1024,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -1307,7 +1311,8 @@
                                 "\"readingLarge\"",
                                 "\"meta\"",
                                 "\"caption\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": "body",
@@ -1371,7 +1376,8 @@
                                 "\"readingLarge\"",
                                 "\"meta\"",
                                 "\"caption\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": "body",
@@ -2999,7 +3005,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/confirmDialog/ConfirmDialog.tsx",
                     "dir": "packages/apps/commise/ui/src/confirmDialog",
-                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content\n  box, not the viewport — with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.",
+                    "moduleDoc": "@commise/ui/confirm-dialog — the web design-system {@link ConfirmDialog}: a Radix `AlertDialog` that confirms\na destructive step with two verb buttons (spec §1.11, §6.5).\n\n- Focus opens on Keep: Radix's `AlertDialog.Cancel` takes the initial focus, so no effect is added for it. Keep is\n  that Radix slot wearing the DS secondary surface (`buttonSurfaceClass`), because a slot owns its own element and\n  the `Button` component forwards no ref. The confirm is the DS `Button` in its filled `confirm` tone, which brings\n  the in-place spinner and the busy guard (`aria-busy`, a refused press that keeps focus).\n- The buttons stack full width below a 400 px DIALOG — `DialogActions`' container query on the dialog's own content\n  box, not the viewport — with the destructive one on top; side by side above it, Keep first.\n- Focus returns to the control that opened the dialog when it closes (`useReturnFocusOnClose`); Radix restores\n  focus only to an owned trigger, and every caller opens this from a sibling.\n- A snackbar shown while it is open is drawn inside it (`WindowScope`), 16 above the action row: the row and the\n  dialog's bottom padding are wrapped in one box, whose height is the snackbar's foot.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -3271,6 +3277,272 @@
             ]
         },
         {
+            "id": "designSystem/cookingTimerRow/CookingTimerRow",
+            "name": "CookingTimerRow",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+            "kind": "presentational",
+            "patterns": [
+                "Slot — `body` is filled by the caller"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerRow",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerRow.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else: a\nrunning timer shows Pause and Cancel, a paused one Resume and Cancel, a finished one a single Stop.\n\nThe frame has no role and no name of its own, and it is not a live region: the controls and the body name themselves.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the web {@link CookingTimerRow}: one frame that holds a body slot and the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — `body` is filled by the caller"
+                        }
+                    ],
+                    "description": "The cooking timer row frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's body, usually a `CookingTimerSummary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "CookingTimerRowState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which timer state the row shows, and the actions that state offers.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerRow",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerRow.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the native {@link CookingTimerRow}: one frame that holds a body slot and the\nrow's icon-button actions. The state picks which actions exist and which glyphs they draw, and nothing else.\n\nThe frame is NOT `accessible` (that would fold its buttons into one element) and has no name of its own; the buttons\nand the body name themselves. It is not a live region. Each action's frame is the touch floor (48 dp on Android), and\nthe gap between two is `8 - (floor - 44)`, so their 44 circles sit 8 apart on both platforms and the frames never\noverlap. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the native {@link CookingTimerRow}: one frame that holds a body slot and the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — `body` is filled by the caller"
+                        }
+                    ],
+                    "description": "The native cooking timer row frame.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "body",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The row's body, usually a `CookingTimerSummary`.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "state",
+                            "type": "CookingTimerRowState",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Which timer state the row shows, and the actions that state offers.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/cookingTimerRow/CookingTimerSummary",
+            "name": "CookingTimerSummary",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+            "kind": "presentational",
+            "patterns": [
+                "Slot — a part that fills the row frame's `body` slot"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerSummary",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerSummary.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the web {@link CookingTimerSummary}: the body of a cooking timer row. A timer\nglyph, the time, an optional status word and what the timer is for. The glyph hides above 1.3x text so the time keeps\nits room (`leadingGlyphWebStyle`); the time never wraps and the meta does.\n\nIt is not a live region. Its accessible name is the caller's `accessibilityLabel`: the visible text is hidden from\nassistive technology and a sibling `sr-only` span carries the name, so the time is not read as digits.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the web {@link CookingTimerSummary}: the body of a cooking timer row. A timer"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — a part that fills the row frame's `body` slot"
+                        }
+                    ],
+                    "description": "The cooking timer summary part.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The whole summary's accessible name, in words (\"Roast, 4 minutes 30 seconds left\").",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "figure",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The time, already formatted (\"4:30\", \"1:09:50\"). Never wraps, never truncates.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "meta",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the timer is for and where (\"Roast, step 4\"). It wraps.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "status",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A word for the state (\"Paused\", \"Done\"), or absent while the timer runs.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerSummary",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/cookingTimerRow/CookingTimerSummary.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/cookingTimerRow",
+                    "moduleDoc": "@commise/ui/cooking-timer-row — the native {@link CookingTimerSummary}: the body of a cooking timer row. A\ntimer glyph, the time, an optional status word and what the timer is for. The glyph is dropped above 1.3x text\n(`showsLeadingGlyph`) so the time keeps its room; the time never wraps and the meta does. Styled with Tamagui only\n(ADR-0080).\n\nIt is ONE accessibility element named by the caller's `accessibilityLabel`, and not a live region.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/cooking-timer-row — the native {@link CookingTimerSummary}: the body of a cooking timer row. A"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — a part that fills the row frame's `body` slot"
+                        }
+                    ],
+                    "description": "The native cooking timer summary part.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The whole summary's accessible name, in words (\"Roast, 4 minutes 30 seconds left\").",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "figure",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The time, already formatted (\"4:30\", \"1:09:50\"). Never wraps, never truncates.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "meta",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "What the timer is for and where (\"Roast, step 4\"). It wraps.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        },
+                        {
+                            "name": "status",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A word for the state (\"Paused\", \"Done\"), or absent while the timer runs.",
+                            "declaredIn": "packages/apps/commise/ui/src/cookingTimerRow/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/createFab/CreateFab",
             "name": "CreateFab",
             "group": "designSystem",
@@ -3348,6 +3620,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3491,6 +3765,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3643,6 +3919,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -3765,6 +4043,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -5913,6 +6193,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6050,6 +6332,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6547,6 +6831,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6585,6 +6871,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The meaning to draw.",
+                            "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows\nwith that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at\nevery text size, which is right for an icon-only control and a decoration.",
                             "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
                         },
                         {
@@ -6709,6 +7004,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -6747,6 +7044,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The meaning to draw.",
+                            "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The type role of the label this glyph sits beside, for a glyph that is PART of a labelled control: it then grows\nwith that label's text, by the same factor and never past the role's cap. Absent, the glyph keeps its size at\nevery text size, which is right for an icon-only control and a decoration.",
                             "declaredIn": "packages/apps/commise/ui/src/icon/props.ts"
                         },
                         {
@@ -6806,6 +7112,326 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/iconButton/IconButton",
+            "name": "IconButton",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/iconButton",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — `PressScale` adds the press motion and owns the one `Pressable`",
+                "Decorator — `PressScale` adds the press motion around the button",
+                "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": true,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "IconButton",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+                    "dir": "packages/apps/commise/ui/src/iconButton",
+                    "moduleDoc": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the\ncaller. The target is a fixed 44 px square and never grows with the text, and neither does the 24 glyph inside it: an\nicon-only control keeps its pixel size. A press scales the control through {@link PressScale} and fills it with the\nneutral press row. A disabled control is refused but stays focusable, and dims to 40%.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/icon-button — the web design-system {@link IconButton}: one glyph in a 44 px target, named by the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `PressScale` adds the press motion around the button"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Style Recipe — `ICON_BUTTON_CLASS` (the target, ring and press fill) plus one tone class is the whole look,\n    shared with a control that keeps its own element"
+                        }
+                    ],
+                    "description": "The design-system icon button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The control's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a\ncancelled click; native `disabled`), and it dims to 40% on both platforms.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The meaning to draw: a glyph from the icon Registry.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press, and never while {@link disabled}.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\""
+                            ],
+                            "required": false,
+                            "defaultValue": "ink",
+                            "description": "The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "IconButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/iconButton",
+                    "moduleDoc": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the\ntouch floor (48 dp on Android, 44 elsewhere), named by the caller. The Android 48 dp is a real frame, not a\n`hitSlop`, so a device inspection sees the bounds a finger gets. The 24 glyph, the circle and the frame never grow\nwith the text: an icon-only control keeps its pixel size. A press fills the circle with the surface's press row, and\na disabled control dims to 40% and cannot be pressed. Styled with Tamagui only (ADR-0080).\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/icon-button — the native design-system {@link IconButton}: a 44 circle inside a frame of the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — `PressScale` adds the press motion and owns the one `Pressable`"
+                        }
+                    ],
+                    "description": "The native design-system icon button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The control's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "A longer explanation for the screen reader, read after the name (an error the control cannot fix).",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Whether the control is unavailable right now. It is refused but stays focusable (web `aria-disabled` with a\ncancelled click; native `disabled`), and it dims to 40% on both platforms.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "expanded",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whether the control opens something, and whether it is open. Absent means it is not a disclosure.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The meaning to draw: a glyph from the icon Registry.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press, and never while {@link disabled}.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        },
+                        {
+                            "name": "ref",
+                            "type": "Ref<View>",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The pressable, for moving the screen-reader cursor onto it.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx"
+                        },
+                        {
+                            "name": "tone",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"ink\"",
+                                "\"inkMuted\""
+                            ],
+                            "required": false,
+                            "defaultValue": "ink",
+                            "description": "The glyph's colour: ink (the default) or the muted ink of a secondary control such as a field's clear.",
+                            "declaredIn": "packages/apps/commise/ui/src/iconButton/props.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -7750,6 +8376,156 @@
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": false,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/input/StepperButton",
+            "name": "StepperButton",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/input",
+            "kind": "presentational",
+            "patterns": [
+                "Decorator — the control line and the surface are added around the icon button"
+            ],
+            "platforms": [
+                "native"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "StepperButton",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/input/StepperButton.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/input",
+                    "moduleDoc": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's\nown frame, a circle on the neutral surface with its 1 pt control line, as wide as the touch floor (44 pt on iOS,\n48 dp on Android), with the icon button over it.\n\nPresentational: props → JSX. Styled with Tamagui only (ADR-0080), which is why it is a file of its own: a file that\nimports Tamagui holds no React Native styling, and the stepper's column and row are not migrated yet.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/input — the native step button of the `Stepper`: the shared icon button inside the stepper's"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Decorator — the control line and the surface are added around the icon button"
+                        }
+                    ],
+                    "description": "The native step button.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "accessibilityLabel",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The button's accessible name, already localised by the caller.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "description",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The field's error, read after the name (React Native has no `aria-describedby`).",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "disabled",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether the stepper is at this button's bound.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "icon",
+                            "type": "enum",
+                            "typeDetail": [
+                                "\"house\"",
+                                "\"bookOpen\"",
+                                "\"compass\"",
+                                "\"plus\"",
+                                "\"clipboardPaste\"",
+                                "\"ellipsis\"",
+                                "\"chevronLeft\"",
+                                "\"x\"",
+                                "\"search\"",
+                                "\"copyPlus\"",
+                                "\"trash\"",
+                                "\"clock\"",
+                                "\"users\"",
+                                "\"flame\"",
+                                "\"star\"",
+                                "\"lock\"",
+                                "\"globe\"",
+                                "\"pencilLine\"",
+                                "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
+                                "\"sun\"",
+                                "\"check\"",
+                                "\"arrowUp\"",
+                                "\"imagePlus\"",
+                                "\"listPlus\"",
+                                "\"chevronsLeft\"",
+                                "\"slidersHorizontal\"",
+                                "\"rotateCcw\"",
+                                "\"chevronDown\"",
+                                "\"eye\"",
+                                "\"user\"",
+                                "\"minus\"",
+                                "\"chevronRight\"",
+                                "\"chevronUp\"",
+                                "\"refreshCw\"",
+                                "\"logIn\"",
+                                "\"logOut\"",
+                                "\"userPlus\"",
+                                "\"userX\"",
+                                "\"save\"",
+                                "\"settings\"",
+                                "\"camera\"",
+                                "\"image\"",
+                                "\"triangleAlert\"",
+                                "\"info\"",
+                                "\"calendar\"",
+                                "\"shoppingCart\"",
+                                "\"chartColumn\"",
+                                "\"bell\"",
+                                "\"menu\"",
+                                "\"list\"",
+                                "\"layoutGrid\"",
+                                "\"cookingPot\"",
+                                "\"listChecks\""
+                            ],
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The glyph: minus or plus.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        },
+                        {
+                            "name": "onPress",
+                            "type": "() => void",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Called once per press, and never while disabled.",
+                            "declaredIn": "packages/apps/commise/ui/src/input/StepperButton.native.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
                         "orchestration": false
                     }
                 }
@@ -10374,7 +11150,8 @@
                                 "\"meta\"",
                                 "\"caption\"",
                                 "\"figureInline\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -10507,7 +11284,8 @@
                                 "\"meta\"",
                                 "\"caption\"",
                                 "\"figureInline\"",
-                                "\"figureStat\""
+                                "\"figureStat\"",
+                                "\"figureLarge\""
                             ],
                             "required": false,
                             "defaultValue": null,
@@ -11441,6 +12219,82 @@
             ]
         },
         {
+            "id": "designSystem/overlay/WindowScope",
+            "name": "WindowScope",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/overlay",
+            "kind": "presentational",
+            "patterns": [
+                "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "WindowScope",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/overlay/WindowScope.tsx",
+                    "dir": "packages/apps/commise/ui/src/overlay",
+                    "moduleDoc": "@commise/ui/window-scope — what makes a web window a window for the snackbar: one level deeper than the\nwindow around it, with an outlet inside it for the snackbar host to draw in.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside it, hides the rest of the page from screen readers and\ncloses it on a press outside, so a snackbar drawn at the page's foot cannot be reached. Every web window mounts one\n`WindowScope` inside its Radix content, so the snackbar shown while it is open is drawn inside it. It is the web\ntwin of native's `OverlayHost`, and the one home of that rule: a window that mounts its own outlet and its own depth\nis a window that can forget one of them.\n\nIt renders no element of its own: its children, then the outlet, last, so Undo follows the window's own controls in\nthe focus order. The outlet is `absolute`, so the box around the scope must be the window's `fixed` box, and that\nbox must not scroll itself.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/window-scope — what makes a web window a window for the snackbar: one level deeper than the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Scoped context + Mediator slot — provides the depth, and mounts the slot the snackbar host's Mediator fills"
+                        }
+                    ],
+                    "description": "One window's scope: the depth for its children and the snackbar's outlet. Presentational: its props and one context\nread in, JSX out, with no data of its own and no effect.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - The window's content and, when it has one, the height of its pinned foot."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "The content, then the outlet."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "children",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The window's content.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/WindowScope.tsx"
+                        },
+                        {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The window's pinned foot, px: the snackbar sits 16 above it. Unset: 16 above the window's own foot.",
+                            "declaredIn": "packages/apps/commise/ui/src/overlay/WindowScope.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/pendingBar/PendingBar",
             "name": "PendingBar",
             "group": "designSystem",
@@ -12192,6 +13046,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -12378,6 +13234,8 @@
                                 "\"globe\"",
                                 "\"pencilLine\"",
                                 "\"timer\"",
+                                "\"pause\"",
+                                "\"play\"",
                                 "\"sun\"",
                                 "\"check\"",
                                 "\"arrowUp\"",
@@ -12441,6 +13299,73 @@
                     "booleanPropsSelectingSubtree": [
                         "busy"
                     ],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/popupInsets/PopupInsetsProvider",
+            "name": "PopupInsetsProvider",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/popupInsets",
+            "kind": "presentational",
+            "patterns": [
+                "Observer — publishes the page's reader to the host's registry while mounted, and withdraws it"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "PopupInsetsProvider",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx",
+                    "dir": "packages/apps/commise/ui/src/popupInsets",
+                    "moduleDoc": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once.\n\nIt provides `PopupInsetsContext` to the popups below it, as a bare context provider did, and registers the same\nreader upward with the snackbar host's registry, one level deeper than the provider around it. So every page that\nprovides insets reports them to the host without page code, and a nested provider (the editor inside the app shell)\noutranks the one around it. It withdraws its entry on unmount and touches only its own. A page that can tell when its\nchrome resizes passes a `watch`, which rides in the entry so the host re-places a snackbar that is showing; a new\n`watch`, like a new reader, re-registers.\n\nPresentational glue: props → context providers, plus the one registration effect.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Observer — publishes the page's reader to the host's registry while mounted, and withdraws it"
+                        }
+                    ],
+                    "description": "Provides a page's chrome reader down to its popups and up to the snackbar host.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "reader",
+                            "type": "PopupInsetsReader",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Reads the page's chrome extent now. Stable (memoised) where the page can: a new reader re-registers.",
+                            "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
+                        },
+                        {
+                            "name": "watch",
+                            "type": "PopupInsetsWatch",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Tells the host when the chrome resizes, so a snackbar that shows follows it. Stable where the page can.",
+                            "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
@@ -16425,7 +17350,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/sheet/Sheet.tsx",
                     "dir": "packages/apps/commise/ui/src/sheet",
-                    "moduleDoc": "@commise/ui/sheet — the web design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nFull screen below `sm`, the house centred dialog from `sm` (`max-w-lg`, `max-h-[85vh]`); `size=\"full\"` holds the\ndialog at 85% of the viewport, and `size=\"page\"` is a page-sized sheet: the whole visible height, up to the detail\ncolumn. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.\nThis leaf adds what Radix does not:\n\n- `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and\n  `describedBy` (Radix spreads these props after its own, so they win);\n- focus to the title on open, unless `screenReaderLanding=\"content\"` leaves the landing to the content (Radix does not\n  fire this when content already took focus, so content that focuses itself on mount keeps it either way), and back\n  to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus only to an owned trigger);\n- the visible box while an on-screen keyboard is open, as `--sheet-visible-height` and `--sheet-visible-top`, so the\n  sheet sits inside the visual viewport instead of under the keyboard: below `sm` its top is the box's top (which\n  follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);\n- `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus\n  is back on the opener;\n- the snackbar's outlet inside the content, so a snackbar shown while the sheet is open can be reached.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
+                    "moduleDoc": "@commise/ui/sheet — the web design-system `Sheet` (`docs/design/ingredientSpecialization.md` §S8.1).\n\nFull screen below `sm`, the house centred dialog from `sm` (`max-w-lg`, `max-h-[85vh]`); `size=\"full\"` holds the\ndialog at 85% of the viewport, and `size=\"page\"` is a page-sized sheet: the whole visible height, up to the detail\ncolumn. Radix owns the focus trap, Escape, the overlay and hiding the rest of the page.\nThis leaf adds what Radix does not:\n\n- `aria-modal`, and `aria-labelledby`/`aria-describedby` built from the title's id, `labelledBy` and\n  `describedBy` (Radix spreads these props after its own, so they win);\n- focus to the title on open, unless `screenReaderLanding=\"content\"` leaves the landing to the content (Radix does not\n  fire this when content already took focus, so content that focuses itself on mount keeps it either way), and back\n  to a SIBLING opener on close (`useReturnFocusOnClose`: Radix returns focus only to an owned trigger);\n- the visible box while an on-screen keyboard is open, as `--sheet-visible-height` and `--sheet-visible-top`, so the\n  sheet sits inside the visual viewport instead of under the keyboard: below `sm` its top is the box's top (which\n  follows an iOS pan), and from `sm` it centres on the box's centre, not the window's (E2 I5);\n- `onDismissed` from `onCloseAutoFocus`, which Radix fires once the closed content has unmounted, and after focus\n  is back on the opener;\n- the snackbar's outlet inside the content (`SheetPanel` mounts a `WindowScope`), so a snackbar shown while the\n  sheet is open can be reached.\n\nA presentational component: controlled by `open`, it fetches nothing and holds no domain state.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -16940,15 +17865,6 @@
                             "declaredIn": "packages/apps/commise/ui/src/sheet/SheetPanel.tsx"
                         },
                         {
-                            "name": "outlet",
-                            "type": "ReactNode",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "The snackbar's place, drawn last inside the panel so it comes after the footer in the focus order. The panel\ntells it how tall the pinned footer is (`--sheet-footer-inset`), so the snackbar sits 16 above the footer.",
-                            "declaredIn": "packages/apps/commise/ui/src/sheet/SheetPanel.tsx"
-                        },
-                        {
                             "name": "title",
                             "type": "string",
                             "typeDetail": null,
@@ -17009,11 +17925,11 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarHost.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once per app (in `AppShell`), it gives screens\n`useSnackbar` and draws the one snackbar on screen.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus. It sits 16 px above the page's bottom\nchrome, read from the page's `PopupInsetsContext` reader as each snackbar shows, and is centred at the foot. The\npointer or focus inside the snackbar pauses its timer (SC 2.2.1).\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),\nit gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar,\nits timer and its Undo outlive a page change.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus, and a page change does not announce\nit again. Given a `label` it sits in a landmark of that name, which follows `main` in the DOM. It is centred at the\nfoot, the gap above the CURRENT page's bottom chrome: each page's `PopupInsetsProvider` registers its reader with\nthe host's placement store, and the host re-places when one registers, unregisters or a snackbar shows. The pointer\nor focus inside the snackbar pauses its timer (SC 2.2.1).\n\nA `subject` (the signed-in user id, `null` signed out, `undefined` while loading) closes the snackbar showing when it\nchanges from a known one, so a snackbar that names a recipe never shows to the next person.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
                     "moduleTags": [
                         {
                             "name": "module",
-                            "text": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once per app (in `AppShell`), it gives screens"
+                            "text": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),"
                         },
                         {
                             "name": "pattern",
@@ -17033,6 +17949,24 @@
                             "defaultValue": null,
                             "description": "The app the host serves.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web: the accessible name of the landmark the snackbar region sits in (\"Notifications\", localised by the caller).\nAbsent, the region is a bare status.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "subject",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`).",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],
                     "usesRefApi": [],
@@ -17047,7 +17981,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarHost.native.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarHost}: mounted once per app (at the native root), it gives\nscreens `useSnackbar` and draws the one snackbar on screen.\n\nThe snackbar sits in a pass-through overlay over the app, 16 pt above the bottom chrome (read from the page's\n`PopupInsetsContext` reader as each one shows), in a polite `status` region that is always mounted. ⚠️ Native has\nno hover, and React Native cannot see where the screen-reader cursor is, so SC 2.2.1's pause is the stronger rule:\nwhile a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own\nremaining time.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar instead of sitting under it.\n\nAn open sheet or dialog is a window of its own, above the app root, so while one is open the host hands the snackbar\nto that window's outlet (`SnackbarOutlet`, mounted by `OverlayHost`) and draws nothing itself. The queue, the timer\nand the pause stay here, so closing the window moves the snackbar back without ending it.",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link SnackbarHost}: mounted once per app (at the native root), it gives\nscreens `useSnackbar` and draws the one snackbar on screen.\n\nThe snackbar sits in a pass-through overlay over the app, 16 pt above the bottom chrome (read from the page's\n`PageFootContext` height while the host renders, so it follows the page it lands on), in a polite `status` region\nthat is always mounted. ⚠️ Native has no hover, and React Native cannot see where the screen-reader cursor is, so\nSC 2.2.1's pause is the stronger rule:\nwhile a screen reader runs, the snackbar does not time out at all, and when it stops the snackbar runs out its own\nremaining time.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar instead of sitting under it.\n\nAn open sheet or dialog is a window of its own, above the app root, so while one is open the host hands the snackbar\nto that window's outlet (`SnackbarOutlet`, mounted by `OverlayHost`) and draws nothing itself. The queue, the timer\nand the pause stay here, so closing the window moves the snackbar back without ending it.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17070,6 +18004,24 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The app the host serves.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "label",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web: the accessible name of the landmark the snackbar region sits in (\"Notifications\", localised by the caller).\nAbsent, the region is a bare status.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
+                        },
+                        {
+                            "name": "subject",
+                            "type": "string | null",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Whom the snackbars belong to: a user id, `null` when signed out, `undefined` while it is not yet known. A change\nfrom a known subject closes the snackbar showing, so it never shows to the next person (see\n`SnackbarStore.observeSubject`).",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/props.ts"
                         }
                     ],
@@ -17106,7 +18058,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content. While mounted, the outlet registers with the host and keeps a polite `status` region\nin place, empty until the host hands it the snackbar, so the change is announced. Only the outlet on top draws, and\nthe host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA sheet with a pinned footer sets `--sheet-footer-inset` to the footer's height on the panel around the outlet, so\nthe snackbar sits 16 above the footer and the footer's actions stay clear. With no footer, or once the footer scrolls\nwith the content, the variable is unset and the offset is the 16 above.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarOutlet}: the place an open sheet offers the snackbar host.\n\nWhile a modal Radix dialog is open, Radix keeps Tab inside its content, hides everything outside it from screen\nreaders, and closes it on a press outside, so a snackbar drawn at the page's foot cannot be reached. `Sheet` mounts\none outlet inside its content; so does every other web window, through `WindowScope`. While mounted, the outlet\nregisters with the host and keeps a polite `status` region in place, empty until the host hands it the snackbar, so\nthe change is announced. Just before that region it keeps an announcement slot, which speaks what a notice on the\npage below cannot say while the window hides the page (`WindowAnnouncementSlot`). Only the outlet on top draws, and\nthe host draws in its own place only while no outlet is registered, so the snackbar is in one place at a time.\n\nIt sits 16 above the sheet's own foot and 16 in from its sides: the viewport's foot below `sm`, where the sheet fills\nit, and the dialog's foot from `sm`, where the sheet is a centred dialog.\n\nA window with a pinned foot passes its height as `footHeight`, so the snackbar sits 16 above the foot and the foot's\nactions stay clear. With no foot, or once the foot scrolls with the content, it is unset and the offset is the 16.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17121,11 +18073,11 @@
                     "tags": [
                         {
                             "name": "param",
-                            "text": "props - How deep the sheet is nested."
+                            "text": "props - How deep the window is nested, and how tall its pinned foot is."
                         },
                         {
                             "name": "returns",
-                            "text": "The sheet's status region, holding the snackbar when this outlet is on top; nothing outside a host."
+                            "text": "The announcement slot, then the sheet's status region holding the snackbar when this outlet is on top;\nnothing outside a host."
                         },
                         {
                             "name": "sideEffect",
@@ -17142,6 +18094,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "How many windows deep this sheet is: 1 when opened from the page, 2 inside another sheet, and so on.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx"
+                        },
+                        {
+                            "name": "footHeight",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "How tall the window's pinned foot is in px; the snackbar sits 16 above it. Unset: 16 above the window's foot.\nNot a dependency of the registration: a foot that re-measures must not make this outlet the latest one at\nits own depth.",
                             "declaredIn": "packages/apps/commise/ui/src/snackbar/SnackbarOutlet.tsx"
                         }
                     ],
@@ -17247,7 +18208,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/UndoSnackbar.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that wraps to two lines at most, and its action in `inverseAction`\n(4.56:1 on `inverse`) at a 44 px target that never wraps. All three are roles, so the bar inverts in either theme. At\nmost 36 rem wide. It rises 8 px into place over 200 ms only when motion is allowed, and otherwise fades. The pointer or focus inside it tells the host to pause its timer.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its\naction in `inverseAction` (4.56:1 on `inverse`) at a 44 px target that never wraps. All three are roles, so the bar\ninverts in either theme. The row wraps: the message asks for 8 rem, which grows with the text size, so when it has\nno room beside the action the action drops to its own row under it, at the end. At most 36 rem wide. It rises 8 px\ninto place over 200 ms only when motion is allowed, and otherwise fades. The pointer or focus inside it tells the\nhost to pause its timer.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -17375,6 +18336,73 @@
             ]
         },
         {
+            "id": "designSystem/snackbar/WindowAnnouncementSlot",
+            "name": "WindowAnnouncementSlot",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/snackbar",
+            "kind": "orchestration",
+            "patterns": [
+                "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "WindowAnnouncementSlot",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx",
+                    "dir": "packages/apps/commise/ui/src/snackbar",
+                    "moduleDoc": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden\npolite region in each open window that speaks the announcement the window on top is handed.\n\nIt is a component of its own, rendered only while the outlet draws, so its derived state starts fresh each time a\nwindow presents, and a hook is never called after the outlet's early return. `LiveRegion` resolves to its web or\nnative leaf at bundle time, so this file needs no native twin.\n\nOrchestration of one decision: it reads the window's announcement and hands it to the live region.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/snackbar — the {@link WindowAnnouncementSlot}, one file for both platforms: the visually hidden"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter over the ARIA live-region channel — the text the hook derives, spoken once per change"
+                        }
+                    ],
+                    "description": "One window's announcement slot.",
+                    "tags": [
+                        {
+                            "name": "param",
+                            "text": "props - Whether the window is on top."
+                        },
+                        {
+                            "name": "returns",
+                            "text": "A polite status region, empty until there is news."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "isTop",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Whether this window's outlet is the one on top.",
+                            "declaredIn": "packages/apps/commise/ui/src/snackbar/WindowAnnouncementSlot.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
+                    }
+                }
+            ]
+        },
+        {
             "id": "designSystem/spinner/Spinner",
             "name": "Spinner",
             "group": "designSystem",
@@ -17386,10 +18414,11 @@
                 "Strategy — the caller picks the spin class (always, or `motion-safe:` only); the arc is the same"
             ],
             "platforms": [
-                "web"
+                "web",
+                "native"
             ],
-            "crossPlatform": false,
-            "propsDiverge": false,
+            "crossPlatform": true,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -17421,6 +18450,58 @@
                             "defaultValue": null,
                             "description": "Utility classes for the `svg`: the spin animation, and any text colour.",
                             "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The label this spinner stands beside: it then grows with that label's text, as a glyph does (see `Icon`).",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "Spinner",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx",
+                    "dir": "packages/apps/commise/ui/src/spinner",
+                    "moduleDoc": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):\n`Button` draws it in its busy glyph slot.\n\nIt stands beside a label and grows with it, as a glyph does (see `Icon`): its box is 20 times the label's growth\nunder the system text scale, to the label's cap, and the platform indicator is scaled to fill that box. Styled with\nTamagui only (ADR-0080). Decorative: whoever draws it carries the meaning, `Button` through its busy state.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "@commise/ui/spinner — the native in-flight spinner. INTERNAL to the design system (no package export):"
+                        }
+                    ],
+                    "description": "The spinning indicator in a box that grows with its label.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "color",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The indicator's colour.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx"
+                        },
+                        {
+                            "name": "scaleWith",
+                            "type": "IconScaleWith",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The label this spinner stands beside: it grows with that label's text.",
+                            "declaredIn": "packages/apps/commise/ui/src/spinner/Spinner.native.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -18526,6 +19607,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "quiet",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "false",
+                            "description": "Web only: a window is open over the page and speaks the notice itself, so the notice must not. The region keeps\nits text and loses its status role and its name, so it is not a live region at all. The native leaf has no live\nregion and ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/syncNotice/props.ts"
+                        },
+                        {
                             "name": "regionLabel",
                             "type": "string",
                             "typeDetail": null,
@@ -18572,6 +19662,15 @@
                     "detectedBy": "react-docgen-typescript",
                     "exportKind": "named",
                     "props": [
+                        {
+                            "name": "quiet",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Web only: a window is open over the page and speaks the notice itself, so the notice must not. The region keeps\nits text and loses its status role and its name, so it is not a live region at all. The native leaf has no live\nregion and ignores it.",
+                            "declaredIn": "packages/apps/commise/ui/src/syncNotice/props.ts"
+                        },
                         {
                             "name": "regionLabel",
                             "type": "string",
@@ -19243,6 +20342,63 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "designSystem/testing/SnackbarProbe",
+            "name": "SnackbarProbe",
+            "group": "designSystem",
+            "packageName": "@commise/ui",
+            "layer": "design-system",
+            "dir": "packages/apps/commise/ui/src/testing",
+            "kind": "orchestration",
+            "patterns": [
+                "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "SnackbarProbe",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/ui/src/testing/windowSnackbar.tsx",
+                    "dir": "packages/apps/commise/ui/src/testing",
+                    "moduleDoc": "testing/window-snackbar — the probe and the three checks every web window's snackbar outlet owes, run against\nthe real `SnackbarHost` and the real window (nothing mocked): the snackbar is drawn inside the window, a keyboard\nreaches Undo and Undo works, and closing the window hands the same snackbar back.\n\nEach window's test file mounts `<SnackbarHost><SnackbarProbe /><TheWindow /></SnackbarHost>`, so the shape of the\nthree checks lives once and a window cannot pass with a weaker one.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "testing/window-snackbar — the probe and the three checks every web window's snackbar outlet owes, run against"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press"
+                        }
+                    ],
+                    "description": "A button, outside the window, that shows the probe's snackbar. Orchestration of one press: it reads the host's\n`show` and hands it the probe's message and Undo.",
+                    "tags": [
+                        {
+                            "name": "returns",
+                            "text": "The button."
+                        },
+                        {
+                            "name": "sideEffect",
+                            "text": "Shows a snackbar through the nearest host when pressed."
+                        }
+                    ],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": false,
+                        "orchestration": true
                     }
                 }
             ]

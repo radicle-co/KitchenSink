@@ -28,6 +28,7 @@ export type { IngredientLineDigestInput } from './ingredientLineDigest.js';
 export { STEP_DIGEST_VERSION, matchStep, matchStepStrict, normalizeStepText, stepDigest } from './stepDigest.js';
 export type { StepRef } from './stepDigest.js';
 export { cookingStepsOf } from './cookingSteps.js';
+export { stepDigestsOf } from './stepDigestsOf.js';
 export type { CookingStep } from './cookingSteps.js';
 export { linePlace, stepPlace } from './place.js';
 export type { LinePlace, StepPlace } from './place.js';

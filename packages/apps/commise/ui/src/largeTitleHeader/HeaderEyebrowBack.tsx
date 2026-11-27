@@ -17,6 +17,7 @@ import type { FC } from 'react';
 
 import { Icon } from '../icon/Icon.js';
 import { RouteAction } from '../routeLink/RouteAction.js';
+import { BACK_LABEL_ROLE } from './barGeometry.js';
 import type { HeaderBack } from './props.js';
 import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
 
@@ -36,7 +37,8 @@ export const HeaderEyebrowBack: FC<HeaderEyebrowBackProps> = ({ back }) => (
         {...(back.href === undefined ? {} : { href: back.href })}
         className={CLASS_NAME}
     >
-        <Icon name="chevronLeft" size={24} />
+        {/* Drawn only from `nav`, where the parent name is beside it, so the glyph always grows with that label. */}
+        <Icon name="chevronLeft" size={24} scaleWith={{ role: BACK_LABEL_ROLE }} />
         <span className="hidden nav:inline">{back.parent}</span>
     </RouteAction>
 );

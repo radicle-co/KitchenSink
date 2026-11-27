@@ -9,12 +9,17 @@
  *
  * `@kitchensink/recipe-service-client/hooks` runs for real over a fake, network-guarded client stubbed per test.
  */
+import { commonMessages } from '@commise/features-core/common';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, screen, waitFor } from '@testing-library/react';
 import type { RecipeIngredient } from '@kitchensink/recipe-core';
 import { makeIngredient, makeRecipeDetail, makeRecipeVersion } from '@kitchensink/recipe-core/testing';
-import { PrivateFoodsOnPublicRecipeError, VersionConflictError } from '@kitchensink/recipe-service-client';
+import {
+    ForbiddenError,
+    PrivateFoodsOnPublicRecipeError,
+    VersionConflictError,
+} from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { Suspense, type FC, type ReactNode } from 'react';
@@ -124,6 +129,54 @@ describe('useRecipeVersions — restore', () => {
         await waitFor(() => expect(restore).toHaveBeenLastCalledWith('rec_1', 3));
         await waitFor(() => expect(screen.getByRole('status').textContent).toContain('Restored version 3.'));
         expect(screen.queryByRole('button', { name: 'Undo' })).toBeNull();
+    });
+
+    it.each([
+        ['fails for now', () => new TypeError('Failed to fetch'), commonMessages.en.undoFailed],
+        ['is refused', () => new ForbiddenError(), commonMessages.en.undoFailed],
+        [
+            'meets a conflict',
+            () => new VersionConflictError(3, 1),
+            'Can’t undo. The recipe changed since. Open its versions to check.',
+        ],
+    ] as const)('says so, and leaves no inline restore error, when the Undo %s', async (_name, failure, line) => {
+        const { result, restore } = setup();
+        await waitFor(() => {
+            expect(result.current.list.versions).toHaveLength(3);
+        });
+
+        act(() => {
+            result.current.list.onRestore(1);
+        });
+        await waitFor(() => {
+            expect(screen.getByRole('button', { name: 'Undo' })).toBeTruthy();
+        });
+        restore.mockRejectedValue(failure());
+        act(() => {
+            screen.getByRole('button', { name: 'Undo' }).click();
+        });
+
+        await waitFor(() => {
+            expect(screen.getByRole('status').textContent).toBe(line);
+        });
+        expect(result.current.list.restoreError).toBeUndefined();
+    });
+
+    it('keeps the inline error, and shows no snackbar, when the first restore fails for now', async () => {
+        const { result, restore } = setup();
+        await waitFor(() => {
+            expect(result.current.list.versions).toHaveLength(3);
+        });
+        restore.mockRejectedValue(new TypeError('Failed to fetch'));
+
+        act(() => {
+            result.current.list.onRestore(1);
+        });
+
+        await waitFor(() => {
+            expect(result.current.list.restoreError).toBeDefined();
+        });
+        expect(screen.getByRole('status').textContent).toBe('');
     });
 
     it('classifies a refused restore for the version it targeted', async () => {

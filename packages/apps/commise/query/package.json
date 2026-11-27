@@ -15,6 +15,7 @@
         "./sync": "./src/syncProvider.tsx",
         "./sync-notice-state": "./src/syncNoticeState.ts",
         "./sync-notice-host": "./src/SyncNoticeHost.tsx",
+        "./sync-notice-announcement": "./src/SyncNoticeAnnouncement.tsx",
         "./recipe-sender": "./src/recipeSender.ts",
         "./recipe-write-cache": "./src/recipeWriteCacheObserver.tsx",
         "./session-scope": "./src/sessionScope.ts"

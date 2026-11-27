@@ -6,6 +6,8 @@ export { SnackbarHost } from './SnackbarHost.js';
 export { UndoSnackbar } from './UndoSnackbar.js';
 export { isSnackbarHostMissingError, SnackbarHostMissingError } from './snackbarContext.js';
 export { useSnackbar } from './useSnackbar.js';
+export { useWindowOpen } from './useWindowOpen.js';
+export { WindowAnnouncementContext } from './windowAnnouncement.js';
 export { DEFAULT_SNACKBAR_MS } from './props.js';
 export type {
     SnackbarAction,

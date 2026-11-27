@@ -116,6 +116,17 @@ describe('the glyph Registry', () => {
         expect(webGlyphName('listChecks')).not.toBe(webGlyphName('list'));
     });
 
+    // Pause-a-timer and resume-a-timer: each draws its own Lucide glyph on both platforms, and neither points a
+    // direction (the play triangle points right but means "resume", so it keeps its drawing like the timer does).
+    it('draws pause and play as the Lucide pause and play on web and on native, and mirrors neither', () => {
+        expect(webGlyphName('pause')).toBe('pause');
+        expect(webGlyphName('play')).toBe('play');
+        expect(nativeGlyphNames().get('pause')).toBe('pause');
+        expect(nativeGlyphNames().get('play')).toBe('play');
+        expect(MIRROR_IN_RTL.has('pause')).toBe(false);
+        expect(MIRROR_IN_RTL.has('play')).toBe(false);
+    });
+
     it('mirrors in right-to-left exactly the glyphs that point left or right', () => {
         // The rule, not a restatement of the set: a chevron points a direction that reverses with the reading order.
         // The clock, the timer and every other glyph keep their drawing (spec §2.2).

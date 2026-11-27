@@ -10,11 +10,12 @@ import { styled } from 'tamagui';
 
 import { Text } from '../text/Text.native.js';
 import type { Role } from '../tokens/colors.js';
+import { BUTTON_LABEL_ROLE } from './props.js';
 import type { ButtonSurface } from './surfacePaint.native.js';
 
 /** The label, in the `cardTitle` role, coloured by its surface. */
 export const ButtonLabel = styled(Text, {
-    typeRole: 'cardTitle',
+    typeRole: BUTTON_LABEL_ROLE,
 
     variants: {
         surface: {

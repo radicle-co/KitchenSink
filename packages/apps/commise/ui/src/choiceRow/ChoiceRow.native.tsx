@@ -23,7 +23,7 @@ import { usePressFill } from '../surfaceTone/usePressFill.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
-import type { ChoiceRowProps } from './props.js';
+import { CHOICE_ROW_LABEL_ROLE, type ChoiceRowProps } from './props.js';
 
 /** The native choice row. */
 export const ChoiceRow: FC<ChoiceRowProps> = ({
@@ -60,7 +60,9 @@ export const ChoiceRow: FC<ChoiceRowProps> = ({
         >
             <View style={styles.label}>{children}</View>
             {busy ? <ActivityIndicator color={colors.actionText} /> : null}
-            {!busy && chosen ? <Icon name="check" size={20} tone="actionText" /> : null}
+            {!busy && chosen ? (
+                <Icon name="check" size={20} tone="actionText" scaleWith={{ role: CHOICE_ROW_LABEL_ROLE }} />
+            ) : null}
         </Pressable>
     );
 };

@@ -14,11 +14,12 @@
  * @pattern Policy — `privateChoice` and `canUndoVisibilityChange` decide the change, the sheet and the Undo
  */
 import type { PaidFeatureState } from '@commise/features-account';
+import { commonMessages } from '@commise/features-core/common';
 import { fillTemplate } from '@commise/i18n';
 import { useMessages } from '@commise/i18n/react';
 import { useSnackbar } from '@commise/ui/snackbar';
 import { RecipeVisibility } from '@kitchensink/recipe-core';
-import type { CollectionWithRecipes } from '@kitchensink/recipe-service-client';
+import { isNotFoundError, type CollectionWithRecipes } from '@kitchensink/recipe-service-client';
 import {
     invalidateCollections,
     recipeServiceKeys,
@@ -64,6 +65,7 @@ export function useCollectionVisibility(collection: {
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
     const [upsellOpen, setUpsellOpen] = useState(false);
+    const { undoGone, undoFailed } = useMessages(commonMessages);
     const detailKey = recipeServiceKeys.collection(collection.id);
     const mutationKey = ['recipe-service', 'mutations', 'collectionVisibility', collection.id] as const;
 
@@ -81,7 +83,9 @@ export function useCollectionVisibility(collection: {
             await queryClient.cancelQueries({ queryKey: detailKey });
             writeVisibility(to);
         },
-        onError: (_error, { from }) => writeVisibility(from),
+        onError: (_error, { from }) => {
+            writeVisibility(from);
+        },
         onSettled: () => {
             if (queryClient.isMutating({ mutationKey }) === 1) {
                 invalidateCollections(queryClient);
@@ -89,10 +93,27 @@ export function useCollectionVisibility(collection: {
         },
     });
 
+    /**
+     * The compensating change. The snackbar outlives this screen, so Undo can run after it unmounted: it awaits the
+     * mutation (TanStack skips callbacks passed to one `mutate` call after unmount) and reports a collection that is
+     * gone in a snackbar of its own, and every other failure in another. The hook-level rollback still puts the cache
+     * back, and nothing is raised again.
+     */
+    const undo = (change: VisibilityChange): void => {
+        mutation.mutateAsync(change).catch((error: unknown) => {
+            // The page's "change failed" state says the first change was refused, the wrong story after a failed
+            // Undo: clear it (a no-op off the page), then say what happened in the snackbar that outlives the page.
+            mutation.reset();
+            snackbar.show({ message: isNotFoundError(error) ? undoGone : undoFailed });
+        });
+    };
+
     return {
         // Derived, never stored: a refetch that moves the state off `upsell` closes the sheet in the same render.
         upsellOpen: upsellOpen && collection.paidFeatures === 'upsell',
-        closeUpsell: () => setUpsellOpen(false),
+        closeUpsell: () => {
+            setUpsellOpen(false);
+        },
         failed: mutation.isError,
         change: (to) => {
             const from = queryClient.getQueryData<CollectionWithRecipes>(detailKey)?.visibility;
@@ -121,7 +142,14 @@ export function useCollectionVisibility(collection: {
                         to === RecipeVisibility.PRIVATE ? copy.visibilityPrivateWord : copy.visibilityPublicWord,
                 }),
                 ...(canUndoVisibilityChange({ from, state: collection.paidFeatures })
-                    ? { action: { label: copy.undo, onAction: () => mutation.mutate({ to: from, from: to }) } }
+                    ? {
+                          action: {
+                              label: copy.undo,
+                              onAction: () => {
+                                  undo({ to: from, from: to });
+                              },
+                          },
+                      }
                     : {}),
             });
         },

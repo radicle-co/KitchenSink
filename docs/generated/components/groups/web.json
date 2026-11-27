@@ -4,15 +4,15 @@
     "packageName": "@commise/web",
     "layer": "app",
     "coverage": {
-        "components": 90,
-        "implementations": 90,
+        "components": 89,
+        "implementations": 89,
         "props": 106,
-        "documentedComponents": 87,
-        "implementationsWithModuleDoc": 68,
-        "implementationsWithComponentDoc": 64,
+        "documentedComponents": 86,
+        "implementationsWithModuleDoc": 67,
+        "implementationsWithComponentDoc": 63,
         "documentedProps": 63,
-        "classifiedComponents": 40,
-        "componentsWithPatternTag": 35,
+        "classifiedComponents": 39,
+        "componentsWithPatternTag": 34,
         "crossPlatformComponents": 0
     },
     "components": [
@@ -943,7 +943,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook/CookingNoticeMount.tsx",
                     "dir": "packages/apps/commise/web/src/app/[locale]/recipes/[id]/cook",
-                    "moduleDoc": "The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on\nreconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.\n\nOrchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.",
+                    "moduleDoc": "The cook route's offline notice: the one `SyncNoticeHost` in its cooking form (title only while offline, quiet on\nreconnect), handed to the cooking surface's notice slot, which draws it first inside the surface, above the top bar.\nIt also hands the open windows the title, so the window on top speaks it while the page below is hidden.\n\nOrchestration: it reads the app's offline copy and mounts the host, and draws no markup of its own.",
                     "moduleTags": [
                         {
                             "name": "pattern",
@@ -4246,50 +4246,6 @@
                     "docSignals": {
                         "presentational": true,
                         "orchestration": false
-                    }
-                }
-            ]
-        },
-        {
-            "id": "web/components/recipes/RecipeDeletedNotice",
-            "name": "RecipeDeletedNotice",
-            "group": "web",
-            "packageName": "@commise/web",
-            "layer": "app",
-            "dir": "packages/apps/commise/web/src/components/recipes",
-            "kind": "orchestration",
-            "patterns": [
-                "Adapter over the snackbar host — turns the address's one-shot delete flag into a notice"
-            ],
-            "platforms": [
-                "web"
-            ],
-            "crossPlatform": false,
-            "propsDiverge": false,
-            "documented": true,
-            "implementations": [
-                {
-                    "name": "RecipeDeletedNotice",
-                    "platform": "web",
-                    "sourcePath": "packages/apps/commise/web/src/components/recipes/RecipeDeletedNotice.tsx",
-                    "dir": "packages/apps/commise/web/src/components/recipes",
-                    "moduleDoc": "My recipes' \"Recipe deleted\" (owner decision 2026-10-13, 4): said once, on the page a delete lands on, from the flag the\ndetail page put in the address (`recipesAfterDeleteHref`). It draws nothing; the words are the snackbar's.",
-                    "moduleTags": [],
-                    "description": "Orchestration: says \"Recipe deleted\" when a delete landed the cook here, and renders nothing.",
-                    "tags": [
-                        {
-                            "name": "pattern",
-                            "text": "Adapter over the snackbar host — turns the address's one-shot delete flag into a notice"
-                        }
-                    ],
-                    "detectedBy": "react-docgen-typescript",
-                    "exportKind": "named",
-                    "props": [],
-                    "usesRefApi": [],
-                    "booleanPropsSelectingSubtree": [],
-                    "docSignals": {
-                        "presentational": false,
-                        "orchestration": true
                     }
                 }
             ]

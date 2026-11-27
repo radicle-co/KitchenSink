@@ -26,6 +26,8 @@ export interface SnackbarQueue {
      */
     readonly pause: SnackbarStore['pause'];
     readonly resume: SnackbarStore['resume'];
+    /** Closes the snackbar showing when the subject changes (see the store). Stable. */
+    readonly observeSubject: SnackbarStore['observeSubject'];
 }
 
 /**
@@ -73,5 +75,6 @@ export function useSnackbarQueue(): SnackbarQueue {
         act: store.act,
         pause: store.pause,
         resume: store.resume,
+        observeSubject: store.observeSubject,
     };
 }

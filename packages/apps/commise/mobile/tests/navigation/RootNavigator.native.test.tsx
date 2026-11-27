@@ -38,6 +38,41 @@ vi.mock('react-native-safe-area-context', async (importOriginal) => ({
     ...(await importOriginal<Record<string, unknown>>()),
     useSafeAreaInsets: () => ({ top: 47, right: 0, bottom: 34, left: 0 }),
 }));
+/** Who is signed in, as a store the mocked Clerk hook reads, so a test can sign out and see the app re-render. */
+const clerk = vi.hoisted(() => {
+    const listeners = new Set<() => void>();
+    const state: { userId: string | null | undefined } = { userId: 'user_1' };
+
+    return {
+        state,
+        subscribe: (listener: () => void) => {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+        set: (userId: string | null | undefined) => {
+            state.userId = userId;
+            listeners.forEach((listener) => {
+                listener();
+            });
+        },
+    };
+});
+vi.mock('@clerk/expo', async () => {
+    const { useSyncExternalStore } = await import('react');
+
+    return {
+        useAuth: () => ({
+            userId: useSyncExternalStore(
+                clerk.subscribe,
+                () => clerk.state.userId,
+                () => clerk.state.userId,
+            ),
+        }),
+    };
+});
 vi.mock('../../src/hooks/useUserProfile.js', () => ({
     useUserProfile: () => ({ isError: false, data: { user: { displayName: 'Eliza Mendes' } } }),
 }));
@@ -177,9 +212,18 @@ vi.mock('../../src/screens/RecipeDetailScreen.js', () => ({
         );
     },
 }));
+// The real screen takes Android Back itself and leaves like its Back control. This stand-in registers the same
+// intercept through the real hook, so the row below still presses real hardware Back and expects the same leave.
 vi.mock('../../src/screens/CookingModeScreen.js', () => ({
-    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) =>
-        stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome }),
+    CookingModeScreen: (props: { recipeId: string; onLeave: () => void; onEdit: () => void; onHome: () => void }) => {
+        useBackIntercept(() => {
+            props.onLeave();
+
+            return true;
+        });
+
+        return stub(`Cooking ${props.recipeId}`, { Leave: props.onLeave, Edit: props.onEdit, Home: props.onHome });
+    },
 }));
 vi.mock('../../src/screens/CollectionDetailScreen.js', () => ({
     CollectionDetailScreen: (props: { collectionId: string; onDeleted: () => void; onCloned: (id: string) => void }) =>
@@ -245,6 +289,7 @@ let back: HardwareBackHandle;
 
 afterEach(() => {
     cleanup();
+    clerk.set('user_1');
     back.restore();
     crash.discover = false;
 });
@@ -767,6 +812,22 @@ describe('the snackbar host', () => {
 
         expect(status.textContent).toBe('Removed Pasta');
         expect(getComputedStyle(status).bottom).toBe('88px');
+    });
+
+    it('closes the snackbar on sign-out, and keeps it while the session is still loading', () => {
+        renderRoot();
+        press('Remove');
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        act(() => {
+            clerk.set(undefined);
+        });
+        expect(screen.getByRole('status').textContent).toBe('Removed Pasta');
+
+        act(() => {
+            clerk.set(null);
+        });
+        expect(screen.getByRole('status').textContent).toBe('');
     });
 });
 

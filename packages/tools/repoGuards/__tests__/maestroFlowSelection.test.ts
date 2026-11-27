@@ -49,10 +49,21 @@
  *     assertions fail (loginFlow first, `accountDangerZone` before `recipes/delete`, erasure last).
  */
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
+import {
+    existsSync,
+    mkdirSync,
+    mkdtempSync,
+    readFileSync,
+    readdirSync,
+    rmSync,
+    statSync,
+    writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, posix, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { ONE_OFF_DIR } from '@kitchensink/e2e-plan/maestroFlows';
 import { parse } from 'yaml';
 import { describe, expect, it } from 'vitest';
 import { scalarText } from './workflowScalar.js';
@@ -161,8 +172,12 @@ const NON_SPINE: readonly string[] = ALL_FLOWS.filter((flow) => !SPINE.includes(
 // The flow inventory on disk
 // ---------------------------------------------------------------------------------------------------------
 
-/** Every `.yaml` under `.maestro/`, as a slash-separated name without the extension (`recipes/create`). */
-function discoverFlowFiles(): readonly string[] {
+/**
+ * Every `.yaml` under `root` (default `.maestro/`), as a slash-separated name without the extension (`recipes/create`).
+ * The top-level staging folder of one-off flows is skipped: a staged copy is not a committed flow. A folder of the same
+ * name deeper down is an ordinary folder and is counted.
+ */
+function discoverFlowFiles(root: string = MAESTRO_DIR): readonly string[] {
     const found: string[] = [];
 
     const walk = (directory: string): void => {
@@ -170,13 +185,16 @@ function discoverFlowFiles(): readonly string[] {
             const full = join(directory, entry);
 
             if (statSync(full).isDirectory()) {
-                walk(full);
+                if (directory !== root || entry !== ONE_OFF_DIR) {
+                    walk(full);
+                }
+
                 continue;
             }
 
             if (entry.endsWith('.yaml')) {
                 found.push(
-                    relative(MAESTRO_DIR, full)
+                    relative(root, full)
                         .split('\\')
                         .join('/')
                         .replace(/\.yaml$/, ''),
@@ -185,7 +203,7 @@ function discoverFlowFiles(): readonly string[] {
         }
     };
 
-    walk(MAESTRO_DIR);
+    walk(root);
 
     return found.sort();
 }
@@ -385,6 +403,23 @@ function selectorExpression(): string {
 }
 
 // ---------------------------------------------------------------------------------------------------------
+
+describe('the flow inventory skips the staged one-off folder', () => {
+    it('counts a nested folder of the same name and skips only the top-level one', () => {
+        const root = mkdtempSync(join(tmpdir(), 'flowInventory'));
+
+        try {
+            for (const file of ['a.yaml', 'x/b.yaml', `${ONE_OFF_DIR}/run1/c.yaml`, `x/${ONE_OFF_DIR}/d.yaml`]) {
+                mkdirSync(join(root, file, '..'), { recursive: true });
+                writeFileSync(join(root, file), '');
+            }
+
+            expect(discoverFlowFiles(root)).toEqual(['a', 'x/b', `x/${ONE_OFF_DIR}/d`]);
+        } finally {
+            rmSync(root, { recursive: true, force: true });
+        }
+    });
+});
 
 describe('the flow inventory — every committed flow is accounted for', () => {
     it('runs every story flow, or classifies it as a sub-flow / inert / a recorded gap', () => {

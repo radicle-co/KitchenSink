@@ -694,9 +694,10 @@ describe('RecipeDetailContainer', () => {
         });
     });
 
-    // E8: the editor finishes by navigating here with `?done=<outcome>`. The page says it once, in a snackbar that lives in
-    // the app shell (one raised before the navigation would die with the old page), and removes the parameter, so a reload
-    // or a shared link does not say it again.
+    // E8: the editor says how it finished itself, before it navigates (the one snackbar host outlives the page). Only a
+    // refused Private travels here, as `?privateRefused=<refusal>`. REWRITTEN: these rows used to read
+    // `?done=<outcome>` and say it in a snackbar; that address channel is gone, so they now prove the refusal's
+    // one-shot parameter and that the old one says nothing.
     describe('how the editor finished (E8)', () => {
         const renderDone = async () => {
             const client = createFakeRecipeServiceClient();
@@ -715,31 +716,17 @@ describe('RecipeDetailContainer', () => {
             window.history.replaceState(null, '', '/');
         });
 
-        it.each([
-            ['firstPublish', 'Recipe published.'],
-            ['published', 'Recipe published.'],
-            ['changesSaved', 'Changes saved.'],
-        ])('says “%s” once, as a status', async (outcome, words) => {
-            arriveWith(`done=${outcome}`);
+        it.each(['done=published', 'done=changesSaved.slots', 'done=firstPublish.final', 'deleted=1'])(
+            '⛔ the old address channel “?%s” is dead: it says nothing and is left alone',
+            async (query) => {
+                arriveWith(query);
 
-            await renderDone();
+                await renderDone();
 
-            expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
-        });
-
-        // REWRITTEN (buildSpec §6.4, plan 2026-10-14-009 T3): the snackbar used to say the refusal in place of the outcome.
-        // It now says only how the editor finished; the refusal is said inline, below.
-        it.each([
-            ['changesSaved.final', 'Changes saved.'],
-            ['firstPublish.premium', 'Recipe published.'],
-        ])('keeps the snackbar to how the editor finished for “%s”', async (value, words) => {
-            arriveWith(`done=${value}`);
-
-            await renderDone();
-
-            expect((await screen.findByText(words)).closest('[role="status"]')).not.toBeNull();
-            expect(screen.queryByText(/couldn't be made private|part of Pro/iu)).not.toBeInTheDocument();
-        });
+                expect(screen.queryByText(/changes saved|recipe published|recipe deleted/iu)).not.toBeInTheDocument();
+                expect(window.location.search).toBe(`?${query}`);
+            },
+        );
 
         // REWRITTEN for ADR-0077 section 6: the page's only inline refusal is now "every private slot is used". The `.final`
         // claim and the Pro sentence ("needs Pro and a change of your own") belonged to the rule that an imported public-web
@@ -778,7 +765,7 @@ describe('RecipeDetailContainer', () => {
             };
 
             it('⛔ says every slot is used, in the header, as a visible assertive alert', async () => {
-                await renderArrival('done=changesSaved.slots', { slots: FULL });
+                await renderArrival('privateRefused=slots', { slots: FULL });
 
                 const notice = await screen.findByText(SLOTS);
 
@@ -788,14 +775,14 @@ describe('RecipeDetailContainer', () => {
             });
 
             it('does not move focus', async () => {
-                await renderArrival('done=changesSaved.slots', { slots: FULL });
+                await renderArrival('privateRefused=slots', { slots: FULL });
                 await screen.findByText(SLOTS);
 
                 expect(document.activeElement).toBe(document.body);
             });
 
             it('⛔ says the same for an imported public-web recipe: it is a slot like any other, never a Pro sentence', async () => {
-                await renderArrival('done=changesSaved.slots', {
+                await renderArrival('privateRefused=slots', {
                     paidFeatures: 'upsell',
                     sourceType: 'imported_public',
                     slots: FULL,
@@ -806,43 +793,41 @@ describe('RecipeDetailContainer', () => {
             });
 
             it('⛔ says nothing to a cook with a slot free who follows a forged slots link', async () => {
-                await renderArrival('done=changesSaved.slots', { paidFeatures: 'upsell' });
-                await screen.findByText('Changes saved.');
+                await renderArrival('privateRefused=slots', { paidFeatures: 'upsell' });
 
                 expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
             });
 
             it('keeps saying it while the recipe is shown and public, after the parameter has gone', async () => {
-                await renderArrival('done=changesSaved.slots', { slots: FULL });
+                await renderArrival('privateRefused=slots', { slots: FULL });
                 await screen.findByText(SLOTS);
                 await vi.waitFor(() => expect(window.location.search).toBe(''));
 
                 expect(screen.getByText(SLOTS)).toBeInTheDocument();
             });
 
-            // A forged `?done=published.slots` link must not show the sentence on any recipe page: it is confirmed against what
-            // the page holds from the server (the owner, a public recipe, every slot known used).
+            // A forged `?privateRefused=slots` link must not show the sentence on any recipe page: it is confirmed
+            // against what the page holds from the server (the owner, a public recipe, every slot known used).
             it.each([
                 ['a cook who does not own the recipe', 'usr_other', RecipeVisibility.PUBLIC, FULL],
                 ['the owner of a PRIVATE recipe', OWNER_ID, RecipeVisibility.PRIVATE, FULL],
                 ['an owner with a slot free', OWNER_ID, RecipeVisibility.PUBLIC, { used: 3, limit: 50 }],
             ] as const)(
-                '⛔ says nothing on a forged “?done=published.slots” link for %s',
+                '⛔ says nothing on a forged “?privateRefused=slots” link for %s',
                 async (_who, owner, vis, slots) => {
                     if (owner !== OWNER_ID) {
                         useAuthMock.mockReturnValue({ sessionClaims: { external_id: owner } });
                     }
 
-                    await renderArrival('done=published.slots', { ownerId: OWNER_ID, visibility: vis, slots });
-                    await screen.findByText('Recipe published.');
+                    await renderArrival('privateRefused=slots', { ownerId: OWNER_ID, visibility: vis, slots });
+                    await screen.findByRole('heading', { level: 1, name: 'Lamb' });
 
                     expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
                 },
             );
 
             it('says nothing without the claim, for the same owner of the same recipe', async () => {
-                await renderArrival('done=published');
-                await screen.findByText('Recipe published.');
+                await renderArrival('');
 
                 expect(screen.queryByText(SLOTS)).not.toBeInTheDocument();
             });
@@ -856,7 +841,7 @@ describe('RecipeDetailContainer', () => {
 
         it('removes the parameter from the address without a navigation, keeping any other', async () => {
             const replace = vi.spyOn(window.history, 'replaceState');
-            arriveWith('tab=2&done=published');
+            arriveWith('tab=2&privateRefused=slots');
 
             await renderDone();
 
@@ -865,24 +850,16 @@ describe('RecipeDetailContainer', () => {
             expect(pushMock).not.toHaveBeenCalled();
         });
 
-        it.each(['', 'done=', 'done=deleted', 'done=PUBLISHED', 'done=published%20', 'done=published.nope'])(
-            'says nothing for the address “?%s”, which is the reader’s to forge',
+        it.each(['privateRefused=', 'privateRefused=SLOTS', 'privateRefused=slots%20', 'privateRefused=nope'])(
+            '⛔ leaves the forged address “?%s” alone: it is the reader’s to forge',
             async (query) => {
                 arriveWith(query);
 
                 await renderDone();
 
-                expect(screen.queryByText(/changes saved|recipe published/i)).not.toBeInTheDocument();
+                expect(window.location.search).toBe(`?${query}`);
             },
         );
-
-        it('leaves an unrecognised parameter in the address', async () => {
-            arriveWith('done=deleted');
-
-            await renderDone();
-
-            expect(window.location.search).toBe('?done=deleted');
-        });
     });
 
     describe('delete (T068) — owner only, the ⋯ menu’s destructive action', () => {
@@ -907,12 +884,12 @@ describe('RecipeDetailContainer', () => {
             );
 
             expect(deleteSpy).toHaveBeenCalledWith('rec_1');
-            // Owner 2026-10-13: "Recipe deleted" shows on the screen the cook LANDS on. REWRITTEN: this test used to find
-            // the snackbar here, under the one host it renders, and so passed while no browser ever showed it — every
-            // route mounts its own `AppShell`, so a snackbar raised before the navigation dies with this page. The
-            // outcome rides in the address instead, and My recipes says it (`RecipeDeletedNotice`).
-            await vi.waitFor(() => expect(pushMock).toHaveBeenCalledWith('/en/recipes?deleted=1'));
-            expect(screen.queryByText('Recipe deleted')).not.toBeInTheDocument();
+            // REWRITTEN: "Recipe deleted" used to ride to My recipes in `?deleted=1`. The one snackbar host now
+            // outlives the page, so it is said here, before the push, and the address stays clean.
+            await vi.waitFor(() => {
+                expect(pushMock).toHaveBeenCalledExactlyOnceWith('/en/recipes');
+            });
+            expect((await screen.findByText('Recipe deleted')).closest('[role="status"]')).not.toBeNull();
         });
 
         /**

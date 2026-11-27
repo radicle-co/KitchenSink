@@ -33,4 +33,26 @@ describe('Spinner', () => {
 
         expect(container.querySelector('svg')?.getAttribute('class')).toBe('animate-spin');
     });
+
+    it('is in rem, so browser text size moves it, only when it stands beside a label', () => {
+        const alone = render(<Spinner className="animate-spin" />);
+
+        expect(alone.container.querySelector('svg')?.style.width).toBe('');
+        cleanup();
+
+        const beside = render(<Spinner className="animate-spin" scaleWith={{ role: 'cardTitle' }} />);
+
+        expect(beside.container.querySelector('svg')?.style.width).toBe('1.25rem');
+        expect(beside.container.querySelector('svg')?.style.height).toBe('1.25rem');
+    });
+
+    it('is the one in a busy Button, which grows with the button label like its glyph', () => {
+        const { container } = render(
+            <Button icon="plus" busy>
+                Save
+            </Button>,
+        );
+
+        expect(container.querySelector('svg')?.style.width).toBe('1.25rem');
+    });
 });

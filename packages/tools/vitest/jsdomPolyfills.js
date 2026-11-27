@@ -61,6 +61,20 @@ if (typeof Element !== 'undefined' && typeof Element.prototype.scrollIntoView !=
 }
 
 /**
+ * `Element.prototype.hasPointerCapture` and `releasePointerCapture` — never implemented by jsdom. Radix's menu calls
+ * them when it opens, so opening an `ActionMenu` would throw without them. No-ops: jsdom has no pointer to capture.
+ */
+if (typeof Element !== 'undefined' && typeof Element.prototype.hasPointerCapture !== 'function') {
+    Element.prototype.hasPointerCapture = function hasPointerCapture() {
+        return false;
+    };
+}
+
+if (typeof Element !== 'undefined' && typeof Element.prototype.releasePointerCapture !== 'function') {
+    Element.prototype.releasePointerCapture = function releasePointerCapture() {};
+}
+
+/**
  * `IntersectionObserver` — never implemented by jsdom. Tamagui's web `measureInWindow` reads a node's rectangle through
  * one, so a component that measures itself (the Sheet's `KeyboardLift`) threw an unhandled `ReferenceError` in every lane.
  * Inert: it never reports, so a measurement stays pending, which is what a jsdom with no layout has to say. A test that

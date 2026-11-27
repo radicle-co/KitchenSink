@@ -63,9 +63,10 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
         <CookingNoticeMount>
             <ClientQueryBoundary
                 prefetchedKeys={[detail.queryKey]}
-                loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} {...ways} />}
+                loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} recipeId={id} {...ways} />}
                 renderError={({ error, resetErrorBoundary }) => (
                     <CookingScreen
+                        recipeId={id}
                         read={
                             isNotFoundError(error)
                                 ? { kind: 'gone' }
@@ -81,6 +82,7 @@ export const CookingRoute: FC<CookingRouteProps> = ({ id }) => {
                     detail={detail}
                     viewer={viewer}
                     ways={ways}
+                    recipeId={id}
                     readAgain={readAgain}
                 />
             </ClientQueryBoundary>
@@ -94,6 +96,8 @@ interface SettledCookingProps {
     /** Who is cooking, by the one rule in {@link CookingRoute}. */
     readonly viewer: { readonly id: string | undefined; readonly known: boolean };
     readonly ways: CookWays;
+    /** The route's recipe id, which the exit message names the timer's recipe by. */
+    readonly recipeId: string;
     readonly readAgain: () => void;
 }
 
@@ -103,11 +107,11 @@ interface SettledCookingProps {
  * (S20, R-15). The boundary throws only before the first data, so a failed refetch keeps the cached recipe; only a
  * 404 withholds it on a fresh mount (`lastReadGone`, S43).
  */
-const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, readAgain }) => {
+const SettledCooking: FC<SettledCookingProps> = ({ detail, viewer, ways, recipeId, readAgain }) => {
     const { data: recipe, error } = useSuspenseQuery(detail);
     // The cache keeps the recipe through a failed refetch; only a 404 withholds it on a fresh mount (S43, po P10).
     const lastReadGone = error !== null && isNotFoundError(error);
     const read = useCookingRead(cookingReadSourceOf(recipe, viewer, readAgain, lastReadGone));
 
-    return <CookingScreen read={read} {...ways} />;
+    return <CookingScreen read={read} recipeId={recipeId} {...ways} />;
 };

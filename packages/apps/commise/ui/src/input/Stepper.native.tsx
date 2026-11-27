@@ -10,19 +10,15 @@
  * @pattern Controlled input — the value is the caller's; the step rule (`stepFrom`) is pure
  */
 import { useState, type FC } from 'react';
-import { Pressable, StyleSheet, View } from 'react-native';
+import { StyleSheet, View } from 'react-native';
 
 import { visuallyHidden } from '../accessibility/visuallyHidden.native.js';
-import { Icon } from '../icon/Icon.native.js';
 import type { IconName } from '../icon/props.js';
 import { LiveRegion } from '../liveRegion/LiveRegion.native.js';
 import { Text } from '../text/Text.native.js';
-import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
-import { dimmedOpacity } from '../tokens/scale.js';
 import { stepFrom, type StepperProps } from './props.js';
-import { touchFloor } from '../layout/touchFloor.native.js';
-import { usePressFill } from '../surfaceTone/usePressFill.native.js';
+import { StepperButton } from './StepperButton.native.js';
 
 /** The native design-system stepper. */
 export const Stepper: FC<StepperProps> = ({
@@ -40,18 +36,15 @@ export const Stepper: FC<StepperProps> = ({
 }) => {
     const [spoken, setSpoken] = useState({ text: '', occurrence: 0 });
     const labelId = `${id}-label`;
-    const { colors } = useTheme();
-    const wash = usePressFill();
 
     const stepButton = (step: -1 | 1, name: string, glyph: IconName) => {
         const next = stepFrom(value, step, min, max);
-        const target = touchFloor();
 
         return (
-            <Pressable
-                role="button"
-                aria-label={name}
-                accessibilityHint={error}
+            <StepperButton
+                icon={glyph}
+                accessibilityLabel={name}
+                {...(error === undefined ? {} : { description: error })}
                 disabled={next === null}
                 onPress={() => {
                     if (next === null) {
@@ -61,16 +54,7 @@ export const Stepper: FC<StepperProps> = ({
                     onChange(next);
                     setSpoken((previous) => ({ text: announce(next), occurrence: previous.occurrence + 1 }));
                 }}
-                style={({ pressed }) => [
-                    styles.step,
-                    { minWidth: target, minHeight: target, borderRadius: target / 2 },
-                    { borderColor: colors.lineControl, backgroundColor: colors.paper },
-                    pressed && next !== null ? { backgroundColor: wash } : null,
-                    next === null ? styles.unavailable : null,
-                ]}
-            >
-                <Icon name={glyph} size={20} />
-            </Pressable>
+            />
         );
     };
 
@@ -107,10 +91,4 @@ export const Stepper: FC<StepperProps> = ({
 const styles = StyleSheet.create({
     stack: { gap: nativeTokens.spacing[1] },
     row: { flexDirection: 'row', alignItems: 'center', gap: nativeTokens.spacing[2] },
-    step: {
-        alignItems: 'center',
-        justifyContent: 'center',
-        borderWidth: 1,
-    },
-    unavailable: { opacity: dimmedOpacity },
 });

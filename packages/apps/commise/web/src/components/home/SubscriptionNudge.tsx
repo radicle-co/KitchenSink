@@ -15,14 +15,16 @@
  *     Escape-to-dismiss and background inert.
  */
 import * as Dialog from '@radix-ui/react-dialog';
-import type { JSX } from 'react';
+import { useState, type JSX } from 'react';
 
 import { homeMessages } from '@commise/features-core/home';
 import { useMessages } from '@commise/i18n/react';
 import { Button, buttonSurfaceClass } from '@commise/ui/button';
 import { useReturnFocusOnClose } from '@commise/ui/dialog-focus';
 import { Icon } from '@commise/ui/icon';
+import { useRenderedHeight } from '@commise/ui/rendered-height';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
+import { WindowScope } from '@commise/ui/window-scope';
 
 /** Props for `SubscriptionNudge`. */
 export interface SubscriptionNudgeProps {
@@ -31,6 +33,13 @@ export interface SubscriptionNudgeProps {
     /** Invoked when the viewer dismisses the nudge. */
     readonly onDismiss: () => void;
 }
+
+/** The dialog's box, in pieces so no line runs past 120 characters. */
+const CONTENT_CLASS = [
+    'fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-xl',
+    surfaceToneClass('paper'),
+    'px-8 pt-8 shadow-xl',
+].join(' ');
 
 /**
  * The upgrade nudge dialog. Renders nothing when closed. Copy is localized via the web dictionary.
@@ -58,6 +67,10 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
     // doc. The false→true edge guard lives inside the hook.
     const onCloseAutoFocus = useReturnFocusOnClose(open);
 
+    // The action row and the sheet's bottom padding under it are the snackbar's foot: it sits 16 above the buttons.
+    const [foot, setFoot] = useState<HTMLElement | null>(null);
+    const footHeight = useRenderedHeight(foot, 0);
+
     return (
         <Dialog.Root open={open} onOpenChange={(next) => !next && onDismiss()}>
             <Dialog.Portal>
@@ -69,25 +82,32 @@ export function SubscriptionNudge({ open, onDismiss }: SubscriptionNudgeProps): 
                     // the sheet's `p-8` foot (2rem) PLUS the safe-area inset. `env(...)` is 0 in a normal
                     // viewport, so the base padding equals the foot and only real devices see the extra inset.
                     //
+                    // The foot is the wrapper below (`pb-[calc(...)]`), so the snackbar can be measured to it.
+                    //
                     // `p-6` → `p-8` is a no-op in painted pixels: the DS used to redefine Tailwind's
                     // `--spacing-*` scale, under which `p-6` WAS 2rem. With the numeric utilities back on
                     // Tailwind's own ramp, 2rem is `p-8` — which is what keeps this foot equal to the literal
                     // `2rem` in the `calc()` beside it. Change one and you must change the other, or the sheet
                     // goes asymmetric. See `@commise/ui/tokens/themeCss`.
-                    className={`fixed inset-x-0 bottom-0 z-50 mx-auto flex max-w-md flex-col gap-3 rounded-t-xl ${surfaceToneClass('paper')} p-8 pb-[calc(2rem+env(safe-area-inset-bottom))] shadow-xl`}
+                    className={CONTENT_CLASS}
                 >
-                    <Dialog.Title className="text-card-title text-ink">{home.nudge.title}</Dialog.Title>
-                    <p className="text-meta text-ink-muted">{home.nudge.body}</p>
-                    <div className="flex justify-end gap-3">
-                        {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is mobile's "later" glyph. */}
-                        <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>
-                            <Icon name="clock" size={20} />
-                            {home.nudge.dismiss}
-                        </Dialog.Close>
-                        <Button icon="chevronRight" onPress={onDismiss}>
-                            {home.nudge.upgrade}
-                        </Button>
-                    </div>
+                    <WindowScope footHeight={footHeight}>
+                        <Dialog.Title className="text-card-title text-ink">{home.nudge.title}</Dialog.Title>
+                        <p className="text-meta text-ink-muted">{home.nudge.body}</p>
+                        <div ref={setFoot} className="pb-[calc(2rem+env(safe-area-inset-bottom))]">
+                            <div className="flex justify-end gap-3">
+                                {/* A Radix slot, so it wears the Button surface rather than being one; `clock` is
+                                    mobile's "later" glyph. */}
+                                <Dialog.Close type="button" className={buttonSurfaceClass('secondary')}>
+                                    <Icon name="clock" size={20} />
+                                    {home.nudge.dismiss}
+                                </Dialog.Close>
+                                <Button icon="chevronRight" onPress={onDismiss}>
+                                    {home.nudge.upgrade}
+                                </Button>
+                            </div>
+                        </div>
+                    </WindowScope>
                 </Dialog.Content>
             </Dialog.Portal>
         </Dialog.Root>

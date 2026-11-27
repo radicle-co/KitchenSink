@@ -19,8 +19,8 @@ import { useTimerStore } from './useTimerStore.js';
  * @param recipeId - The route's recipe id.
  * @param recipe - The recipe once it is read, else `undefined`.
  * @param running - The sentence for a running timer: each platform says where it rings.
- * @returns The same ways. `onLeave` and `onHome` show the exit message first when there is one; `onEdit` is the caller's
- *   own function, since Edit keeps the cook in this recipe's work.
+ * @returns The same ways. `onLeave` and `onHome` show the exit message first when there is one. `onEdit` is the
+ *   caller's own function, since Edit keeps the cook in this recipe's work.
  * @throws {Error} When no `TimerProvider` or no `SnackbarHost` is above.
  * @sideEffect Each wrapped way reads the timer store at the press and may show a snackbar.
  */

@@ -43,7 +43,7 @@ const onLeave = vi.fn();
 const onEdit = vi.fn();
 const onHome = vi.fn();
 const { Wrapper: CookingProviders } = makeCookingWrapper();
-/** The screen under the providers the app root mounts: the cook's ticks, the session's timer, the snackbar host and Back. */
+/** The screen under the providers the app root mounts: ticks, timer, snackbar host and hardware Back. */
 const screenOf = () => (
     <CookingProviders>
         <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />

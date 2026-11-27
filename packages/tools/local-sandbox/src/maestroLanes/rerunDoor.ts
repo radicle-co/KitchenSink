@@ -12,7 +12,7 @@
  */
 import { ONE_OFF_DIR } from '@kitchensink/e2e-plan/maestroFlows';
 
-import type { FlowOutcome, PlannedFlows } from './laneRun.js';
+import type { LaneRunDeps } from './laneRun.js';
 import { readRerunHistory, writeRerunHistory } from './rerunHistoryStore.js';
 import { failuresOf, recordOutcomes, rerunDecision, rerunKey, type RerunHistory } from './rerunLimit.js';
 
@@ -33,10 +33,7 @@ export interface RerunDoorPorts {
 }
 
 /** The two hooks `laneRun.ts` takes. */
-interface RerunDoor {
-    checkRerun: (planned: readonly PlannedFlows[]) => readonly string[];
-    recordRerun: (outcomes: readonly FlowOutcome[]) => void;
-}
+type RerunDoor = Required<Pick<LaneRunDeps, 'checkRerun' | 'recordRerun'>>;
 
 const ONE_OFF_RUN_FOLDER = new RegExp(`^${ONE_OFF_DIR}/[^/]+/`, 'u');
 

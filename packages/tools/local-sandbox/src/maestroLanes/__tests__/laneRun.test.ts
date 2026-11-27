@@ -1641,38 +1641,69 @@ describe('runLaneRun: the rerun limit', () => {
         expect(record).not.toHaveBeenCalled();
     });
 
-    it('counts nothing for a run the operator stopped', async () => {
+    it('counts nothing for a run the operator stopped, and the run ends (mutant: it is counted)', async () => {
         const record = vi.fn();
         let stopped = false;
         const { deps } = harness({
             checkRerun: () => [],
             recordRerun: record,
             aborted: () => stopped,
-            spawnLane: () =>
-                fakeLaneChild({
-                    onStart: () => {
-                        stopped = true;
-                    },
+            spawnLane: () => {
+                const child = fakeLaneChild({
                     onStop: (_signal, finish) => {
                         finish(143);
                     },
-                }),
+                });
+
+                // The operator's stop: the signal handler sets the flag, then stops every lane.
+                stopped = true;
+                queueMicrotask(() => {
+                    child.stop('SIGTERM');
+                });
+
+                return child;
+            },
         });
-        const run = runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
 
-        // The operator's stop ends the fake lane, as the signal handler does.
-        await setImmediate();
-        const code = await Promise.race([
-            run,
-            new Promise<number>((resolve) => {
-                setTimeout(() => {
-                    resolve(-1);
-                }, 3000);
-            }),
-        ]);
+        const code = await runLaneRun(deps, { platforms: ['android'], requested: 1, selection: 'all' });
 
+        expect(code).toBe(130);
         expect(record).not.toHaveBeenCalled();
-        expect(code).not.toBe(RERUN_REFUSED_EXIT);
+    });
+
+    it('counts nothing when a lane is lost after the operator stopped the run (mutant: no stop guard)', async () => {
+        let loseTunnel!: (error: Error) => void;
+        const lost = new Promise<Error>((resolve) => {
+            loseTunnel = resolve;
+        });
+        const record = vi.fn();
+        let stopped = false;
+        const { events, deps } = harness({ checkRerun: () => [], recordRerun: record, aborted: () => stopped });
+
+        const run = runLaneRun(
+            {
+                ...deps,
+                adapterFor: (platform) => fakeAdapter(events, platform, lost),
+                spawnLane: () => {
+                    stopped = true;
+
+                    return fakeLaneChild({
+                        onStart: () => {
+                            setTimeout(() => {
+                                loseTunnel(new Error('the tunnel ssh exited with code 255 during the run'));
+                            }, 20);
+                        },
+                        onStop: (_signal, finish) => {
+                            finish(143);
+                        },
+                    });
+                },
+            },
+            { platforms: ['android'], requested: 1, selection: 'all' },
+        );
+
+        await expect(run).rejects.toThrow('the tunnel ssh exited');
+        expect(record).not.toHaveBeenCalled();
     });
 
     it('takes no check and no record when the door brings none (the existing runs are unchanged)', async () => {

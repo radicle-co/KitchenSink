@@ -63,13 +63,13 @@ interface ScreenOutcome {
 }
 
 /** The flows one platform's lanes will run. */
-export interface PlannedFlows {
+interface PlannedFlows {
     readonly platform: LanePlatform;
     readonly flows: readonly string[];
 }
 
 /** How one planned flow ended on a lane that ran. */
-export interface FlowOutcome {
+interface FlowOutcome {
     readonly platform: LanePlatform;
     readonly flow: string;
     /** True for any ending but a recorded pass. */

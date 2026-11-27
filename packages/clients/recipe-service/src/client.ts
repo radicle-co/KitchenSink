@@ -1871,10 +1871,11 @@ export class RecipeServiceClient {
                 return new UnauthorizedError(message, code);
             case 403:
                 return new ForbiddenError(message, code);
-            // ⛔ A 404 is "not there" only when the SERVICE said so, and the service always answers with a JSON object. The
-            // shared ALB's own 404 (a host or path with no rule, ADR-0003) is a fixed text/plain page, so a body that is
-            // not a JSON object is the ALB. Reading it as "deleted" hid an outage behind a missing item (owner ruling
-            // 2026-11-26). The envelope is not the test: Nest's default 404 body has no `code` and is still the service.
+            // ⛔ A 404 is "not there" only when the SERVICE said so, and the service always answers with a JSON
+            // object. The shared ALB's own 404 (a host or path with no rule, ADR-0003) is a fixed text/plain page,
+            // so a body that is not a JSON object is the ALB. Reading it as "deleted" hid an outage behind a missing
+            // item (owner ruling 2026-11-26). The envelope is not the test: Nest's default 404 body has no `code`
+            // and is still the service.
             case 404:
                 return isJsonObject(res.body)
                     ? new NotFoundError(message, code)

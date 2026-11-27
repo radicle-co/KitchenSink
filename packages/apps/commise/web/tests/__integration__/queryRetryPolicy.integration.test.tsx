@@ -106,7 +106,7 @@ describe('query retry policy — requests a real browser would issue', () => {
         expect(transport.urls()).toHaveLength(1);
     });
 
-    it("RETRIES the ALB's own text/plain 404 to the cap: no service answered, so it is a routing outage and not a dead link", async () => {
+    it("RETRIES the ALB's text/plain 404 to the cap (a routing outage, not a dead link)", async () => {
         // The load balancer's page for a host or path with no rule (ADR-0003). The service always answers a missing
         // item with JSON, so a 404 that is not JSON never means the recipe is gone.
         const transport = stubStatus(404, { body: 'Not Found', contentType: 'text/plain' });

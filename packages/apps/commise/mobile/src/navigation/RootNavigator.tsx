@@ -26,7 +26,7 @@ import { useTheme } from '@commise/ui/theme';
 import { useCallback, useContext, useMemo, useState, type JSX } from 'react';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { focusedRootRouteOf, ReportFocusedRootRouteContext } from './focusedRootRoute.js';
+import { focusedRouteOf, ReportFocusedRootRouteContext, type FocusedRoute } from './focusedRootRoute.js';
 import { navigationRef } from './navigationRef.js';
 import type { RootStackParamList } from './routes.js';
 import { ScreenBoundary } from './ScreenBoundary.js';
@@ -50,19 +50,6 @@ function taskLayout({ children }: { readonly children: JSX.Element }): JSX.Eleme
     return <TaskLayout>{children}</TaskLayout>;
 }
 
-/** The focused root route: its name, and its key, which tells two screens of one name apart. */
-interface FocusedRoute {
-    readonly name?: string;
-    readonly key?: string;
-}
-
-/** @param state - The container's state, or `undefined` before it is ready. @returns The focused root route. Pure. */
-function focusedRouteOf(state: Parameters<typeof focusedRootRouteOf>[0]): FocusedRoute {
-    const route = state?.routes[state.index ?? 0];
-
-    return { name: route?.name, key: route?.key };
-}
-
 /** The app's navigation and its one snackbar host. */
 export function RootNavigator(): JSX.Element {
     // Whom the snackbars belong to: one showing never outlives the cook who raised it (sign-out, account change).
@@ -76,7 +63,17 @@ export function RootNavigator(): JSX.Element {
     const reportFocusedRoot = useContext(ReportFocusedRootRouteContext);
     // One height per route, so a screen covered by another keeps its own, and a report of 0 forgets the route.
     const reportDock = useCallback(({ routeKey, height }: PageFootReport) => {
-        setDockHeights(({ [routeKey]: _gone, ...rest }) => (height > 0 ? { ...rest, [routeKey]: height } : rest));
+        setDockHeights((heights) => {
+            const next = { ...heights };
+
+            if (height > 0) {
+                next[routeKey] = height;
+            } else {
+                delete next[routeKey];
+            }
+
+            return next;
+        });
     }, []);
 
     // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the

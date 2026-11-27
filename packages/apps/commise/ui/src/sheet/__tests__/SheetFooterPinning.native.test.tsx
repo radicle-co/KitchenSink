@@ -115,6 +115,7 @@ const toolbarSheet = (): JSX.Element => (
 /** The sheet: the dialog nearest around its title header, which names it (`docs/design/nativeContainerNames.md` N1). */
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
+
 /**
  * The title row: the nearest ancestor of Close that also holds the title. It is found by what it holds, so it does not
  * depend on how many boxes the icon button nests its button in.
@@ -134,6 +135,7 @@ const titleRow = (): HTMLElement => {
 
     throw new Error('Expected an ancestor of Close to hold the title.');
 };
+
 /** The swipe zone: the grab handle and the title row. */
 const swipeZone = (): HTMLElement => titleRow().parentElement as HTMLElement;
 /**

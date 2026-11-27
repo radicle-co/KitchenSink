@@ -263,28 +263,36 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
                 };
             }),
             // The title row is the nearest ancestor of Close that holds the Sheet's title, found by its exact name
-            // because the body holds section headings too. It never holds Done, which would make it the whole Sheet.
-            close.evaluate((element, title) => {
-                const isTitle = (node: Element): boolean =>
-                    [...node.querySelectorAll('[role="heading"], h1, h2, h3')].some(
-                        (heading) => heading.textContent.trim() === title,
-                    );
-                let node = element.parentElement;
+            // because the body holds section headings too. It never holds the apply button (named `done` below), which would
+            // make it the whole Sheet.
+            close.evaluate(
+                (element, { title, apply }) => {
+                    const isTitle = (node: Element): boolean =>
+                        [...node.querySelectorAll('[role="heading"], h1, h2, h3')].some(
+                            (heading) => heading.textContent.trim() === title,
+                        );
+                    let node = element.parentElement;
 
-                while (node !== null && !isTitle(node)) {
-                    node = node.parentElement;
-                }
+                    while (node !== null && !isTitle(node)) {
+                        node = node.parentElement;
+                    }
 
-                if (node === null) {
-                    throw new Error(`No ancestor of Close holds the title ${title}`);
-                }
+                    if (node === null) {
+                        throw new Error(`No ancestor of Close holds the title ${title}`);
+                    }
 
-                if ([...node.querySelectorAll('button')].some((button) => button.textContent.trim() === 'Done')) {
-                    throw new Error('The title row holds Done, so it is the whole Sheet');
-                }
+                    const applyName = new RegExp(apply, 'u');
 
-                return node.getBoundingClientRect().height;
-            }, SHEET_TITLE),
+                    if (
+                        [...node.querySelectorAll('button')].some((button) => applyName.test(button.textContent.trim()))
+                    ) {
+                        throw new Error('The title row holds the apply button, so it is the whole Sheet');
+                    }
+
+                    return node.getBoundingClientRect().height;
+                },
+                { title: SHEET_TITLE, apply: SHOW.source },
+            ),
         ]);
 
         return { ...region, top };

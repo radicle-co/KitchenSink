@@ -1878,7 +1878,7 @@ export class RecipeServiceClient {
             // item (owner ruling 2026-11-26). The envelope is not the test: Nest's default 404 body has no `code`
             // and is still the service.
             case 404:
-                return isJsonObject(res.body) ? new NotFoundError(message, code) : new ServiceUnreachableError();
+                return isParsedJson(res.body) ? new NotFoundError(message, code) : new ServiceUnreachableError();
             // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
             // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
             // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no
@@ -1899,7 +1899,7 @@ export class RecipeServiceClient {
  * @param body - The parsed error body, `undefined` when it did not parse.
  * @returns `true` for a parsed object or array. Pure.
  */
-function isJsonObject(body: unknown): boolean {
+function isParsedJson(body: unknown): boolean {
     return typeof body === 'object' && body !== null;
 }
 

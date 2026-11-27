@@ -423,9 +423,10 @@ describe('recipeSender — a delete that meets a 404', () => {
     });
 
     /**
-     * ⛔ THROUGH THE REAL CLIENT: the ALB's own 404 for a host with no rule carries no service body, forwards nothing, and
-     * reads as service-unavailable, so every write is NOT PROCESSED (`503`, re-sent by the drain) and a delete is never
-     * done. Replaces a row that stood a `NotFoundError` in for this response, which the client can no longer produce.
+     * ⛔ THROUGH THE REAL CLIENT: the ALB's own 404 for a host with no rule carries no service body and forwards
+     * nothing. It reads as service-unavailable, so every write is NOT PROCESSED (`503`, re-sent by the drain) and a
+     * delete is never done. Replaces a row that stood a `NotFoundError` in for this response, which the client can no
+     * longer produce.
      */
     it.each<[IntentKind, unknown]>([
         ['delete', { id: 'r1' }],

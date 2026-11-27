@@ -225,9 +225,9 @@ export function isSourceBusyError(error: unknown): error is SourceBusyError {
  * The shared load balancer answered `404` with its own fixed `text/plain` page, because no rule routed the request to
  * food (ADR-0003, `packages/infra/global/lib/platform/SharedAlbStack.ts`, the listener's default action). Food itself
  * always answers a `404` with a JSON object, so a body that is not a JSON object or array is the balancer: food did
- * not answer, and nothing was processed. Reading it as {@link NotFoundError} hid an outage behind a missing food. Its `503` is not a
- * `404`, so nothing that branches on `status === 404` misreads it, and it is not a {@link SourceBusyError}, which means
- * food answered busy. The recipe client has the same rule for the same page.
+ * not answer, and nothing was processed. Reading it as {@link NotFoundError} hid an outage behind a missing food. Its
+ * `503` is not a `404`, so nothing that branches on `status === 404` misreads it, and it is not a
+ * {@link SourceBusyError}, which means food answered busy. The recipe client has the same rule for the same page.
  */
 export class ServiceUnreachableError extends FetchUnavailableError {
     /** Always `503`: the status this error is reported as, never the `404` the balancer sent. */

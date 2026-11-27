@@ -4,8 +4,9 @@
  * `nav`; `<main>` is the `main` container and reserves the bar plus the floating button; `--bottom-chrome` is the bar's
  * height below `nav` and 0 from it or on a focused task, where the tab bar is gone; and the collapse writes its cookie.
  */
+import '@commise/ui/testing/resize-observer';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { use, type ReactNode } from 'react';
 
 import { homeMessages } from '@commise/features-core/home';
@@ -13,6 +14,8 @@ import { RECIPE_HOME_WIDGET_CAPABILITY } from '@commise/features-recipes';
 import { MainElementContext } from '@commise/ui/main-element';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { ScrollHost } from '@commise/ui/scroll-host';
+import { SnackbarHost, useSnackbar } from '@commise/ui/snackbar';
+import { reportResizeOf, resizeObserver } from '@commise/ui/testing/resize-observer';
 
 import { webMessages } from '@/i18n/messages';
 
@@ -272,5 +275,60 @@ describe('HomeChrome (web) — the <main> it hands its page', () => {
         );
 
         expect(seen.at(-1)).toBe(screen.getByRole('main'));
+    });
+});
+
+describe('HomeChrome (web) — the snackbar follows the tab bar while it shows', () => {
+    const ShowButton = (): ReactNode => {
+        const { show } = useSnackbar();
+
+        return (
+            <button type="button" onClick={() => show({ message: 'Removed Pasta' })}>
+                show
+            </button>
+        );
+    };
+
+    afterEach(() => {
+        resizeObserver.observed.clear();
+        vi.restoreAllMocks();
+    });
+
+    it('sits 16 above the bar, and moves with the bar when it grows after the snackbar showed', () => {
+        let barHeight = 64;
+
+        vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(
+            () => ({ height: barHeight }) as DOMRect,
+        );
+        render(
+            <SnackbarHost>
+                <ShowButton />
+                <SidebarPreferenceProvider collapsed={false}>
+                    <ScrollHost>
+                        <HomeChrome
+                            chrome={chrome}
+                            locale="en"
+                            liveCapabilities={[RECIPE_HOME_WIDGET_CAPABILITY]}
+                            activeId="home"
+                            profile={{ status: 'ready', name: 'Eliza' }}
+                            newRecipe={(): ReactNode => <span />}
+                        >
+                            <h1>Page</h1>
+                        </HomeChrome>
+                    </ScrollHost>
+                </SidebarPreferenceProvider>
+            </SnackbarHost>,
+        );
+        fireEvent.click(screen.getByRole('button', { name: 'show' }));
+
+        expect(screen.getAllByRole('status')[0]?.style.bottom).toBe('80px');
+
+        barHeight = 128;
+        act(() => {
+            reportResizeOf(resizeObserver.observed);
+        });
+
+        // Kills: a shell that never tells the host its bar resized, which leaves the snackbar over the tab icons.
+        expect(screen.getAllByRole('status')[0]?.style.bottom).toBe('144px');
     });
 });

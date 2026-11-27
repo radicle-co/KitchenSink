@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { resizeEntryOf, reportResize, resizeObserver } from '../resizeObserver.js';
+import { resizeEntryOf, reportResize, reportResizeOf, resizeObserver } from '../resizeObserver.js';
 
 afterEach(() => {
     resizeObserver.observed.clear();
@@ -68,5 +68,52 @@ describe('reportResize', () => {
         reportResize([other]);
 
         expect(callback.mock.calls[0]?.[0]).toEqual([resizeEntryOf(other)]);
+    });
+});
+
+describe('the options a node was observed with, and reaching every observer', () => {
+    afterEach(() => {
+        resizeObserver.observers.clear();
+        resizeObserver.options.clear();
+    });
+
+    it('records the options of each watched node, and forgets them with the node', () => {
+        const node = document.createElement('div');
+        const observer = new ResizeObserver(vi.fn());
+
+        observer.observe(node, { box: 'border-box' });
+
+        expect(resizeObserver.options.get(node)).toEqual({ box: 'border-box' });
+
+        observer.unobserve(node);
+
+        expect(resizeObserver.options.has(node)).toBe(false);
+    });
+
+    it('reaches the observer that watches a node even when another observer was built after it', () => {
+        const watched = vi.fn<ResizeObserverCallback>();
+        const later = vi.fn<ResizeObserverCallback>();
+        const node = document.createElement('div');
+        const other = document.createElement('div');
+
+        new ResizeObserver(watched).observe(node);
+        new ResizeObserver(later).observe(other);
+        reportResizeOf([node]);
+
+        // Kills: reaching only the observer built last, which is how a node watched earlier went unreported.
+        expect(watched).toHaveBeenCalledOnce();
+        expect(later).not.toHaveBeenCalled();
+    });
+
+    it('stops reaching an observer that disconnected', () => {
+        const callback = vi.fn<ResizeObserverCallback>();
+        const node = document.createElement('div');
+        const observer = new ResizeObserver(callback);
+
+        observer.observe(node);
+        observer.disconnect();
+        reportResizeOf([node]);
+
+        expect(callback).not.toHaveBeenCalled();
     });
 });

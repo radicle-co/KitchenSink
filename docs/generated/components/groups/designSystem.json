@@ -6,11 +6,11 @@
     "coverage": {
         "components": 101,
         "implementations": 163,
-        "props": 1254,
+        "props": 1255,
         "documentedComponents": 101,
         "implementationsWithModuleDoc": 163,
         "implementationsWithComponentDoc": 149,
-        "documentedProps": 1062,
+        "documentedProps": 1063,
         "classifiedComponents": 94,
         "componentsWithPatternTag": 101,
         "crossPlatformComponents": 62
@@ -13034,7 +13034,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx",
                     "dir": "packages/apps/commise/ui/src/popupInsets",
-                    "moduleDoc": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once.\n\nIt provides `PopupInsetsContext` to the popups below it, as a bare context provider did, and registers the same\nreader upward with the snackbar host's registry, one level deeper than the provider around it. So every page that\nprovides insets reports them to the host without page code, and a nested provider (the editor inside the app shell)\noutranks the one around it. It withdraws its entry on unmount and touches only its own.\n\nPresentational glue: props → context providers, plus the one registration effect.",
+                    "moduleDoc": "@commise/ui/popup-insets — {@link PopupInsetsProvider}: a page publishes the chrome it draws, once.\n\nIt provides `PopupInsetsContext` to the popups below it, as a bare context provider did, and registers the same\nreader upward with the snackbar host's registry, one level deeper than the provider around it. So every page that\nprovides insets reports them to the host without page code, and a nested provider (the editor inside the app shell)\noutranks the one around it. It withdraws its entry on unmount and touches only its own. A page that can tell when its\nchrome resizes passes a `watch`, which rides in the entry so the host re-places a snackbar that is showing; a new\n`watch`, like a new reader, re-registers.\n\nPresentational glue: props → context providers, plus the one registration effect.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -13057,6 +13057,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "Reads the page's chrome extent now. Stable (memoised) where the page can: a new reader re-registers.",
+                            "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
+                        },
+                        {
+                            "name": "watch",
+                            "type": "PopupInsetsWatch",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Tells the host when the chrome resizes, so a snackbar that shows follows it. Stable where the page can.",
                             "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
                         }
                     ],

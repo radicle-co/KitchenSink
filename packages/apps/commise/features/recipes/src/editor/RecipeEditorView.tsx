@@ -19,6 +19,7 @@
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
 import { LiveRegion } from '@commise/ui/live-region';
 import { PopupInsetsProvider } from '@commise/ui/popup-insets';
+import { useResizeWatch } from '@commise/ui/resize-watch';
 import { usePinnedFooter } from '@commise/ui/pinned-footer';
 import { ScrollHost } from '@commise/ui/scroll-host';
 import { SectionIndex } from '@commise/ui/section-index';
@@ -124,6 +125,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
     useEditorScrollPadding({ pinned: !pinning.unpinned, height: pinning.footerHeight, topHeight: pinning.topHeight });
 
     const readInsets = useCallback(() => readChromeInsets(EDITOR_TOP_CHROME_IDS, EDITOR_ACTION_BAR_ID), []);
+    const watchInsets = useResizeWatch(pinning.footer);
     const [firstAction, secondAction] = chrome.failure?.actions ?? [];
     // The section bar sticks at the header's height. The class is the fallback until the header is measured, so the server
     // render and the first client render agree; a header that wraps (a status line, 200% text) then moves the bar down.
@@ -131,7 +133,7 @@ const EditorPage: FC<RecipeEditorViewProps> = (props) => {
         pinning.topHeight > 0 ? { '--top-chrome': `${String(pinning.topHeight)}px` } : undefined;
 
     return (
-        <PopupInsetsProvider reader={readInsets}>
+        <PopupInsetsProvider reader={readInsets} watch={watchInsets}>
             <div
                 className="flex min-h-dvh flex-col bg-canvas [--top-chrome:3.5rem]"
                 style={frameStyle}

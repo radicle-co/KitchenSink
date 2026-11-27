@@ -21,6 +21,7 @@
  */
 import type { HomeNavItemId } from '@commise/features-core';
 import { PopupInsetsProvider } from '@commise/ui/popup-insets';
+import { useResizeWatch } from '@commise/ui/resize-watch';
 import { MainElementContext } from '@commise/ui/main-element';
 import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
 import { useCallback, useState, type JSX, type ReactNode } from 'react';
@@ -79,6 +80,7 @@ export function HomeChrome({
     // place themselves. A new reader only when the bar node changes.
     const [tabBar, setTabBar] = useState<HTMLElement | null>(null);
     const readInsets = useCallback(() => tabBarInsets(tabBar), [tabBar]);
+    const watchInsets = useResizeWatch(tabBar);
     // The slot a pushed page draws its pinned bar into: the first thing in `<main>`, ahead of the notice, so Back comes
     // before the notice in reading and focus order as it does on the screen (a bar drawn by the page would come after).
     const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
@@ -118,7 +120,7 @@ export function HomeChrome({
                 }`}
             >
                 <MainElementContext value={mainElement}>
-                    <PopupInsetsProvider reader={readInsets}>
+                    <PopupInsetsProvider reader={readInsets} watch={watchInsets}>
                         <PinnedBarSlotContext value={barSlot}>
                             {/* Empty: the bar is `fixed`, so the slot takes no room. */}
                             <div ref={setBarSlot} />

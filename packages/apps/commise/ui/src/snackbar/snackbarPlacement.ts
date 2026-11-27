@@ -6,9 +6,12 @@
  * is picked by the same rule as the outlets (`topEntry`): the deepest provider, the latest among equals. The snackbar
  * sits the gap above that page's bottom chrome, and at the base gap when no page provides any.
  *
- * It re-places when an entry registers or unregisters, and when `place()` is called as a snackbar shows. A reader
- * measures the page, so it is read only then, never from `getBottom`, which React calls during render. A chrome that
- * resizes while a snackbar shows is not re-read until the next of those: no worse than the snapshot it replaces.
+ * It re-places when an entry registers or unregisters, when `place()` is called as a snackbar shows, and when an
+ * entry's `watch` says its chrome resized. A reader measures the page, so it is read only then, never from
+ * `getBottom`, which React calls during render. The watch starts when the entry registers and stops when it withdraws,
+ * so the store holds no listener of its own. It follows the chrome's SIZE only: a bar that moves without resizing (the
+ * editor's bar leaving the viewport's foot as the page scrolls, or a viewport that changes height) is read again at
+ * the next of the events above.
  *
  * @pattern Observer — a store of the page entries, read by the host through `useSyncExternalStore`
  */
@@ -63,9 +66,11 @@ export function createSnackbarPlacement(): SnackbarPlacement {
         place,
         register: (entry) => {
             stack = registerOutlet(stack, entry);
+            const stopWatching = entry.watch?.(place);
             place();
 
             return () => {
+                stopWatching?.();
                 stack = unregisterOutlet(stack, entry.token);
                 place();
             };

@@ -2,7 +2,7 @@
  * The step a timer belongs to, found by its digest (not its index) so an edit moves the timer with its step. Rows:
  * a blank step before the timer's step, a step edited after the timer started, another recipe, and no recipe.
  */
-import { stepDigest } from '@kitchensink/cooking-core';
+import { stepDigestsOf } from '@kitchensink/cooking-core';
 import { describe, expect, it } from 'vitest';
 
 import { makeCookingRecipe } from '../../__fixtures__/makeCookingRecipe.js';
@@ -13,7 +13,7 @@ const steps = (...instructions: string[]) => instructions.map((instruction, i) =
 const timerAt = (stepIndex: number, text: string, recipeId = 'r1') => ({
     recipeId,
     stepIndex,
-    stepDigest: stepDigest(text),
+    stepDigest: stepDigestsOf([{ stepNumber: 1, instruction: text }])[0] ?? '',
 });
 
 describe('timerStepOf', () => {

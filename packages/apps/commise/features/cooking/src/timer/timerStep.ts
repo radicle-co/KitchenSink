@@ -5,7 +5,7 @@
  * @pattern Specification — a pure rule that answers "which step is this timer's?" for every caller (the exit message,
  * the timer dock) from one place.
  */
-import { cookingStepsOf, matchStepStrict, stepDigest } from '@kitchensink/cooking-core';
+import { cookingStepsOf, matchStepStrict, stepDigestsOf } from '@kitchensink/cooking-core';
 import type { ActiveTimer } from '@kitchensink/cooking-core';
 
 import type { CookingRecipe } from '../cookingViewProps.js';
@@ -31,9 +31,7 @@ export function timerStepOf(
     }
 
     const steps = cookingStepsOf(recipe.steps);
-    const byNumber = new Map(recipe.steps.map(({ stepNumber, instruction }) => [stepNumber, instruction]));
-    const digests = steps.map(({ stepNumber }) => stepDigest(byNumber.get(stepNumber) ?? ''));
-    const at = matchStepStrict({ index: timer.stepIndex, digest: timer.stepDigest }, digests);
+    const at = matchStepStrict({ index: timer.stepIndex, digest: timer.stepDigest }, stepDigestsOf(recipe.steps));
     const step = at === undefined ? undefined : steps[at];
 
     return at === undefined || step === undefined ? stored : { number: at + 1, lines: step.lines };

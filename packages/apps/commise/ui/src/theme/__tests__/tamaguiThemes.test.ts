@@ -137,10 +137,6 @@ describe('tamaguiThemes', () => {
     });
 });
 
-/**
- * The sub-themes are partial: Tamagui 3 merges a sub-theme with its parents (`proxyThemeToParents`), so a tone theme
- * holds only the five keys that differ by tone and the role list is stated once, in the parent.
- */
 describe('the elevation shadow keys', () => {
     it('names one key per level that draws a shadow, and none for the focus halo', () => {
         expect([...ELEVATION_LEVELS]).toEqual(['sm', 'md', 'lg', 'xl']);
@@ -167,6 +163,10 @@ describe('the elevation shadow keys', () => {
     );
 });
 
+/**
+ * The sub-themes are partial: Tamagui 3 merges a sub-theme with its parents (`proxyThemeToParents`), so a tone theme
+ * holds only the five keys that differ by tone and the role list is stated once, in the parent.
+ */
 describe('the surface-tone sub-themes (audit H3)', () => {
     const reserved = ['light', 'dark', 'primary', 'secondary', 'quiet', 'danger', 'selected'];
 

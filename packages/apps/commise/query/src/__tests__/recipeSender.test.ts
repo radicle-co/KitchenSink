@@ -448,8 +448,8 @@ describe('recipeSender — a delete that meets a 404', () => {
         ],
         ['update', { id: 'r1', input: { expectedVersion: 5, title: 'Soup' } }],
     ])('⛔ a %s that meets the ALB code-less 404 is not processed (503)', async (kind, payload) => {
-        const albFetch = (async () =>
-            new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } })) as typeof fetch;
+        const albFetch: typeof fetch = () =>
+            Promise.resolve(new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } }));
         const client = new RecipeServiceClient({
             baseUrl: 'https://recipes.example.test',
             token: 'tok',

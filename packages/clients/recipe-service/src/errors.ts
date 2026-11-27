@@ -307,7 +307,7 @@ export function isFetchUnavailableError(error: unknown): error is FetchUnavailab
  * A `502 SOURCE_UNAVAILABLE`: a route needed the food service and could not ask it. Nothing was done. Carries no
  * retry window, because nothing on our side knows when food recovers.
  *
- * Also what a `404` with no service envelope becomes: the shared ALB's own answer for a host or path with no rule
+ * Also what a `404` whose body is not a JSON object becomes: the shared ALB's own answer for a host or path with no rule
  * (ADR-0003). The request never reached the service, so nothing was done there either, and the same transient
  * handling is right. The status and code stay `502 SOURCE_UNAVAILABLE`; read the message, not the code, for the cause.
  */

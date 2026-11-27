@@ -16,13 +16,19 @@ import { stubFetch } from './utils/fetchDouble.js';
 
 const BASE = 'https://recipes.example.test';
 
+/** A `fetch` that answers every call with the response `respond` builds. */
+const fetchOf =
+    (respond: () => Response): typeof fetch =>
+    () =>
+        Promise.resolve(respond());
+
 async function rejectionOf(fetchMock: typeof fetch): Promise<unknown> {
     return new RecipeServiceClient({ baseUrl: BASE, token: 'tok', fetch: fetchMock })
         .deleteRecipe('rec_1')
         .catch((caught: unknown) => caught);
 }
 
-describe('a 404 with no service body', () => {
+describe('a 404 whose body is not JSON', () => {
     it.each([
         ['an empty body', () => new Response(null, { status: 404 })],
         [
@@ -33,12 +39,8 @@ describe('a 404 with no service body', () => {
             'an HTML page',
             () => new Response('<html>404</html>', { status: 404, headers: { 'content-type': 'text/html' } }),
         ],
-        [
-            'JSON that is not the service envelope',
-            () => new Response('{"detail":"nope"}', { status: 404, headers: { 'content-type': 'application/json' } }),
-        ],
     ])('is service-unavailable, not not-found: %s', async (_name, respond) => {
-        const error = await rejectionOf((async () => respond()) as typeof fetch);
+        const error = await rejectionOf(fetchOf(respond));
 
         expect(isSourceUnavailableError(error)).toBe(true);
         expect(isNotFoundError(error)).toBe(false);
@@ -46,6 +48,14 @@ describe('a 404 with no service body', () => {
 });
 
 describe('a 404 the service answered', () => {
+    it("stays not-found for Nest's default body, which has no code, because only the service sends JSON", async () => {
+        const error = await rejectionOf(
+            stubFetch(404, { statusCode: 404, message: 'Collection not found', error: 'Not Found' }),
+        );
+
+        expect(error).toBeInstanceOf(NotFoundError);
+    });
+
     it('stays not-found for a known code', async () => {
         const error = await rejectionOf(
             stubFetch(404, { code: 'RECIPE_NOT_FOUND', message: 'Recipe rec_1 not found.' }),
@@ -68,13 +78,13 @@ describe('other statuses with no service body are unchanged', () => {
         [403, 'ForbiddenError'],
         [410, 'GoneError'],
     ])('%i keeps its own typed error', async (status, name) => {
-        const error = await rejectionOf((async () => new Response('x', { status })) as typeof fetch);
+        const error = await rejectionOf(fetchOf(() => new Response('x', { status })));
 
         expect(error).toMatchObject({ name });
     });
 
     it('a 500 stays an unexpected response', async () => {
-        const error = await rejectionOf((async () => new Response('x', { status: 500 })) as typeof fetch);
+        const error = await rejectionOf(fetchOf(() => new Response('x', { status: 500 })));
 
         expect(error).toBeInstanceOf(UnexpectedResponseError);
     });

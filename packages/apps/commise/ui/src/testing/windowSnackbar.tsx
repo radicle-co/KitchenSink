@@ -8,7 +8,7 @@
  *
  * @pattern Test Double (Spy) — a button that shows one snackbar with an Undo, and a record of its press
  */
-import { act, screen, within } from '@testing-library/react';
+import { act, screen, within, type ByRoleOptions } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import type { JSX } from 'react';
 import { expect, vi, type Mock } from 'vitest';
@@ -42,6 +42,38 @@ export function SnackbarProbe(): JSX.Element {
             show probe
         </button>
     );
+}
+
+/**
+ * The snackbar's status region in one web window, and a check of the layout around it. A web window holds exactly two
+ * `status` elements: the announcement slot, then the snackbar's own region as its next sibling and the last element
+ * child of the window (the offline notice speaks through the slot). It throws unless all three hold, so every row that
+ * reads the region also fails when the slot is missing, doubled, nested in the region or placed after it. Never find
+ * the region by its text: a snackbar written into the slot would pass.
+ *
+ * @param win - The window's element (its dialog, or the box a `WindowScope` sits in).
+ * @param options - The `getAllByRole` options, for a window that is hidden from the accessibility tree.
+ * @returns The snackbar's region.
+ * @throws Error when the window's two status elements are not laid out as the outlet draws them: the slot, then the
+ *     region, last.
+ */
+export function snackbarRegionOf(win: HTMLElement, options?: ByRoleOptions): HTMLElement {
+    const statuses = within(win).getAllByRole('status', options);
+    const region = present(statuses.at(-1), 'the snackbar region');
+
+    if (statuses.length !== 2) {
+        throw new Error(`Expected the slot and the region, found ${String(statuses.length)} status elements.`);
+    }
+
+    if (region.parentElement?.lastElementChild !== region) {
+        throw new Error('Expected the snackbar region to be the last element child of its window.');
+    }
+
+    if (region.previousElementSibling !== statuses[0]) {
+        throw new Error('Expected the announcement slot right before the snackbar region.');
+    }
+
+    return region;
 }
 
 /** Every status region, hidden or not, that holds the probe's message. */

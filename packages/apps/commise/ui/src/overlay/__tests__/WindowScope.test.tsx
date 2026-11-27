@@ -9,6 +9,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { SnackbarHost } from '../../snackbar/SnackbarHost.js';
 import { useSnackbar } from '../../snackbar/useSnackbar.js';
 import { OverlayDepthContext } from '../overlayDepthContext.js';
+import { snackbarRegionOf } from '../../testing/windowSnackbar.js';
 import { WindowScope } from '../WindowScope.js';
 
 afterEach(cleanup);
@@ -56,7 +57,7 @@ describe('WindowScope (web)', () => {
         ).toEqual(['1', '2']);
     });
 
-    it('adds no element of its own: its children, then one status region', () => {
+    it('adds no element of its own: its children, then the announcement slot and one status region', () => {
         render(
             <SnackbarHost>
                 <Box>
@@ -67,9 +68,10 @@ describe('WindowScope (web)', () => {
             </SnackbarHost>,
         );
 
-        // Kills: a wrapping element (a `div` around the content changes its layout and Radix's focus walk), and an
-        // outlet that comes before the content.
-        expect([...box().children].map((node) => node.tagName)).toEqual(['P', 'DIV']);
+        // Kills: a wrapping element (a `div` around the content changes its layout and Radix's focus walk), an outlet
+        // that comes before the content, and a slot that is missing, nested in the region or placed after it.
+        expect([...box().children].map((node) => node.tagName)).toEqual(['P', 'SPAN', 'DIV']);
+        expect([...box().children].map((node) => node.getAttribute('role'))).toEqual([null, 'status', 'status']);
         expect(box().lastElementChild?.getAttribute('role')).toBe('status');
     });
 
@@ -92,7 +94,8 @@ describe('WindowScope (web)', () => {
             screen.getByText('show Saved').click();
         });
 
-        expect(within(screen.getByRole('dialog')).getByRole('status').textContent).toBe('Saved');
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByRole('dialog')).textContent).toBe('Saved');
 
         rerender(<Page open={false} />);
 
@@ -110,7 +113,8 @@ describe('WindowScope (web)', () => {
             </SnackbarHost>,
         );
 
-        expect(within(box()).getByRole('status').style.bottom).toBe('calc(72px + 1rem)');
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(box()).style.bottom).toBe('calc(72px + 1rem)');
     });
 
     it('sits 16 above its foot with no footHeight', () => {
@@ -122,7 +126,8 @@ describe('WindowScope (web)', () => {
             </SnackbarHost>,
         );
 
-        expect(within(box()).getByRole('status').style.bottom).toBe('');
-        expect(within(box()).getByRole('status').className).toContain('bottom-4');
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(box()).style.bottom).toBe('');
+        expect(snackbarRegionOf(box()).className).toContain('bottom-4');
     });
 });

@@ -10,45 +10,230 @@ or recipe answers 404, never 403.
 
 ```text
 source: { classification: 'open' | 'thirdParty' | 'paid', domain: string | null }
-offer:  { kind: 'choice', credit: 'free' | 'paid' } | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'budget' | 'optOut' | 'under16' | 'noSteps' | 'switchOff' | 'publicPending' | 'publicReview' | 'optOut' }
-        | { kind: 'publicExists', recipeId: string }   // one public version per source page (FR-034)
-        | { kind: 'publicOnly' }   // no slot left, public possible
+offer:  PublicVersionOffer
+```
+
+`classification` is `paid` only for a clearly read paid signal. A page on the paid list with no clear signal, and an
+unknown signal, read `thirdParty` with `offer.credit: 'paid'` (FR-012b).
+
+`PublicVersionOffer` is one zod schema, `publicVersionOfferSchema`, authored in recipe-service
+`import/publicVersion/publicVersion.schema.ts`. The import item view and the offer route below both use it:
+
+```text
+PublicVersionOffer =
+          { kind: 'choice', credit: 'free' | 'paid' }
+        | { kind: 'privateOnly', reason: 'paidRecent' | 'paidSignature' | 'publisherOptOut' | 'aiOptOut' | 'budget'
+                                | 'noSteps' | 'noSourceAddress' | 'languageUnsupported' | 'languageUncertain'
+                                | 'switchOff',
+                                holdEndsOn?: string }
+          // holdEndsOn is an ISO date, present only for paidRecent when the date is known.
+          // A schema refine rejects holdEndsOn on any other reason.
+          // Only a clearly read signal gives paidRecent, paidSignature, publisherOptOut or aiOptOut. An unknown signal
+          // is never a reason: the offer is a choice (FR-012b).
+          // languageUnsupported: the detector or the platform's locale data cannot handle the language (FR-012c).
+          // languageUncertain: the language could not be decided with confidence (FR-012c).
+          // 'under16' is not a reason: age is checked at Publish. Spec 016 adds it back.
+        | { kind: 'publicExists', status: 'published' | 'writing' | 'inReview', recipeId: string | null }
+          // one public version per source page (FR-034). recipeId is null until a recipe exists.
+          // 'writing' and 'inReview' are states of an existing public version, never privateOnly reasons.
+        | { kind: 'publicOnly', credit: 'free' | 'paid' }   // no slot left, public possible
         | { kind: 'deadEnd', reason: 'paid' | 'noWrite' }
 ```
 
-The server computes `offer`. The client renders it and never derives it.
+The server computes `offer`. The client renders it and never derives it. With no free private slot the server answers `deadEnd`, never `privateOnly`, for every case that would end in "Save my copy" (reason `paid` for a paid source held back, `noWrite` for the other `privateOnly` reasons), because the save would be refused. A `publicExists` offer with no free slot offers `review.discard` as its exit.
+
+## The shown offer
+
+Start and Publish carry `shownOffer`, the offer the client rendered, cut down to the only two kinds a cook can start or
+publish from:
+
+```text
+ShownOffer = { kind: 'choice' | 'publicOnly', credit: 'free' | 'paid' }
+```
+
+Any other body is a `400`. The server runs one pure function, `publishGate(offer, shownOffer)`. It allows the call
+when the offer the server computes now is `choice` or `publicOnly` and its `credit` equals the shown `credit`, and
+otherwise answers `409 { code: 'offerChanged', offer }`. It never compares slots (`choice` and `publicOnly` differ by
+a slot fact only). The budget is checked at Start only. Publish ignores it, and a retry over the ceiling ends the job
+`budgetSpent` in the worker. When the server computes the offer at Start and at Publish, it excludes the caller's own
+live job and its reservation, so the same cook's job never reads as `publicExists`. If the page is now held by
+another cook's version, the answer is `409 { code: 'publicExists', recipeId }` (`recipeId` as for starting a job),
+which takes precedence over `offerChanged`. The client never decides on its own that the offer changed. The later
+route sends the `shownOffer` it built from `GET /api/v1/recipes/{recipeId}/public-version/offer`.
+
+## Read the offer for a private copy
+
+`GET /api/v1/recipes/{recipeId}/public-version/offer` → `200 { offer: LaterOffer }`, where
+`LaterOffer = { kind: 'choice', credit } | { kind: 'privateOnly', reason, holdEndsOn? } | { kind: 'publicExists', status, recipeId }`
+(the same shapes as above). The private copy already holds its slot, so this route never answers `publicOnly` or
+`deadEnd`. Owner only, and it needs a token. It answers `404` for another cook's recipe, a missing recipe, or a recipe
+with no source record. The recipe read
+carries the owner-only field `hasSourceRecord: boolean` (see below), which tells the client whether to show "Share a
+public version" at all. The client calls this route on tap, with no cache (`usePublicVersionOffer(recipeId, { enabled:
+false })`, `staleTime` 0). If the offer changes after that, the `409 offerChanged` of Start covers it.
+
+## Owner-only field on the recipe read
+
+`GET /api/v1/recipes/{id}` gains `hasSourceRecord: boolean`: true when a `recipe_source_records` row exists whose
+`evidence_id` equals the recipe's evidence row (several rows: the latest `recorded_at`; `evidence_id` is indexed).
+Only an import writes a record, so an editor edit never changes it. It is present for the owner only and omitted for every other
+viewer, like the other owner-only fields (ADR-0090). It is computed the way `publicNeedsCheck` is computed.
+
+The same read, `GET /api/v1/recipes/{id}` only (no list read carries it), carries the owner-only `publicVersionJob: { jobId, state } | null`: the latest job (by `created_at`) whose `private_recipe_id` is the recipe, or `null`. P6 uses it to show the `yourImports.publicWriting` or `yourImports.publicReady` line, which opens the writing or review screen (a Both path left while writing, or a later route in progress). After the job's 24-hour expiry it is no longer routed to, and the later route's "Share a public version" stays.
+
+`GET /api/v1/recipes/{id}` also carries, for the owner only, `sourceRecordId: string | null`, the key the copy guard reads ("The copy guard", below).
+
+`GET /api/v1/recipes/{id}` carries `credit: { checker: CreditCook | null } | null`. `checker` names a cook only to the owner of the public version: it is built from the caller's own display name and username, read through `AuthorHandlesDal.findByline(principal.userId)` and `resolveByline` (`RS/authors/domain/bylinePolicy.ts`), the caller-byline path `RecipesService.bylineIn` already uses for a write. T407 tests it and T408 builds it. For every other reader (the owner of a copy, any reader of another cook's version), and for a public version whose owner reads as erased, `checker` is `null` and the clients show `credit.writtenNoCook`: no name is promised to a reader other than the owner (003A: `author` is absent before 012). `publicVersionJob`, `hasSourceRecord` and `sourceRecordId` stay owner-only, as ADR-0095's `statementKind`, `publicNeedsCheck` and `publicNeedsStatement` already are: a non-owner reader receives none of them.
+
+A cook's name is never hidden in one place and shown in another on the same screen. On a public version, the read sends `authorDisplayName` and `authorUsername` only when `credit.checker` is non-null. The one other case is an owner who reads as erased (the server decides: `author_erased`, or `isPseudonymizedAuthorHandle` on the stored handle until closure plan U3b ships). The read then sends the closed fact `author: { kind: 'former' }` (003A's `PublicAuthor` arm, `specs/003A-signed-out-reading/contracts/publicRecipeRead.md`) and no `authorDisplayName`, no `authorUsername` and no handle: no author field and no `user_` string is in the body (`016-FR-076`, `016-FR-037`). `ownerId` stays a required field. Once closure plan U3b ships it carries U3b's per-recipe owner token, and U3b owns that change. The client's byline maps the arm to `former` ("a former member"), and the credit line still says `credit.writtenNoCook`. T407 tests it, T408 builds it and T113 maps it in `bylineOf`. ⚠️ This is a wire addition to the in-app recipe detail: `author` is not on `GET /api/v1/recipes/{id}` today, and it carries only the `former` arm there.
+
+`CreditCook = { displayName: string | null, username: string | null }` (`creditCookSchema`, declared once in recipe-core, `packages/shared/recipe-core/src/recipe.types.ts`; it carries at least one non-blank name). It holds the owner's own names only: no account id is on the wire.
+
+Every field this section adds to the recipe read (`credit`, `sourceRecordId`, `hasSourceRecord`, `publicVersionJob` and `author`) is declared in recipe-core's `recipeDetailSchema`, next to `publicNeedsCheck`, not in recipe-service: the client parses the detail with that schema (`packages/clients/recipe-service/src/client.ts`), the schema is non-strict, and a field it does not declare is stripped before a component sees it. T408 declares them. The service's own response mapper and DTO only fill them.
+
+The signed-out public read (`GET /api/v1/public/{locale}/recipes/{id}`, 003A) carries its own `credit`. 003A owns that shape, and this feature adds no key to it.
+
+## The copy guard (FR-062a)
+
+One pure Specification, `copyGuard` (T403), keyed on `source_record_id` and never on `cloned_from_id`, which erasure can clear. Its refusal is `400 INVALID_VISIBILITY` with `details.reason: 'PUBLIC_VERSION_COPY'`, a member of `invalidVisibilityReasonSchema`, and its own `PolicyDenial` arm. It is not a new published code: it follows `sourceConflictRefused` and `statementRequiredRefused` in `recipe.error.ts`, so a client can tell it from the other `INVALID_VISIBILITY` refusals. The answer at every door:
+
+| Door                              | Answer                                                                                                                                                                                                                                     |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Make public (`setVisibility`)     | `400 INVALID_VISIBILITY`, `details.reason: 'PUBLIC_VERSION_COPY'`. Nothing is written.                                                                                                                                                     |
+| Publish                           | The same `400`. Nothing is written.                                                                                                                                                                                                        |
+| Both                              | The same `400`, before the Both path's private save writes anything.                                                                                                                                                                       |
+| The later route (offer and Start) | The offer never lists the route for a copy (`hasSourceRecord` is false when `source_record_id` is set). Start answers the same `400`, with no job and nothing written.                                                                     |
+| An import's public choice         | The save's create answers `INVALID_VISIBILITY`, and `importAdvance.service.ts` maps any `INVALID_VISIBILITY` to `createRefused`: the item is held with the cook's facts and nothing is published. The import path answers `createRefused`. |
+| The erasure's publish election    | It skips the row and answers nothing. The row is never published.                                                                                                                                                                          |
+
+The client refuses it through the one refusal rule, `publicRefusalOf` (T405): `sourceRecordId` is one of its facts and `publicVersionCopy` is one of its reasons, so the recipe menu does not offer Make public on a copy, the page's visibility slot, the editor's Public card and the send agree, and the guard is the backstop. The Public card stays in its slot as a refused, non-selectable card with its reason line `recipeActionMessages.publicRefusal.publicVersionCopy` ("A copy of a public recipe stays private."), with no link. In the race where a client still sends Public, the editor shows `editor.publishRefused.copyNotPublic` as an inline alert above the save actions, with "Make private and save" (`editor.publishRefused.savePrivate`) beside it; the draft is kept and no toast is shown (research R8). A copy going public as the cook's adaptation is parked with `021-FR-005`.
 
 ## Start a public version
 
-`POST /api/v1/import/{importId}/items/{itemId}/public-version` with `{ choice: 'public' | 'both' }`.
-`POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy). A paid copy goes through the
-same paid-site rules.
+`POST /api/v1/import/{importId}/items/{ordinal}/public-version` with `{ choice: 'public' | 'both', shownOffer: ShownOffer }`.
+`POST /api/v1/recipes/{recipeId}/public-version` for the later route (a private copy) with
+`{ shownOffer: { kind: 'choice', credit } }` and no `choice` field. Its job has `path = 'later'`, `private_recipe_id` set and
+no import item (the item pair NULL), builds its facts from the private copy and sets `private_digest`. A paid copy goes through the
+same paid-site rules. Start on the later route locks the recipe `FOR NO KEY UPDATE`, then returns the recipe's latest job (by `private_recipe_id`, a Both job included) with `202` and checks nothing else when that job is `pending`, `writing` or `ready`, so a second device of the same cook gets the same job (FR-034) and no row is inserted. When that job is resting (`checkRefused` or `failed` below 3 attempts), Start cancels it in the same transaction, clearing its text. It then answers `409 { code: 'attemptsUsed' }` when `recipes.public_attempts` is 3, checked after the live-job return.
 
-- `202 { jobId, state }`. A second call while a live job exists returns the same job.
-- `409 { code: 'publicExists', recipeId }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
-- `409 { code: 'offerChanged', offer }`: the offer moved (budget hint, slots, allowance).
-- `429 { code: 'importAllowance' }` past the one import allowance (004-FR-061).
+- `202 { jobId, state }`. On the public-only path a second call with the same choice while a live job exists returns the live job. A Both Start saves the item, so a repeat Start on it (either choice) answers `itemSaved`, and the client reaches the live Both job through the recipe's `publicVersionJob`. A call with a changed choice cancels the item's live or resting job in the same transaction and starts a new one.
+- `409 { code: 'itemSaved', recipeId }` on the import path when the item's `saved_at` is set, for either choice. The client opens the recipe (P6). It is checked first of all.
+- `409 { code: 'attemptsUsed' }` on the import path when the item's `public_attempts` is already 3 (the cook reopened it and chose "For everyone" or "Both" again). It is checked after `itemSaved` and the same-choice live job, and before any save, so nothing is saved or charged (a Both Start at 3 saves nothing). The client shows `failed.titleFinal` and `failed.bodyFinal`, and the private exit (the wording of `review.notNow`) runs the paste's ordinary Save recipe, which cancels the item's live or resting job in the same transaction (so keepPrivate is not needed). With no free slot the client shows `failed.bodyFinalFull` and `review.discard`, which calls `DELETE /api/v1/import/{importId}` ; Start's `409` writes nothing.
+- `409 { code: 'publicExists', recipeId: string | null }`: another version of this source page is already public (FR-034). The key is released by FR-034a.
+- `409 { code: 'offerChanged', offer }`: the offer the server computes now differs from the `shownOffer` the client sent
+  (see "The shown offer"). `offer` is the current offer. Client copy: `offerChanged.line`. Publish answers the same way.
+- `409 { code: 'itemNotReady' }` on the import path when the item is not matched yet: retryable, nothing written. Publish and keepPrivate answer it too (below).
+- Start refuses an item with no statement with the import save's existing needs refusal.
+- `409 { code: 'IMPORT_AUTHORED_HAS_NO_CHOICE' }` on the import path when the locked item is authored, for either choice. Nothing is saved, charged or inserted. The item view never shows the public-version choice control for an authored item (an authored item goes public through its visibility), so this answer is reachable only in a race (the statement switched on another device); the client's response is design spec section 6.12. Paste's statement write path is `upsertItems`: a statement switched to "I wrote this" on another device is a reopening `upsertItems`, which cancels the item's live or resting job in the same transaction, so no job outlives the switch.
+- `409 { code: 'itemNotPaste' }` on the import path when the item's `channel` is `bulk`: a file-import recipe saves private (FR-092's later route is how it goes public, one at a time). Nothing is saved, charged or inserted.
+- Start checks, in order: `itemSaved`, `IMPORT_AUTHORED_HAS_NO_CHOICE`, `itemNotPaste`, a live job with the same choice (returned at once, nothing else checked), `attemptsUsed`, `itemNotReady`, the needs refusal, `publicExists`, `offerChanged`.
+- A Start that starts a new job cancels the item's live or resting job in the same transaction (the job it replaces), so no resting job keeps step text, whether or not the choice changed, and the new job reads the attempt count from its holder (the item for `public`, the recipe for `both` and `later`). Start never skips the Both path's private save for a saved item: it answers `itemSaved` instead.
+- Start spends no unit for the writer job (C-24). On the Both path of a paste item its first step is the private save, which charges the paste's unit (FR-016a), so Start can answer `429 IMPORT_QUOTA_EXCEEDED` there and then starts no job. On the public-only path Start never answers it.
+
+## Reopen: the import item view
+
+The import item view gains `publicVersionJob: { jobId, state } | null`, the item's latest job by `created_at`, or `null` when it has none (the job rows are deleted 7 days after they finish). The client routes a reopened import with it and with the item's `saved_at` (FR-044a). The recipe id is only the target to open once `saved_at` is set. It carries no job text.
 
 ## Read the job
 
 `GET /api/v1/public-version-jobs/{jobId}` →
-`{ state, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
-The output is present only in `ready`. It holds no source text.
+`{ state, attempts, output?: { title, steps: { text }[] }, refusal?: 'factMissing' | 'factAdded' | 'tooSimilar' | 'unreadable' }`.
+The output is present only in `ready`. It holds no source text, and the job's `source_steps` is never returned.
+`attempts` is read from the job's holder, chosen by its `path`: the import item's count for `public`, the private recipe's count for `both` and `later`. A job with no holder (its copy was deleted) answers `attempts: 0`. The client reads `attempts` to decide which actions to show: at `attempts === 3` it hides `wizard.retry` and
+`flag.rewrite` and shows the Final variants (FR-031).
 
 ## Publish
 
-`POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[] }` (the cook's edited version).
+`POST /api/v1/public-version-jobs/{jobId}/publish` with `{ title, steps: { text }[], shownOffer: ShownOffer }` (the cook's edited version).
 
-- `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key).
-- `422 { code: 'flags', flags: { kind: 'step' | 'allergen', line?, ingredient? }[] }` from the server fact check.
-- `422 { code: 'tooSimilar' }` from the wording check, or `422 { code: 'rewriteNeeded' }` when the key version cannot be read (FR-050a).
+- `201 { recipeId }`, or `200 { recipeId }` for a job already published (idempotent on the source page key). On the public-only path the same transaction runs `claimSave` with the public recipe's id, under the import header lock, using the `decision_rev` read under that lock: it records the recipe id and `saved_at` on the item and clears the item's draft (`payload`). On the Both path Publish does not write the item.
+- The unit charge of FR-016a runs inside the Publish transaction, after the server fact check and the wording check have passed (so a `422 flags`, a `422 tooSimilar` or a `503 checkUnavailable` rolls back before anything is charged), and after the lock order of the data model, on the same `allowance_spent_at` guard as keepPrivate. On the public-only path Publish charges the unit. On the Both path the private save already set the guard, so Publish charges nothing, and the later route (no import item) charges nothing. A refusal by `admit` rolls the transaction back and answers `429 IMPORT_QUOTA_EXCEEDED`, and the job stays `ready`. A replay never charges twice.
+- `409 { code: 'itemNotReady' }` on the public-only path when the item is not matched yet, checked under the item lock before the recipe insert: retryable, nothing written, nothing charged. An `ImportItemChangedError` from `claimSave` rolls the transaction back and answers the same.
+- `422 { code: 'flags', flags: { kind: 'step' | 'allergen' | 'factAdded', line?, ingredient? }[] }` from the server fact check.
+  `factAdded` carries the added `line`.
+- `422 { code: 'tooSimilar' }` from the wording check.
+- `503 { code: 'checkUnavailable' }` when the stored fingerprint's key version cannot be read. It is retryable and
+  raises the alarm. The job stays `ready` and no attempt is spent, so the client can send Publish again (FR-050a).
 - `409 { code: 'privateCopyChanged' }` on the Both path (FR-045).
+- `409 { code: 'offerChanged', offer }` as for starting a job.
+- `409 { code: 'publicExists', recipeId }` when another cook's version now holds the page. It takes precedence over
+  `offerChanged`.
+- `403 { code: 'ageConfirmNeeded' }`: the principal has no `publishAgeMet`, the `Principal` field parsed from the signed `public_metadata.ageFloorMet` claim (`publishAgeAllowed`, FR-016). Only
+  Publish is gated, and so is the Publish step of the later route. The client shows `ageConfirm.*` (wording
+  `ageConfirm.v1`). On "I'm 16 or over" it calls the identity route below, then `getToken({ skipCache: true })` (on
+  mobile with the `commise-native` template), then retries Publish once. A second `403` shows an error and never loops.
+
+## Identity: age assurance
+
+`POST /api/v1/me/age-assurance` with `{ floor: 16, wordingVersion: 'ageConfirm.v1', locale }`. It writes the
+`age_assurances` row first, then sets the Clerk `public_metadata.ageFloorMet` claim to the integer `16`. It is idempotent.
+
+- `204` on success. A repeat call writes no second row.
+- `503` when the claim write fails. The row stays, and a retry writes only the claim.
+
+## Retry
+
+`POST /api/v1/public-version-jobs/{jobId}/retry` → `202 { state: 'pending' }`. It serves "Write it again" (job `ready`
+after `422 flags`, `422 tooSimilar` or `409 privateCopyChanged`) and "Try again" (job `checkRefused` or `failed`), while
+fewer than 3 attempts are used. The attempt count belongs to the holder (FR-031) and no allowance unit is spent.
+
+- `409 { code: 'attemptsUsed' }` at 3 attempts. The client refetches the job (`GET`) and re-renders from its state and
+  attempts.
+- `409 { code: 'publicExists', recipeId }` when re-entering `pending` collides with another cook's live job on the page.
+- After `privateCopyChanged` it rebuilds the facts snapshot, the source steps and the private digest from the changed private copy.
+- A job in `pending`, `writing`, `published`, `cancelled` or `budgetSpent` answers `409 { code: 'notRetryable' }`, and so does a job with no holder (a `both` job whose copy was deleted). Otherwise the job's state alone decides it.
 
 ## Cancel
 
-`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state: 'cancelled' }`. Idempotent.
+`POST /api/v1/public-version-jobs/{jobId}/cancel` → `200 { state }`. Idempotent. The transitions are in the data-model
+"State transitions" list, which is the one statement of them: every state except `published` ends `cancelled`,
+`budgetSpent` included, and a `published` job stays `published`, so `state` is the job's state after the call. In the same
+UPDATE it clears `facts_snapshot`, `source_steps` and `output`. It saves nothing and spends no allowance unit (FR-016a).
+It is an explicit discard on the public-only path (`review.discard`, Stop, and the offer after `403 PRIVATE_SLOTS_FULL`): after it ends the
+job it calls `ImportService.delete` in its own transaction, so the import's header goes, its items and lines cascade away
+with the item's draft, and the job's item pair goes to NULL. The import is no longer listed (FR-044a), and a later keepPrivate on the
+job answers `409 notKeepable` and charges nothing. Cancel on an already-cancelled public-only job is idempotent: if the item pair is still set it runs `ImportService.delete` again and answers as the first call did, and if the pair is NULL it does nothing and answers `200`. A discard with no job at all (the cook has not started one) uses the existing import delete, `DELETE /api/v1/import/{importId}`. On the Both path, and on any item that is already saved, every exit (Stop, Back from the writing screen or from the review, `review.notNowBoth`, `failed.done` and the blocked and final exits) calls cancel and the client goes to the private copy (P6): the job ends and the private copy stays. Nothing returns to the choice page (P5). On the later route cancel stops only the public-version job and never touches the cook's saved private recipe. On the public-only path Back from the review calls no route (FR-044). The expiry at 24 hours and the sweep end the job the same way
+but clear only the job's own text, never the item's draft, and delete nothing (FR-033). The public-only path's private exits do not use this
+route: they use keepPrivate below.
+
+## Keep a private copy
+
+`POST /api/v1/public-version-jobs/{jobId}/keepPrivate` → `201 { recipeId }`, and a replay answers `200` with the same
+`recipeId`. It serves `review.notNow`, `button.private` and the private exits of the failed and blocked-final
+screens on the public-only path (the job's `path` is `public`). It never infers a state from the item's recipe id. The checks run in this order:
+
+1. A job whose `path` is not `public` (a `both` job whose copy was deleted included), or that has no item (a discard deleted the import), answers `409 { code: 'notKeepable' }`. The path is read from the job's `path` column, never from `private_recipe_id`.
+2. A `published` job answers `409 { code: 'notKeepable' }`.
+3. An item with `saved_at` set answers `200 { recipeId }` with the item's recipe id, or `409 { code: 'notKeepable' }` when that recipe id is NULL.
+4. A `cancelled` job answers `409 { code: 'notKeepable' }`.
+5. An item that is not matched yet (`stage` not `matched`, checked under the item lock before the recipe insert) answers `409 { code: 'itemNotReady' }`, retryable, with nothing written and nothing charged. It comes after the `cancelled` check, so a replay still wins. An `ImportItemChangedError` from `claimSave` rolls back and answers the same.
+
+- One transaction, in the lock order of the data model: the import header, the item (`SELECT ... FOR UPDATE`), the allowance, the DD33 lock, the job. Then the unit charge below, `claimSave` of the item's draft as a private recipe with FR-021's wording (which records the recipe id and `saved_at` on the item and clears the draft), and the job moved to `cancelled` from `pending`, `writing`, `ready`, `checkRefused`, `failed` or `budgetSpent`, with `source_steps`, `facts_snapshot` and `output` set to NULL. A `budgetSpent` job answers `201`, ends `cancelled` and spends one unit.
+- The unit charge (FR-016a): `SELECT ... FOR UPDATE` on the item by `(import_id, ordinal)`. Zero rows throws `ImportItemNotFound`, never "already paid". Then, when `allowance_spent_at IS NULL`, the transaction sets it and calls `ImportAllowanceDal.admit(tx, userId, { ...scopeOf(item.channel), units: 1 })`. If admit refuses, everything rolls
+  back and the route answers `429 IMPORT_QUOTA_EXCEEDED`. When `allowance_spent_at` is already set, nothing is charged. A replay never charges twice.
+- With no free slot it answers `403 { code: 'PRIVATE_SLOTS_FULL', used, limit }` and changes nothing, so the unit is not charged either. The client swaps in place to the no-slot set (Publish and `review.discard`, FR-044) and moves focus to the alert.
+- A Publish racing it ends one way: the loser answers its own conflict and writes nothing. The bulk save takes the same lock order, so there is no deadlock to retry.
 
 ## Recipe writes
 
-`PATCH /api/v1/recipes/{id}` and version restore on a public version answer `422 { code: 'tooSimilar' }` on a
-refusal by the wording guard (FR-050). No new route.
+`PATCH /api/v1/recipes/{id}`, version restore, `setVisibility` and the publish of a draft, on a recipe with `source_record_id` set (a public version), answer `422 { code: 'tooSimilar' }` on a
+refusal by the wording guard (FR-050). When the stored fingerprint's key version cannot be read, they answer a retryable
+`503 { code: 'checkUnavailable' }` and raise an alarm (FR-050a). The editor keeps the cook's edit in its device draft. A
+save that leaves the recipe private runs no wording check, and the move into published and public does (FR-050). No new route.
+
+## Duplicate lookup
+
+`GET /api/v1/import/copies?source=<link>` →
+
+```text
+200 { copies: { recipeId: string, title: string, savedAt: string, site: string, version: number,
+                replaceable: boolean, everPublished: boolean }[],
+      total: number }
+```
+
+It lists the caller's own copies of one source page, never another cook's, and charges nothing.
+
+- `copies` holds at most 20 entries (`IMPORT_COPIES_MAX`), newest first. `savedAt` is an ISO date.
+- `everPublished` is true when the recipe's `first_published_at` is set. It is never derived from the recipe's status.
+- `total` counts every copy of the page that the cook holds, so `total >= copies.length`. A page with no copy answers
+  `{ copies: [], total: 0 }`.

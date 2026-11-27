@@ -3,7 +3,7 @@
 **Feature Branch**: single-branch directive. The spec directory is `specs/027-rewritten-steps`. The slug is neutral on purpose, because the name below waits for the owner.
 `.specify/feature.json` is not pointed here: another session uses it.
 **Created**: 2026-11-15
-**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm"). Planned
+**Status**: Draft. Clarified with assumed answers (see Clarifications, C-1 to C-21, each marked "Assumed, owner to confirm" unless it says it was ruled; C-6, C-7 and C-12 are ruled 2026-11-17). Planned
 (`plan.md`). Not built. Every user-facing surface needs `staff-ux-engineer` DISCOVER, DESIGN and SPECIFY before build.
 None has run.
 **Input**: Owner, 2026-11-15, verbatim: "we have a feature in the future that allows users to elect to have the
@@ -20,13 +20,13 @@ than the feature does ("optimized", "perfect", "smart"), must not use the words 
 not collide with names already in use ("Commise version" in `016`, "suggestion" and "rewording" in `020`, the rights
 labels "Written by you" and "Adapted by you" in `016-FR-015c`), and must read well as a localisation key.
 
-| Name             | For                                                                         | Against                                                                    |
-| ---------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| **Flow Steps**   | Says the benefit: steps that keep the cook moving. Short, verb-able, plain. | "Flow" is a little abstract until the cook has seen it once.               |
-| Cook-Ready Steps | Very clear about the job.                                                   | Long on a phone button. "Ready" can read as a status, not a version.       |
-| Clear Steps      | Calm and honest.                                                            | Flat. Implies the cook's own steps are unclear.                            |
-| Step Coach       | Friendly, fits cooking mode.                                                | Promises coaching (tips, feedback) that the facts-only writer cannot give. |
-| Kitchen Pass     | Kitchen word for the hand-off of a finished plate. Distinctive.             | Jargon most home cooks do not know. Collides with "pass" in other UIs.     |
+| Name             | For                                                                         | Against                                                                |
+| ---------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
+| **Flow Steps**   | Says the benefit: steps that keep the cook moving. Short, verb-able, plain. | "Flow" is a little abstract until the cook has seen it once.           |
+| Cook-Ready Steps | Very clear about the job.                                                   | Long on a phone button. "Ready" can read as a status, not a version.   |
+| Clear Steps      | Calm and honest.                                                            | Flat. Implies the cook's own steps are unclear.                        |
+| Step Coach       | Friendly, fits cooking mode.                                                | Promises coaching (tips, feedback) that this writer cannot give.       |
+| Kitchen Pass     | Kitchen word for the hand-off of a finished plate. Distinctive.             | Jargon most home cooks do not know. Collides with "pass" in other UIs. |
 
 **Recommendation: Flow Steps.** It is the only candidate that is short, exciting enough for a feature name, honest
 about what the cook gets, and clear of every existing term. The rest of this spec uses it. In copy, the cook's own
@@ -43,8 +43,9 @@ and AI rewrites change amounts and drop steps (`CK-006`), which is the trust pro
 (`docs/research/userNeeds/synthesis.md`).
 
 Flow Steps rewrites a recipe's steps into a cook-ready form: one action per step, prep gathered before the heat where
-the recipe allows it, waits made visible, and the whole job previewed. It keeps every amount, temperature, time,
-ingredient and safety line, and it adds none. The cook asks for it, recipe by recipe. The cook then either keeps it
+the recipe allows it, waits made visible, and the whole job previewed. It keeps every amount, temperature, time
+and ingredient, and it adds none. The wording of the steps, such as the actions and any safety instruction without a
+number, is covered by the cook's review. The cook asks for it, recipe by recipe. The cook then either keeps it
 beside the original (most useful in Cooking Mode) or uses it to replace the original.
 
 ## Dependencies
@@ -173,8 +174,10 @@ can always cook from the original steps.
 - Servings changed in Cooking Mode: Flow Steps, like the original steps, keep the recipe's own numbers and show the
   `008-FR-034a` note.
 - A step that says only "Enjoy!" or similar: carries no facts. The writer may drop it (FR-040 does not count it).
-- A recipe in a language other than the cook's app language: Flow Steps are written in the recipe's language. Only
-  English is offered at first (C-12).
+- A recipe in a language other than the cook's app language: Flow Steps are written in the recipe's own language, with no
+  translation. The writer works for every language the platform's language detector supports (C-12). A recipe in a
+  language the detector or the platform's locale data cannot handle, or whose language cannot be decided with
+  confidence, is not offered.
 - The recipe is under a takedown or a content hold: not offered while the hold stands (FR-003).
 - The model returns more steps, fewer steps, merged or split steps: allowed, as long as FR-040 passes.
 
@@ -246,21 +249,39 @@ can always cook from the original steps.
 
 #### D. How Flow Steps are written and checked (the shared engine)
 
-- **FR-035**: The writer MUST receive only a sheet of facts drawn from the recipe by code: the order of the steps, the
-  actions from a fixed list, the amounts, temperatures, times, ingredient names, equipment from a fixed list, and the
-  safety lines (FR-041). It MUST NOT receive the wording of the steps, the source address, the source statement or
-  any other recipe text. This holds for every recipe, whoever wrote it. (C-7)
+- **FR-035**: The writer MUST receive two things only: a sheet of facts drawn from the recipe by code (the order of
+  the steps, the amounts, temperatures, times read from digits, fractions and unit symbols, and the ingredient names
+  exactly as the recipe's ingredient list has them), and the recipe's own step text, in its source language. It MUST
+  NOT receive the source address, the source statement, the source title or any other recipe text (notes, headnote,
+  description). The fingerprint check of FR-042 guards against the writer copying the step text. This holds for every
+  recipe, whoever wrote it. (C-7, ruled 2026-11-17)
 - **FR-036**: The writer MUST be a model that is not made by Anthropic (owner ruling, 2026-11-17), run on Amazon Bedrock. The cook's own keys (`005-FR-015`) MUST NOT be used for Flow Steps. (C-6)
 - **FR-037**: The writer MUST rewrite into cook-ready steps: one main action per step, preparation gathered before the
   heat where the facts allow, waits named so the cook can work during them, and a short "before you start" step for
   anything that must happen well ahead (preheat, marinate, rest). It MUST NOT add tips, reasons, substitutions,
   serving ideas, or any fact not on the sheet.
 - **FR-040**: Code MUST check every result before anyone sees it, in both directions, across the whole recipe:
-    - every amount, temperature, time, ingredient name and safety line on the fact sheet appears in the result, as
-      often as on the sheet. And
-    - the result holds no amount, temperature, time, ingredient name or safety line that is not on the sheet.
-      Steps may be merged, split or reordered. A result that fails is never shown, stored or charged.
-- **FR-041**: A safety line is a statement in the steps in one of these seven categories. The plan fixes the detectors. (C-13)
+    - every amount, temperature, time and ingredient name on the fact sheet appears in the result, as often as on the
+      sheet. And
+    - the result holds no amount, temperature, time or ingredient name that is not on the sheet.
+      The check compares (quantity, unit, ingredient) triples, not bare amounts, so two amounts swapped between
+      ingredients fail. A quantity ties to an ingredient only in the shape NUM [UNIT] [of [the]] NAME. A tie is exact or
+      null: any other shape ties to nothing.
+      Every ingredient name in the result matches the recipe's ingredient list exactly, in any script. The check works in
+      any language, because it reads digits, fractions, unit symbols and digit times and temperatures only.
+      The result must be in the recipe's language, by the rule of `003B-FR-012c`: among the sentences the detector reads
+      confidently, the language with the most letters must be the recipe's language. Otherwise the result is refused
+      (log category `wrongLanguage`, wire `unreadable`). With no confidently read sentence the check passes, and so does
+      a tie that includes the recipe's language: the cook's review covers those. A few sentences in another language pass, and a result written
+      mostly in another language is refused. Verbs,
+      equipment, safety words and number words are not machine-checked. A safety instruction with no number, or an
+      amount written as a word, is checked only by the cook's review.
+      Steps may be merged, split or reordered. The step count of the result is within a range, from ⌈n/2⌉ to 2n+1
+      for n source steps, calibrated on the golden fixtures, and the sentence count is within a set range. A result that fails is never
+      shown, stored or charged.
+- **FR-041**: A safety line is a statement in the steps in one of these seven categories. Code checks only the part of
+  a safety line that carries a number (an internal or doneness temperature, a time). The rest of a safety line, such
+  as a "do not" warning or a named allergen with no number, is checked by the cook's review. (C-13)
     1. An internal or doneness temperature.
     2. Raw or undercooked meat, poultry, fish, egg or flour.
     3. Hot oil or deep frying.
@@ -272,16 +293,18 @@ can always cook from the original steps.
   close to the original (the plan sets the measure and the threshold, and this feature owns both for every consumer of
   the engine, spec 003B included) MUST NOT be shown, stored or charged. This is a
   ceiling on reuse of the original wording, not a measure of quality. The measure works on a hashed fingerprint of the
-  original wording (a versioned set of keyed hashes of word runs), not on the text. This feature takes the fingerprint
-  in memory from the saved steps. Spec 003B stores one, because it keeps no source text. Both run the one function.
+  original wording (a versioned set of keyed hashes of word runs, with words cut by the platform's word segmenter), not
+  on the text. Length limits are a ratio of the source's character count. The text is folded first: lower-cased,
+  punctuation-stripped, stripped of default-ignorable characters (soft hyphen, zero-width space and similar), and reduced by the UTS #39 skeleton so that look-alike letters compare equal. This feature takes the fingerprint
+  in memory from the saved steps. Spec 003B stores one, because its job keeps no source step text once the job ends. Both run the one function.
 - **FR-043**: Flow Steps MUST carry a credit line wherever they are shown:
     - attached, to the owner: "Steps written by Commise from this recipe." (key `recipes.flowSteps.credit.attached`);
     - after a replace on a public recipe the cook wrote: "Steps written by Commise with AI, checked by {cook}."
       (`recipes.flowSteps.credit.publicOwn`);
     - after a replace on a private copy of another site's recipe: "Steps written by Commise. Based on a recipe at
-      {domain}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {domain}" wording,
+      {site}." (`recipes.flowSteps.credit.privateSourced`). It replaces the copy's "Saved from {site}" wording,
       which no longer describes the steps (C-19).
-      A public version of an imported recipe keeps the credit line of spec 003B (`review.credit`, or `review.creditPaid`).
+      A public version of an imported recipe keeps the credit lines of spec 003B (`credit.written`, plus `credit.basedOn` for a free site).
       This feature adds no key for it (C-20).
       The credit line sits beside the rights label and the source line. It does not replace them (FR-032).
 - **FR-044**: Copy for this feature MUST NOT use any word on the one shared banned-word list, in any language. The
@@ -289,10 +312,11 @@ can always cook from the original steps.
   enforce it over every `recipes.flowSteps.*` string.
 - **FR-045**: The writer, the fact sheet, the fact check and the wording check MUST be one engine, shared with the
   import-time public version (spec [003B](../003B-public-rewrite/spec.md)) and offered to `020`'s rewording
-  suggestion (`020-FR-075`). They MUST NOT be written twice. Whichever of this feature and 003B ships first builds the
-  engine, and the other uses it. The plan says where the engine lives.
-- **FR-046**: The writer's output MUST be read as data. An answer that cannot be read, holds more steps than the plan's
-  cap, or holds text outside the step list MUST be refused, and the job ends failed. Nothing is guessed.
+  suggestion (`020-FR-075`). They MUST NOT be written twice. Spec 003B builds the engine first, and this feature uses it.
+  The engine takes its time reader and its keyed hash as injected inputs, and its fingerprint functions take sets, so the
+  shared package needs no dependency on a package that depends on it. The plan says where the engine lives.
+- **FR-046**: The writer's output MUST be read as data. An answer that cannot be read, holds more steps than 2n+1 for n source steps (the upper bound of
+  FR-040's range, under the hard ceiling of the plan), or holds text outside the step list MUST be refused, and the job ends failed. Nothing is guessed.
 
 #### E. Cost
 
@@ -354,8 +378,8 @@ can always cook from the original steps.
 - Regenerating one step at a time, or asking for a different style.
 - Flow Steps for a reader of someone else's recipe (C-2).
 - Reading Flow Steps aloud. Voice in Cooking Mode belongs to `008`.
-- Building the import-time public version (spec 003B). The shared engine is built once, by whichever of the two ships
-  first (FR-045).
+- Building the import-time public version (spec 003B). Spec 003B builds the shared engine first
+  (FR-045).
 
 ### Non-Functional Requirements _(constitution-derived)_
 
@@ -381,8 +405,9 @@ can always cook from the original steps.
 ### Measurable Outcomes
 
 - **SC-001**: On the evaluation set (at least 200 real recipes of mixed length and source), 0 Flow Steps shown to a
-  cook are missing or adding an amount, temperature, time, ingredient or safety line, measured by an independent
-  human audit of a 50-recipe sample as well as by the checks.
+  cook are missing or adding an amount, temperature, time or ingredient, measured by an independent
+  human audit of a 50-recipe sample as well as by the checks. The audit also counts the safety lines (FR-041 categories
+  2 to 7) in the sample and finds each one kept.
 - **SC-002**: At least 90% of requests on the evaluation set end with Flow Steps shown (the rest end in a stated
   refusal, never a silent one).
 - **SC-003**: A second request for an unchanged recipe makes no generation in 100% of cases, and shows Flow Steps in
@@ -396,10 +421,13 @@ can always cook from the original steps.
 ## Assumptions
 
 - The writer, the checks and the import-time public version are new. The code has no step rewording today (`020` Q-6),
-  so whichever of this feature and 003B ships first builds the engine (FR-045).
+  so spec 003B builds the engine first (FR-045).
 - 005's ledger of uses is built before or with this feature. This feature does not build a second one.
 - The plan register (`010-FR-041b`) gains a Flow Steps entry.
-- English is the only writing language at first (`025`, English markets first).
+- Every language the platform's detector supports is written. There is no list of languages and no per-language
+  reviewer: the cook's review is the language check, beyond the output check of FR-040. One language profile is derived from the platform's locale data (script,
+  sentence and word segmentation). One prompt template takes the language as a parameter, with one pin. The language is
+  the lower-case BCP 47 primary language subtag (2 or 3 letters), and the 003B source record stores the same code.
 - The figures in FR-004, FR-042 and FR-064 are set in the plan and measured on the evaluation set.
 - Flow Steps never change ingredient lists, servings, photos, the title, or nutrition.
 
@@ -407,7 +435,7 @@ can always cook from the original steps.
 
 ### Session 2026-11-15 (assumed answers. The owner was not asked, per the brief)
 
-Each answer is the best-justified default. Each is **Assumed, owner to confirm**.
+Each answer is the best-justified default. Each is **Assumed, owner to confirm**, unless it says it was ruled.
 
 - **C-1. The name.** Q: What do we call it? → A: **Flow Steps**; Original steps for the cook's own. (The name)
   _Assumed, owner to confirm._
@@ -424,8 +452,9 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
   must be a known, measured, non-Anthropic model, and own keys may name any provider. (FR-036) _Owner ruling,
   2026-11-17: no Anthropic model._
 - **C-7. Facts only for the cook's own words too?** Q: Could the writer see the wording when the cook wrote it? → A:
-  No, facts only for every recipe. A source statement is the cook's claim and can be wrong, and one input type is one
-  tested path. (FR-035) _Assumed, owner to confirm._
+  It sees the step text and the facts sheet, in the source language, for every recipe, and never the address, the
+  statement or the source title. A source statement is the cook's claim and can be wrong, and one input type is one
+  tested path. FR-042's fingerprint guards against copying. (FR-035) _Ruled 2026-11-17._
 - **C-8. Rights label after a replace.** Q: Which label? → A: None changes. Neither an attached version nor a replace
   touches the label. (FR-032) _Assumed, owner to confirm._
 - **C-9. Public replace of another site's recipe.** Q: Allowed now? → A: Another site's steps become public only through
@@ -434,7 +463,7 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
   update only when the cook asks, because an update spends a use. (FR-022) _Assumed, owner to confirm._
 - **C-11. Undo a replace.** Q: How does the cook go back? → A: From the recipe's version history. A recipe must have
   been saved as a recipe once, so a version always exists (ADR-0058). (FR-003, FR-031) _Assumed, owner to confirm._
-- **C-12. Language.** Q: Which language? → A: The recipe's language; English only at first. _Assumed, owner to confirm._
+- **C-12. Language.** Q: Which language? → A: The recipe's own language, for every language the detector supports. The cook's review is the language check (owner ruling, 2026-11-17).
 - **C-13. What counts as a safety line.** Q: Which statements must survive? → A: The seven categories in FR-041.
   _Assumed, owner to confirm._
 - **C-14. What makes it out of date.** Q: Steps only, or ingredients too? → A: Steps, ingredient lines and language,
@@ -463,7 +492,7 @@ Each answer is the best-justified default. Each is **Assumed, owner to confirm**
    you". A Flow Steps replace changes no label (FR-032), so the two differ. The owner decides whether a replace should
    follow 020 here.
 2. **`020-FR-075`** lets the rewording suggestion model see the flagged step's text. FR-035 lets the shared writer see
-   facts only. If 020 uses this engine (FR-045), FR-075's input rule changes to facts only.
+   the facts sheet and the step text only. If 020 uses this engine (FR-045), FR-075's input rule changes to that.
 3. **`020-FR-078`** leaves the suggestion call's spend open until 020 starts. This feature spends from the same pool
    first (FR-051), so the spend decision is needed now.
 4. **`005-FR-015`** lists Anthropic among own-key providers, and `005-FR-015c` and ADR-0024 §6 cost a use on an

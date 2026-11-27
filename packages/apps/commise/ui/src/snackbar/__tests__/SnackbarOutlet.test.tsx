@@ -14,6 +14,7 @@ import { useContext, useState, type JSX, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resizeEntryOf } from '../../testing/resizeObserver.js';
+import { snackbarRegionOf } from '../../testing/windowSnackbar.js';
 import { OverlayDepthContext } from '../../overlay/overlayDepthContext.js';
 import { Sheet } from '../../sheet/Sheet.js';
 import { SnackbarHost } from '../SnackbarHost.js';
@@ -189,7 +190,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             screen.getByText('show Ticks cleared').click();
         });
 
-        expect(within(screen.getByRole('dialog', { name: 'Ingredients' })).getByRole('status').textContent).toContain(
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByRole('dialog', { name: 'Ingredients' })).textContent).toContain(
             'Ticks cleared',
         );
 
@@ -249,7 +251,8 @@ describe('the snackbar inside an open web sheet (integration: real host, real Sh
             </SnackbarHost>,
         );
 
-        expect(within(screen.getByRole('dialog', { name: 'Ingredients' })).getByRole('status').textContent).toBe('');
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByRole('dialog', { name: 'Ingredients' })).textContent).toBe('');
     });
 });
 
@@ -303,9 +306,10 @@ function layOut(heights: { readonly sheet: number; readonly titleRow: number; re
 /**
  * The status region of the open sheet, and where its foot sits. REWRITTEN: the sheet used to hand the footer's height
  * to the outlet through a CSS variable on the panel, which these rows read back. The outlet now takes it as
- * `footHeight` and sets its own `bottom`, so the rows read that.
+ * `footHeight` and sets its own `bottom`, so the rows read that. The window holds the announcement slot and this
+ * region, so it is found through `snackbarRegionOf`, which checks the slot sits right before it.
  */
-const sheetRegion = (): HTMLElement => within(screen.getByRole('dialog')).getByRole('status');
+const sheetRegion = (): HTMLElement => snackbarRegionOf(screen.getByRole('dialog'));
 const bottomOf = (region: HTMLElement): string => region.style.bottom;
 
 describe('the snackbar over a sheet footer (web)', () => {
@@ -386,8 +390,7 @@ describe('SnackbarOutlet (web) footHeight', () => {
         // steals the snackbar.
         expect(regionsHolding('Ticks cleared', screen.getByTestId('second'))).toHaveLength(1);
         expect(regionsHolding('Ticks cleared', screen.getByTestId('first'))).toHaveLength(0);
-        expect(within(screen.getByTestId('first')).getByRole('status', { hidden: true }).style.bottom).toBe(
-            'calc(96px + 1rem)',
-        );
+        // The window holds two status elements, the announcement slot and the snackbar region; this finds the region.
+        expect(snackbarRegionOf(screen.getByTestId('first'), { hidden: true }).style.bottom).toBe('calc(96px + 1rem)');
     });
 });

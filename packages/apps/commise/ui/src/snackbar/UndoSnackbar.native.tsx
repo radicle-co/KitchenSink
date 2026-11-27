@@ -4,11 +4,11 @@
  *
  * `inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its
  * action in `inverseAction` (4.56:1 on `inverse`) at a 44 pt target (48 dp on Android) that never wraps; all three from
- * the inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for 12 text units
- * of room, which grow with the system text size up to the cap, so when it has no room beside the action the action
- * drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most 36 rem (576 pt)
- * wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not wired here: the
- * host pauses while a screen reader runs. Styled with Tamagui only (ADR-0080).
+ * the inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for room
+ * (`snackbarMessageBasis`, scaled with the system text size up to the cap), so when it has no room beside the action
+ * the action drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most
+ * 36 rem (576 pt) wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not
+ * wired here: the host pauses while a screen reader runs. Styled with Tamagui only (ADR-0080).
  *
  * @pattern Command (invoker) — its action is the `{ label, onAction }` command the queue carries; pressing it invokes
  *     that command and nothing else.
@@ -22,10 +22,8 @@ import { touchFloor } from '../layout/touchFloor.native.js';
 import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { Text } from '../text/Text.native.js';
 import { cappedFontScale } from '../text/fontScaleCap.js';
+import { snackbarMessageBasis } from '../tokens/layout.js';
 import type { SnackbarAction, UndoSnackbarProps } from './props.js';
-
-/** The room the message asks for beside Undo at the default text size, in pt: 12 rem on the web bar. */
-const MESSAGE_BASIS = 192;
 
 /** The bar: the inverse fill, the level-lg shadow, and a row that wraps so Undo can drop under a long message. */
 const Bar = styled(Elevated, {
@@ -44,12 +42,18 @@ const Bar = styled(Elevated, {
     collapsable: false,
 });
 
-/** The message's box: it grows and shrinks beside Undo, and wraps by words. Its basis is set per text size. */
+/**
+ * The message's box: it grows, wraps by words, and never shrinks or passes the bar. Its basis is set per text size.
+ * Yoga is not CSS: a box that may shrink stays on the line beside Undo and is squeezed, so the line breaks only when
+ * the box cannot shrink, on its basis held to the bar's width. The web twin shrinks, because CSS breaks the line on
+ * the basis whatever the shrink is: do not align the two.
+ */
 const MessageBox = styled(View, {
     name: 'UndoSnackbarMessage',
     flexGrow: 1,
-    flexShrink: 1,
+    flexShrink: 0,
     minWidth: 0,
+    maxWidth: '100%',
 });
 
 /** Undo's slot: at the end of its row, so under a wrapped message it sits at the end. */
@@ -88,7 +92,7 @@ const UndoAction: FC<{ readonly action: SnackbarAction }> = ({ action }) => (
 
 /** The native snackbar. */
 export const UndoSnackbar: FC<UndoSnackbarProps> = ({ message, action }) => {
-    const basis = MESSAGE_BASIS * cappedFontScale(useWindowDimensions().fontScale);
+    const basis = snackbarMessageBasis * cappedFontScale(useWindowDimensions().fontScale);
 
     return (
         <ToneScope tone="inverse">

@@ -29,6 +29,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
 import { themeFor } from '../../theme/themeFor.js';
+import { snackbarMessageBasis } from '../../tokens/layout.js';
 import { UndoSnackbar } from '../UndoSnackbar.native.js';
 
 afterEach(() => {
@@ -130,10 +131,10 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
     });
 
     it.each([
-        [1, '192px'],
-        [1.5, '288px'],
-        [2, '384px'],
-        [3, '384px'],
+        [1, `${String(snackbarMessageBasis)}px`],
+        [1.5, `${String(snackbarMessageBasis * 1.5)}px`],
+        [2, `${String(snackbarMessageBasis * 2)}px`],
+        [3, `${String(snackbarMessageBasis * 2)}px`],
     ])(
         'asks for 12 text units of room at text size %s, capped at 2x, so Undo drops as text grows (%s)',
         (scale, basis) => {
@@ -143,11 +144,13 @@ describe('UndoSnackbar (native), a message of any length (issue 409, owner rulin
         },
     );
 
-    it('lets the message shrink and grow so it wraps by words (mutant: no shrink)', () => {
+    it('lets the message grow but never shrink, and holds it to the bar (Yoga squeezes a shrinker)', () => {
         const box = renderLong().parentElement as HTMLElement;
 
         expect(resolvedStyle(box, 'flexGrow')).toBe('1');
-        expect(resolvedStyle(box, 'flexShrink')).toBe('1');
+        // Rewritten for the device: this row used to pin flexShrink 1, which keeps Undo beside the message in Yoga.
+        expect(resolvedStyle(box, 'flexShrink')).toBe('0');
         expect(resolvedStyle(box, 'minWidth')).toBe('0px');
+        expect(resolvedStyle(box, 'maxWidth')).toBe('100%');
     });
 });

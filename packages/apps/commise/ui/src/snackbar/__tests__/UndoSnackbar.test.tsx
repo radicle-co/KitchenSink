@@ -75,7 +75,7 @@ describe('UndoSnackbar (web)', () => {
             // Kills: a row that cannot wrap, which squeezes the message instead of moving Undo.
             expect(message.parentElement?.className.split(/\s+/u)).toContain('flex-wrap');
             // Kills: a message with no basis in text units, which never leaves Undo without room to move down.
-            expect(message.className).toContain('flex-[1_1_12rem]');
+            expect(message.className).toContain('flex-[1_1_var(--snackbar-message-basis)]');
             expect(undo.className.split(/\s+/u)).toContain('ml-auto');
             // Undo keeps its 44 px target on its own row.
             expect(undo.className.split(/\s+/u)).toEqual(expect.arrayContaining(['min-h-11', 'min-w-11']));

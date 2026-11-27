@@ -53,7 +53,13 @@ import { difficultyTone, difficultyToneDark, proTone, proToneDark, type Difficul
 import { kebab, pxToRemUnit } from './emit.js';
 import { barMaterial } from './barMaterial.js';
 import { gradient, gradientCss, heroDark } from './gradients.js';
-import { containerThreshold, contentWidth, pinnedBarHeight, viewportThreshold } from './layout.js';
+import {
+    containerThreshold,
+    contentWidth,
+    pinnedBarHeight,
+    snackbarMessageBasis,
+    viewportThreshold,
+} from './layout.js';
 import { motionKeyframes, motionThemeDeclarations } from './motion.js';
 import { radius } from './radius.js';
 import { shadows } from './shadows.js';
@@ -127,6 +133,7 @@ function typeRoleDeclarations(): readonly string[] {
  *  - `--container-regular` / `--container-wide`: the `@regular/main:` and `@wide/main:` thresholds (600, 960).
  *  - `--pinned-bar-height`: the pinned back bar's height (56), and `--pinned-bar-block`: that plus the notch's inset, which
  *    the bar, `<main>`'s top padding and `scroll-padding-top` all read.
+ *  - `--snackbar-message-basis`: the room the snackbar's message asks for beside Undo (192), as `flex-[1_1_var(...)]`.
  *  - `--container-reading` / `-list` / `-detail` / `-page`: the content widths, as `max-w-*`. ⚠️ The widest is `page`,
  *    not `wide`: the namespace is shared with the container variants (see `layout.ts`).
  */
@@ -142,6 +149,8 @@ function layoutDeclarations(): readonly string[] {
         `    --pinned-bar-height: ${pxToRemUnit(pinnedBarHeight)};`,
         // The bar AS RENDERED: its height plus the notch's inset where the viewport covers it. Declared once, here.
         '    --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));',
+        // The room the snackbar's message asks for beside Undo (`snackbarMessageBasis` is the same number on native).
+        `    --snackbar-message-basis: ${pxToRemUnit(snackbarMessageBasis)};`,
     ];
 }
 

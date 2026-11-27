@@ -187,4 +187,20 @@ describe('the web window announcement slot', () => {
         // Kills: a slot that ignores the form and speaks the app form's offline notice.
         expect(slotOf('outer').textContent).toBe('');
     });
+
+    it('stays silent when the form starts to speak over a title that arrived while it did not', () => {
+        const { rerender } = render(<Windows text="" speaks={false} />);
+
+        rerender(<Windows text={TITLE} speaks={false} />);
+        rerender(<Windows text={TITLE} />);
+
+        // Kills: a slot that notes a title only while the form speaks, so a title that arrived earlier is said when
+        // the form starts.
+        expect(slotOf('outer').textContent).toBe('');
+
+        rerender(<Windows text="" />);
+        rerender(<Windows text={TITLE} />);
+
+        expect(slotOf('outer').textContent).toBe(TITLE);
+    });
 });

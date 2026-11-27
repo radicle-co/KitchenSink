@@ -54,6 +54,15 @@ export function useWindowAnnouncement(isTop: boolean): string {
         return '';
     }
 
+    // A form that does not speak still sees the text, so what stands when the form starts to speak is not news.
+    if (!speaks) {
+        if (!seen.wasTop || seen.silenced !== announcement) {
+            setSeen({ wasTop: true, silenced: announcement });
+        }
+
+        return '';
+    }
+
     if (!seen.wasTop) {
         setSeen({ wasTop: true, silenced: announcement });
 
@@ -64,7 +73,7 @@ export function useWindowAnnouncement(isTop: boolean): string {
         setSeen({ wasTop: true, silenced: undefined });
     }
 
-    return speaks && announcement !== seen.silenced ? announcement : '';
+    return announcement === seen.silenced ? '' : announcement;
 }
 
 /**

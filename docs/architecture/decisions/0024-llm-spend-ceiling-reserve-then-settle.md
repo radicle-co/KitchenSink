@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date**: 2026-08-20
+- **Amended by:** [ADR-0102](0102-public-versions-of-imported-recipes.md): §3 gains a third path that does not retry a ceiling denial, the public-version writer
+  (call site `import-public-rewrite`). Every other part stands.
 - **Drivers**: `R23` sets an owner-mandated **$100/month, enforced, configurable** ceiling on the U11
   verification gate — a `recipe-workers` Lambda calling Bedrock `Converse` (~660 input / ~80 output tokens,
   ~8,000 calls/month). "Enforced" is the load-bearing word, and it forced three questions the plan could

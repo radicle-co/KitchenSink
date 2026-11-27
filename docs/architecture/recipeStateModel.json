@@ -1,219 +1,840 @@
 {
-    "note": "Same values as docs/architecture/recipeStateModel.md, which is the source. labelKey names are placeholders for the copy plan.",
+    "note": "Same values as docs/architecture/recipeStateModel.md. Its section 2 is the authority rule: the document and this file are written from the same source, and where they differ the document is right.",
     "axes": [
         {
             "name": "lifecycle",
-            "values": ["draft", "published", "deleted"]
+            "values": ["LIFECYCLE_DRAFT", "LIFECYCLE_PUBLISHED", "LIFECYCLE_DELETED"]
         },
         {
             "name": "audience",
-            "values": ["private", "public"]
-        },
-        {
-            "name": "importChoice",
-            "values": ["both"]
-        },
-        {
-            "name": "publicCheck",
-            "values": ["clear", "possible", "detected", "unchecked"]
-        },
-        {
-            "name": "publicCheckView",
-            "values": ["checking", "inReview", "notApproved"]
+            "values": ["AUDIENCE_PRIVATE", "AUDIENCE_PUBLIC"]
         },
         {
             "name": "origin",
-            "values": ["own", "webPage", "book", "paidSite", "person", "publicDomain", "commiseWritten", "unstated"]
+            "values": [
+                "ORIGIN_UNSTATED",
+                "ORIGIN_OWN",
+                "ORIGIN_WEB_PAGE",
+                "ORIGIN_BOOK",
+                "ORIGIN_PAID_SITE",
+                "ORIGIN_PERSON",
+                "ORIGIN_PUBLIC_DOMAIN",
+                "ORIGIN_COMMISE_WRITTEN"
+            ]
         },
         {
-            "name": "stepsCredit",
-            "values": ["cook", "ai", "commise"]
+            "name": "sourceConfirmation",
+            "values": ["SOURCE_UNCONFIRMED", "SOURCE_CONFIRMED"]
         },
         {
             "name": "evidence",
-            "values": ["pastedPage", "editorLink", "editorCitation", "importFile"]
+            "values": [
+                "EVIDENCE_PASTED_PAGE",
+                "EVIDENCE_EDITOR_LINK",
+                "EVIDENCE_EDITOR_CITATION",
+                "EVIDENCE_IMPORT_FILE",
+                "EVIDENCE_STAFF_CORRECTION"
+            ]
+        },
+        {
+            "name": "holds",
+            "values": ["HOLD_SOURCE_CORRECTED", "HOLD_HIDDEN_AFTER_REPORT", "HOLD_REMOVED"]
+        },
+        {
+            "name": "checkState",
+            "values": ["CHECK_STATE_CHECKING", "CHECK_STATE_DECIDED"]
+        },
+        {
+            "name": "checkOutcome",
+            "values": [
+                "CHECK_OUTCOME_CLEAR",
+                "CHECK_OUTCOME_POSSIBLE",
+                "CHECK_OUTCOME_DETECTED",
+                "CHECK_OUTCOME_UNCHECKED"
+            ]
+        },
+        {
+            "name": "checkDecisionKind",
+            "values": [
+                "CHECK_DECISION_AUTOMATED_HOLD",
+                "CHECK_DECISION_REFERRAL_CLEARED",
+                "CHECK_DECISION_REFERRAL_NOT_APPROVED",
+                "CHECK_DECISION_APPEAL_OVERTURNED",
+                "CHECK_DECISION_APPEAL_UPHELD",
+                "CHECK_DECISION_AUDIT_RESTRICTION"
+            ]
+        },
+        {
+            "name": "stepsCredit",
+            "values": ["STEPS_BY_COOK", "STEPS_BY_AI", "STEPS_BY_COMMISE"]
         },
         {
             "name": "rewrittenFact",
-            "values": ["absent", "earnedByCook", "earnedByAi"]
+            "values": ["REWRITTEN_ABSENT", "REWRITTEN_BY_COOK", "REWRITTEN_BY_AI"]
         },
         {
             "name": "derived",
             "values": [
-                "adaptedByYou",
-                "clonedFrom",
-                "unsavedChanges",
-                "sourceLock",
-                "writeRefusal",
-                "slotUse",
-                "openToWeb"
+                "ORIGIN_UNRECOGNISED",
+                "SOURCE_LOCK_OPEN",
+                "SOURCE_LOCK_DOWNGRADE_ONLY",
+                "SOURCE_LOCK_LOCKED",
+                "PRIVATE_RULE_SLOTS",
+                "PRIVATE_RULE_PRIVATE_ONLY"
             ]
         }
     ],
+    "storedValues": {
+        "LIFECYCLE_DRAFT": "draft",
+        "LIFECYCLE_PUBLISHED": "published",
+        "AUDIENCE_PRIVATE": "private",
+        "AUDIENCE_PUBLIC": "public",
+        "ORIGIN_UNSTATED": "unstated",
+        "ORIGIN_OWN": "own",
+        "ORIGIN_WEB_PAGE": "webPage",
+        "ORIGIN_BOOK": "book",
+        "ORIGIN_PAID_SITE": "paidSite",
+        "ORIGIN_PERSON": "person",
+        "ORIGIN_PUBLIC_DOMAIN": "publicDomain",
+        "ORIGIN_COMMISE_WRITTEN": "commiseWritten",
+        "REWRITTEN_ABSENT": "absent",
+        "REWRITTEN_BY_COOK": "earnedByCook",
+        "REWRITTEN_BY_AI": "earnedByAi"
+    },
     "labels": [
         {
-            "value": "lifecycle.draft",
+            "name": "LIFECYCLE_DRAFT",
             "label": "Draft",
-            "labelKey": "recipeState.lifecycle.draft"
+            "labelKey": "LIFECYCLE_DRAFT",
+            "viewer": "owner"
         },
         {
-            "value": "audience.private",
+            "name": "AUDIENCE_PRIVATE",
             "label": "Private",
-            "labelKey": "recipeState.audience.private"
+            "labelKey": "AUDIENCE_PRIVATE",
+            "viewer": "owner"
         },
         {
-            "value": "audience.public",
+            "name": "AUDIENCE_PUBLIC",
             "label": "Public",
-            "labelKey": "recipeState.audience.public"
+            "labelKey": "AUDIENCE_PUBLIC",
+            "viewer": "owner"
         },
         {
-            "value": "importChoice.both",
-            "label": "Both",
-            "labelKey": "recipeState.importChoice.both"
+            "name": "ORIGIN_OWN",
+            "label": "Written by you (owner), Written by {cook} (reader)",
+            "labelKey": ["ORIGIN_OWN.owner", "ORIGIN_OWN.reader"],
+            "viewer": "both"
         },
         {
-            "value": "publicCheckView.checking",
-            "label": "Checking",
-            "labelKey": "recipeState.publicCheck.checking"
+            "name": "ORIGIN_WEB_PAGE",
+            "label": "From a web page. With a site, where there is no Source heading: From {site}",
+            "labelKey": ["ORIGIN_WEB_PAGE", "ORIGIN_WEB_PAGE.withSite"],
+            "viewer": "owner (private only)"
         },
         {
-            "value": "publicCheckView.inReview",
-            "label": "In review",
-            "labelKey": "recipeState.publicCheck.inReview"
-        },
-        {
-            "value": "publicCheckView.notApproved",
-            "label": "Not approved to be public",
-            "labelKey": "recipeState.publicCheck.notApproved"
-        },
-        {
-            "value": "origin.own",
-            "label": "Written by you",
-            "labelKey": "recipeState.origin.own"
-        },
-        {
-            "value": "origin.webPage",
-            "label": "From a web page",
-            "labelKey": "recipeState.origin.webPage"
-        },
-        {
-            "value": "origin.book",
+            "name": "ORIGIN_BOOK",
             "label": "From a cookbook or magazine",
-            "labelKey": "recipeState.origin.book"
+            "labelKey": "ORIGIN_BOOK",
+            "viewer": "owner (private only)"
         },
         {
-            "value": "origin.paidSite",
+            "name": "ORIGIN_PAID_SITE",
             "label": "From a paid website",
-            "labelKey": "recipeState.origin.paidSite"
+            "labelKey": "ORIGIN_PAID_SITE",
+            "viewer": "owner (private only)"
         },
         {
-            "value": "origin.person",
+            "name": "ORIGIN_PERSON",
             "label": "From another person",
-            "labelKey": "recipeState.origin.person"
+            "labelKey": "ORIGIN_PERSON",
+            "viewer": "owner (private only)"
         },
         {
-            "value": "origin.publicDomain",
+            "name": "ORIGIN_PUBLIC_DOMAIN",
             "label": "Public domain",
-            "labelKey": "recipeState.origin.publicDomain"
+            "labelKey": "ORIGIN_PUBLIC_DOMAIN",
+            "viewer": "any"
         },
         {
-            "value": "origin.commiseWritten",
+            "name": "ORIGIN_COMMISE_WRITTEN",
             "label": "Written by Commise",
-            "labelKey": "recipeState.origin.commiseWritten"
+            "labelKey": "ORIGIN_COMMISE_WRITTEN",
+            "viewer": "any"
         },
         {
-            "value": "stepsCredit.ai",
-            "label": "(AI credit line; words in the copy plan)",
-            "labelKey": "recipeState.stepsCredit.ai"
+            "name": "VIEW_IN_REVIEW",
+            "label": "In review",
+            "labelKey": "VIEW_IN_REVIEW",
+            "viewer": "owner"
         },
         {
-            "value": "derived.adaptedByYou",
-            "label": "Adapted by you",
-            "labelKey": "recipeState.derived.adaptedByYou"
+            "name": "VIEW_CHECKING",
+            "label": "Checking",
+            "labelKey": "VIEW_CHECKING",
+            "viewer": "owner"
         },
         {
-            "value": "derived.clonedFrom",
-            "label": "Cloned from {cook}",
-            "labelKey": "recipeState.derived.clonedFrom"
+            "name": "VIEW_NOT_APPROVED",
+            "label": "Not approved to be public.",
+            "labelKey": "VIEW_NOT_APPROVED",
+            "viewer": "owner"
         },
         {
-            "value": "derived.unsavedChanges",
-            "label": "Unsaved changes",
-            "labelKey": "recipeState.derived.unsavedChanges"
+            "name": "VIEW_ADAPTED_BY_COOK",
+            "label": "Adapted by you (owner), Adapted by {cook} (reader). Headings: Adapted by you from | Adapted by {cook} from; ...from a cookbook or magazine | a paid website | a web page (both forms). Toast (owner only): Changes saved. This recipe is now marked Adapted by you.",
+            "labelKey": ["VIEW_ADAPTED_BY_COOK.owner", "VIEW_ADAPTED_BY_COOK.reader"],
+            "viewer": "both"
+        },
+        {
+            "name": "VIEW_COPY_OF",
+            "label": "Copied from {name}",
+            "labelKey": "VIEW_COPY_OF",
+            "viewer": "both"
+        },
+        {
+            "name": "VIEW_COPY_OF_COMMISE_PAGE",
+            "label": "Copied from a recipe Commise wrote",
+            "labelKey": "VIEW_COPY_OF_COMMISE_PAGE",
+            "viewer": "both"
+        },
+        {
+            "name": "VIEW_CHANGES_ON_DEVICE",
+            "label": "Changes saved on this device",
+            "labelKey": "editor.status.changesOnDevice",
+            "viewer": "owner"
+        },
+        {
+            "name": "VIEW_HIDDEN_AFTER_REPORT",
+            "label": "Hidden after a report. Only you can see it now. (owner), This recipe isn’t available right now. (reader)",
+            "labelKey": ["publicPage.hiddenOwner", "publicPage.hiddenReader"],
+            "viewer": "both"
+        },
+        {
+            "name": "VIEW_TOO_CLOSE_SAVED_PRIVATE",
+            "label": "Saved as private",
+            "labelKey": "VIEW_TOO_CLOSE_SAVED_PRIVATE",
+            "viewer": "owner"
+        },
+        {
+            "name": "VIEW_TOO_CLOSE_NO_SLOT",
+            "label": "Not saved yet",
+            "labelKey": "VIEW_TOO_CLOSE_NO_SLOT",
+            "viewer": "owner"
+        },
+        {
+            "name": "VIEW_TOO_CLOSE_AFTER_REVIEW",
+            "label": "Made private after a check",
+            "labelKey": "VIEW_TOO_CLOSE_AFTER_REVIEW",
+            "viewer": "owner"
+        },
+        {
+            "name": "HOLD_REMOVED",
+            "label": "Removed from public view. Only you can see it now.",
+            "labelKey": "HOLD_REMOVED",
+            "viewer": "owner"
+        },
+        {
+            "name": "SOURCE_HEADING",
+            "label": "Source",
+            "labelKey": "SOURCE_HEADING",
+            "viewer": "any"
+        },
+        {
+            "name": "REPORT_ACTION",
+            "label": "Report a problem",
+            "labelKey": "publicPage.report",
+            "viewer": "any"
+        },
+        {
+            "name": "REPORT_SIGN_IN",
+            "label": "Sign in to report a problem. A report hides this recipe until we check it, so we need to know who sent it.",
+            "labelKey": ["publicPage.reportSignIn.title", "publicPage.reportSignIn.body"],
+            "viewer": "signed-out reader"
+        },
+        {
+            "name": "ANSWER_UNSTATED_PRIVATE",
+            "label": "I’m not sure yet",
+            "labelKey": "ANSWER_UNSTATED_PRIVATE",
+            "viewer": "owner",
+            "hint": "It stays private. You can say where it’s from later."
+        },
+        {
+            "name": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "label": "Saved as private",
+            "labelKey": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "viewer": "owner"
+        },
+        {
+            "name": "VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "label": "Made private after a check",
+            "labelKey": "VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "viewer": "owner"
+        },
+        {
+            "name": "REPORT_LIMIT_REACHED",
+            "label": "You’ve reported a lot of recipes today. Try again tomorrow. (proposal; 020 sets the limit)",
+            "labelKey": "REPORT_LIMIT_REACHED",
+            "viewer": "signed-in reader"
         }
     ],
     "refusals": [
         {
             "reason": "policy.webPage",
-            "labelKey": "recipeState.refusal.policyWebPage"
+            "name": "REFUSAL_POLICY_WEB_PAGE",
+            "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
+            "labelKey": "publicRefusal.policyWebPage",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "policy.book",
-            "labelKey": "recipeState.refusal.policyBook"
+            "name": "REFUSAL_POLICY_BOOK",
+            "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
+            "labelKey": "publicRefusal.policyBook",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "policy.paidSite",
-            "labelKey": "recipeState.refusal.policyPaidSite"
+            "name": "REFUSAL_POLICY_PAID_SITE",
+            "wire": "400 INVALID_VISIBILITY, no reason today (reason: PR 2)",
+            "labelKey": "publicRefusal.policyPaidSite",
+            "built": "client yes. The server split into three reasons is PR 2 work, not built"
         },
         {
             "reason": "fromPerson",
-            "labelKey": "recipeState.refusal.fromPerson"
-        },
-        {
-            "reason": "statementRequired",
-            "labelKey": "recipeState.refusal.statementRequired"
+            "name": "REFUSAL_FROM_PERSON",
+            "wire": "FROM_PERSON_PRIVATE_ONLY",
+            "labelKey": "publicRefusal.fromPerson"
         },
         {
             "reason": "sourceConflict",
-            "labelKey": "recipeState.refusal.sourceConflict"
+            "name": "REFUSAL_SOURCE_CONFLICT",
+            "wire": "SOURCE_CONFLICT",
+            "labelKey": "publicRefusal.sourceConflict"
         },
         {
             "reason": "sourceCorrected",
-            "labelKey": "recipeState.refusal.sourceCorrected"
+            "name": "REFUSAL_SOURCE_CORRECTED",
+            "wire": "SOURCE_CORRECTED",
+            "labelKey": "publicRefusal.sourceCorrected"
         },
         {
-            "reason": "privateSlots",
-            "labelKey": "recipeState.refusal.privateSlots"
+            "reason": "statementRequired",
+            "name": "REFUSAL_STATEMENT_REQUIRED",
+            "wire": "STATEMENT_REQUIRED",
+            "labelKey": "publicRefusal.statementRequired"
         },
         {
-            "reason": "contained",
+            "reason": "publicConfirmationRequired",
+            "name": "REFUSAL_PUBLIC_CONFIRMATION_REQUIRED",
+            "wire": "PUBLIC_CONFIRMATION_REQUIRED",
+            "labelKey": "the Publish sheet"
+        },
+        {
+            "reason": "apiWriterConfirmation",
+            "name": "REFUSAL_API_WRITER_CONFIRMATION",
+            "wire": "API_WRITER_CONFIRMATION_FORBIDDEN",
             "labelKey": null
         },
         {
+            "reason": "privateSlots",
+            "name": "REFUSAL_NO_PRIVATE_SLOT",
+            "wire": "403 PRIVATE_SLOTS_FULL, no reason today (reason: PR 2)",
+            "labelKey": "publicRefusal.privateSlots"
+        },
+        {
+            "reason": "sourceLocked",
+            "name": "REFUSAL_SOURCE_LOCKED",
+            "wire": "403 FORBIDDEN, details.reason SOURCE_LOCKED",
+            "labelKey": "source.lockedRefused"
+        },
+        {
+            "reason": "privateFoodsOnPublic",
+            "name": "REFUSAL_PRIVATE_FOODS_ON_PUBLIC",
+            "wire": "400 PRIVATE_FOODS_ON_PUBLIC_RECIPE",
+            "labelKey": "editor publish-blocked keys"
+        },
+        {
+            "reason": "publishRequirements",
+            "name": "REFUSAL_PUBLISH_REQUIREMENTS",
+            "wire": "422 PUBLISH_REQUIREMENTS_UNMET",
+            "labelKey": "editor publish-blocked keys"
+        },
+        {
+            "reason": "contained",
+            "name": "REFUSAL_CONTAINED",
+            "wire": "403 TEST_PRINCIPAL_CONTAINED, no reason today (reason: PR 2)",
+            "labelKey": null
+        },
+        {
+            "reason": "contentNotApproved",
+            "name": "REFUSAL_CONTENT_NOT_APPROVED",
+            "wire": "403 SOURCE_CHECK_NOT_APPROVED",
+            "labelKey": "publicRefusal.contentNotApproved"
+        },
+        {
+            "reason": "detectedNoPrivateSlot",
+            "name": "REFUSAL_DETECTED_NO_PRIVATE_SLOT",
+            "wire": "403 SOURCE_DETECTED_NO_PRIVATE_SLOT",
+            "labelKey": null
+        },
+        {
+            "reason": "publicVersionCopy",
+            "name": "REFUSAL_PUBLIC_VERSION_COPY",
+            "wire": "400 INVALID_VISIBILITY, details.reason PUBLIC_VERSION_COPY",
+            "labelKey": "publicRefusal.publicVersionCopy"
+        },
+        {
             "reason": "unrecognised",
-            "labelKey": "recipeState.refusal.unrecognised"
+            "name": "REFUSAL_UNRECOGNISED",
+            "wire": "never sent",
+            "labelKey": "publicRefusal.unrecognised"
+        },
+        {
+            "reason": "none",
+            "name": "REFUSAL_NONE",
+            "wire": "not a refusal: the result no refusal",
+            "labelKey": null
+        }
+    ],
+    "holds": [
+        {
+            "name": "HOLD_SOURCE_CORRECTED",
+            "stored": "recipes.source_correction_hold",
+            "enforcement": "CHECK forces private",
+            "setBy": "STAFF_CORRECT",
+            "clearedBy": "CLEAR_SOURCE_HOLD (staff, audited; also releases the owner's descendants without their own correction)",
+            "built": "set: yes. Clear: PR 5"
+        },
+        {
+            "name": "HOLD_HIDDEN_AFTER_REPORT",
+            "stored": "decided in 020's plan",
+            "enforcement": "read-rule hide",
+            "setBy": "REPORT (any signed-in cook)",
+            "clearedBy": "CLEAR_REPORT_HIDE (staff)",
+            "built": "pending: 020, 003B"
+        },
+        {
+            "name": "HOLD_REMOVED",
+            "stored": "decided in 016's plan",
+            "enforcement": "read-rule hide",
+            "setBy": "REMOVE (staff)",
+            "clearedBy": "RESTORE_AFTER_APPEAL (staff)",
+            "built": "pending: 016"
+        }
+    ],
+    "transitions": [
+        {
+            "axis": "lifecycleAudience",
+            "from": "DRAFT,PRIVATE",
+            "event": "MAKE_PUBLIC",
+            "actor": "cook",
+            "guard": "refusalOf = none. No slot needed",
+            "to": "DRAFT,PUBLIC"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "DRAFT,PUBLIC",
+            "event": "MAKE_PRIVATE",
+            "actor": "cook",
+            "guard": "none",
+            "to": "DRAFT,PRIVATE"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "DRAFT,PRIVATE | DRAFT,PUBLIC",
+            "event": "PUBLISH",
+            "actor": "cook",
+            "guard": "requirements; a slot for a private recipe; the cook accepts the Publish sheet",
+            "to": "PUBLISHED,PRIVATE | PUBLISHED,PUBLIC"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PRIVATE",
+            "event": "MAKE_PUBLIC",
+            "actor": "cook",
+            "guard": "refusalOf = none (no HOLD_SOURCE_CORRECTED); the cook accepts the Publish sheet",
+            "to": "PUBLISHED,PUBLIC"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC",
+            "event": "MAKE_PRIVATE",
+            "actor": "cook",
+            "guard": "a slot (over the limit only for FORCE_PRIVATE)",
+            "to": "PUBLISHED,PRIVATE"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC",
+            "event": "FORCE_PRIVATE",
+            "actor": "system, staff",
+            "guard": "the origin answer forces private, or a staff correction. A staff correction always makes the recipe private; for a new answer that can open Public it also sets HOLD_SOURCE_CORRECTED",
+            "to": "PUBLISHED,PRIVATE"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC | PUBLISHED,PRIVATE",
+            "event": "UNPUBLISH",
+            "actor": "cook",
+            "guard": "none; versions continue",
+            "to": "DRAFT,PUBLIC | DRAFT,PRIVATE"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "any live state",
+            "event": "DELETE",
+            "actor": "cook, erasure",
+            "guard": "none",
+            "to": "DELETED"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "DRAFT,PRIVATE | DRAFT,PUBLIC | PUBLISHED,PRIVATE",
+            "event": "ERASE_DONATE",
+            "actor": "system",
+            "guard": "the cook elected it; no statement owed; not ORIGIN_PERSON; no hold; sets SOURCE_CONFIRMED",
+            "to": "PUBLISHED,PUBLIC"
+        },
+        {
+            "axis": "origin",
+            "from": "ORIGIN_UNSTATED, or any origin while SOURCE_UNCONFIRMED",
+            "event": "ANSWER_*",
+            "actor": "cook",
+            "guard": "sourceLockOf = open (open holds for an unconfirmed answer that is not from a person, stored or attested); web, book and paid need a link or citation, which appends evidence and forces private",
+            "to": "the answer's origin"
+        },
+        {
+            "axis": "origin",
+            "from": "ORIGIN_UNSTATED",
+            "event": "PASTE_DETECTED",
+            "actor": "system",
+            "guard": "sets content_pasted_at only",
+            "to": "unchanged"
+        },
+        {
+            "axis": "origin",
+            "from": "ORIGIN_UNSTATED",
+            "event": "CURATOR_DECLARE",
+            "actor": "curator",
+            "guard": "grant recipes:import:public",
+            "to": "ORIGIN_PUBLIC_DOMAIN"
+        },
+        {
+            "axis": "origin",
+            "from": "ORIGIN_OWN with SOURCE_CONFIRMED",
+            "event": "DOWNGRADE",
+            "actor": "cook",
+            "guard": "a citation; a slot for a recipe that is not already private; the result is private",
+            "to": "ORIGIN_BOOK | ORIGIN_PAID_SITE"
+        },
+        {
+            "axis": "origin",
+            "from": "any origin with SOURCE_CONFIRMED",
+            "event": "STAFF_CORRECT",
+            "actor": "staff",
+            "guard": "route and grant recipes:source:correct; records who, when, old, new, reason; appends EVIDENCE_STAFF_CORRECTION; sets HOLD_SOURCE_CORRECTED if the new answer can open Public",
+            "to": "staff's origin; the recipe is private; a correction that sets the hold also holds the owner's clones"
+        },
+        {
+            "axis": "sourceConfirmation",
+            "from": "SOURCE_UNCONFIRMED",
+            "event": "CONFIRM",
+            "actor": "cook, system, staff",
+            "guard": "the source sheet answer, first publish, Save of a published recipe, erasure donation, or staff correction",
+            "to": "SOURCE_CONFIRMED"
+        }
+    ],
+    "planned": [
+        {
+            "axis": "holds",
+            "from": "HOLD_SOURCE_CORRECTED set",
+            "event": "CLEAR_SOURCE_HOLD",
+            "actor": "staff",
+            "guard": "grant recipes:source:correct; a reason; a clear record in the same transaction",
+            "to": "unset; audience unchanged (private)",
+            "pending": "PR 5"
+        },
+        {
+            "axis": "holds",
+            "from": "unset, on a public ORIGIN_COMMISE_WRITTEN page",
+            "event": "REPORT",
+            "actor": "any signed-in cook",
+            "guard": "the reporter submits the form; no staff step before the hide",
+            "to": "HOLD_HIDDEN_AFTER_REPORT set, at once",
+            "pending": "020-FR-082, 003B FR-063"
+        },
+        {
+            "axis": "holds",
+            "from": "HOLD_HIDDEN_AFTER_REPORT set",
+            "event": "CLEAR_REPORT_HIDE",
+            "actor": "staff",
+            "guard": "a recorded decision",
+            "to": "unset",
+            "pending": "020"
+        },
+        {
+            "axis": "holds",
+            "from": "unset",
+            "event": "REMOVE | RESTORE_AFTER_APPEAL",
+            "actor": "staff",
+            "guard": "removal decision | appeal decision",
+            "to": "HOLD_REMOVED set | unset",
+            "pending": "016"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC (third-party origin)",
+            "event": "SAVE",
+            "actor": "cook",
+            "guard": "the sync check finds the wording too close, and a private slot is free",
+            "to": "PUBLISHED,PRIVATE, saved, with VIEW_TOO_CLOSE_SAVED_PRIVATE",
+            "pending": "020 (ADR-0074 §3a), P4"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC (third-party origin)",
+            "event": "SAVE",
+            "actor": "cook",
+            "guard": "too close, and no free private slot",
+            "to": "refused REFUSAL_DETECTED_NO_PRIVATE_SLOT; nothing saved; VIEW_TOO_CLOSE_NO_SLOT",
+            "pending": "020, P4"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "DRAFT,PRIVATE | DRAFT,PUBLIC | PUBLISHED,PRIVATE (same origins)",
+            "event": "MAKE_PUBLIC | PUBLISH",
+            "actor": "cook",
+            "guard": "too close",
+            "to": "saved private with VIEW_TOO_CLOSE_SAVED_PRIVATE; no slot: refused as above",
+            "pending": "020, P4"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC",
+            "event": "REVIEW_FOUND_TOO_CLOSE",
+            "actor": "system",
+            "guard": "the async review of a public recipe",
+            "to": "PUBLISHED,PRIVATE at once; owner notified; VIEW_TOO_CLOSE_AFTER_REVIEW. With no free private slot it still goes private, over the limit (FORCE_PRIVATE, ADR-0073)",
+            "pending": "the review feature"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC | PUBLISHED,PRIVATE in review",
+            "event": "FORCE_PRIVATE",
+            "actor": "system, staff",
+            "guard": "review ended without approval (ADR-0074 §3a)",
+            "to": "PUBLISHED,PRIVATE",
+            "pending": "020"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PRIVATE",
+            "event": "MAKE_PUBLIC",
+            "actor": "cook",
+            "guard": "refused by REFUSAL_CONTENT_NOT_APPROVED for the same content",
+            "to": "none",
+            "pending": "020"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "a copy of a public version, private",
+            "event": "MAKE_PUBLIC",
+            "actor": "cook",
+            "guard": "after the check",
+            "to": "PUBLISHED,PUBLIC",
+            "pending": "021-FR-005"
+        },
+        {
+            "axis": "origin",
+            "from": "ORIGIN_PAID_SITE",
+            "event": "MOVE_TO_BOOK",
+            "actor": "staff, or system for a known cookbook site",
+            "guard": "REWRITTEN_BY_COOK, and the site hosts a cookbook or evidence shows it",
+            "to": "ORIGIN_BOOK",
+            "pending": "P4"
+        },
+        {
+            "axis": "rewrittenFact",
+            "from": "REWRITTEN_ABSENT",
+            "event": "COOK_EDIT_PASSES",
+            "actor": "system",
+            "guard": "third-party origin; the difference check passes",
+            "to": "REWRITTEN_BY_COOK",
+            "pending": "P4"
+        },
+        {
+            "axis": "rewrittenFact",
+            "from": "REWRITTEN_ABSENT",
+            "event": "KEEP_AI_REWRITE",
+            "actor": "system",
+            "guard": "third-party origin; the rewrite passes",
+            "to": "REWRITTEN_BY_AI + STEPS_BY_AI",
+            "pending": "P4"
+        },
+        {
+            "axis": "rewrittenFact",
+            "from": "REWRITTEN_BY_AI",
+            "event": "COOK_REWRITES",
+            "actor": "system",
+            "guard": "passes against the source and the AI text",
+            "to": "REWRITTEN_BY_COOK + STEPS_BY_COOK",
+            "pending": "P4"
+        },
+        {
+            "axis": "stepsCredit",
+            "from": "any",
+            "event": "KEEP_AI_REWRITE",
+            "actor": "cook",
+            "guard": "own, person or public-domain origin",
+            "to": "STEPS_BY_AI",
+            "pending": "027"
+        },
+        {
+            "axis": "bulk",
+            "from": "each item of a 003B job",
+            "event": "MAKE_THE_REST_PUBLIC",
+            "actor": "cook",
+            "guard": "per-item status under PUBLIC_VERSION_JOB_*",
+            "to": "per item",
+            "pending": "P13"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "SAVE",
+            "actor": "cook",
+            "guard": "the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Today the editor sends it private (#412), which this replaces",
+            "to": "PUBLISHED,PUBLIC, with the check rerun",
+            "pending": "P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "RERUN_CHECK_FAILS_IN_SAVE",
+            "actor": "system",
+            "guard": "the check on the new text fails inside the save",
+            "to": "PUBLISHED,PRIVATE, with VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "pending": "P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "RERUN_CHECK_FAILS_LATER",
+            "actor": "system",
+            "guard": "the check fails after the cook left the editor. With no free private slot it still goes private, over the limit (FORCE_PRIVATE, ADR-0073), and is not refused",
+            "to": "PUBLISHED,PRIVATE, with VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "pending": "P10 (#412)"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "from": "PUBLISHED,PUBLIC, with the source evidence holding it off Public (publicNeedsCheck)",
+            "event": "SITE_CLAIM_NOT_CONFIRMED",
+            "actor": "system",
+            "guard": "once 016 FR-069 site claims exist: the claim to the site is not confirmed",
+            "to": "PUBLISHED,PRIVATE, with the box line: We couldn’t confirm that {site} is your site, so this recipe can’t be public.",
+            "pending": "016 FR-069"
+        }
+    ],
+    "creations": [
+        {
+            "name": "CREATE_DRAFT",
+            "actor": "cook",
+            "lifecycleAudience": "DRAFT,PRIVATE",
+            "origin": "ORIGIN_UNSTATED",
+            "confirmation": "unconfirmed",
+            "holds": "none",
+            "evidence": "none",
+            "cloneLink": "none",
+            "built": "yes"
+        },
+        {
+            "name": "CREATE_PUBLISHED",
+            "actor": "cook",
+            "lifecycleAudience": "PUBLISHED,PRIVATE or PUBLISHED,PUBLIC",
+            "origin": "from the sheet answer",
+            "confirmation": "confirmed",
+            "holds": "none",
+            "evidence": "per answer",
+            "cloneLink": "none",
+            "built": "yes"
+        },
+        {
+            "name": "IMPORT_SAVE",
+            "actor": "import",
+            "lifecycleAudience": "PUBLISHED,PRIVATE or PUBLISHED,PUBLIC (the item's choice)",
+            "origin": "from the item's statement, through the codec",
+            "confirmation": "confirmed",
+            "holds": "none",
+            "evidence": "EVIDENCE_IMPORT_FILE or EVIDENCE_PASTED_PAGE",
+            "cloneLink": "none",
+            "built": "yes"
+        },
+        {
+            "name": "CURATOR_IMPORT",
+            "actor": "curator",
+            "lifecycleAudience": "PUBLISHED,PUBLIC",
+            "origin": "ORIGIN_PUBLIC_DOMAIN",
+            "confirmation": "confirmed",
+            "holds": "none",
+            "evidence": "none",
+            "cloneLink": "none",
+            "built": "yes"
+        },
+        {
+            "name": "CLONE",
+            "actor": "another cook",
+            "lifecycleAudience": "private, as the clone route sets it",
+            "origin": "the source's origin, except ORIGIN_OWN becomes ORIGIN_UNSTATED",
+            "confirmation": "as the route sets it",
+            "holds": "copies HOLD_SOURCE_CORRECTED at insert",
+            "evidence": "the source's evidence",
+            "cloneLink": "set; shows VIEW_COPY_OF",
+            "built": "yes"
+        },
+        {
+            "name": "CLONE of a public version",
+            "actor": "another cook",
+            "lifecycleAudience": "private draft (003B FR-062a)",
+            "origin": "as CLONE",
+            "confirmation": "as CLONE",
+            "holds": "as CLONE",
+            "evidence": "keeps source_record_id and public_credit",
+            "cloneLink": "set; shows VIEW_COPY_OF_COMMISE_PAGE",
+            "built": "going public refused by REFUSAL_PUBLIC_VERSION_COPY, pending 021-FR-005"
+        },
+        {
+            "name": "PUBLIC_VERSION_PUBLISH",
+            "actor": "003B job, on the cook's choice",
+            "lifecycleAudience": "PUBLISHED,PUBLIC",
+            "origin": "ORIGIN_COMMISE_WRITTEN",
+            "confirmation": "confirmed",
+            "holds": "none",
+            "evidence": "linked source record",
+            "cloneLink": "none",
+            "built": "pending: 003B"
         }
     ],
     "retired": [
         {
-            "name": "Just for me",
-            "replacedBy": "Private",
-            "labelOnly": false
-        },
-        {
-            "name": "Keep it just for me",
-            "replacedBy": "Private",
-            "labelOnly": false
-        },
-        {
             "name": "Publish privately",
-            "replacedBy": "Private",
-            "labelOnly": false
-        },
-        {
-            "name": "For everyone",
-            "replacedBy": "Public",
+            "replacedBy": "ANSWER_UNSTATED_PRIVATE (I’m not sure yet). The answer value and the flow stay",
             "labelOnly": false
         },
         {
             "name": "private draft",
-            "replacedBy": "Draft",
+            "replacedBy": "Draft + Private",
             "labelOnly": true
         },
         {
-            "name": "Not approved",
-            "replacedBy": "Not approved to be public",
+            "name": "private slots",
+            "replacedBy": "private recipes (own task, after #488 merges)",
             "labelOnly": true
+        },
+        {
+            "name": "importChoice.both",
+            "replacedBy": "IMPORT_CHOICE_BOTH",
+            "labelOnly": false
         },
         {
             "name": "Copied from a public web page",
@@ -227,7 +848,7 @@
         },
         {
             "name": "Saved from",
-            "replacedBy": "From a web page",
+            "replacedBy": "From a web page (the credit line CREDIT_SAVED_FROM stays)",
             "labelOnly": true
         },
         {
@@ -238,11 +859,6 @@
         {
             "name": "From a cookbook, magazine or paid site",
             "replacedBy": "From a cookbook or magazine; From a paid website",
-            "labelOnly": false
-        },
-        {
-            "name": "Adapted in my own words",
-            "replacedBy": "Adapted by you",
             "labelOnly": false
         },
         {
@@ -257,12 +873,42 @@
         },
         {
             "name": "Steps written by Commise",
-            "replacedBy": "Written by Commise (a page label); the AI credit line (a credit under AI-written steps)",
+            "replacedBy": "Written by Commise (a page label); the AI credit line is not a label and stays",
             "labelOnly": true
         },
         {
+            "name": "Adapted in my own words",
+            "replacedBy": "Adapted by you",
+            "labelOnly": false
+        },
+        {
+            "name": "Adapted from",
+            "replacedBy": "Source (the heading); Copied from {name} (a copy line)",
+            "labelOnly": true
+        },
+        {
+            "name": "Cloned from",
+            "replacedBy": "Copied from {name}",
+            "labelOnly": false
+        },
+        {
+            "name": "Not approved",
+            "replacedBy": "Not approved to be public.",
+            "labelOnly": true
+        },
+        {
+            "name": "A public version is being checked",
+            "replacedBy": "In review",
+            "labelOnly": false
+        },
+        {
+            "name": "Unsaved changes",
+            "replacedBy": "Changes saved on this device",
+            "labelOnly": false
+        },
+        {
             "name": "held",
-            "replacedBy": "Waiting for you (import item only)",
+            "replacedBy": "one meaning per machine; Waiting for you (import item only)",
             "labelOnly": true
         },
         {
@@ -276,5 +922,52 @@
             "labelOnly": true
         }
     ],
-    "allowedHits": []
+    "allowedHits": [],
+    "separateMachines": [
+        "IMPORT_ITEM_*",
+        "IMPORT_CHOICE_*",
+        "PUBLIC_VERSION_JOB_*",
+        "STEPS_JOB_*",
+        "CHECK_REFERRAL_*",
+        "CHECK_MODE_*",
+        "SAVE_*",
+        "OUTBOX_*",
+        "ARCHIVE_*",
+        "ERASURE_JOB_*",
+        "CREDIT_*",
+        "COOKING_SESSION_*",
+        "SOURCE_ROW_*"
+    ],
+    "decisions": [
+        {
+            "id": "Q16",
+            "decision": "A cook saves an edit to a public recipe whose source holds it off Public: it stays public and the check reruns on the new text. It goes private only if the check fails (P10, #412).",
+            "by": "owner, 2026-11-27"
+        }
+    ],
+    "sourceRow": {
+        "views": [
+            "SOURCE_ROW_HIDDEN",
+            "SOURCE_ROW_OWN",
+            "SOURCE_ROW_OPEN_ANSWERED",
+            "SOURCE_ROW_LOCKED",
+            "SOURCE_ROW_LOCKED_ANSWER",
+            "SOURCE_ROW_FIELD"
+        ],
+        "strings": [
+            "SOURCE_ROW_LOCKED_NOTE",
+            "SOURCE_ROW_LOCK_WARNING_PUBLISH",
+            "SOURCE_ROW_LOCK_WARNING_SAVE",
+            "SOURCE_ROW_CHANGE_OWN",
+            "SOURCE_ROW_LOCKED_LEFT_OUT",
+            "SOURCE_ROW_ANNOUNCE_DOWNGRADE",
+            "SOURCE_ROW_ASK_*",
+            "SOURCE_ROW_SAY_WHERE",
+            "SOURCE_ROW_CHANGE_ANSWER",
+            "SOURCE_ROW_OWN_LINK_LEFT_OUT",
+            "SOURCE_ROW_BODY_DOWNGRADE",
+            "SOURCE_ROW_CONFIRM_DOWNGRADE"
+        ],
+        "note": "Names only. Not recipe states. lockedRefused is the string of REFUSAL_SOURCE_LOCKED."
+    }
 }

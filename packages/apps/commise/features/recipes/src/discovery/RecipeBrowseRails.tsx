@@ -9,7 +9,7 @@
  * renders (`RecipeBrowseRailLoading`, `RecipeBrowseRailLoadError` or `RecipeBrowseRailResults`), so a rail loads and fails
  * on its own while every heading stays put. It fetches nothing.
  *
- * A fine pointer also gets Previous and Next (36 px round ghost buttons before "See all"); they move the rail's track one
+ * A fine pointer also gets Previous and Next (the shared icon button, before "See all"); they move the rail's track one
  * view less one card and disable at the ends. The track is inside the body's boundary and the buttons outside it, so the
  * rail hands its body a `RailContext` and the track gives the rail its element back.
  *

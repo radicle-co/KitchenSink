@@ -267,7 +267,7 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
             close.evaluate((element, title) => {
                 const isTitle = (node: Element): boolean =>
                     [...node.querySelectorAll('[role="heading"], h1, h2, h3')].some(
-                        (heading) => heading.textContent?.trim() === title,
+                        (heading) => heading.textContent.trim() === title,
                     );
                 let node = element.parentElement;
 
@@ -279,7 +279,7 @@ test.describe('the filter Sheet’s Done at 640 × 360 (compactHeightLayout.md �
                     throw new Error(`No ancestor of Close holds the title ${title}`);
                 }
 
-                if ([...node.querySelectorAll('button')].some((button) => button.textContent?.trim() === 'Done')) {
+                if ([...node.querySelectorAll('button')].some((button) => button.textContent.trim() === 'Done')) {
                     throw new Error('The title row holds Done, so it is the whole Sheet');
                 }
 

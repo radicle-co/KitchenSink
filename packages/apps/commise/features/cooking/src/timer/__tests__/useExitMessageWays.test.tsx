@@ -2,7 +2,7 @@
  * The decorator over the ways out of cooking mode: a way out shows the timer message first, then goes. Run over a
  * real timer store and a real `SnackbarHost`, so the text a cook reads is the text the host shows.
  */
-import { resolveMessages } from '@commise/i18n';
+import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { SnackbarHost, useSnackbar } from '@commise/ui/snackbar';
 import { act, cleanup, fireEvent, render, screen } from '@testing-library/react';
 import type { ReactNode } from 'react';
@@ -23,7 +23,7 @@ const STEP = {
     label: { kind: 'typed', text: 'Rice' },
     origin: { kind: 'added' },
 } as const;
-const RUNNING_TEXT = 'Your Rice timer keeps running.';
+const RUNNING_TEXT = fillTemplate(en.exit.timerRunningWeb, { label: 'Rice' });
 
 beforeEach(() => {
     vi.useFakeTimers({ now: Date.parse('2026-11-20T10:00:00.000Z'), toFake: ['Date', 'setTimeout', 'clearTimeout'] });
@@ -70,27 +70,30 @@ function setup(recipeId = 'r1') {
 }
 
 describe('useExitMessageWays', () => {
-    it('shows the message and then leaves, for Leave and for Home (mutant: the way first, or no message)', () => {
-        const { store, ways, user, disconnect } = setup();
-        store.start({ ...STEP, recipeId: 'r1', durationMs: 60_000 });
+    it.each([
+        ['Leave', 'onLeave'],
+        ['Home', 'onHome'],
+    ] as const)(
+        'shows the message and runs the way, for %s (mutant: no message, or the way undecorated)',
+        (name, way) => {
+            const { store, ways, user, disconnect } = setup();
 
-        user.click(screen.getByRole('button', { name: 'Leave' }));
+            store.start({ ...STEP, recipeId: 'r1', durationMs: 60_000 });
 
-        expect(screen.getByText(new RegExp(RUNNING_TEXT, 'u'))).toBeTruthy();
-        expect(ways.onLeave).toHaveBeenCalledTimes(1);
+            user.click(screen.getByRole('button', { name }));
 
-        user.click(screen.getByRole('button', { name: 'Home' }));
-
-        expect(ways.onHome).toHaveBeenCalledTimes(1);
-        disconnect();
-    });
+            expect(screen.getByText(RUNNING_TEXT)).toBeTruthy();
+            expect(ways[way]).toHaveBeenCalledTimes(1);
+            disconnect();
+        },
+    );
 
     it('reads the timer at the press, not at render (mutant: read once at render)', () => {
         const { store, ways, user, disconnect } = setup();
 
         user.click(screen.getByRole('button', { name: 'Leave' }));
 
-        expect(screen.queryByText(new RegExp(RUNNING_TEXT, 'u'))).toBeNull();
+        expect(screen.queryByText(RUNNING_TEXT)).toBeNull();
         expect(ways.onLeave).toHaveBeenCalledTimes(1);
 
         act(() => {
@@ -98,7 +101,7 @@ describe('useExitMessageWays', () => {
         });
         user.click(screen.getByRole('button', { name: 'Leave' }));
 
-        expect(screen.getByText(new RegExp(RUNNING_TEXT, 'u'))).toBeTruthy();
+        expect(screen.getByText(RUNNING_TEXT)).toBeTruthy();
         disconnect();
     });
 
@@ -120,7 +123,7 @@ describe('useExitMessageWays', () => {
         user.click(screen.getByRole('button', { name: 'Edit' }));
 
         expect(ways.onEdit).toHaveBeenCalledTimes(1);
-        expect(screen.queryByText(new RegExp(RUNNING_TEXT, 'u'))).toBeNull();
+        expect(screen.queryByText(RUNNING_TEXT)).toBeNull();
         disconnect();
     });
 
@@ -133,13 +136,13 @@ describe('useExitMessageWays', () => {
             vi.advanceTimersByTime(EXIT_MESSAGE_MS - 1);
         });
 
-        expect(screen.getByText(new RegExp(RUNNING_TEXT, 'u'))).toBeTruthy();
+        expect(screen.getByText(RUNNING_TEXT)).toBeTruthy();
 
         act(() => {
             vi.advanceTimersByTime(2);
         });
 
-        expect(screen.queryByText(new RegExp(RUNNING_TEXT, 'u'))).toBeNull();
+        expect(screen.queryByText(RUNNING_TEXT)).toBeNull();
         disconnect();
     });
 

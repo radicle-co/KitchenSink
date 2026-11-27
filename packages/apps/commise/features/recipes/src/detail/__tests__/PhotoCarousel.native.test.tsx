@@ -239,10 +239,8 @@ describe('PhotoCarousel (native)', () => {
                 const close = screen.getByLabelText('Close photo');
                 const disc = close.firstElementChild;
 
-                // the Close is the hero button, whose disc is the photoChip
-                // role under an ink glyph (it was a paper disc), and the scrim is on the frame the Close and the
-                // lightbox
-                // photo share.
+                // Rewritten: the Close is the hero button, whose disc is the photoChip role under an ink glyph (it
+                // was a paper disc). The scrim is on the frame that the Close and the lightbox photo share.
                 expect(disc === null ? '' : getComputedStyle(disc).backgroundColor).toBe(rgb(colours.photoChip));
                 expect(getComputedStyle(commonFrame(close, lightboxPhoto())).backgroundColor).toBe(colours.scrim);
                 expect(close.querySelector('[data-icon-name="x"]')?.getAttribute('data-icon-color')).toBe(colours.ink);
@@ -273,15 +271,15 @@ describe('PhotoCarousel (native)', () => {
             expect(state.modal).toMatchObject({ statusBarTranslucent: true, navigationBarTranslucent: true });
         });
 
-        // the Close is the hero button, whose frame is the 48 dp target; the
-        // safe-area offsets sit on the absolute slot that places it.
+        // Rewritten: the Close is the hero button, whose frame is the 48 dp target. The safe-area offsets sit on
+        // the absolute slot that places it.
         it.each([
             ['ios', '44px'],
             ['android', '48px'],
         ] as const)(
             'gives Close the touch floor on %s inside the safe area, clear of a side navigation bar',
             async (os, side) => {
-                // The lightbox mounts after a press, so the platform is held for the whole test, not one
+                // The lightbox mounts after a press, so the platform is held for the whole test, not for one
                 // synchronous call.
                 const original = Platform.OS;
                 Object.defineProperty(Platform, 'OS', { value: os, configurable: true });

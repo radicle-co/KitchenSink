@@ -166,9 +166,9 @@ describe('Stepper (web)', () => {
         expect(screen.getByRole('button', { name: 'Fewer' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    // the button is the shared icon button over the stepper's own frame
-    // layer, in one seat. The ring and the glyph are on the button; the 44 px size, the round shape, the paper fill and
-    // the control line are on the frame layer, which is beside the button, never around it, so a dim cannot stack.
+    // Rewritten: the button is the shared icon button over the stepper's own frame layer, in one seat. The ring
+    // and the glyph are on the button. The 44 px size, the round shape, the paper fill and the control line are on
+    // the frame layer, which is beside the button, never around it, so a dim cannot stack.
     it('draws 44px round framed buttons with the minus and plus glyphs and the focusRing', () => {
         render(<Servings />);
 
@@ -193,8 +193,8 @@ describe('Stepper (web)', () => {
         }
     });
 
-    // The whole control dims once at a bound: the frame layer to 40%, and the icon button's own circle and glyph to
-    // 40%, neither inside the other.
+    // New: the whole control dims once at a bound. The frame layer goes to 40% and the icon button's own circle
+    // and glyph go to 40%, neither inside the other.
     it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
         render(<Servings initial={1} />);
         const fewer = screen.getByRole('button', { name: 'Fewer servings' });

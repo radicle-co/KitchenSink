@@ -158,8 +158,8 @@ describe('Stepper (native)', () => {
         expect(screen.getByRole('button', { name: 'More servings' }).getAttribute('aria-disabled')).toBe('true');
     });
 
-    // the button is the shared icon button over the stepper's own frame
-    // layer in one seat, so the size is read on that frame layer and on the button's own frame.
+    // Rewritten: the button is the shared icon button over the stepper's own frame layer in one seat, so the size
+    // is read on that frame layer and on the button's own frame.
     it.each([
         ['ios', '44px'],
         ['android', '48px'],
@@ -186,8 +186,8 @@ describe('Stepper (native)', () => {
         });
     });
 
-    // the whole control dims once at a bound (the disabled look): the frame layer to 40%, and the icon
-    // button's own circle to 40%, neither inside the other. Its live neighbour dims neither.
+    // New: the whole control dims once at a bound. The frame layer goes to 40% and the icon button's own circle
+    // goes to 40%, neither inside the other. Its live neighbour dims neither.
     it('dims the frame and the icon button once each at a bound, and neither at a live value', () => {
         render(<Servings initial={1} />);
         const fewer = screen.getByRole('button', { name: 'Fewer servings' });

@@ -1,6 +1,6 @@
 /**
- * the icon-only control detector, proven shape by shape. A control whose only content is a glyph is built
- * by hand at each site (a 44 target, a focus ring, a press fill, a dim) and drifts. `IconButton` owns that look, so
+ * The icon-only control detector, proven shape by shape. A control whose only content is a glyph is built by hand
+ * at each site (a 44 target, a focus ring, a press fill, a dim) and drifts. `IconButton` owns that look, so
  * the controls that are not `IconButton` are counted down. Each row is a shape, its source and what the detector
  * counts. The rows that count nothing matter as much: a detector that counts a labelled button or a dot link would
  * send the ratchet after the wrong code.

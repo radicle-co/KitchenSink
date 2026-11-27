@@ -1,7 +1,7 @@
 /**
- * icon-only controls built by hand only fall. `IconButton` owns the target, the focus ring, the press fill
- * and the dim of a control that holds one glyph, so each control `iconOnlyControls.ts` finds outside it is a copy of
- * that look. The counts are held per file in `iconOnlyControlsBaseline.json` by the same rules as the other ratchets
+ * The count of icon-only controls built by hand only falls. `IconButton` owns the target, the focus ring, the press
+ * fill and the dim of a control that holds one glyph, so each control `iconOnlyControls.ts` finds outside it is a copy
+ * of that look. The counts are held per file in `iconOnlyControlsBaseline.json` by the same rules as the other ratchets
  * (`ratchetBaseline.ts`): no file above its count, no new file with any, a drop recorded in the same change, and no
  * count above the lowest any version of the baseline recorded.
  *

@@ -94,8 +94,8 @@ const renderMenu = () => {
 };
 
 describe('ActionMenu (native)', () => {
-    // the trigger is the shared icon button, so its target is the platform
-    // touch floor (44 on iOS, 48 on Android), read on the frame inside the button, not a min size on it.
+    // Rewritten: the trigger is the shared icon button, so its target is the platform touch floor (44 on iOS,
+    // 48 on Android). The row reads it on the frame inside the button, not on a min size on the button.
     it.each([
         ['ios', '44px'],
         ['android', '48px'],
@@ -312,7 +312,7 @@ describe('ActionMenu (native)', () => {
         expect(screen.queryByRole('menuitem')).toBeNull();
     });
 
-    // the plain trigger is the shared icon button, so an unavailable one dims to the one 40% every
+    // New: the plain trigger is the shared icon button, so an unavailable one dims to the one 40% that every
     // disabled control shares (it was 60%), and a live one is not dimmed.
     it('dims the plain trigger to the shared disabled level only while unavailable', () => {
         const draw = (unavailable: boolean) => (

@@ -90,7 +90,7 @@ describe('PhotoCarousel (web)', () => {
         expect(screen.queryByRole('dialog')).toBeNull();
     });
 
-    // the lightbox Close is the hero button, a photo chip over the scrim, not a hand-built paper disc.
+    // New: the lightbox Close is the hero button, a photo chip over the scrim, not a hand-built paper disc.
     it('draws the lightbox Close as the hero button over the photo', async () => {
         const user = userEvent.setup();
         render(

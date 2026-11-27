@@ -102,7 +102,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        // the press fill is painted on the icon button's circle inside the button.
+        // Rewritten: the press fill is painted on the icon button's circle inside the button.
         expect(paintedUnder(screen.getByRole('button', { name: 'Actions for Saffron' }))).toBe(rgb(theme.press.muted));
     });
 
@@ -181,7 +181,7 @@ describe.each(['light', 'dark'] as const)('in the %s theme, under a muted surfac
             </Surface>,
         );
 
-        // the press fill is painted on the icon button's circle inside the button.
+        // Rewritten: the press fill is painted on the icon button's circle inside the button.
         expect(paintedUnder(screen.getByRole('button', { name: 'More servings' }))).toBe(rgb(theme.press.muted));
     });
 

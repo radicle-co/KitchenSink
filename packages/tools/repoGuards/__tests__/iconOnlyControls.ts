@@ -1,6 +1,6 @@
 /**
- * every control whose only content is a glyph, read from the parsed module. `IconButton` owns the look of
- * an icon-only control (one target, one focus ring, one press fill, one dim), so each one built by hand is a copy that
+ * Finds every control whose only content is a glyph, read from the parsed module. `IconButton` owns the look of an
+ * icon-only control (one target, one focus ring, one press fill, one dim), so each one built by hand is a copy that
  * can drift. See `iconOnlyControls.test.ts` for the shapes counted and the shapes that are not.
  *
  * A control is an interactive element: an intrinsic `button` or `a`; `Pressable` or a Touchable bound from

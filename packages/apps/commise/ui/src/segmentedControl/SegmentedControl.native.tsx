@@ -8,8 +8,9 @@
  * @pattern Visitor — the `form` discriminated union picks the roles; the look is shared
  */
 import type { FC } from 'react';
-import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet, useWindowDimensions } from 'react-native';
 
+import { Elevated } from '../elevation/Elevated.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName, IconProps } from '../icon/props.js';
 import { useTheme } from '../theme/useTheme.native.js';
@@ -91,8 +92,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
             {faces.map((face) => (
-                <Pressable
+                <Elevated
                     key={face.id}
+                    // A View is not focusable as one control unless it says so, as a Pressable is.
+                    accessible
+                    tabIndex={0}
                     role={roles.segment}
                     {...(props.form === 'route'
                         ? { 'aria-selected': face.selected }
@@ -101,13 +105,13 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     onPress={face.onPress}
                     // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
                     hitSlop={SEGMENT_HIT_SLOP}
-                    style={[
-                        styles.segment,
-                        compactTrack ? styles.segmentContent : null,
-                        face.selected
-                            ? [styles.selected, { backgroundColor: colors.paper, borderColor: colors.lineControl }]
-                            : null,
-                    ]}
+                    // Only the selected segment is lifted: the unselected one carries no shadow field at all.
+                    {...(face.selected ? { level: 'sm' as const } : {})}
+                    style={{
+                        ...styles.segment,
+                        ...(compactTrack ? styles.segmentContent : {}),
+                        ...(face.selected ? { backgroundColor: colors.paper, borderColor: colors.lineControl } : {}),
+                    }}
                 >
                     {face.icon === undefined ? null : (
                         <Icon
@@ -126,7 +130,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                             {face.label}
                         </Text>
                     )}
-                </Pressable>
+                </Elevated>
             ))}
         </Surface>
     );
@@ -157,5 +161,4 @@ const styles = StyleSheet.create({
         borderColor: 'transparent',
         paddingHorizontal: SEGMENT_PADDING_X,
     },
-    selected: nativeTokens.elevation.sm,
 });

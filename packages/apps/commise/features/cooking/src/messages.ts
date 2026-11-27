@@ -151,6 +151,30 @@ export interface CookingTimerMessages {
     readonly stepLabel: string;
 }
 
+/** The timer dock: one row per timer, and the offer beside it. */
+interface CookingDockMessages {
+    /** What the timer is for and where (contains `{label}`, `{n}`). */
+    readonly meta: string;
+    readonly paused: string;
+    readonly done: string;
+    /** A running row's name (contains `{label}`, `{remaining}` as words, `{n}`). */
+    readonly rowA11y: string;
+    readonly rowA11yPaused: string;
+    /** A finished row's name (contains `{label}`, `{n}`). */
+    readonly rowA11yDone: string;
+    /** The same three names for a timer whose name is "Step {n}", which already says the step (designer D96). */
+    readonly rowA11yNoStep: string;
+    readonly rowA11yPausedNoStep: string;
+    readonly rowA11yDoneNoStep: string;
+    /** The control names (contain `{label}`). */
+    readonly pauseA11y: string;
+    readonly resumeA11y: string;
+    readonly cancelA11y: string;
+    readonly stopA11y: string;
+    /** The snackbar after Cancel (contains `{label}`); Undo brings the timer back. */
+    readonly cancelled: string;
+}
+
 /** A length of time: shown as digits and units, and spoken as words. */
 export interface CookingDurationMessages {
     /** Shown, hours and minutes: "1 h 30" (contains `{h}`, `{m}`). The offer and shown times only. */
@@ -221,6 +245,7 @@ export interface CookingMessages {
     readonly gone: CookingGoneMessages;
     readonly allSteps: CookingAllStepsMessages;
     readonly timer: CookingTimerMessages;
+    readonly dock: CookingDockMessages;
     readonly exit: CookingExitMessages;
     readonly duration: CookingDurationMessages;
     readonly alarm: CookingAlarmMessages;
@@ -308,6 +333,22 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
         },
         timer: {
             stepLabel: 'Step\u00a0{n}',
+        },
+        dock: {
+            meta: '{label} \u00b7 step\u00a0{n}',
+            paused: 'Paused',
+            done: 'Done',
+            rowA11y: '{label}, {remaining} left, step\u00a0{n}',
+            rowA11yPaused: '{label}, paused, {remaining} left, step\u00a0{n}',
+            rowA11yDone: '{label} timer done, step\u00a0{n}',
+            rowA11yNoStep: '{label}, {remaining} left',
+            rowA11yPausedNoStep: '{label}, paused, {remaining} left',
+            rowA11yDoneNoStep: '{label} timer done',
+            pauseA11y: 'Pause {label} timer',
+            resumeA11y: 'Resume {label} timer',
+            cancelA11y: 'Cancel {label} timer',
+            stopA11y: 'Stop {label} timer',
+            cancelled: '{label} timer cancelled',
         },
         exit: {
             timerRunningWeb: 'Your {label} timer keeps running. It rings only while this tab is open.',

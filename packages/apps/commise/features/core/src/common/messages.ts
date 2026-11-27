@@ -9,6 +9,8 @@ import type { LocalizedMessages } from '@commise/i18n';
 
 /** Copy shared across features. */
 export interface CommonMessages {
+    /** The action word of an Undo snackbar. */
+    readonly undo: string;
     /**
      * What an Undo says when what it would undo no longer exists (the thing was deleted since). It names nothing, so it
      * reads the same for a collection, a recipe version or anything else.
@@ -24,6 +26,7 @@ export interface CommonMessages {
 /** The shared copy, per locale. */
 export const commonMessages: LocalizedMessages<CommonMessages> = {
     en: {
+        undo: 'Undo',
         undoGone: 'Can’t undo. It was deleted.',
         undoFailed: 'Can’t undo. The change is still in place.',
     },

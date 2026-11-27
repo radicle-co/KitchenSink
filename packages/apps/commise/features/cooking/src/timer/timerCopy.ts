@@ -37,24 +37,30 @@ export interface TimerStep {
     readonly lines: readonly string[];
 }
 
+/** A timer's name, and whether it is the fallback "Step {n}" (which already says the step). */
+export interface TimerName {
+    readonly text: string;
+    readonly isFallback: boolean;
+}
+
 /**
- * The name of a timer in a row, a control name or the alarm.
+ * The name of a timer in a row, a control name or the alarm, with whether it is the fallback.
  *
  * @param timer - Its typed label, if any, and where it came from.
  * @param step - The step the timer is matched to now (a gone recipe passes no lines).
  * @param copy - The timer copy.
  * @returns What the cook typed, as typed; else, for a timer a step line offered, that line's label (the line the timer
- *   stored by its index in `step.lines`); else "Step {n}", also for an offer whose line is not known or not in the
- *   step. The origin decides, never the length or the absence of a typed name, so an offered timer keeps its name
- *   after "+ time" and a reload. The ordinal is not here: it goes with the step (designer). Pure.
+ *   stored by its index in `step.lines`); else "Step {n}" flagged as the fallback, also for an offer whose line is not
+ *   known or not in the step. The origin decides, never the length or the absence of a typed name, so an offered timer
+ *   keeps its name after "+ time" and a reload. Pure.
  */
-export function timerLabel(
+export function timerNameOf(
     timer: Pick<ActiveTimer, 'label' | 'origin'>,
     step: TimerStep,
     copy: CookingTimerMessages,
-): string {
+): TimerName {
     if (timer.label !== undefined) {
-        return timer.label.text;
+        return { text: timer.label.text, isFallback: false };
     }
 
     const line =
@@ -63,7 +69,25 @@ export function timerLabel(
             : undefined;
     const fromLine = line === undefined ? undefined : lineLabelOf(line);
 
-    return fromLine ?? fillTemplate(copy.stepLabel, { n: step.number });
+    return fromLine === undefined
+        ? { text: fillTemplate(copy.stepLabel, { n: step.number }), isFallback: true }
+        : { text: fromLine, isFallback: false };
+}
+
+/**
+ * The name of a timer as text. The ordinal is not here: it goes with the step (designer).
+ *
+ * @param timer - Its typed label, if any, and where it came from.
+ * @param step - The step the timer is matched to now.
+ * @param copy - The timer copy.
+ * @returns {@link timerNameOf}'s text. Pure.
+ */
+export function timerLabel(
+    timer: Pick<ActiveTimer, 'label' | 'origin'>,
+    step: TimerStep,
+    copy: CookingTimerMessages,
+): string {
+    return timerNameOf(timer, step, copy).text;
 }
 
 /**

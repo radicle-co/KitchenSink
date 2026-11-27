@@ -17,8 +17,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         'The "‹ {parent}" eyebrow Back is a part of the large title header, not a component a screen places: on web it shows only from 840 px and is display: none below, and on native it renders nothing because the pinned bar owns Back. The LargeTitleHeader card covers the header it belongs to.',
     PopupInsetsProvider:
         "A page publishes its bottom bar (the tab bar, the editor's action bar) to the snackbar host, so the " +
-        'snackbar rises above it. It renders only its children and draws nothing of its own. The SnackbarHost card covers the ' +
-        'placement it feeds.',
+        'snackbar rises above it. It renders only its children and draws nothing of its own. ' +
+        'The SnackbarHost card covers the placement it feeds.',
     SafeAreaProvider:
         "Artifact-only native component (a shim over react-native-safe-area-context) that the canvas boards mount to place a screen inside an iPhone's insets. It draws nothing of its own, so a preview would be an empty box.",
     ScrollFrame:

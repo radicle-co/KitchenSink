@@ -57,6 +57,7 @@ import {
     containerThreshold,
     contentWidth,
     pinnedBarHeight,
+    snackbarMaxWidth,
     snackbarMessageBasis,
     viewportThreshold,
 } from './layout.js';
@@ -134,6 +135,7 @@ function typeRoleDeclarations(): readonly string[] {
  *  - `--pinned-bar-height`: the pinned back bar's height (56), and `--pinned-bar-block`: that plus the notch's inset, which
  *    the bar, `<main>`'s top padding and `scroll-padding-top` all read.
  *  - `--snackbar-message-basis`: the room the snackbar's message asks for beside Undo (192), as `flex-[1_1_var(...)]`.
+ *  - `--snackbar-max-width`: the most the snackbar is wide (576), as `max-w-[var(...)]`.
  *  - `--container-reading` / `-list` / `-detail` / `-page`: the content widths, as `max-w-*`. ⚠️ The widest is `page`,
  *    not `wide`: the namespace is shared with the container variants (see `layout.ts`).
  */
@@ -151,6 +153,8 @@ function layoutDeclarations(): readonly string[] {
         '    --pinned-bar-block: calc(var(--pinned-bar-height) + env(safe-area-inset-top));',
         // The room the snackbar's message asks for beside Undo (`snackbarMessageBasis` is the same number on native).
         `    --snackbar-message-basis: ${pxToRemUnit(snackbarMessageBasis)};`,
+        // The most the snackbar is wide (`snackbarMaxWidth` is the same number on native).
+        `    --snackbar-max-width: ${pxToRemUnit(snackbarMaxWidth)};`,
     ];
 }
 

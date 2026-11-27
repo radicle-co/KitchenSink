@@ -10,6 +10,7 @@
  */
 import { createContext } from 'react';
 
+import type { PageColumnReader } from './pageColumn.js';
 import type { PopupInsetsReader } from './popupInsetsContext.js';
 
 /**
@@ -26,6 +27,11 @@ export interface PopupInsetsEntry {
     readonly read: PopupInsetsReader;
     /** Tells the host when the chrome resizes. Without it the host reads the chrome only when it places. */
     readonly watch?: PopupInsetsWatch;
+    /**
+     * Where the page's content column sits across the viewport. Optional and ranked apart from `read`: the host centres the
+     * snackbar over the deepest entry that has one, so a nested provider with none keeps the shell's column.
+     */
+    readonly column?: PageColumnReader;
 }
 
 /** What the host offers the providers below it. */

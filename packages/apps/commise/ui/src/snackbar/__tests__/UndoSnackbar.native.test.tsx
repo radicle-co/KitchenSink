@@ -29,7 +29,7 @@ vi.mock('react-native', async (importOriginal) => {
 
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
 import { themeFor } from '../../theme/themeFor.js';
-import { snackbarMessageBasis } from '../../tokens/layout.js';
+import { snackbarMaxWidth, snackbarMessageBasis } from '../../tokens/layout.js';
 import { UndoSnackbar } from '../UndoSnackbar.native.js';
 
 afterEach(() => {
@@ -71,6 +71,22 @@ describe.each(['light', 'dark'] as const)('UndoSnackbar (native), %s theme', (sc
         const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
 
         expect(resolvedStyle(bar, 'boxShadow')).toBe(elevationBoxShadow('lg'));
+    });
+
+    it('is at most the snackbar max width wide (mutant: a literal width that drifts from the token)', () => {
+        systemScheme.current = scheme;
+        renderWithTamagui(
+            <UndoSnackbar
+                message="Recipe deleted"
+                action={{ label: 'Undo', onAction: vi.fn() }}
+                onPause={vi.fn()}
+                onResume={vi.fn()}
+            />,
+            scheme,
+        );
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedStyle(bar, 'maxWidth')).toBe(`${String(snackbarMaxWidth)}px`);
     });
 
     it('presses the Undo action to the inverse row of the press table', () => {

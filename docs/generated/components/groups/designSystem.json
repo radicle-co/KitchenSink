@@ -6,11 +6,11 @@
     "coverage": {
         "components": 106,
         "implementations": 168,
-        "props": 1390,
+        "props": 1391,
         "documentedComponents": 106,
         "implementationsWithModuleDoc": 168,
         "implementationsWithComponentDoc": 154,
-        "documentedProps": 1151,
+        "documentedProps": 1152,
         "classifiedComponents": 99,
         "componentsWithPatternTag": 106,
         "crossPlatformComponents": 62
@@ -14545,6 +14545,15 @@
                     "exportKind": "named",
                     "props": [
                         {
+                            "name": "column",
+                            "type": "PageColumnReader",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "Where this page's content column sits, for the snackbar to centre over. Stable where the page can.",
+                            "declaredIn": "packages/apps/commise/ui/src/popupInsets/PopupInsetsProvider.tsx"
+                        },
+                        {
                             "name": "reader",
                             "type": "PopupInsetsReader",
                             "typeDetail": null,
@@ -19124,7 +19133,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/SnackbarHost.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),\nit gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar,\nits timer and its Undo outlive a page change.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus, and a page change does not announce\nit again. Given a `label` it sits in a landmark of that name, which follows `main` in the DOM. It is centred at the\nfoot, the gap above the CURRENT page's bottom chrome: each page's `PopupInsetsProvider` registers its reader with\nthe host's placement store, and the host re-places when one registers, unregisters or a snackbar shows. The pointer\nor focus inside the snackbar pauses its timer (SC 2.2.1).\n\nA `subject` (the signed-in user id, `null` signed out, `undefined` while loading) closes the snackbar showing when it\nchanges from a known one, so a snackbar that names a recipe never shows to the next person.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link SnackbarHost}: mounted once, above every page (in the app's providers),\nit gives screens `useSnackbar` and draws the one snackbar on screen. It never remounts with a page, so a snackbar,\nits timer and its Undo outlive a page change.\n\nThe status region is ALWAYS mounted, empty at rest, so a message dropped into it is announced (a live region added\nwith its content is not reliably spoken). It is polite and never takes focus, and a page change does not announce\nit again. Given a `label` it sits in a landmark of that name, which follows `main` in the DOM. It is centred at the\nfoot, the gap above the CURRENT page's bottom chrome: each page's `PopupInsetsProvider` registers its reader with\nthe host's placement store, and the host re-places when one registers, unregisters or a snackbar shows. The pointer\nor focus inside the snackbar pauses its timer (SC 2.2.1). Across the viewport it is centred over the CURRENT page's\ncontent column, which the same registration may state (`PageColumn`), so beside the sidebar it never covers it;\nwhere no page states one it spans the viewport.\n\nA `subject` (the signed-in user id, `null` signed out, `undefined` while loading) closes the snackbar showing when it\nchanges from a known one, so a snackbar that names a recipe never shows to the next person.\n\nIt also publishes the showing snackbar's measured height (`SnackbarClearanceContext`), so the floating create button\nrises above the bar, which is full width below `nav`, instead of sitting under it.\n\nWhile a sheet is open the host hands the snackbar to the sheet's outlet (`SnackbarOutlet`, mounted by `Sheet`) and\ndraws nothing itself, because Radix leaves everything outside an open dialog unreachable. The queue, the timer and\nthe pause stay here, so closing the sheet moves the snackbar back without ending it.\n\n`'use client'`: the queue is state and its timer an effect.\n\nThe orchestration half for the snackbar: it owns the queue and its timer, and the leaf it draws only renders.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19407,7 +19416,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/UndoSnackbar.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the web {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its\naction in `inverseAction` (4.56:1 on `inverse`) at a 44 px target that never wraps. All three are roles, so the bar\ninverts in either theme. The row wraps: the message asks for room (`snackbarMessageBasis`, which grows with the text\nsize), so when it has no room beside the action the action drops to its own row under it, at the end. The message may\nshrink here because CSS breaks the line on its basis; the native twin may not, because Yoga would squeeze it. At most\n36 rem wide. It rises 8 px\ninto place over 200 ms only when motion is allowed, and otherwise fades. The pointer or focus inside it tells the\nhost to pause its timer.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
+                    "moduleDoc": "@commise/ui/snackbar — the web {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its\naction in `inverseAction` (4.56:1 on `inverse`) at a 44 px target that never wraps. All three are roles, so the bar\ninverts in either theme. The row wraps: the message asks for room (`snackbarMessageBasis`, which grows with the text\nsize), so when it has no room beside the action the action drops to its own row under it, at the end. The message may\nshrink here because CSS breaks the line on its basis; the native twin may not, because Yoga would squeeze it. At most\n`snackbarMaxWidth` wide. It rises 8 px into place over 200 ms only when motion is allowed, and otherwise fades. The\npointer or focus inside it tells the host to pause its timer.\n\nPresentational: props → JSX, with no data, no mutation and no effect of its own.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -19472,7 +19481,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/ui/src/snackbar/UndoSnackbar.native.tsx",
                     "dir": "packages/apps/commise/ui/src/snackbar",
-                    "moduleDoc": "@commise/ui/snackbar — the native {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its\naction in `inverseAction` (4.56:1 on `inverse`) at a 44 pt target (48 dp on Android) that never wraps; all three from\nthe inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for room\n(`snackbarMessageBasis`, scaled with the system text size up to the cap), so when it has no room beside the action\nthe action drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most\n36 rem (576 pt) wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not\nwired here: the host pauses while a screen reader runs. Styled with Tamagui only (ADR-0080).",
+                    "moduleDoc": "@commise/ui/snackbar — the native {@link UndoSnackbar}: what the host draws for the snackbar on screen (spec\n§1.11).\n\n`inverse` with an `inverseInk` message (12.68:1) that always wraps by words and is never clamped or cut, and its\naction in `inverseAction` (4.56:1 on `inverse`) at a 44 pt target (48 dp on Android) that never wraps; all three from\nthe inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for room\n(`snackbarMessageBasis`, scaled with the system text size up to the cap), so when it has no room beside the action\nthe action drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most\n`snackbarMaxWidth` wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not\nwired here: the host pauses while a screen reader runs. Styled with Tamagui only (ADR-0080).",
                     "moduleTags": [
                         {
                             "name": "module",

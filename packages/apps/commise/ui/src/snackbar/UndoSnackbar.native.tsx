@@ -7,7 +7,7 @@
  * the inverse tone's theme keys, so the bar inverts in either theme. The row wraps: the message asks for room
  * (`snackbarMessageBasis`, scaled with the system text size up to the cap), so when it has no room beside the action
  * the action drops to its own row under it, at the end (the web bar's rule, owner ruling for issue 409). At most
- * 36 rem (576 pt) wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not
+ * `snackbarMaxWidth` wide. Native has no hover and cannot see the screen-reader cursor, so `onPause`/`onResume` are not
  * wired here: the host pauses while a screen reader runs. Styled with Tamagui only (ADR-0080).
  *
  * @pattern Command (invoker) — its action is the `{ label, onAction }` command the queue carries; pressing it invokes
@@ -22,7 +22,7 @@ import { touchFloor } from '../layout/touchFloor.native.js';
 import { ToneScope } from '../surfaceTone/ToneScope.native.js';
 import { Text } from '../text/Text.native.js';
 import { cappedFontScale } from '../text/fontScaleCap.js';
-import { snackbarMessageBasis } from '../tokens/layout.js';
+import { snackbarMaxWidth, snackbarMessageBasis } from '../tokens/layout.js';
 import type { SnackbarAction, UndoSnackbarProps } from './props.js';
 
 /** The bar: the inverse fill, the level-lg shadow, and a row that wraps so Undo can drop under a long message. */
@@ -33,7 +33,7 @@ const Bar = styled(Elevated, {
     alignItems: 'center',
     columnGap: '$3',
     width: '100%',
-    maxWidth: 576,
+    maxWidth: snackbarMaxWidth,
     borderRadius: '$md',
     paddingHorizontal: '$4',
     paddingVertical: '$2',

@@ -4,7 +4,8 @@
  *
  * The page providers (`PopupInsetsProvider`) register an entry here, with a token, a depth and a reader. The top entry
  * is picked by the same rule as the outlets (`topEntry`): the deepest provider, the latest among equals. The snackbar
- * sits the gap above that page's bottom chrome, and at the base gap when no page provides any.
+ * sits the gap above that page's bottom chrome, and at the base gap when no page provides any. Across the viewport it
+ * sits over the content column of the deepest entry that states one (`PageColumn`), and spans the viewport when none does.
  *
  * It re-places when an entry registers or unregisters, when `place()` is called as a snackbar shows, and when an
  * entry's `watch` says its chrome resized. A reader measures the page, so it is read only then, never from
@@ -23,6 +24,9 @@ import { registerOutlet, topEntry, unregisterOutlet, type SnackbarOutletStack } 
 export interface SnackbarPlacement extends PopupInsetsRegistry {
     /** The offset from the viewport's foot, in CSS px. Never reads a page. */
     readonly getBottom: () => number;
+    /** The offset from the viewport's left and right edges to the page's content column, in CSS px. Never reads a page. */
+    readonly getLeft: () => number;
+    readonly getRight: () => number;
     readonly subscribe: (listener: () => void) => () => void;
     /** Re-reads the top page's chrome. Called as a snackbar shows. */
     readonly place: () => void;
@@ -38,17 +42,25 @@ export interface SnackbarPlacement extends PopupInsetsRegistry {
 export function createSnackbarPlacement(): SnackbarPlacement {
     let stack: SnackbarOutletStack<PopupInsetsEntry> = [];
     let bottom = SNACKBAR_GAP;
+    let left = 0;
+    let right = 0;
     const listeners = new Set<() => void>();
 
     const place = (): void => {
         const top = topEntry(stack);
+        // The column is ranked apart from the chrome, by the same rule over the entries that state one.
+        const column = topEntry(stack.filter((candidate) => candidate.column !== undefined))?.column?.();
         const next = (top === undefined ? 0 : top.read().bottom) + SNACKBAR_GAP;
+        const nextLeft = column?.left ?? 0;
+        const nextRight = column?.right ?? 0;
 
-        if (next === bottom) {
+        if (next === bottom && nextLeft === left && nextRight === right) {
             return;
         }
 
         bottom = next;
+        left = nextLeft;
+        right = nextRight;
         listeners.forEach((listener) => {
             listener();
         });
@@ -56,6 +68,8 @@ export function createSnackbarPlacement(): SnackbarPlacement {
 
     return {
         getBottom: () => bottom,
+        getLeft: () => left,
+        getRight: () => right,
         subscribe: (listener) => {
             listeners.add(listener);
 

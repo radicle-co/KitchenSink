@@ -861,21 +861,21 @@
       "x": 0,
       "y": 48207,
       "w": 1280,
-      "h": 942,
+      "h": 962,
       "title": "Recipe detail, a held public recipe’s refused save and Save and hide (web, 1280)"
     },
     "RecipeHeldSaveDetailWeb390.dc.html": {
       "x": 1360,
       "y": 48207,
       "w": 390,
-      "h": 1070,
+      "h": 1130,
       "title": "Recipe detail, a held public recipe’s refused save and Save and hide (web, 390)"
     },
     "RecipeHeldSaveDetailLargeTextWeb390.dc.html": {
       "x": 1830,
       "y": 48207,
       "w": 390,
-      "h": 1796,
+      "h": 1856,
       "title": "Recipe detail, refused save and Save and hide at the largest text (web, 390)"
     }
   },

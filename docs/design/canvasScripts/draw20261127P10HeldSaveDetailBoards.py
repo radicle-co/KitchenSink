@@ -142,7 +142,8 @@ def content(large: bool) -> str:
         [
             figure(
                 "Owner, a save refused after the cook left the editor (AE7): the recipe is still public and unchanged. "
-                "The line shows only while that refused save is parked on this device (new key). Edit opens the "
+                "The line shows only while that refused save is parked on this device (new key). The line has no "
+                "button of its own: the page's existing Edit action (in the page header, not drawn here) opens the "
                 "editor, which opens the blocked-save sheet at once, with the changes still there",
                 panel(notice("alert", M["notSaved"]), ("globe", "Public")),
             ),

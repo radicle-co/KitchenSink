@@ -6,8 +6,10 @@ import { RECIPES_DAL } from '../../src/recipes/recipes.tokens.js';
 
 /**
  * The ONE way an integration suite provides `RECIPES_DAL`. `bootServiceApp` types `useValue` as `unknown`, so a plain
- * provider literal is never checked against the DAL; this puts the type at the hand-over. Each member is checked against
- * `RecipesDal`'s own member type, and a member that answers `any` (a bare `vi.fn()`) or is not a DAL member is a compile
+ * provider literal is never checked against the DAL; this puts the type at the hand-over. Each member is checked
+ * against
+ * `RecipesDal`'s own member type, and a member that answers `any` (a bare `vi.fn()`) or is not a DAL member is a
+ * compile
  * error, however it reaches the call (see `RecipesDalMembers`).
  *
  * @param members - The DAL members the suite answers; the rest are absent, so a call to one fails loudly.

@@ -3,10 +3,13 @@
  * Repo-wide guard: recipe-service's tests never hand-write what the real `RecipesDal` returns for the locked facts, and
  * the integration tier provides `RECIPES_DAL` only through the typed `recipesDalDouble` helper.
  *
- * ⛔ WHY THIS IS A GUARD. The recipe-service integration tier boots the real `AppModule` with a double for each DAL. Each
- * suite once wrote its own `lockSlotFacts` answer, a copy of the 11-column projection of `RecipesDal.lockSlotFacts`. When a
+ * ⛔ WHY THIS IS A GUARD. The recipe-service integration tier boots the real `AppModule` with a double for each DAL.
+ * Each
+ * suite once wrote its own `lockSlotFacts` answer, a copy of the 11-column projection of `RecipesDal.lockSlotFacts`.
+ * When a
  * migration added a locked fact, every copy kept compiling and answered `undefined` for it, so a policy ran on an input
- * the real DAL never returns, and every suite stayed green. The projection is now written once (`lockedFactsOf`) and the
+ * the real DAL never returns, and every suite stayed green. The projection is now written once (`lockedFactsOf`) and
+ * the
  * hand-over is typed (`recipesDalDouble`); this guard keeps both true. A type cannot see a literal that bypasses the
  * projection, and a literal is the drift.
  *
@@ -14,7 +17,15 @@
  *  1. No integration test names `RECIPES_DAL`. A suite that provided the token itself would skip `recipesDalDouble`,
  *     and with it the check that a member answers the DAL's own type.
  *  2. In every recipe-service test file, an answer for `lockSlotFacts` holds no object literal unless it is inside a
- *     `lockedFactsOf(...)` call (or reuses a `fakeRecipesDal(...)` member, which is built by it).
+ *     `lockedFactsOf(...)` call. The arguments of a call to a function whose name ends in `fakeRecipesDal` are
+ * trusted too,
+ *     because the fake's own `lockSlotFacts` member is where the default lives (`recipesDal.fixture.ts`); the suffix
+ * match
+ *     is for the alias `sharedFakeRecipesDal`. A member given to such a call is still read, so a literal there is
+ * reported.
+ *
+ * Known limit: an object held in a `const` and returned by reference is not seen; the guard reads the answer's own
+ * text.
  *
  * ✅ THE FIX FOR A FAILURE: `lockSlotFacts: () => Promise.resolve(lockedFactsOf(makeRecipeRow({ ... })))`, and
  * `recipesDalDouble({ ... })` in place of `{ provide: RECIPES_DAL, useValue: { ... } }`.
@@ -28,7 +39,7 @@ import path from 'node:path';
 
 import { afterEach, describe, expect, it } from 'vitest';
 
-import { inlineLockedFacts, recipeServiceTestFiles, recipesDalImports } from './mockedRecipeDalDoubles.js';
+import { inlineLockedFacts, recipeServiceTestFiles, recipesDalTokenUses } from './mockedRecipeDalDoubles.js';
 import { repoRoot } from './serviceSources.js';
 
 const SERVICE = 'packages/services/recipe-service';
@@ -48,13 +59,13 @@ describe('rule 1: the integration tier does not name RECIPES_DAL', () => {
         ['a member of an imported namespace', `import * as t from 'x'; const a = { provide: t.RECIPES_DAL };`],
         ['the token spelled as a string', `const a = { provide: 'RECIPES_DAL', useValue: {} };`],
     ])('reports %s', (_name, source) => {
-        expect(recipesDalImports(source, 'a.integration.test.ts')).not.toHaveLength(0);
+        expect(recipesDalTokenUses(source, 'a.integration.test.ts')).not.toHaveLength(0);
     });
 
     it('reports nothing for a comment or a longer name', () => {
         const source = `// RECIPES_DAL\n/** the RECIPES_DAL double */\nconst RECIPES_DAL_NAME = 1;\n`;
 
-        expect(recipesDalImports(source, 'a.integration.test.ts')).toEqual([]);
+        expect(recipesDalTokenUses(source, 'a.integration.test.ts')).toEqual([]);
     });
 });
 
@@ -87,6 +98,20 @@ describe('rule 2: a lockSlotFacts answer holds no hand-written facts', () => {
         [
             'a vi.fn member returning an object',
             `const a = { lockSlotFacts: vi.fn(async () => ({ visibility: 'private' })) };`,
+        ],
+        ['method shorthand', `const a = { async lockSlotFacts() { return { visibility: 'public' }; } };`],
+        ['a getter', `const a = { get lockSlotFacts() { return { visibility: 'public' }; } };`],
+        ['a quoted key', `const a = { 'lockSlotFacts': () => ({ visibility: 'public' }) };`],
+        ['vi.spyOn on the member', `vi.spyOn(dal, 'lockSlotFacts').mockResolvedValue({ visibility: 'x' });`],
+        ['a satisfies wrapper', `(lockSlotFacts satisfies unknown).mockResolvedValue({ visibility: 'x' });`],
+        ['a type assertion wrapper', `(<Mock>lockSlotFacts).mockResolvedValue({ visibility: 'x' });`],
+        [
+            'a member given to fakeRecipesDal',
+            `const dal = fakeRecipesDal({ lockSlotFacts: () => Promise.resolve({ visibility: 'public' }) });`,
+        ],
+        [
+            'an offence after a generic arrow (a .ts file, not JSX)',
+            `const t = async <T>(fn: (x: number) => Promise<T>) => fn(1);\nconst a = { lockSlotFacts: () => ({ visibility: 'public' }) };`,
         ],
         [
             'an object beside a lockedFactsOf call',
@@ -126,6 +151,12 @@ describe('rule 2: a lockSlotFacts answer holds no hand-written facts', () => {
         ],
     ])('reports nothing for %s', (_name, source) => {
         expect(inlineLockedFacts(source, 'a.test.ts')).toEqual([]);
+    });
+
+    it('reports an offence after a generic arrow, with its line', () => {
+        const source = `const t = async <T>(fn: (x: number) => Promise<T>) => fn(1);\nconst a = { lockSlotFacts: () => ({ v: 1 }) };\n`;
+
+        expect(inlineLockedFacts(source, 'a.test.ts')).toEqual(['line 2']);
     });
 
     it('names the line of each offence', () => {
@@ -192,7 +223,7 @@ describe('the real tree', () => {
     it('provides RECIPES_DAL in no integration test', () => {
         const offenders = recipeServiceTestFiles(repoRoot)
             .filter((file) => file.startsWith(`${SERVICE}/__tests__/integration/`))
-            .flatMap((file) => recipesDalImports(readText(file), file).map((use) => `${file}: ${use}`));
+            .flatMap((file) => recipesDalTokenUses(readText(file), file).map((use) => `${file}: ${use}`));
 
         expect(offenders).toEqual([]);
     });

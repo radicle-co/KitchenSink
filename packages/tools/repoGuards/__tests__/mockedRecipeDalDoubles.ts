@@ -1,11 +1,14 @@
 /**
- * Mechanism for the recipe-service DAL-doubles guard (`mockedRecipeDalDoubles.test.ts`): which files it scans and what it
- * reads in them. The rules and their reasons live in the guard; everything here is a pure read of the TypeScript parser's
+ * Mechanism for the recipe-service DAL-doubles guard (`mockedRecipeDalDoubles.test.ts`): which files it scans and
+ * what it
+ * reads in them. The rules and their reasons live in the guard; everything here is a pure read of the TypeScript
+ * parser's
  * tree, so a comment that names a token is not a use of it.
  */
 import ts from 'typescript';
 
-import { presentFiles, repoRoot, visit } from './serviceSources.js';
+import { lineOf } from './appSources.js';
+import { parse, presentFiles, repoRoot, visit } from './serviceSources.js';
 
 const SERVICE = 'packages/services/recipe-service';
 
@@ -22,11 +25,9 @@ const ANSWER_WRITERS: ReadonlySet<string> = new Set([
 /** The projection a double's answer must be built by. */
 const PROJECTION = 'lockedFactsOf';
 
-const parse = (source: string, fileName: string): ts.SourceFile =>
-    ts.createSourceFile(fileName, source, ts.ScriptTarget.Latest, true, ts.ScriptKind.TSX);
+const parseFile = (contents: string, file: string): ts.SourceFile => parse({ file, contents });
 
-const lineOf = (file: ts.SourceFile, node: ts.Node): string =>
-    `line ${file.getLineAndCharacterOfPosition(node.getStart(file)).line + 1}`;
+const lineText = (file: ts.SourceFile, node: ts.Node): string => `line ${String(lineOf(file, node))}`;
 
 /**
  * Every test file of recipe-service: a tracked or new TypeScript file under a `__tests__` folder. No name filter, so a
@@ -37,7 +38,7 @@ const lineOf = (file: ts.SourceFile, node: ts.Node): string =>
  * @sideEffect Shells out to git and stats the working tree.
  */
 export function recipeServiceTestFiles(root: string = repoRoot): readonly string[] {
-    return presentFiles([`${SERVICE}/**/*.ts`, `${SERVICE}/**/*.tsx`], root)
+    return presentFiles([`${SERVICE}/**/*.ts`], root)
         .filter((file) => file.includes('/__tests__/'))
         .sort();
 }
@@ -49,8 +50,8 @@ export function recipeServiceTestFiles(root: string = repoRoot): readonly string
  * @param fileName - Its name.
  * @returns One entry per use, with its line.
  */
-export function recipesDalImports(source: string, fileName: string): readonly string[] {
-    const file = parse(source, fileName);
+export function recipesDalTokenUses(source: string, fileName: string): readonly string[] {
+    const file = parseFile(source, fileName);
     const uses: string[] = [];
 
     visit(file, (node) => {
@@ -59,7 +60,7 @@ export function recipesDalImports(source: string, fileName: string): readonly st
             ((ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)) && node.text === 'RECIPES_DAL');
 
         if (spelled) {
-            uses.push(lineOf(file, node));
+            uses.push(lineText(file, node));
         }
     });
 
@@ -70,9 +71,16 @@ export function recipesDalImports(source: string, fileName: string): readonly st
 function unwrap(expression: ts.Expression): ts.Expression {
     return ts.isParenthesizedExpression(expression) ||
         ts.isNonNullExpression(expression) ||
-        ts.isAsExpression(expression)
+        ts.isAsExpression(expression) ||
+        ts.isSatisfiesExpression(expression) ||
+        ts.isTypeAssertionExpression(expression)
         ? unwrap(expression.expression)
         : expression;
+}
+
+/** True for a member name spelled `lockSlotFacts`, bare or quoted. */
+function isMemberName(name: ts.PropertyName): boolean {
+    return (ts.isIdentifier(name) || ts.isStringLiteralLike(name)) && name.text === MEMBER;
 }
 
 /** True when the expression names the `lockSlotFacts` mock: a variable, a member, or `vi.mocked(...)` of either. */
@@ -89,6 +97,17 @@ function namesMember(expression: ts.Expression): boolean {
 
     if (ts.isElementAccessExpression(inner)) {
         return ts.isStringLiteralLike(inner.argumentExpression) && inner.argumentExpression.text === MEMBER;
+    }
+
+    // `vi.spyOn(dal, 'lockSlotFacts')`: the spy answers for the member named by its second argument.
+    if (
+        ts.isCallExpression(inner) &&
+        ts.isPropertyAccessExpression(inner.expression) &&
+        inner.expression.name.text === 'spyOn'
+    ) {
+        const [, name] = inner.arguments;
+
+        return name !== undefined && ts.isStringLiteralLike(name) && name.text === MEMBER;
     }
 
     // `vi.mocked(dal.lockSlotFacts)`: the mock helper hands the same function back, typed as a mock.
@@ -119,7 +138,7 @@ function looseObjects(file: ts.SourceFile, root: ts.Node): readonly string[] {
         }
 
         if (ts.isObjectLiteralExpression(node)) {
-            found.push(lineOf(file, node));
+            found.push(lineText(file, node));
         }
 
         ts.forEachChild(node, walk);
@@ -139,12 +158,14 @@ function looseObjects(file: ts.SourceFile, root: ts.Node): readonly string[] {
  * @returns One entry per hand-written object, with its line.
  */
 export function inlineLockedFacts(source: string, fileName: string): readonly string[] {
-    const file = parse(source, fileName);
+    const file = parseFile(source, fileName);
     const found: string[] = [];
 
     visit(file, (node) => {
-        if (ts.isPropertyAssignment(node) && node.name.getText(file) === MEMBER) {
+        if (ts.isPropertyAssignment(node) && isMemberName(node.name)) {
             found.push(...looseObjects(file, node.initializer));
+        } else if ((ts.isMethodDeclaration(node) || ts.isGetAccessorDeclaration(node)) && isMemberName(node.name)) {
+            found.push(...(node.body ? looseObjects(file, node.body) : []));
         } else if (
             ts.isVariableDeclaration(node) &&
             ts.isIdentifier(node.name) &&

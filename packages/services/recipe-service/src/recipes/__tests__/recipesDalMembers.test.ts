@@ -30,6 +30,10 @@ describe('RecipesDalMembers', () => {
         expectTypeOf<RecipesDalMembers<{ create: () => Promise<AnyValue> }>['create']>().toBeNever();
     });
 
+    it('maps a member typed any to never', () => {
+        expectTypeOf<RecipesDalMembers<{ create: AnyValue }>['create']>().toBeNever();
+    });
+
     it('maps a key that is not a RecipesDal member to never', () => {
         expectTypeOf<RecipesDalMembers<{ notAMember: () => number }>['notAMember']>().toBeNever();
     });

@@ -36,13 +36,15 @@ type IsAny<T> = 0 extends 1 & T ? true : false;
  */
 export type RecipesDalMembers<M> = {
     [K in keyof M]: K extends keyof RecipesDal
-        ? M[K] extends (...args: never[]) => infer R
-            ? IsAny<R> extends true
-                ? never
-                : IsAny<Awaited<R>> extends true
+        ? IsAny<M[K]> extends true
+            ? never
+            : M[K] extends (...args: never[]) => infer R
+              ? IsAny<R> extends true
                   ? never
-                  : M[K]
-            : never
+                  : IsAny<Awaited<R>> extends true
+                    ? never
+                    : M[K]
+              : never
         : never;
 };
 
@@ -62,11 +64,14 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         update: vi.fn<RecipesDal['update']>(),
         softDelete: vi.fn<RecipesDal['softDelete']>(),
         readConflict: vi.fn<RecipesDal['readConflict']>(),
-        // ADR-0073: a cook with no private recipes by default. A suite about slots overrides these with the count it needs.
+        // ADR-0073: a cook with no private recipes by default. A suite about slots overrides these with the count it
+        // needs.
         lockAndCountPrivateSlots: vi.fn<RecipesDal['lockAndCountPrivateSlots']>(async () => 0),
         countPrivateSlots: vi.fn<RecipesDal['countPrivateSlots']>(async () => 0),
-        // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock unless it
-        // overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never counted).
+        // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock
+        // unless it
+        // overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never
+        // counted).
         lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(async (_tx, id) => {
             const found: RecipeAggregate | undefined = await findById(id);
 
@@ -98,7 +103,8 @@ export const FAKE_TX = { __fakeTx: true } as unknown as RecipeTx;
 
 /**
  * A stored row as the read rule's select returns it: the row plus its `heldFromReaders` flag (`false`: not held).
- * `RecipesDal.findRowById` and `findById` answer this shape, so a double that answers a bare `RecipeRow` is a wrong double.
+ * `RecipesDal.findRowById` and `findById` answer this shape, so a double that answers a bare `RecipeRow` is a wrong
+ * double.
  *
  * @param row - The stored recipe row.
  * @param heldFromReaders - Whether a hold keeps it from readers.

@@ -12,30 +12,55 @@ import type { CookingDurationMessages, CookingMessages, CookingTimerMessages } f
 /** The whole seconds in a length, rounded down: the copy never shows a fraction of a second. */
 const partsOf = (ms: number): HmsParts => durationParts(Math.floor(Math.max(0, ms) / 1000));
 
+/** A part of a clock, as two digits. */
+const twoDigits = (value: number): string => String(value).padStart(2, '0');
+
+/**
+ * The time left on a running timer, as a clock: "4:30", "1:09:50". A part of a second rounds UP, so the figure never
+ * reads zero while time is left, and it agrees with the spoken length. Digits, not words, so it needs no catalogue
+ * key; the row's spoken name carries the words.
+ *
+ * @param remainingMs - Time left in ms. Negative reads as zero.
+ * @returns Minutes and seconds, with hours when there are any. Pure.
+ */
+export function countdownFigure(remainingMs: number): string {
+    const { hours, minutes, seconds } = durationParts(Math.ceil(Math.max(0, remainingMs) / 1000));
+
+    return hours > 0
+        ? `${String(hours)}:${twoDigits(minutes)}:${twoDigits(seconds)}`
+        : `${String(minutes)}:${twoDigits(seconds)}`;
+}
+
 /** The matched step a timer's name is read from: its 1-based number and the lines the step shows. */
 export interface TimerStep {
     readonly number: number;
     readonly lines: readonly string[];
 }
 
+/** A timer's name, and whether it is the fallback "Step {n}" (which already says the step). */
+export interface TimerName {
+    readonly text: string;
+    readonly isFallback: boolean;
+}
+
 /**
- * The name of a timer in a row, a control name or the alarm.
+ * The name of a timer in a row, a control name or the alarm, with whether it is the fallback.
  *
  * @param timer - Its typed label, if any, and where it came from.
  * @param step - The step the timer is matched to now (a gone recipe passes no lines).
  * @param copy - The timer copy.
  * @returns What the cook typed, as typed; else, for a timer a step line offered, that line's label (the line the timer
- *   stored by its index in `step.lines`); else "Step {n}", also for an offer whose line is not known or not in the
- *   step. The origin decides, never the length or the absence of a typed name, so an offered timer keeps its name
- *   after "+ time" and a reload. The ordinal is not here: it goes with the step (designer). Pure.
+ *   stored by its index in `step.lines`); else "Step {n}" flagged as the fallback, also for an offer whose line is not
+ *   known or not in the step. The origin decides, never the length or the absence of a typed name, so an offered timer
+ *   keeps its name after "+ time" and a reload. Pure.
  */
-export function timerLabel(
+export function timerNameOf(
     timer: Pick<ActiveTimer, 'label' | 'origin'>,
     step: TimerStep,
     copy: CookingTimerMessages,
-): string {
+): TimerName {
     if (timer.label !== undefined) {
-        return timer.label.text;
+        return { text: timer.label.text, isFallback: false };
     }
 
     const line =
@@ -44,7 +69,25 @@ export function timerLabel(
             : undefined;
     const fromLine = line === undefined ? undefined : lineLabelOf(line);
 
-    return fromLine ?? fillTemplate(copy.stepLabel, { n: step.number });
+    return fromLine === undefined
+        ? { text: fillTemplate(copy.stepLabel, { n: step.number }), isFallback: true }
+        : { text: fromLine, isFallback: false };
+}
+
+/**
+ * The name of a timer as text. The ordinal is not here: it goes with the step (designer).
+ *
+ * @param timer - Its typed label, if any, and where it came from.
+ * @param step - The step the timer is matched to now.
+ * @param copy - The timer copy.
+ * @returns The text of `timerNameOf`. Pure.
+ */
+export function timerLabel(
+    timer: Pick<ActiveTimer, 'label' | 'origin'>,
+    step: TimerStep,
+    copy: CookingTimerMessages,
+): string {
+    return timerNameOf(timer, step, copy).text;
 }
 
 /**

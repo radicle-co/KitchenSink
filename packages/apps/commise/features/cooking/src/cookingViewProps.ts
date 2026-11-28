@@ -16,7 +16,7 @@ export interface CookingRecipe {
     readonly id: string;
     readonly title: string;
     readonly status: CookLinkInput['status'];
-    readonly steps: UseCookingSessionInput['steps'];
+    readonly steps: readonly (UseCookingSessionInput['steps'][number] & { readonly timerSeconds?: number })[];
     /** The recipe's ingredient lines in stored order. Empty, never absent: "no ingredients" is a held fact. */
     readonly ingredients: readonly RecipeIngredientView[];
     /** The servings the recipe was authored with, the base of the cook's scaling. */
@@ -144,6 +144,8 @@ export interface CookingStepProps {
     readonly then: readonly CookingLineView[];
     /** Once every line is ticked, the next step; absent otherwise and on the last step. */
     readonly upNext?: CookingUpNextView;
+    /** The offer to time this step, after its lines. Absent when the step offers no length or a timer is live. */
+    readonly offer?: ReactNode;
 }
 
 /** Props for `CookingNextPreview`: the next step, previewed in the pinned foot. */
@@ -171,8 +173,11 @@ export interface CookingDoneProps {
     readonly title: string;
     /** "{recipe}. Enjoy it." */
     readonly enjoy: string;
-    /** "The screen can turn off again.", only where the screen was kept on. */
-    readonly screenOff?: string;
+    /**
+     * The line about the screen, only where it was kept on: "The screen can turn off again.", or "The screen stays on
+     * until your {label} timer ends." while a timer holds it on.
+     */
+    readonly screenNote?: string;
 }
 
 /** Props for `CookingDoneActions`: Done's two actions, pinned in the foot, each full width. */
@@ -204,7 +209,12 @@ export interface CookingFrameProps {
      * Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while
      * there is one. The frame owns the spacing between the two. Absent for a full-screen notice.
      */
-    readonly foot?: { readonly preview?: ReactNode; readonly actions: ReactNode };
+    readonly foot?: {
+        /** The timer dock: a row for each timer of this recipe, above the preview. Absent when there is none. */
+        readonly dock?: ReactNode;
+        readonly preview?: ReactNode;
+        readonly actions: ReactNode;
+    };
     /** `aria-busy` on the surface while the recipe loads. */
     readonly busy: boolean;
     /**

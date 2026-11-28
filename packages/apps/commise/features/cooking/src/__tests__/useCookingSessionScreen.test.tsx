@@ -130,12 +130,12 @@ describe('useCookingSessionScreen: Done', () => {
         const kept = mount();
         forwardTimes(kept.result, 6);
         expect(kept.result.current.done?.enjoy).toBe('Weeknight roast. Enjoy it.');
-        expect(kept.result.current.done?.screenOff).toBe('The screen can turn off again.');
+        expect(kept.result.current.done?.screenNote).toBe('The screen can turn off again.');
 
         keepAwake.available = false;
         const unkept = mount();
         forwardTimes(unkept.result, 6);
-        expect(unkept.result.current.done?.screenOff).toBeUndefined();
+        expect(unkept.result.current.done?.screenNote).toBeUndefined();
     });
 
     it('returns to the recipe with the first action and starts over with the second', () => {

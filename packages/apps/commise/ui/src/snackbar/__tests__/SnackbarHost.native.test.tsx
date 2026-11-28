@@ -304,4 +304,39 @@ describe('SnackbarHost (native): withdraw', () => {
         );
         expect(screen.getByRole('status').textContent).toBe('');
     });
+
+    // An effect that lists the api as a dependency would otherwise rerun on every render of the host, and its cleanup
+    // (for example "withdraw and let go") would run with it. The web host already hands out one stable api.
+    it('hands a screen the same api after the host renders again', () => {
+        const seen: unknown[] = [];
+
+        function Probe(): JSX.Element {
+            const api = useSnackbar();
+            const [, setPresses] = useState(0);
+
+            seen.push(api);
+
+            return (
+                <Pressable
+                    accessibilityRole="button"
+                    onPress={() => {
+                        setPresses((count) => count + 1);
+                        api.show({ message: 'Hello' });
+                    }}
+                >
+                    <Text>show Hello</Text>
+                </Pressable>
+            );
+        }
+
+        render(
+            <SnackbarHost>
+                <Probe />
+            </SnackbarHost>,
+        );
+        showFrom('Hello');
+
+        expect(seen.length).toBeGreaterThan(1);
+        expect(new Set(seen).size).toBe(1);
+    });
 });

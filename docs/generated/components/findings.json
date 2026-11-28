@@ -3,13 +3,13 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 33,
+        "cross-platform-props-diverge": 34,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 114,
+        "platform-singleton": 115,
         "ref-api": 24,
         "unclassified-layer": 96,
-        "undocumented-prop": 236
+        "undocumented-prop": 241
     },
     "findings": [
         {
@@ -5672,12 +5672,33 @@
         {
             "rule": "cross-platform-props-diverge",
             "severity": "review",
+            "component": "featuresCooking/CookingDone",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: enjoy screenNote title",
+                "native: enjoy screenNote title titleSignal"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "featuresCooking/CookingFootInsets",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingFootInsets.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "web"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
             "component": "featuresCooking/CookingFrame",
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingFrame.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: body busy column foot topBar",
-                "native: body bodySwipe busy column foot topBar"
+                "native: body bodySwipe busy column foot onFootLayout topBar"
             ]
         },
         {
@@ -5729,7 +5750,7 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: back disabled forward",
+                "web: back disabled forward forwardFocusRequested onFocusHandled",
                 "native: back disabled forward forwardFocusRequested narrow onFocusHandled"
             ]
         },
@@ -5740,6 +5761,17 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.native.tsx",
             "message": "props carry no JSDoc description",
             "evidence": [
+                "onFocusHandled"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingNav",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingNav.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "forwardFocusRequested",
                 "onFocusHandled"
             ]
         },
@@ -5812,8 +5844,8 @@
             "sourcePath": "packages/apps/commise/features/cooking/src/CookingStep.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: focus label lineOf then ticked track upNext",
-                "native: focus focusRequested label lineOf onFocusHandled then ticked track upNext"
+                "web: focus label lineOf offer then ticked track upNext",
+                "native: focus focusRequested label lineOf offer onFocusHandled then ticked track upNext"
             ]
         },
         {
@@ -5836,6 +5868,46 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "track"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingTimerDock",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerDock.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "rows"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingTimerDock",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerDock.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "rows"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingTimerOffer",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerOffer.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "offer"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "featuresCooking/CookingTimerOffer",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerOffer.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "offer"
             ]
         },
         {

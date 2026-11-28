@@ -8,8 +8,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CookingDone } from '../CookingDone.native.js';
-import type { CookingDoneProps } from '../cookingViewProps.js';
+import { CookingDone, type NativeCookingDoneProps } from '../CookingDone.native.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus move is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -23,11 +22,12 @@ afterEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
-function doneProps(overrides: Partial<CookingDoneProps> = {}): CookingDoneProps {
+function doneProps(overrides: Partial<NativeCookingDoneProps> = {}): NativeCookingDoneProps {
     return {
         title: 'All 6 steps done',
         enjoy: 'Roast chicken. Enjoy it.',
-        screenOff: 'The screen can turn off again.',
+        screenNote: 'The screen can turn off again.',
+        titleSignal: 0,
         ...overrides,
     };
 }
@@ -59,12 +59,33 @@ describe('CookingDone (native)', () => {
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
     });
 
+    it('moves the cursor onto the title again each time the signal advances, and not on a plain re-render', () => {
+        const { rerender } = render(<CookingDone {...doneProps()} />);
+
+        rerender(<CookingDone {...doneProps({ titleSignal: 1 })} />);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(2);
+
+        rerender(<CookingDone {...doneProps({ titleSignal: 1, enjoy: 'Soup. Enjoy it.' })} />);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(2);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(
+            screen.getByRole('heading', { name: 'All 6 steps done' }),
+            'focus',
+        );
+    });
+
     it('says the screen can turn off only when it was kept on', () => {
         const { unmount } = render(<CookingDone {...doneProps()} />);
         expect(screen.getByText('The screen can turn off again.')).toBeTruthy();
         unmount();
 
-        render(<CookingDone {...doneProps({ screenOff: undefined })} />);
+        render(<CookingDone {...doneProps({ screenNote: undefined })} />);
+        expect(screen.queryByText('The screen can turn off again.')).toBeNull();
+    });
+
+    it('says a timer holds the screen on, instead of the line that it can turn off', () => {
+        render(<CookingDone {...doneProps({ screenNote: 'The screen stays on until your Roast timer ends.' })} />);
+
+        expect(screen.getByText('The screen stays on until your Roast timer ends.')).toBeTruthy();
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();
     });
 });

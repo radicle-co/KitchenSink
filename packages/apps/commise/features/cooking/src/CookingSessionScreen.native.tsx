@@ -18,6 +18,8 @@ import { CookingFrame } from './CookingFrame.native.js';
 import { CookingNav } from './CookingNav.native.js';
 import { CookingNextPreview } from './CookingNextPreview.native.js';
 import { CookingStep } from './CookingStep.native.js';
+import { CookingTimerDock } from './CookingTimerDock.native.js';
+import { CookingTimerOffer } from './CookingTimerOffer.native.js';
 import { CookingTopBar } from './CookingTopBar.native.js';
 import { isTwoColumn } from './cookingLayout.js';
 import type { CookingRecipe } from './cookingViewProps.js';
@@ -26,9 +28,13 @@ import { CookingIngredientsSheet } from './ingredients/CookingIngredientsSheet.j
 import { CookingScaleNote } from './ingredients/CookingScaleNote.native.js';
 import { panelForBand, useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
 import { cookingMessages } from './messages.js';
+import { stepOfferMs } from './timer/stepOfferMs.js';
+import { useCookingTimerDock } from './timer/useCookingTimerDock.js';
+import { useHoldingTimer } from './timer/useHoldingTimer.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
+import { useReportDockHeight } from './useReportDockHeight.native.js';
 
 /** Props for {@link CookingSessionScreen}. */
 export interface CookingSessionScreenProps {
@@ -55,12 +61,22 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
     previewInBody,
     width,
 }) => {
-    const model = useCookingSessionScreen({ recipe, onLeave });
+    const model = useCookingSessionScreen({ recipe, onLeave, holding: useHoldingTimer() });
+    const onFootLayout = useReportDockHeight();
     const wide = isTwoColumn(width);
     const panel = panelForBand(
         useCookingIngredientsPanel({ recipe, copy: useMessages(cookingMessages), locale: useLocale(), wide }),
         wide,
     );
+    const stepIndex = model.session.place.position - 1;
+    const timerDock = useCookingTimerDock({
+        recipe,
+        stepIndex,
+        offerMs: stepOfferMs(recipe.steps, stepIndex),
+        locale: useLocale(),
+        finished: model.done !== null,
+    });
+    const dock = timerDock.rows.length === 0 ? {} : { dock: <CookingTimerDock rows={timerDock.rows} /> };
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const focus = useCookingFocusRecovery({
         moves: model.moves,
@@ -74,8 +90,17 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
             <CookingFrame
                 topBar={<CookingTopBar exit={model.exit} narrow={narrow} />}
                 busy={false}
-                body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
+                onFootLayout={onFootLayout}
+                body={
+                    <CookingDone
+                        title={done.title}
+                        enjoy={done.enjoy}
+                        screenNote={done.screenNote}
+                        titleSignal={timerDock.doneTitleSignal}
+                    />
+                }
                 foot={{
+                    ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
                 }}
             />
@@ -90,6 +115,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
         <>
             <CookingFrame
                 busy={false}
+                onFootLayout={onFootLayout}
                 {...(panel.column === undefined ? {} : { column: <CookingIngredientsColumn {...panel.column} /> })}
                 topBar={
                     <CookingTopBar
@@ -104,6 +130,9 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                     <>
                         <CookingStep
                             {...model.step}
+                            {...(timerDock.offer === undefined
+                                ? {}
+                                : { offer: <CookingTimerOffer offer={timerDock.offer} /> })}
                             focusRequested={focus.target === 'focusLine'}
                             onFocusHandled={focus.handled}
                         />
@@ -119,13 +148,17 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                     </>
                 }
                 foot={{
+                    ...dock,
                     ...(previewInBody || previewNode === null ? {} : { preview: previewNode }),
                     actions: (
                         <CookingNav
                             disabled={false}
                             narrow={narrow}
-                            forwardFocusRequested={focus.target === 'forward'}
-                            onFocusHandled={focus.handled}
+                            forwardFocusRequested={focus.target === 'forward' || timerDock.forward.requested}
+                            onFocusHandled={() => {
+                                focus.handled();
+                                timerDock.forward.onHandled();
+                            }}
                             back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
                             forward={{
                                 label: nav.forward.label,

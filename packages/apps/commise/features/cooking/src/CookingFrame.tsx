@@ -22,6 +22,7 @@
 import type { FC } from 'react';
 
 import type { CookingFrameProps } from './cookingViewProps.js';
+import { COOKING_FOOT_ID } from './CookingFootInsets.js';
 import { COOKING_COLUMN } from './cookingLayout.js';
 import { useCookingNotice } from './CookingNoticeSlot.js';
 import { CookingTwoColumnLayout } from './CookingTwoColumnLayout.js';
@@ -40,7 +41,8 @@ export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy, 
                 {body}
             </div>
             {foot === undefined ? null : (
-                <div data-cooking-foot className="flex flex-col gap-2 pt-3">
+                <div id={COOKING_FOOT_ID} data-cooking-foot className="flex flex-col gap-2 pt-3">
+                    {foot.dock}
                     {foot.preview}
                     {foot.actions}
                 </div>

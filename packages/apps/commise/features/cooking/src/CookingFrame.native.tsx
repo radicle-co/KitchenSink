@@ -21,14 +21,26 @@ import { CookingTwoColumnLayout } from './CookingTwoColumnLayout.native.js';
 
 // Tamagui's own stacks take no responder handlers, so the swipe area is React Native's View, laid out by Tamagui.
 const SwipeArea = styled(View, { name: 'CookingSwipeArea', flex: 1 });
+// The foot is React Native's View too, because it reports its layout and Tamagui's stacks measure by their own loop.
+const FootArea = styled(View, { name: 'CookingFoot' });
 
 /** Native's frame props: the shared ones, plus the responder handlers of the step swipe over the body area. */
 export type NativeCookingFrameProps = CookingFrameProps & {
     readonly bodySwipe?: Pick<ViewProps, 'onMoveShouldSetResponder' | 'onResponderRelease'>;
+    /** The foot's layout, which the screen reports to the navigator so the one snackbar host draws above it. */
+    readonly onFootLayout?: NonNullable<ViewProps['onLayout']>;
 };
 
 /** The native cooking surface. */
-export const CookingFrame: FC<NativeCookingFrameProps> = ({ topBar, body, foot, busy, bodySwipe, column }) => {
+export const CookingFrame: FC<NativeCookingFrameProps> = ({
+    topBar,
+    body,
+    foot,
+    busy,
+    bodySwipe,
+    column,
+    onFootLayout,
+}) => {
     const stack = (
         <YStack testID="cooking-column" flex={1} width="100%" maxWidth={COOKING_COLUMN.maxPx} alignSelf="center">
             {topBar}
@@ -38,10 +50,13 @@ export const CookingFrame: FC<NativeCookingFrameProps> = ({ topBar, body, foot, 
                 </ScrollView>
             </SwipeArea>
             {foot === undefined ? null : (
-                <YStack testID="cooking-foot" gap="$2">
-                    {foot.preview}
-                    {foot.actions}
-                </YStack>
+                <FootArea onLayout={onFootLayout}>
+                    <YStack testID="cooking-foot" gap="$2">
+                        {foot.dock}
+                        {foot.preview}
+                        {foot.actions}
+                    </YStack>
+                </FootArea>
             )}
         </YStack>
     );

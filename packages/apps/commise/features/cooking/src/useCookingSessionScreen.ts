@@ -9,6 +9,7 @@
  */
 import { fillTemplate, pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
+import type { ActiveTimer } from '@kitchensink/cooking-core';
 import { useState } from 'react';
 
 import { exitOf, navOf, type CookingNav } from './cookingCopy.js';
@@ -22,8 +23,10 @@ import type {
     CookingRecipe,
     CookingStepProps,
 } from './cookingViewProps.js';
-import { cookingMessages } from './messages.js';
+import { cookingMessages, type CookingMessages } from './messages.js';
 import { cookingSessionStateOf } from './screenState.js';
+import { timerNameOf } from './timer/timerCopy.js';
+import { timerStepOf } from './timer/timerStep.js';
 import { useCookingKeepAwake } from './useCookingKeepAwake.js';
 import { useCookingSession, type UseCookingSessionResult } from './useCookingSession.js';
 
@@ -63,14 +66,17 @@ export interface CookingSessionScreenModel {
 export function useCookingSessionScreen({
     recipe,
     onLeave,
+    holding,
 }: {
     readonly recipe: CookingRecipe;
     readonly onLeave: () => void;
+    /** The first timer that counts down or rings (`useHoldingTimer`): it keeps the screen on past Done (R12a). */
+    readonly holding?: ActiveTimer;
 }): CookingSessionScreenModel {
     const copy = useMessages(cookingMessages);
     const locale = useLocale();
     const session = useCookingSession({ recipeId: recipe.id, steps: recipe.steps });
-    const { keepAwakeAvailable } = useCookingKeepAwake(session.status);
+    const { keepAwakeAvailable } = useCookingKeepAwake(session.status, holding !== undefined);
     const [moves, setMoves] = useState(0);
     // The step whose ticked lines are open. Held as a step, not a flag, so Show is closed again on every other step.
     const [openTickedStep, setOpenTickedStep] = useState<number | null>(null);
@@ -137,7 +143,7 @@ export function useCookingSessionScreen({
             ? {
                   title: pluralOf(copy.done.title, where.total, locale),
                   enjoy: fillTemplate(copy.done.enjoy, { recipe: recipe.title }),
-                  ...(keepAwakeAvailable ? { screenOff: copy.done.screenOff } : {}),
+                  ...(keepAwakeAvailable ? screenLineOf(holding, recipe, copy) : {}),
                   backToRecipe: {
                       label: copy.done.backToRecipe,
                       onPress: () => {
@@ -161,4 +167,26 @@ export function useCookingSessionScreen({
               }
             : null,
     };
+}
+
+/**
+ * Done's line about the screen: which timer holds it on, or that it can turn off.
+ *
+ * @param holding - The first timer that counts down or rings, or `undefined` when none does.
+ * @param recipe - The recipe, to name the timer by its step.
+ * @param copy - The screen's copy.
+ * @returns The one prop to spread into Done. Pure.
+ */
+function screenLineOf(
+    holding: ActiveTimer | undefined,
+    recipe: CookingRecipe,
+    copy: CookingMessages,
+): Pick<CookingDoneProps, 'screenNote'> {
+    if (holding === undefined) {
+        return { screenNote: copy.done.screenOff };
+    }
+
+    const label = timerNameOf(holding, timerStepOf(holding, recipe), copy.timer).text;
+
+    return { screenNote: fillTemplate(copy.done.screenOnTimer, { label }) };
 }

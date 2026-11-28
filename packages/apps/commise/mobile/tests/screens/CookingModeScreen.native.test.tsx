@@ -9,6 +9,7 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { makeCookingWrapper } from '@commise/features-cooking/testing/mobile';
+import { ReportPageFootContext } from '@commise/ui/popup-insets';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -46,7 +47,7 @@ const { Wrapper: CookingProviders } = makeCookingWrapper();
 /** The screen under the providers the app root mounts: ticks, timer, snackbar host and hardware Back. */
 const screenOf = () => (
     <CookingProviders>
-        <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
+        <CookingModeScreen recipeId="rec_1" routeKey="cook-route" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
     </CookingProviders>
 );
 
@@ -269,5 +270,43 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         rerender(screenOf());
 
         expect(await screen.findByText(stepOf(1, 4))).toBeTruthy();
+    });
+});
+
+/** A layout handler, as react-native-web keeps it on a View's node. */
+const isLayoutHandler = (value: unknown): value is (event: unknown) => void => typeof value === 'function';
+
+/** Fires the foot's layout the way the native host does: react-native-web keeps the handler on the foot's View. */
+function layOutFoot(height: number): void {
+    const foot = screen.getByTestId('cooking-foot').parentElement;
+
+    const handler: unknown = foot === null ? undefined : Reflect.get(foot, '__reactLayoutHandler');
+
+    if (!isLayoutHandler(handler)) {
+        throw new Error('The foot carries no layout handler.');
+    }
+
+    act(() => {
+        handler({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } });
+    });
+}
+
+describe('CookingModeScreen: the foot', () => {
+    it('reports its height under the route key it is given, and clears the report when the screen goes', async () => {
+        const report = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
+        const view = renderWithRecipeClient(
+            <ReportPageFootContext value={report}>{screenOf()}</ReportPageFootContext>,
+            client,
+        );
+        await screen.findByText(stepOf(1, 4));
+        layOutFoot(118);
+
+        expect(report).toHaveBeenCalledWith({ routeKey: 'cook-route', height: 118 });
+
+        view.unmount();
+
+        expect(report).toHaveBeenCalledWith({ routeKey: 'cook-route', height: 0 });
     });
 });

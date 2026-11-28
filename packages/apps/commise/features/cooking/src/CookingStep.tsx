@@ -46,7 +46,7 @@ const OtherLines: FC<{ readonly lines: readonly CookingLineView[] }> = ({ lines 
 );
 
 /** The web cooking step body. */
-export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked, focus, then, upNext }) => (
+export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked, focus, then, upNext, offer }) => (
     <section aria-label={label} className="flex flex-col gap-4 px-2 py-4">
         <CookingStepTrack {...track} />
         {ticked === undefined ? null : (
@@ -68,6 +68,7 @@ export const CookingStep: FC<CookingStepProps> = ({ label, track, lineOf, ticked
         {lineOf === undefined ? null : <p className="px-2 text-meta text-ink-muted">{lineOf}</p>}
         {focus === undefined ? null : <CookingLineRow line={focus} emphasis="focus" />}
         {then.length === 0 ? null : <OtherLines lines={then} />}
+        {offer}
         {upNext === undefined ? null : (
             <div className="flex flex-col gap-2 px-2 pt-2">
                 <p className="text-label text-action-text">{upNext.overline}</p>

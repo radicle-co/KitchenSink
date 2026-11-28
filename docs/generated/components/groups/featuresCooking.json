@@ -4,16 +4,16 @@
     "packageName": "@commise/features-cooking",
     "layer": "feature",
     "coverage": {
-        "components": 19,
-        "implementations": 35,
-        "props": 133,
-        "documentedComponents": 19,
-        "implementationsWithModuleDoc": 35,
-        "implementationsWithComponentDoc": 35,
-        "documentedProps": 122,
-        "classifiedComponents": 19,
-        "componentsWithPatternTag": 9,
-        "crossPlatformComponents": 17
+        "components": 22,
+        "implementations": 40,
+        "props": 143,
+        "documentedComponents": 22,
+        "implementationsWithModuleDoc": 40,
+        "implementationsWithComponentDoc": 40,
+        "documentedProps": 126,
+        "classifiedComponents": 22,
+        "componentsWithPatternTag": 11,
+        "crossPlatformComponents": 19
     },
     "components": [
         {
@@ -32,7 +32,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -62,12 +62,12 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
-                            "name": "screenOff",
+                            "name": "screenNote",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "\"The screen can turn off again.\", only where the screen was kept on.",
+                            "description": "The line about the screen, only where it was kept on: \"The screen can turn off again.\", or \"The screen stays on\nuntil your {label} timer ends.\" while a timer holds it on.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -92,7 +92,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingDone — the native Done body: the title as the screen's heading in the large-title role, the\nrecipe line, and \"The screen can turn off again\" only where the screen was kept on. Its two actions are not here: they\nare pinned in the foot by `CookingDoneActions`, where Back and Next sit on a step. When it opens, screen-reader focus\nmoves to the title, once per mount, never on a re-render.\n\nPresentational: props → JSX, apart from that one focus move.",
+                    "moduleDoc": "CookingDone — the native Done body: the title as the screen's heading in the large-title role, the\nrecipe line, and \"The screen can turn off again\" only where the screen was kept on. Its two actions are not here: they\nare pinned in the foot by `CookingDoneActions`, where Back and Next sit on a step. When it opens, screen-reader focus\nmoves to the title, once per mount, never on a re-render; a Cancel or Stop on Done remounts the title (`titleSignal`), so it\nlands there again after the button it was on is gone.\n\nPresentational: props → JSX, apart from that one focus move.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -118,12 +118,12 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
-                            "name": "screenOff",
+                            "name": "screenNote",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "\"The screen can turn off again.\", only where the screen was kept on.",
+                            "description": "The line about the screen, only where it was kept on: \"The screen can turn off again.\", or \"The screen stays on\nuntil your {label} timer ends.\" while a timer holds it on.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -134,6 +134,15 @@
                             "defaultValue": null,
                             "description": "\"All 6 steps done\": the page's h1, in the largeTitle role.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "titleSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "Advances when a Cancel or Stop takes a row off Done; the title remounts, so the cursor lands on it again.",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],
@@ -251,6 +260,54 @@
             ]
         },
         {
+            "id": "featuresCooking/CookingFootInsets",
+            "name": "CookingFootInsets",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [
+                "Adapter — the foot's rectangle, as `PopupInsetsProvider` reads page chrome"
+            ],
+            "platforms": [
+                "web"
+            ],
+            "crossPlatform": false,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingFootInsets",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingFootInsets.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingFootInsets — tells the app's one snackbar host where the cooking foot starts, so a snackbar (the\ntimer's Undo) draws above the dock and Back / Next instead of over them.\n\nThe cooking route has no AppShell and no column, so the host keeps centring on the viewport; only the bottom changes.\nThe foot is found by its id when it is read and when the watch starts, so no ref is held.\n\nPresentational: props → JSX, plus the provider it wraps.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingFootInsets — tells the app's one snackbar host where the cooking foot starts, so a snackbar (the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Adapter — the foot's rectangle, as `PopupInsetsProvider` reads page chrome"
+                        }
+                    ],
+                    "description": "The cooking screen's foot, as the snackbar host reads it.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
             "id": "featuresCooking/CookingFrame",
             "name": "CookingFrame",
             "group": "featuresCooking",
@@ -313,7 +370,7 @@
                         },
                         {
                             "name": "foot",
-                            "type": "{ readonly preview?: ReactNode; readonly actions: ReactNode; }",
+                            "type": "{ readonly dock?: ReactNode; readonly preview?: ReactNode; readonly actions: ReactNode; }",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
@@ -392,12 +449,21 @@
                         },
                         {
                             "name": "foot",
-                            "type": "{ readonly preview?: ReactNode; readonly actions: ReactNode; }",
+                            "type": "{ readonly dock?: ReactNode; readonly preview?: ReactNode; readonly actions: ReactNode; }",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
                             "description": "Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while\nthere is one. The frame owns the spacing between the two. Absent for a full-screen notice.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onFootLayout",
+                            "type": "((event: LayoutChangeEvent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The foot's layout, which the screen reports to the navigator so the one snackbar host draws above it.",
+                            "declaredIn": null
                         },
                         {
                             "name": "topBar",
@@ -730,6 +796,24 @@
                             "defaultValue": null,
                             "description": "Forward: Next step, Start step n or Finish, and how it looks now.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "forwardFocusRequested",
+                            "type": "boolean",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNav.tsx"
+                        },
+                        {
+                            "name": "onFocusHandled",
+                            "type": "(() => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingNav.tsx"
                         }
                     ],
                     "usesRefApi": [],
@@ -1520,6 +1604,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "offer",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The offer to time this step, after its lines. Absent when the step offers no length or a timer is live.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
                             "name": "then",
                             "type": "readonly CookingLineView[]",
                             "typeDetail": null,
@@ -1617,6 +1710,15 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
+                            "name": "offer",
+                            "type": "ReactNode",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The offer to time this step, after its lines. Absent when the step offers no length or a timer is live.",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
                             "name": "onFocusHandled",
                             "type": "(() => void)",
                             "typeDetail": null,
@@ -1660,6 +1762,190 @@
                             "defaultValue": null,
                             "description": "Once every line is ticked, the next step; absent otherwise and on the last step.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingTimerDock",
+            "name": "CookingTimerDock",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [
+                "Slot — each row's body is the shared summary part, filled here"
+            ],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerDock",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerDock.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTimerDock — the web timer dock: one row for each timer of this recipe, pinned in the foot above the\nNext preview and the actions.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTimerDock — the web timer dock: one row for each timer of this recipe, pinned in the foot above the"
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — each row's body is the shared summary part, filled here"
+                        }
+                    ],
+                    "description": "The web timer dock.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "rows",
+                            "type": "readonly TimerDockRow[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingTimerDock.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerDock",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerDock.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTimerDock — the native timer dock: one row for each timer of this recipe, pinned in the foot.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTimerDock — the native timer dock: one row for each timer of this recipe, pinned in the foot."
+                        },
+                        {
+                            "name": "pattern",
+                            "text": "Slot — each row's body is the shared summary part, filled here"
+                        }
+                    ],
+                    "description": "The native timer dock.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "rows",
+                            "type": "readonly TimerDockRow[]",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingTimerDock.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                }
+            ]
+        },
+        {
+            "id": "featuresCooking/CookingTimerOffer",
+            "name": "CookingTimerOffer",
+            "group": "featuresCooking",
+            "packageName": "@commise/features-cooking",
+            "layer": "feature",
+            "dir": "packages/apps/commise/features/cooking/src",
+            "kind": "presentational",
+            "patterns": [],
+            "platforms": [
+                "web",
+                "native"
+            ],
+            "crossPlatform": true,
+            "propsDiverge": false,
+            "documented": true,
+            "implementations": [
+                {
+                    "name": "CookingTimerOffer",
+                    "platform": "web",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerOffer.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTimerOffer — the \"Time 20 min\" offer under a step: one house button.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTimerOffer — the \"Time 20 min\" offer under a step: one house button."
+                        }
+                    ],
+                    "description": "The web offer.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "offer",
+                            "type": "DockControl",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingTimerOffer.tsx"
+                        }
+                    ],
+                    "usesRefApi": [],
+                    "booleanPropsSelectingSubtree": [],
+                    "docSignals": {
+                        "presentational": true,
+                        "orchestration": false
+                    }
+                },
+                {
+                    "name": "CookingTimerOffer",
+                    "platform": "native",
+                    "sourcePath": "packages/apps/commise/features/cooking/src/CookingTimerOffer.native.tsx",
+                    "dir": "packages/apps/commise/features/cooking/src",
+                    "moduleDoc": "CookingTimerOffer — the \"Time 20 min\" offer under a step: one house button.\n\nPresentational: props → JSX.",
+                    "moduleTags": [
+                        {
+                            "name": "module",
+                            "text": "CookingTimerOffer — the \"Time 20 min\" offer under a step: one house button."
+                        }
+                    ],
+                    "description": "The native offer.",
+                    "tags": [],
+                    "detectedBy": "react-docgen-typescript",
+                    "exportKind": "named",
+                    "props": [
+                        {
+                            "name": "offer",
+                            "type": "DockControl",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "",
+                            "declaredIn": "packages/apps/commise/features/cooking/src/CookingTimerOffer.tsx"
                         }
                     ],
                     "usesRefApi": [],

@@ -11,16 +11,18 @@
  */
 import {
     CookingScreen,
+    DockHeightContext,
     cookingReadSourceOf,
     useCookingRead,
     type CookingScreenProps,
 } from '@commise/features-cooking/mobile';
 import { claimedViewerIdOf, viewerIdOf, viewerKnown } from '@commise/features-recipes/detail';
+import { ReportPageFootContext } from '@commise/ui/popup-insets';
 import { QueryBoundary } from '@commise/query/boundary';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
 import { onlineManager, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import type { FC } from 'react';
+import { useCallback, useContext, type FC } from 'react';
 
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -30,6 +32,8 @@ import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeave' | 'onEdit' | 'onHome'> {
     /** The recipe being cooked. */
     readonly recipeId: string;
+    /** The route's own key, from the route adapter: the foot's reports travel under it, so the screen is not routed. */
+    readonly routeKey: string;
 }
 
 /**
@@ -38,7 +42,7 @@ export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeav
  * @param props - The recipe id and where each way out goes.
  * @returns The cooking screen in the read's state.
  */
-export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeave, onEdit, onHome }) => {
+export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, routeKey, onLeave, onEdit, onHome }) => {
     useScreenTrace('CookingModeScreen');
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -51,35 +55,46 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeav
     const viewer = { id: viewerId, known: viewerKnown(viewerId, profile.isLoading) };
     const detail = recipeQueries(client).detail(recipeId);
 
+    // The navigator draws the one snackbar host above the dock: this screen's reports carry the route's key it is given.
+    const reportFoot = useContext(ReportPageFootContext);
+    const reportDock = useCallback(
+        (height: number) => {
+            reportFoot({ routeKey, height });
+        },
+        [reportFoot, routeKey],
+    );
+
     const readAgain = (): void => {
         void queryClient.invalidateQueries({ queryKey: detail.queryKey });
     };
 
     return (
-        <QueryBoundary
-            loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} recipeId={recipeId} {...ways} />}
-            renderError={({ error, resetErrorBoundary }) => (
-                <CookingScreen
+        <DockHeightContext value={reportDock}>
+            <QueryBoundary
+                loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} recipeId={recipeId} {...ways} />}
+                renderError={({ error, resetErrorBoundary }) => (
+                    <CookingScreen
+                        recipeId={recipeId}
+                        read={
+                            isNotFoundError(error)
+                                ? { kind: 'gone' }
+                                : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
+                        }
+                        {...ways}
+                    />
+                )}
+                resetKeys={[recipeId]}
+            >
+                <SettledCooking
+                    key={`${recipeId}|${viewerId ?? ''}`}
+                    detail={detail}
+                    viewer={viewer}
+                    ways={ways}
                     recipeId={recipeId}
-                    read={
-                        isNotFoundError(error)
-                            ? { kind: 'gone' }
-                            : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
-                    }
-                    {...ways}
+                    readAgain={readAgain}
                 />
-            )}
-            resetKeys={[recipeId]}
-        >
-            <SettledCooking
-                key={`${recipeId}|${viewerId ?? ''}`}
-                detail={detail}
-                viewer={viewer}
-                ways={ways}
-                recipeId={recipeId}
-                readAgain={readAgain}
-            />
-        </QueryBoundary>
+            </QueryBoundary>
+        </DockHeightContext>
     );
 };
 

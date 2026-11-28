@@ -6,10 +6,12 @@ import { DEFAULT_ANSWERS, withDefaultDoubles } from '../../tests/support/mockedR
 import { ErasureJobsDal } from '../account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { RECIPE_LINE_VERIFICATIONS_DAL, RECIPE_PHOTOS_DAL, RECIPE_RATINGS_DAL } from '../recipes/recipes.tokens.js';
+import { RecipeStatementAttestationsDal } from '../recipes/dal/recipeStatementAttestations.dal.js';
 import { PendingArchivesDal } from '../versions/dal/pendingArchives.dal.js';
 
 /** The token each default answers for, beside the default's own value. */
 const DEFAULTED: ReadonlyArray<readonly [string, ProviderDouble['provide'], unknown]> = [
+    ['RecipeStatementAttestationsDal', RecipeStatementAttestationsDal, DEFAULT_ANSWERS.attestations],
     ['PendingArchivesDal', PendingArchivesDal, DEFAULT_ANSWERS.pendingArchives],
     ['RECIPE_PHOTOS_DAL', RECIPE_PHOTOS_DAL, DEFAULT_ANSWERS.photos],
     ['RECIPE_RATINGS_DAL', RECIPE_RATINGS_DAL, DEFAULT_ANSWERS.ratings],
@@ -43,6 +45,9 @@ describe('withDefaultDoubles', () => {
 
 describe('DEFAULT_ANSWERS', () => {
     it('answers "nothing" to every read, and accepts the one write and reports no rows inserted', async () => {
+        await expect(DEFAULT_ANSWERS.attestations.insertMany()).resolves.toBeUndefined();
+        await expect(DEFAULT_ANSWERS.attestations.hasFromPerson()).resolves.toBe(false);
+        await expect(DEFAULT_ANSWERS.attestations.hasWordedAttestation()).resolves.toBe(false);
         await expect(DEFAULT_ANSWERS.photos.findByRecipe()).resolves.toEqual([]);
         await expect(DEFAULT_ANSWERS.ratings.findStars()).resolves.toBeUndefined();
         await expect(DEFAULT_ANSWERS.lineVerifications.findBandsByKeys()).resolves.toEqual(new Map());

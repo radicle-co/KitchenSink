@@ -34,25 +34,18 @@ import { RECIPE_APP_ENV_DEFAULTS } from './recipeAppEnv.js';
 const CLOSED = 'http://127.0.0.1:9';
 
 /**
- * The attestation record's double every suite gets: an append that is accepted and forgotten. A suite that asserts on the rows
- * supplies its own for the same token (a later double for a token replaces an earlier one), so a suite about something else
- * never has to know the record exists.
- */
-const DEFAULT_ATTESTATIONS_DOUBLE = {
-    provide: RecipeStatementAttestationsDal,
-    useValue: {
-        insertMany: (): Promise<void> => Promise.resolve(undefined),
-        hasFromPerson: (): Promise<boolean> => Promise.resolve(false),
-        hasWordedAttestation: (): Promise<boolean> => Promise.resolve(false),
-    },
-};
-
-/**
  * What each defaulted DAL answers when a suite does not stage it: nothing found, and the one write accepted and
  * forgotten (it answers the rows it inserted, none). Each is checked against the real DAL's own member types, so a
  * signature change fails `tsc` here rather than going quietly stale.
  */
 export const DEFAULT_ANSWERS = {
+    // The attestation record: an append accepted and forgotten, and no attestation on file. A suite that asserts on the
+    // rows supplies its own double for the same token.
+    attestations: {
+        insertMany: () => Promise.resolve(undefined),
+        hasFromPerson: () => Promise.resolve(false),
+        hasWordedAttestation: () => Promise.resolve(false),
+    } satisfies Partial<RecipeStatementAttestationsDal>,
     pendingArchives: { enqueueMany: () => Promise.resolve([]) } satisfies Partial<PendingArchivesDal>,
     photos: { findByRecipe: () => Promise.resolve([]) } satisfies Partial<PhotosDal>,
     ratings: { findStars: () => Promise.resolve(undefined) } satisfies Partial<RatingsDal>,
@@ -65,7 +58,7 @@ export const DEFAULT_ANSWERS = {
 };
 
 const DEFAULT_DOUBLES: readonly ProviderDouble[] = [
-    DEFAULT_ATTESTATIONS_DOUBLE,
+    { provide: RecipeStatementAttestationsDal, useValue: DEFAULT_ANSWERS.attestations },
     { provide: PendingArchivesDal, useValue: DEFAULT_ANSWERS.pendingArchives },
     { provide: RECIPE_PHOTOS_DAL, useValue: DEFAULT_ANSWERS.photos },
     { provide: RECIPE_RATINGS_DAL, useValue: DEFAULT_ANSWERS.ratings },

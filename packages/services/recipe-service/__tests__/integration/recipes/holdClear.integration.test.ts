@@ -17,10 +17,10 @@ import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { SourceCorrectionsDal } from '../../../src/recipes/dal/sourceCorrections.dal.js';
 import { SourceHoldClearsDal, type CorrectionChainRow } from '../../../src/recipes/dal/sourceHoldClears.dal.js';
 import { SOURCE_CORRECT_SCOPE } from '../../../src/recipes/recipes.schema.js';
-import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 
 const AZP = 'https://recipes.example.com';
 const OWNER = '01JHOLDCLEAROWNER0000001';
@@ -79,21 +79,18 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
-                        calls.push('begin');
+            recipesDalDouble({
+                transaction: async (fn) => {
+                    calls.push('begin');
 
-                        return fn(FAKE_TX);
-                    },
-                    lockAndCountPrivateSlots: () => {
-                        calls.push('lockOwner');
-
-                        return Promise.resolve(0);
-                    },
+                    return fn(FAKE_TX);
                 },
-            },
+                lockAndCountPrivateSlots: () => {
+                    calls.push('lockOwner');
+
+                    return Promise.resolve(0);
+                },
+            }),
             { provide: SourceCorrectionsDal, useValue: {} },
             {
                 provide: SourceHoldClearsDal,

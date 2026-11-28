@@ -381,12 +381,10 @@ describe('PublicStatementGate.judge — an edit of a held published public recip
             confirmation: undefined,
         });
 
-    it('refuses with SOURCE_CONFLICT and appends no row', async () => {
-        const { gate, insert, insertMany } = gateOf([WEB_ROW]);
+    it('refuses with SOURCE_CONFLICT', async () => {
+        const { gate } = gateOf([WEB_ROW]);
 
         await expect(reasonOf(gate.judge(editOfHeld()))).resolves.toBe('SOURCE_CONFLICT');
-        expect(insert).not.toHaveBeenCalled();
-        expect(insertMany).not.toHaveBeenCalled();
     });
 
     it('CONTROL: the same edit with no evidence on record is allowed', async () => {

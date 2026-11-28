@@ -32,7 +32,7 @@ import {
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
-import type { NewRecipeSourceEvidenceRow, RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
+import type { RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
@@ -61,11 +61,6 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: Partial<RecipeRow>, _tx?: unknown) => {
-    stored = makeRecipeRow({ ...input, id: RECIPE_ID, ownerId: COOK });
-
-    return aggregateOf(stored);
-});
 const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown) => {
     stored = {
         ...stored,
@@ -77,30 +72,9 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown
     return aggregateOf(stored);
 });
 
-/**
- * The evidence table as a double: stateful, so a statement written by one request is read by the next, which is the whole
- * of the rule under test. `insertEvidence` records the transaction it was handed.
- */
+/** `listEvidence` feeds the gate the seeded rows; `insertEvidence` exists to prove nothing is appended. */
 let evidence: RecipeSourceEvidenceRow[] = [];
-const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRow) => {
-    evidence.push({
-        id: `e-${String(evidence.length + 1)}`,
-        sourceUrl: null,
-        sourceKey: null,
-        sourceDomain: null,
-        sourceKind: null,
-        citation: null,
-        pasteDigest: null,
-        creditAuthors: null,
-        creditPublisher: null,
-        creditCopyrightNotice: null,
-        creditCopyrightHolder: null,
-        creditLicense: null,
-        imageUrl: null,
-        recordedAt: AT,
-        ...row,
-    });
-});
+const insertEvidence = vi.fn();
 const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
     evidence.filter((row) => row.recipeId === recipeId),
 );
@@ -139,7 +113,6 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
-                    create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: async () => [],
@@ -279,5 +252,10 @@ describe('PATCH /api/v1/recipes/{id} — a held published public recipe (today, 
 
         expect(response.status).toBe(200);
         expect(update).toHaveBeenCalledOnce();
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({ title: 'A new title' }),
+            expect.anything(),
+        );
     });
 });

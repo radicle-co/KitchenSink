@@ -650,7 +650,10 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             const read = await send('GET', `/api/v1/recipes/${id}`);
 
             expect(read.status).toBe(200);
-            expect(read.json).toMatchObject({ status: 'published', visibility: 'public' });
+            expect(read.json).toMatchObject({ status: 'published', visibility: 'public', publicNeedsCheck: true });
+            const { rows } = await pool.query(`SELECT 1 FROM recipe_source_evidence WHERE recipe_id = $1`, [id]);
+
+            expect(rows).toHaveLength(1);
 
             return { id, version: read.json['currentVersion'] as number };
         }
@@ -671,12 +674,8 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
             const after = await readRow(id);
 
-            expect(after).toMatchObject({
-                title: before.title,
-                visibility: 'public',
-                status: 'published',
-                currentVersion: version,
-            });
+            expect(after).toEqual(before);
+            expect(after).toMatchObject({ visibility: 'public', status: 'published', currentVersion: version });
         });
     });
 });

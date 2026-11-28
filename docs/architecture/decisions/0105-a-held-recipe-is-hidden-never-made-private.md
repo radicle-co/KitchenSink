@@ -14,8 +14,9 @@
 - **Supersedes:** [ADR-0103](0103-the-recipe-state-model-is-code-and-staff-can-clear-the-correction-hold.md) Decision 2,
   three bullets: "It lifts the hold only. It never makes a recipe public. The recipe stays private…", "The CHECK
   `recipes_held_is_not_public` does not change", and "Every released recipe stays private". Also the words "a
-  staff-only, audited edge" in that decision's first sentence, and the record's "staff actor" (model 4.6.1): a system
-  clear for an earned rewrite writes a clear record too. The rest stands.
+  staff-only, audited edge" in that decision's first sentence, and the "staff actor" in the bullet "The record": a system
+  clear for an earned rewrite writes a clear record too. Also the Consequences bullet "one audited exit … needs the
+  scope", which now describes the staff clear only. The rest stands.
 - **Relates to:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)
   Decision 3, whose system unblock this ADR uses. [ADR-0095](0095-a-recorded-source-is-kept-and-a-recipe-is-public-only-with-a-statement.md),
   whose evidence rule is read, in part, by the read-rule function. [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md),
@@ -52,7 +53,7 @@ every other hold.
       `staffCorrection`, with a source domain or a kind of book or paid site. A staff correction's own evidence rows
       are ignored, so a mistaken correction that is undone and cleared is readable again.
     - the recipe's origin label is private-only (a web page, a book or a paid site), so a correct correction to a
-      book stays hidden after its hold is cleared.
+      book stays hidden after its hold is cleared, until a rewrite earns the fact (B10b exempts this term too).
       Every SQL read of other cooks' recipes calls it through the service's shared predicates, and the erasure worker
       calls the same function. The in-memory viewability rule receives the function's value as a required selected field,
       so the rule has no TypeScript twin. A real-database test pins the function to a literal truth table. A guard fails
@@ -83,7 +84,8 @@ every other hold.
       unstated included (ADR-0097 Decision 3 for the unblock, and the owner ruling recorded as model decision Q21 for
       own and unstated origins). When the corrected answer is third-party, the earned fact also clears a
       staff correction hold. This is a system edge on the earned fact (ADR-0097 Decision 3), not a cook declaration, and
-      the correction record stays. A correction to own or "from another person" clears only by staff, even when third-party evidence is on the recipe. The rejection of a cook-side
+      the correction record stays. The system clear reads its input on the server, from the latest `recipe_source_corrections`
+      answer under the recipe row lock, never from the request or a client origin label. A correction to own or "from another person" clears only by staff, even when third-party evidence is on the recipe. The rejection of a cook-side
       clear in ADR-0103 stands: this is a system clear, and the cook still cannot declare the hold away (owner ruling
       2026-11-28).
     - discard the edit.
@@ -120,7 +122,8 @@ every other hold.
   document (4.6), and P8h closes it.
 - Dropping the CHECK is reversible only while no row is both public and held. Rolling back past the code that writes
   such rows is a forward fix.
-- The rule that the evidence hold lifts after a rewrite (P4a B10b) is an exemption in the function body, not a new
+- The rule that the hold lifts after a rewrite (P4a B10b) is an exemption in the function body for the evidence term
+  and the private-only label term, so a cleared third-party correction reads after an earned rewrite. It is not a new
   term. The change that adds it replaces the body and adds a row to the truth table.
 
 ## Alternatives considered

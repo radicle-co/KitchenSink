@@ -647,13 +647,6 @@
       "h": 600,
       "title": "Recipe detail, public version, hidden after a report (owner) (web, 1280)"
     },
-    "RecipePublicVersionHiddenReaderWeb1280.dc.html": {
-      "x": 1360,
-      "y": 25236,
-      "w": 1280,
-      "h": 720,
-      "title": "Recipe detail, public version, hidden (reader) (web, 1280)"
-    },
     "RecipePrivateImportMenuWeb1280.dc.html": {
       "x": 2720,
       "y": 25236,
@@ -702,13 +695,6 @@
       "w": 390,
       "h": 600,
       "title": "Recipe detail, public version, hidden after a report (owner) (web, 390)"
-    },
-    "RecipePublicVersionHiddenReaderWeb390.dc.html": {
-      "x": 1880,
-      "y": 28475,
-      "w": 390,
-      "h": 900,
-      "title": "Recipe detail, public version, hidden (reader) (web, 390)"
     },
     "RecipePrivateImportMenuWeb390.dc.html": {
       "x": 2350,
@@ -801,20 +787,6 @@
       "h": 3722,
       "title": "Recipe detail, why it stays private (web, 390)"
     },
-    "RecipeDetailTooCloseAfterReviewWeb1280.dc.html": {
-      "x": 0,
-      "y": 41155,
-      "w": 1280,
-      "h": 2247,
-      "title": "Recipe detail, made private after a check, steps too close (web, 1280)"
-    },
-    "RecipeDetailSourceHoldAfterCheckWeb1280.dc.html": {
-      "x": 1360,
-      "y": 41155,
-      "w": 1280,
-      "h": 2084,
-      "title": "Recipe detail, made private after a check, source hold (web, 1280)"
-    },
     "RecipeDetailSourceWeb1280.dc.html": {
       "x": 2720,
       "y": 41155,
@@ -828,20 +800,6 @@
       "w": 1280,
       "h": 900,
       "title": "Recipe detail, written by Commise, signed-out report (web, 1280)"
-    },
-    "RecipeDetailTooCloseAfterReviewWeb390.dc.html": {
-      "x": 0,
-      "y": 43902,
-      "w": 390,
-      "h": 3905,
-      "title": "Recipe detail, made private after a check, steps too close (web, 390)"
-    },
-    "RecipeDetailSourceHoldAfterCheckWeb390.dc.html": {
-      "x": 470,
-      "y": 43902,
-      "w": 390,
-      "h": 3742,
-      "title": "Recipe detail, made private after a check, source hold (web, 390)"
     },
     "RecipeDetailSourceWeb390.dc.html": {
       "x": 940,
@@ -877,6 +835,27 @@
       "w": 390,
       "h": 1856,
       "title": "Recipe detail, refused save and Save and hide at the largest text (web, 390)"
+    },
+    "RecipeDetailHiddenWeb1280.dc.html": {
+      "x": 0,
+      "y": 50723,
+      "w": 1280,
+      "h": 1829,
+      "title": "Recipe detail, hidden from readers (owner) (web, 1280)"
+    },
+    "RecipeDetailHiddenWeb390.dc.html": {
+      "x": 1360,
+      "y": 50723,
+      "w": 390,
+      "h": 3468,
+      "title": "Recipe detail, hidden from readers (owner) (web, 390)"
+    },
+    "RecipeDetailHiddenLinesWeb390.dc.html": {
+      "x": 1830,
+      "y": 50723,
+      "w": 390,
+      "h": 1120,
+      "title": "Recipe detail, hidden: the owner line per reason (web, 390)"
     }
   },
   "order": [
@@ -971,7 +950,6 @@
     "RecipePublicVersionOwnerWeb1280.dc.html",
     "RecipePublicVersionStatesWeb1280.dc.html",
     "RecipePublicVersionHiddenWeb1280.dc.html",
-    "RecipePublicVersionHiddenReaderWeb1280.dc.html",
     "RecipePrivateImportMenuWeb1280.dc.html",
     "RecipePrivateImportShareLineWeb1280.dc.html",
     "RecipePublicVersionReaderMenuWeb1280.dc.html",
@@ -979,7 +957,6 @@
     "RecipePublicVersionOwnerWeb390.dc.html",
     "RecipePublicVersionStatesWeb390.dc.html",
     "RecipePublicVersionHiddenWeb390.dc.html",
-    "RecipePublicVersionHiddenReaderWeb390.dc.html",
     "RecipePrivateImportMenuWeb390.dc.html",
     "RecipePrivateImportShareLineWeb390.dc.html",
     "RecipePublicVersionReaderMenuWeb390.dc.html",
@@ -993,17 +970,16 @@
     "RecipeMakePublicStatementPaidSiteWeb390.dc.html",
     "RecipeRefusalNoticeWeb1280.dc.html",
     "RecipeRefusalNoticeWeb390.dc.html",
-    "RecipeDetailTooCloseAfterReviewWeb1280.dc.html",
-    "RecipeDetailSourceHoldAfterCheckWeb1280.dc.html",
     "RecipeDetailSourceWeb1280.dc.html",
     "RecipePublicVersionReportSignInWeb1280.dc.html",
-    "RecipeDetailTooCloseAfterReviewWeb390.dc.html",
-    "RecipeDetailSourceHoldAfterCheckWeb390.dc.html",
     "RecipeDetailSourceWeb390.dc.html",
     "RecipePublicVersionReportSignInWeb390.dc.html",
     "RecipeHeldSaveDetailWeb1280.dc.html",
     "RecipeHeldSaveDetailWeb390.dc.html",
-    "RecipeHeldSaveDetailLargeTextWeb390.dc.html"
+    "RecipeHeldSaveDetailLargeTextWeb390.dc.html",
+    "RecipeDetailHiddenWeb1280.dc.html",
+    "RecipeDetailHiddenWeb390.dc.html",
+    "RecipeDetailHiddenLinesWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1073,6 +1049,13 @@
       "x": 0,
       "y": 43642,
       "text": "Recipe detail, state boxes and the Written by Commise report sheet: web, 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowHiddenrecipeDetailWeb": {
+      "x": 0,
+      "y": 50463,
+      "text": "Recipe detail, hidden from readers (hiddenViews): web",
       "kind": "title1",
       "maxW": 2400
     }

@@ -367,8 +367,8 @@ def web(m):
 
 
 def write(m):
-    (OUT / 'CookingModeResumeS4aMobile.dc.html').write_text(prune(mobile(m), nested=True))
-    (OUT / 'CookingModeResumeS4aWeb.dc.html').write_text(prune(web(m), nested=True))
+    (OUT / 'CookingModeResumeS4aMobile.dc.html').write_text(prune(mobile(m)))
+    (OUT / 'CookingModeResumeS4aWeb.dc.html').write_text(prune(web(m)))
 
 
 if __name__ == '__main__':

@@ -1,14 +1,20 @@
-"""Drops CSS rules whose class selectors match nothing in a board's markup. When unsure, it keeps the rule: a rule\nwhose prelude is not plain (see `readable`) is never dropped.
+"""Drops CSS rules whose class selectors match nothing in a board's markup.
 
-The rule for "used" is the one in packages/tools/repoGuards/__tests__/boardDeadSelectors.ts: a class in a class attribute,
-or any token in a <script>.
+When unsure, it keeps the rule: a rule whose prelude is not plain (see `readable`) is never dropped.
+
+The rule for "used" is the one in packages/tools/repoGuards/__tests__/boardDeadSelectors.ts: a class in a class
+attribute, or any token in a <script>.
 
 prune(html, keep=frozenset()) -> html. A rule is a selector list; each selector survives when every class it names is
-used in the markup outside <style>, or the class is in `keep` (classes already dead on the base, which this
-change must leave alone). A rule with no surviving selector is removed, and a comment goes with the rule right
-after it. @media blocks are pruned inside, and dropped when empty.
+used in the markup outside <style>, or the class is in `keep` (classes already dead on the base, which this change
+must leave alone). A rule with no surviving selector is removed, and a comment goes with the rule right after it.
+@media blocks are pruned inside, and dropped when empty.
 
-CLI: python3 -I pruneCss.py --selfcheck, or python3 -I pruneCss.py <worktree> <base> -- prunes every staged .dc.html that differs from <base>.
+Known limit: a `{` or `}` inside a CSS string, or a brace-less at-rule (`@import`), confuses the tokenizer; no board
+has either.
+
+CLI: python3 -I pruneCss.py --selfcheck, or
+python3 -I pruneCss.py <worktree> <base> -- prunes every staged .dc.html that differs from <base>.
 """
 
 from html.parser import HTMLParser
@@ -57,56 +63,6 @@ def used_classes(html):
     return parser.used
 
 
-VOID = {"area", "base", "br", "col", "embed", "hr", "img", "input", "link", "meta", "source", "track", "wbr"}
-
-
-class _Tree(HTMLParser):
-    """Each element as (tag, classes, ancestor classes), for the nested check."""
-
-    def __init__(self):
-        super().__init__()
-        self.stack, self.nodes = [], []
-
-    def handle_starttag(self, tag, attrs):
-        cls = set((dict(attrs).get("class") or "").split())
-        anc = set().union(*(s[1] for s in self.stack)) if self.stack else set()
-        self.nodes.append((tag, cls, anc))
-        if tag not in VOID:
-            self.stack.append((tag, cls))
-
-    def handle_endtag(self, tag):
-        for i in range(len(self.stack) - 1, -1, -1):
-            if self.stack[i][0] == tag:
-                del self.stack[i:]
-                break
-
-
-def element_tree(html):
-    t = _Tree()
-    t.feed(html)
-    return t.nodes
-
-
-COMPOUND = re.compile(r"^([a-z][a-z0-9]*)?((?:\.[A-Za-z_][\w-]*)*)$")
-
-
-def nested_match(sel, nodes):
-    """True when a plain descendant selector (tags and classes, spaces only) matches some element, or when the
-    selector is not of that plain form (then the class rule alone decides)."""
-    parts = sel.split()
-    comps = [COMPOUND.match(p) for p in parts]
-    if len(parts) < 2 or not all(comps):
-        return True
-    last = comps[-1]
-    need_anc = set()
-    for c in comps[:-1]:
-        need_anc |= set(CLASS.findall(c.group(2)))
-    last_cls = set(CLASS.findall(last.group(2)))
-    if (last_cls | need_anc) - set().union(*(cls for _, cls, _ in nodes)):
-        return True  # a class used only by script is on no parsed element: keep the rule
-    return any((last.group(1) in (None, tag)) and last_cls <= cls and need_anc <= anc for tag, cls, anc in nodes)
-
-
 def _tokens(css):
     """Top-level items: ('comment', text), ('rule', selector, block), ('at', prelude, inner), ('ws', text)."""
     i, out = 0, []
@@ -151,7 +107,7 @@ def _split_selectors(head):
     return parts + [cur]
 
 
-def _prune_css(css, used, keep, nodes=None):
+def _prune_css(css, used, keep):
     items = _tokens(css)
     kept = []
     for it in items:
@@ -159,8 +115,7 @@ def _prune_css(css, used, keep, nodes=None):
             sels = [
                 s
                 for s in _split_selectors(it[1])
-                if not readable(it[1])
-                or (all(c in used or c in keep for c in CLASS.findall(s)) and (nodes is None or nested_match(s, nodes)))
+                if not readable(it[1]) or (all(c in used or c in keep for c in CLASS.findall(s)))
             ]
             if not sels:
                 kept.append(None)
@@ -170,7 +125,7 @@ def _prune_css(css, used, keep, nodes=None):
             kept.append(lead + ",".join(sels).strip() + tail + "{" + it[2] + "}")
         elif it[0] == "at":
             if it[1].lstrip().startswith(("@media", "@supports", "@container")):
-                inner = _prune_css(it[2], used, keep, nodes)
+                inner = _prune_css(it[2], used, keep)
                 kept.append(f"{it[1]}{{{inner}}}" if inner.strip() else None)
             else:
                 kept.append(f"{it[1]}{{{it[2]}}}")
@@ -193,12 +148,9 @@ def _prune_css(css, used, keep, nodes=None):
     return "".join(out)
 
 
-def prune(html, keep=frozenset(), nested=False):
-    """nested=True also drops a plain descendant selector (".big .ask h2") that no element matches. Builders of new
-    boards use it; the CLI over edited base boards does not, so a base board's own dead combinations stay."""
+def prune(html, keep=frozenset()):
     used = used_classes(html)
-    nodes = element_tree(html) if nested else None
-    return STYLE.sub(lambda m: m.group(1) + _prune_css(m.group(2), used, keep, nodes) + m.group(3), html)
+    return STYLE.sub(lambda m: m.group(1) + _prune_css(m.group(2), used, keep) + m.group(3), html)
 
 
 def dead_classes(html):
@@ -226,7 +178,10 @@ def selfcheck():
     )
     out = prune(board)
     assert ".byScript" in out, "a class set by script lost its rule"
-    upper = '<style>.byUpper{color:red}.bare{color:red}</style><SCRIPT>h("x",{className:"byUpper"})</SCRIPT><div class=bare></div>'
+    upper = (
+        "<style>.byUpper{color:red}.bare{color:red}</style>"
+        '<SCRIPT>h("x",{className:"byUpper"})</SCRIPT><div class=bare></div>'
+    )
     assert ".byUpper" in prune(upper), "a class set by an upper-case script lost its rule"
     assert ".bare" in prune(upper), "an unquoted class attribute lost its rule"
     attr = '<style>[data-x=".foo"]{color:red}.ghost{color:blue}</style><div class="shown"></div>'
@@ -238,8 +193,6 @@ def selfcheck():
     assert prune(comma) == comma, "a comma inside an attribute test broke the rule"
     fn = '<style>:not(.ghost) p{color:red}:is(.shown,.ghost){color:blue}</style><div class="shown"></div>'
     assert prune(fn) == fn, "a functional pseudo-class rule lost its rule"
-    nest = '<style>.big .byScript{color:red}</style><div class="big"></div><script>h({className:"byScript"})</script>'
-    assert ".big .byScript" in prune(nest, nested=True), "a descendant selector on a script-built element lost its rule"
     assert ".ghost" not in out, "a class nothing uses kept its rule"
     assert "byScript" not in dead_classes(board)
     print("selfcheck ok")

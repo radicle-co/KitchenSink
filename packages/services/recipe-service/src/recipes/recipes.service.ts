@@ -515,8 +515,8 @@ function visibilityAskOf(
 interface UnderLockDecision {
     /** The correction to write (`apply`) or leave (`unchanged`). */
     readonly correction: SourceCorrection;
-    /** Whether the write also sets the recipe Private. */
-    readonly forcesPrivate: boolean;
+    /** Whether the write also sets the recipe Private: a statement that makes it private, or the cook's own `heldSave: 'private'`. */
+    readonly setsPrivate: boolean;
     /** The evidence the write appends. */
     readonly pendingEvidence: readonly EvidenceToWrite[];
     /** Whether the write records the confirmation it was sent. */
@@ -1533,9 +1533,9 @@ export class RecipesService {
                   };
         const newlySubstantive = !existing.recipe.hasSubstantiveEdit && detectSubstantiveEdit(existing, storedDto);
 
-        // Whether this write could take a slot: publishing a DRAFT can, and so can a third-party statement on a published
-        // recipe, which forces Private in the same write (set-visibility counts its own moves). The precise verdict needs the
-        // row's visibility, read under the lock.
+        // Whether this write could take a slot: publishing a DRAFT can, a third-party statement on a published recipe can
+        // (it forces Private in the same write), and so can the cook's `heldSave` (a move to private; set-visibility counts its
+        // own moves). The precise verdict needs the row's visibility, read under the lock.
         const isPremium = isPremiumPrincipal(principal);
         const existingStatus = recipeStatusSchema.parse(existing.recipe.status);
         const afterStatus = dto.status ?? existingStatus;
@@ -1589,7 +1589,7 @@ export class RecipesService {
                       })
                     : {
                           correction,
-                          forcesPrivate,
+                          setsPrivate: forcesPrivate,
                           pendingEvidence,
                           recordsConfirmation: false,
                           statementToRecord: correction.kind === 'apply' ? dto.statement : undefined,
@@ -1626,9 +1626,10 @@ export class RecipesService {
                     // Publication status (W8-a.3) — passed straight through: absent leaves it unchanged, a value
                     // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
                     status: dto.status,
-                    // The source correction (ADR-0089), all four columns together, and the private flip that goes with it.
+                    // The source correction (ADR-0089), all four columns together.
                     ...(decided.correction.kind === 'apply' ? { provenance: decided.correction.provenance } : {}),
-                    ...(decided.forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
+                    // Private, for either reason `decideUnderLockIn` found (a statement that makes it private, or `heldSave`).
+                    ...(decided.setsPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
                     // The client's word that content was pasted (0087): stored once by the data layer, never cleared.
                     ...(dto.contentPasted === true ? { contentPasted: true as const } : {}),
                     tags: dto.tags,
@@ -1763,22 +1764,23 @@ export class RecipesService {
         const pendingEvidence = applied ? evidenceListOf(correction.provenance, 'editor') : [];
         // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it is a
         // private recipe from the first instant and is judged as one.
-        // So is the cook's own choice to save private (`heldSave: 'private'`, KTD-8), decided on the facts under the lock.
-        const forcesPrivate =
-            (applied && correction.makePrivate) ||
-            savesPrivateOnChoice({
-                heldSave: dto.heldSave,
-                status: current.status,
-                visibility: current.visibility,
-                afterStatus,
-            });
-        const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
+        const statementForcesPrivate = applied && correction.makePrivate;
+        // The cook's own choice to save private (`heldSave: 'private'`, KTD-8), decided on the facts under the lock.
+        const cookChoosesPrivate = savesPrivateOnChoice({
+            heldSave: dto.heldSave,
+            status: current.status,
+            visibility: current.visibility,
+            afterStatus,
+        });
+        // Both reasons end in the same write and the same slot assertion. U6's 'hide' is a third outcome and must not join this boolean.
+        const setsPrivate = statementForcesPrivate || cookChoosesPrivate;
+        const visibilityAfter = setsPrivate ? RecipeVisibility.PRIVATE : current.visibility;
         const sourceAfter = applied
             ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }
             : { sourceType: current.sourceType, sourceKind: current.sourceKind };
 
         if (afterStatus !== RecipeStatus.PUBLISHED) {
-            return { correction, forcesPrivate, pendingEvidence, recordsConfirmation: false, statementToRecord };
+            return { correction, setsPrivate, pendingEvidence, recordsConfirmation: false, statementToRecord };
         }
 
         // The state this write leaves, judged on the visibility read UNDER the lock (ADR-0089): a private-only recipe is never
@@ -1801,13 +1803,13 @@ export class RecipesService {
             authoredInWrite: applied && dto.statement?.kind === 'authored',
         });
 
-        if ((input.publishesDraft || forcesPrivate) && visibilityAfter === RecipeVisibility.PRIVATE) {
+        if ((input.publishesDraft || setsPrivate) && visibilityAfter === RecipeVisibility.PRIVATE) {
             this.assertPrivatePublishAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
         }
 
         return {
             correction,
-            forcesPrivate,
+            setsPrivate,
             pendingEvidence,
             recordsConfirmation: verdict.recordsConfirmation,
             statementToRecord,
@@ -1882,9 +1884,9 @@ export class RecipesService {
         });
 
         if (takesSlot && input.counted === undefined) {
-            // Unreachable: a move that takes a slot is a draft being published by a cook the slot rule applies to, which is
-            // exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
-            throw new Error('A private draft was published without the per-user slot lock being taken.');
+            // Unreachable: a move that takes a slot is a draft published, a statement that forces private, or a `heldSave`, by a cook
+            // the slot rule applies to, which is exactly when the lock was taken. Fail CLOSED rather than let a missing count allow it.
+            throw new Error('A move to private that takes a slot ran without the per-user slot lock being taken.');
         }
 
         assertVisibilityAllowed(

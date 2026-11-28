@@ -737,8 +737,10 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
             visibility: 'public',
             status: 'published',
         },
+        preLockVisibility: 'public' | 'private' = facts.visibility,
     ) {
-        const found = aggregate({ visibility: facts.visibility, status: facts.status, currentVersion: 1 });
+        // `found` is the pre-lock read; `lockSlotFacts` below is the locked one. They may disagree (a race).
+        const found = aggregate({ visibility: preLockVisibility, status: facts.status, currentVersion: 1 });
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', status: facts.status }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
         const dal = fakeRecipesDal({
@@ -789,6 +791,58 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
 
         expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
         expect(error.details).toEqual({ used, limit: 50 });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('pre-lock read private, locked read public: the locked read decides, so it is written private and the slot is counted', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(
+            50,
+            { visibility: 'public', status: 'published' },
+            'private',
+        );
+
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('pre-lock read public, locked read private: nothing to move, so no visibility is written', async () => {
+        const { dal, update } = holding(10, { visibility: 'private', status: 'published' }, 'public');
+
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('a private-making statement and heldSave together: one slot count, one write, private', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(10);
+
+        await serviceOver(dal).update(
+            principal(),
+            'r-1',
+            {
+                ...PATCH,
+                statement: { kind: 'book', citation: 'A Book', wording: { version: 'statementBook.v1', locale: 'en' } },
+            },
+            undefined,
+        );
+
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
+        expect(update).toHaveBeenCalledOnce();
+        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+    });
+
+    it("another cook's recipe is refused as not owned before anything is counted or written (AE9)", async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(10);
+
+        const error = await refusalOf(
+            serviceOver(dal).update(principal({ userId: 'someone-else' }), 'r-1', PATCH, undefined),
+        );
+
+        expect(error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
         expect(update).not.toHaveBeenCalled();
     });
 

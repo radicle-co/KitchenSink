@@ -40,6 +40,7 @@ import {
     type RecipeSourceKind,
 } from '@kitchensink/recipe-core';
 
+import type { HeldSave } from '../recipes.schema.js';
 import { evaluateContainment, isContained, type ContainmentSubject } from '../../common/containmentPolicy.js';
 
 /** The complete input to a C-004 visibility decision. */
@@ -327,7 +328,7 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
  * ⛔ A move to private takes a slot: the caller asserts it exactly as it does for a statement that forces private.
  */
 export function savesPrivateOnChoice(input: {
-    readonly heldSave: 'private' | 'hide' | undefined;
+    readonly heldSave: HeldSave | undefined;
     readonly status: RecipeStatus;
     readonly visibility: RecipeVisibility;
     readonly afterStatus: RecipeStatus;

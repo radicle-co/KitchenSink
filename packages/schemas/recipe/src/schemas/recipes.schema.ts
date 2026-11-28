@@ -540,6 +540,12 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
 /** Request body for creating a recipe. */
 export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
 
+/** What the cook chose for a save of a held published public recipe (heldPublicSave KTD-9). */
+export const heldSaveSchema = z.enum(['private', 'hide']);
+
+/** One value of {@link heldSaveSchema}. */
+export type HeldSave = z.infer<typeof heldSaveSchema>;
+
 /**
  * Body of `PATCH /api/v1/recipes/{id}` — a partial update carrying the optimistic-concurrency token.
  *
@@ -554,31 +560,28 @@ export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
  * `Partial<>`'s omitted-means-unchanged rule would make "not stated" reachable only at create time, so a user who
  * ever set a difficulty could never remove it.
  */
-export const updateRecipeRequestSchema = createRecipeRequestBaseSchema
-    .omit({ visibility: true })
-    .partial()
-    .extend({
-        expectedVersion: recipeExpectedVersionSchema,
-        difficulty: recipeDifficultySchema.nullable().optional(),
-        // Three-state for the SAME reason as `difficulty` above: `Partial<>` makes an omit mean "unchanged",
-        // so clearing a stated meal type needs its own spelling on the wire, and an explicit `null` is it.
-        // Without this line a cook who ever chose "dinner" could never get back to "not stated".
-        mealType: recipeMealTypeSchema.nullable().optional(),
-        // Three-state again (owner rulings 2026-10-13): a cook who empties the Cuisine field must be able to clear it.
-        // Clearing the cuisine of a PUBLISHED recipe that needs one is refused by the publish policy, not here.
-        cuisine: recipeCuisineSchema.nullable().optional(),
-        // Three-state (ADR-0089, ADR-0093 section 8): ABSENT leaves the source alone, a statement
-        // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
-        // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, a clone
-        // inherited, or "From another person" (stored, or attested with no statement left) is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
-        statement: recipeOwnStatementSchema.nullable().optional(),
-        // The cook's own choice for a save of a published public recipe that is held (heldPublicSave, KTD-8 and KTD-9). `'private'`
-        // saves the edit AND makes the recipe private in this one write, using a slot like set-visibility does. `'hide'` is declared
-        // so the contract is whole, and is answered as absent until the hide change set lands. ABSENT leaves today's behaviour.
-        heldSave: z.enum(['private', 'hide']).optional(),
-        contentPasted: contentPastedSchema,
-        publicConfirmation: publicConfirmationSchema.optional(),
-    });
+export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ visibility: true }).partial().extend({
+    expectedVersion: recipeExpectedVersionSchema,
+    difficulty: recipeDifficultySchema.nullable().optional(),
+    // Three-state for the SAME reason as `difficulty` above: `Partial<>` makes an omit mean "unchanged",
+    // so clearing a stated meal type needs its own spelling on the wire, and an explicit `null` is it.
+    // Without this line a cook who ever chose "dinner" could never get back to "not stated".
+    mealType: recipeMealTypeSchema.nullable().optional(),
+    // Three-state again (owner rulings 2026-10-13): a cook who empties the Cuisine field must be able to clear it.
+    // Clearing the cuisine of a PUBLISHED recipe that needs one is refused by the publish policy, not here.
+    cuisine: recipeCuisineSchema.nullable().optional(),
+    // Three-state (ADR-0089, ADR-0093 section 8): ABSENT leaves the source alone, a statement
+    // sets it, and an explicit `null` removes it. The editor's draft checkpoints may create the row before the cook pastes
+    // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, a clone
+    // inherited, or "From another person" (stored, or attested with no statement left) is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
+    statement: recipeOwnStatementSchema.nullable().optional(),
+    // The cook's own choice for a save of a published public recipe that is held (heldPublicSave, KTD-8 and KTD-9). `'private'`
+    // saves the edit AND makes the recipe private in this one write, using a slot like set-visibility does. `'hide'` is declared
+    // so the contract is whole, and is answered as absent until the hide change set lands. ABSENT leaves today's behaviour.
+    heldSave: heldSaveSchema.optional(),
+    contentPasted: contentPastedSchema,
+    publicConfirmation: publicConfirmationSchema.optional(),
+});
 
 /** Request body for updating a recipe. */
 export type UpdateRecipeRequest = z.infer<typeof updateRecipeRequestSchema>;

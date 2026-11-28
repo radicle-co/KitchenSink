@@ -311,6 +311,15 @@ describe('PATCH /api/v1/recipes/{id} with heldSave "private" (heldPublicSave U8)
 
         expect(response.status).toBe(status);
 
+        if (status === 200) {
+            expect(update).toHaveBeenCalledWith(
+                RECIPE_ID,
+                expect.objectContaining({ visibility: 'private' }),
+                expect.anything(),
+            );
+            expect(stored.visibility).toBe('private');
+        }
+
         if (status === 403) {
             expect(await refusalOf(response)).toMatchObject({ status: 403, code: 'PRIVATE_SLOTS_FULL' });
             expect(update).not.toHaveBeenCalled();
@@ -326,6 +335,21 @@ describe('PATCH /api/v1/recipes/{id} with heldSave "private" (heldPublicSave U8)
 
         expect(response.status).toBe(200);
         expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('a held public DRAFT sent as a publish with heldSave answers 400 SOURCE_CONFLICT and writes nothing (S9)', async () => {
+        stored = { ...heldRow(), status: 'draft' };
+        webEvidence();
+        slotsUsed = 10;
+
+        const response = await call(
+            'PATCH',
+            `/api/v1/recipes/${RECIPE_ID}`,
+            patch({ status: 'published', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN }),
+        );
+
+        expect(await refusalOf(response)).toMatchObject({ status: 400, details: { reason: 'SOURCE_CONFLICT' } });
+        expect(update).not.toHaveBeenCalled();
     });
 
     it('"hide" is refused today as the held row it is: 400 SOURCE_CONFLICT, nothing written', async () => {

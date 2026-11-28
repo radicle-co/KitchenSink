@@ -148,10 +148,15 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
 
     const rows = view.rows.map((row): TimerDockRow => {
         const own: FocusRequest = { kind: 'primary', id: row.id };
-        const cancelControl = (label: string): DockControl =>
-            control(label, { kind: 'forward' }, () => {
+        // Cancel never takes focus: the row it sits on is the one that goes.
+        const cancelControl = (label: string): DockControl => ({
+            label,
+            onPress: () => {
                 cancel(row);
-            });
+            },
+            focusRequested: false,
+            onFocusRequestHandled: handled,
+        });
 
         switch (row.kind) {
             case 'running':
@@ -160,7 +165,7 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
                     primary: control(row.pauseLabel, own, () => {
                         command({ kind: 'pause', id: row.id, run: row.run });
                     }),
-                    secondary: { ...cancelControl(row.cancelLabel), focusRequested: false },
+                    secondary: cancelControl(row.cancelLabel),
                 };
             case 'paused':
                 return {
@@ -169,7 +174,7 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
                         sound.prime();
                         command({ kind: 'resume', id: row.id, run: row.run });
                     }),
-                    secondary: { ...cancelControl(row.cancelLabel), focusRequested: false },
+                    secondary: cancelControl(row.cancelLabel),
                 };
             case 'done':
                 return {

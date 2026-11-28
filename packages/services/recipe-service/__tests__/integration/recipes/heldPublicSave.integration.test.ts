@@ -25,7 +25,12 @@ import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js'
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import type { RecipeAggregate, RecipesDal, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
+import type {
+    ReadableRecipeAggregate,
+    RecipeAggregate,
+    RecipesDal,
+    UpdateRecipeInput,
+} from '../../../src/recipes/dal/recipes.dal.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -61,6 +66,11 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
         steps: [makeRecipeStepRow({ recipeId: recipe.id })],
         ingredients: [makeIngredientLineRow({ recipeId: recipe.id, foodLookupId: BASIL.lookupId, quantity: '1' })],
     };
+}
+
+/** The read path's aggregate: the stored row plus the hold the real DAL selects (never held here: this suite is the save path). */
+function readableOf(recipe: RecipeRow): ReadableRecipeAggregate {
+    return { ...aggregateOf(recipe), recipe: { ...recipe, heldFromReaders: false } };
 }
 
 const update = vi.fn((_id: string, patch: UpdateRecipeInput) => {
@@ -120,7 +130,7 @@ beforeAll(async () => {
                 provide: RECIPES_DAL,
                 useValue: {
                     update,
-                    findById: (id: string) => Promise.resolve(id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    findById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableOf(stored) : undefined),
                     privateFoodLines: () => Promise.resolve([]),
                     lockAndCountPrivateSlots: () => Promise.resolve(0),
                     lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),

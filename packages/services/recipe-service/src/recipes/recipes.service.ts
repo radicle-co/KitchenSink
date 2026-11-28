@@ -85,7 +85,7 @@ import {
 import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
-import { isRecipeViewableBy } from './domain/recipeVisibility.js';
+import { isRecipeViewableBy, type ViewableRecipeFields } from './domain/recipeVisibility.js';
 import { recordsVersion } from './domain/versionPolicy.js';
 import { toRecipeSummaryResponse } from './mappers/recipeResponse.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
@@ -2304,7 +2304,7 @@ export class RecipesService {
         });
     }
 
-    private assertOwner(ownerId: string, recipe: RecipeRow): void {
+    private assertOwner(ownerId: string, recipe: ViewableRecipeFields & Pick<RecipeRow, 'id'>): void {
         // W8-a.4 (IDOR): a recipe the caller cannot even SEE (private/draft, not owned) returns 404 —
         // indistinguishable from a missing id — closing the existence oracle a bare owner check (403) opens
         // on `update`/`delete`/`setVisibility` (all reachable via a leaked clonedFromId/collection/version

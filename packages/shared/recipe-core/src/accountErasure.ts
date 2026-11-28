@@ -129,7 +129,7 @@ const PSEUDONYM_PREFIX = 'user_';
 const ULID_SHAPE = /^[0-9A-Z]{26}$/;
 
 /**
- * Render the stable, pseudonymous author handle a KEPT (truly-public / donated) recipe carries after its
+ * Render the stable, pseudonymous author handle a KEPT (public, published and not held from readers, ADR-0105 / donated) recipe carries after its
  * owner is erased (CR-002 / U3b — author-handle residue).
  *
  * On erasure the owner's cleartext display handle is destroyed everywhere: the `author_handles` read

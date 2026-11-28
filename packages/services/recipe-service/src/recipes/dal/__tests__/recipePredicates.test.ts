@@ -7,7 +7,16 @@
 import { describe, it, expect } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
-import { activeRecipe, publishedOrOwnedBy, readableBy, viewableBy } from '../recipePredicates.js';
+import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
+
+import {
+    activeRecipe,
+    communityOf,
+    heldFromReadersSql,
+    publishedOrOwnedBy,
+    readableBy,
+    viewableBy,
+} from '../recipePredicates.js';
 
 const dialect = new PgDialect();
 
@@ -60,6 +69,46 @@ describe('recipe read predicates (S-R3)', () => {
         const { params } = compile(viewableBy('01HVIEWER0000000000000000'));
 
         // Drizzle parameterizes both the 'public' constant and the viewer id — nothing is string-spliced.
-        expect(params).toEqual(['public', '01HVIEWER0000000000000000']);
+        expect(params).toEqual(['public', JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS), '01HVIEWER0000000000000000']);
+    });
+});
+
+/** The bound private-only keys, exactly as every caller of `recipe_held_from_readers` binds them (ADR-0105). */
+const KEYS_PARAM = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
+const VIEWER = '01HVIEWER0000000000000000';
+
+describe('the held-from-readers term (ADR-0105)', () => {
+    it('heldFromReadersSql() is the ONE function call, with the whole recipes row and the bound keys', () => {
+        const { sql, params } = compile(heldFromReadersSql());
+
+        expect(sql).toBe('recipe_held_from_readers("recipes", $1::jsonb)');
+        expect(params).toEqual([KEYS_PARAM]);
+    });
+
+    it('viewableBy() hides a held recipe in the PUBLIC branch only: (public AND NOT held) OR owner', () => {
+        const { sql, params } = compile(viewableBy(VIEWER));
+
+        expect(sql).toBe(
+            '(("recipes"."visibility" = $1 and not recipe_held_from_readers("recipes", $2::jsonb)) or "recipes"."owner_id" = $3)',
+        );
+        expect(params).toEqual(['public', KEYS_PARAM, VIEWER]);
+    });
+
+    it('communityOf() adds NOT held to the public published non-owner scope (exact SQL and params)', () => {
+        const { sql, params } = compile(communityOf(VIEWER));
+
+        expect(sql).toBe(
+            '("recipes"."deleted_at" is null and "recipes"."visibility" = $1 and "recipes"."status" = $2 and not recipe_held_from_readers("recipes", $3::jsonb) and "recipes"."owner_id" <> $4)',
+        );
+        expect(params).toEqual(['public', 'published', KEYS_PARAM, VIEWER]);
+    });
+
+    it('readableBy() carries the held term exactly once, through viewableBy (exact SQL and params)', () => {
+        const { sql, params } = compile(readableBy(VIEWER));
+
+        expect(sql).toBe(
+            '("recipes"."deleted_at" is null and (("recipes"."visibility" = $1 and not recipe_held_from_readers("recipes", $2::jsonb)) or "recipes"."owner_id" = $3) and ("recipes"."status" = $4 or "recipes"."owner_id" = $5))',
+        );
+        expect(params).toEqual(['public', KEYS_PARAM, VIEWER, 'published', VIEWER]);
     });
 });

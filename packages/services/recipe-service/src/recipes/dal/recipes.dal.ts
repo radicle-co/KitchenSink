@@ -33,7 +33,7 @@ import type {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
-import { activeRecipe, readableBy } from './recipePredicates.js';
+import { activeRecipe, readableBy, readableRecipeColumns, type ReadableRecipeRow } from './recipePredicates.js';
 import { IngredientLinesDal, type IngredientLineInput } from './ingredientLines.dal.js';
 import { PrivateSlotsDal } from './privateSlots.dal.js';
 import type { SlotFacts } from '../domain/privateSlotPolicy.js';
@@ -185,6 +185,11 @@ export interface RecipeAggregate {
     recipe: RecipeRow;
     steps: RecipeStepRow[];
     ingredients: IngredientRow[];
+}
+
+/** The aggregate as a READER loads it: its recipe row carries the read rule's hold (`heldFromReaders`). */
+export interface ReadableRecipeAggregate extends RecipeAggregate {
+    recipe: ReadableRecipeRow;
 }
 
 /** A recipe's slot facts, source facts and statement facts, as read under its row lock (`lockSlotFacts`). */
@@ -464,9 +469,9 @@ export class RecipesDal {
      * @returns The row, or `undefined` when no active recipe has that id.
      * @sideEffect Reads `recipes`.
      */
-    public async findRowById(id: string): Promise<RecipeRow | undefined> {
+    public async findRowById(id: string): Promise<ReadableRecipeRow | undefined> {
         const [recipe] = await this.db
-            .select()
+            .select(readableRecipeColumns())
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
             .limit(1);
@@ -480,7 +485,7 @@ export class RecipesDal {
      * @returns The aggregate, or `undefined` when no active recipe has that id.
      * @sideEffect Reads `recipes`, `recipe_steps` and `ingredients`.
      */
-    public async findById(id: string): Promise<RecipeAggregate | undefined> {
+    public async findById(id: string): Promise<ReadableRecipeAggregate | undefined> {
         const recipe = await this.findRowById(id);
 
         if (!recipe) {

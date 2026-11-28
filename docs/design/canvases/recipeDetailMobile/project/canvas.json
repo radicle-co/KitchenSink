@@ -1171,6 +1171,27 @@
       "w": 384,
       "h": 832,
       "title": "Recipe detail, written by Commise, signed-out report (mobile, Android 384)"
+    },
+    "RecipeHeldSaveDetailIphone390.dc.html": {
+      "x": 0,
+      "y": 53932,
+      "w": 390,
+      "h": 1130,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (mobile, iPhone 390)"
+    },
+    "RecipeHeldSaveDetailIpad820.dc.html": {
+      "x": 470,
+      "y": 53932,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (mobile, iPad 820)"
+    },
+    "RecipeHeldSaveDetailLargeTextIphone390.dc.html": {
+      "x": 1370,
+      "y": 53932,
+      "w": 390,
+      "h": 1856,
+      "title": "Recipe detail, refused save and Save and hide at the largest text (mobile, iPhone 390)"
     }
   },
   "order": [
@@ -1339,7 +1360,10 @@
     "RecipeDetailTooCloseAfterReviewAndroid384.dc.html",
     "RecipeDetailSourceHoldAfterCheckAndroid384.dc.html",
     "RecipeDetailSourceAndroid384.dc.html",
-    "RecipePublicVersionReportSignInAndroid384.dc.html"
+    "RecipePublicVersionReportSignInAndroid384.dc.html",
+    "RecipeHeldSaveDetailIphone390.dc.html",
+    "RecipeHeldSaveDetailIpad820.dc.html",
+    "RecipeHeldSaveDetailLargeTextIphone390.dc.html"
   ],
   "notes": {
     "row0": {

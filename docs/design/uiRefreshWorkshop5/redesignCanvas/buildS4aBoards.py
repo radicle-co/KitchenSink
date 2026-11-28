@@ -2,14 +2,15 @@
 lines in order and their worst case, ResumeEarlier with an edited recipe and an ended timer, and the cooking-mode Done
 row with "+ 10 min" and "Clear".
 
-Writes CookingModeResumeS4aMobile.dc.html and CookingModeResumeS4aWeb.dc.html next to this script. Run:
-python3 -I buildS4aBoards.py
+Writes CookingModeResumeS4aMobile.dc.html and CookingModeResumeS4aWeb.dc.html to the folder it is run from. Run:
+python3 -I buildS4aBoards.py [measuresJson]
+measuresJson is an optional JSON object with the keys opened, focused, strip, offset, bandTop and bandH; each
+defaults to an empty value or 0.
 """
 
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from pruneCss import prune  # noqa: E402
 from doneRowCss import DOCK_ACTS_CSS  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -367,13 +368,12 @@ def web(m):
 
 
 def write(m):
-    (OUT / 'CookingModeResumeS4aMobile.dc.html').write_text(prune(mobile(m)))
-    (OUT / 'CookingModeResumeS4aWeb.dc.html').write_text(prune(web(m)))
+    (OUT / 'CookingModeResumeS4aMobile.dc.html').write_text(mobile(m))
+    (OUT / 'CookingModeResumeS4aWeb.dc.html').write_text(web(m))
 
 
 if __name__ == '__main__':
     import json
-    import sys
 
     m = json.loads(sys.argv[1]) if len(sys.argv) > 1 else {
         'opened': '', 'focused': '', 'strip': '', 'offset': 0, 'bandTop': 0, 'bandH': 0,

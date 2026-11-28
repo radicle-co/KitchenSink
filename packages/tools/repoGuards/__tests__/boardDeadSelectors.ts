@@ -6,9 +6,6 @@
  * A class counts as used when it appears in any `class` attribute, or anywhere in a `<script>`: every board carries a
  * script, and a class that script sets at run time is not dead. Missing a dead rule is the safe mistake; failing a
  * live one is not.
- *
- * `docs/design/uiRefreshWorkshop5/redesignCanvas/pruneCss.py` is the Python copy of this rule, which the board builders
- * use to emit only the rules a board draws. A change to the rule here must change it there too.
  */
 import { parse as parseCss, walk } from 'css-tree';
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';
@@ -86,4 +83,17 @@ export function deadClassSelectors(html: string): readonly string[] {
     });
 
     return [...selected].filter((name) => !used.has(name)).sort((a, b) => a.localeCompare(b));
+}
+
+/**
+ * Which boards the baseline ratchet admits without a recorded count. At the cutover, before the baseline is on
+ * `origin/main`, every board already on main is intake. Once the baseline is on main nothing is admitted, so a clean
+ * board, or one pruned to zero, cannot later come back with dead CSS. Pure.
+ *
+ * @param onMain - The boards tracked at `origin/main`.
+ * @param baselineOnMain - Whether the baseline file is tracked at `origin/main` yet.
+ * @returns The admission rule for `raisedAgainst`.
+ */
+export function admitsAtCutover(onMain: ReadonlySet<string>, baselineOnMain: boolean): (file: string) => boolean {
+    return (file) => !baselineOnMain && onMain.has(file);
 }

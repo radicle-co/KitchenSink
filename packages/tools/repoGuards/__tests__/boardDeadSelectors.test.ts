@@ -13,8 +13,8 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { deadClassSelectors } from './boardDeadSelectors.js';
-import { over, raisedAgainst, baselineHistory, stale, type FileCounts } from './ratchetBaseline.js';
+import { admitsAtCutover, deadClassSelectors } from './boardDeadSelectors.js';
+import { over, raisedAgainst, baselineHistory, stale, trackedAt, type FileCounts } from './ratchetBaseline.js';
 import { repoRoot, trackedFiles } from './serviceSources.js';
 
 const BASELINE_PATH = 'packages/tools/repoGuards/__tests__/boardDeadSelectorsBaseline.json';
@@ -83,6 +83,12 @@ describe('deadClassSelectors', () => {
 
 const boardFiles = trackedFiles('docs/design/canvases').filter((file) => file.endsWith('.dc.html'));
 
+/** The boards on `origin/main`. */
+const onMain = trackedAt('origin/main', 'docs/design/canvases');
+
+/** Whether the baseline itself is on `origin/main` yet. */
+const baselineOnMain = trackedAt('origin/main', BASELINE_PATH).has(BASELINE_PATH);
+
 const countOf = (_file: string, html: string): number => deadClassSelectors(html).length;
 
 const baseline = JSON.parse(readFileSync(path.join(repoRoot, BASELINE_PATH), 'utf8')) as Baseline;
@@ -92,6 +98,41 @@ const counts: FileCounts = Object.fromEntries(
         .map((file) => [file, countOf(file, readFileSync(path.join(repoRoot, file), 'utf8'))] as const)
         .filter(([, count]) => count > 0),
 );
+
+describe('admitsAtCutover', () => {
+    const main = new Set(['a.dc.html']);
+
+    it('admits a board on main before the baseline has landed on main', () => {
+        expect(admitsAtCutover(main, false)('a.dc.html')).toBe(true);
+    });
+
+    it('refuses a board that is not on main before the baseline has landed', () => {
+        expect(admitsAtCutover(main, false)('new.dc.html')).toBe(false);
+    });
+
+    it('refuses every board once the baseline is on main, even one that is on main', () => {
+        expect(admitsAtCutover(main, true)('a.dc.html')).toBe(false);
+    });
+});
+
+describe('the admission of boards already on main', () => {
+    const history = [{ revision: 'abc', baseline: { files: {} as FileCounts } }];
+    const pick = (version: { files: FileCounts }): FileCounts => version.files;
+
+    it('admits a board on main that no baseline version recorded', () => {
+        expect(raisedAgainst(history, [[{ 'a.dc.html': 5 }, pick, undefined, (file) => file === 'a.dc.html']])).toEqual(
+            [],
+        );
+    });
+
+    it('refuses a board that is not on main and that no baseline version recorded', () => {
+        expect(raisedAgainst(history, [[{ 'new.dc.html': 5 }, pick, undefined, () => false]])).toHaveLength(1);
+    });
+
+    it('reads real boards from origin/main, so an empty set cannot admit nothing silently', () => {
+        expect(onMain.size).toBeGreaterThan(0);
+    });
+});
 
 describe('dead selectors in the boards only fall', () => {
     it('reads real boards, so an empty list cannot pass by reading nothing', () => {
@@ -110,6 +151,10 @@ describe('dead selectors in the boards only fall', () => {
         const history = baselineHistory<Baseline>(BASELINE_PATH);
 
         expect(history.length, 'no committed baseline found in history').toBeGreaterThan(0);
-        expect(raisedAgainst(history, [[baseline.files, (version) => version.files, countOf]])).toEqual([]);
+        expect(
+            raisedAgainst(history, [
+                [baseline.files, (version) => version.files, countOf, admitsAtCutover(onMain, baselineOnMain)],
+            ]),
+        ).toEqual([]);
     });
 });

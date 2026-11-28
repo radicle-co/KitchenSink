@@ -137,11 +137,13 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             'that names why a visibility change was refused, which the recipe page answers with a different sentence ' +
             'for each reason. ' +
             "GREW 2026-11-27: the recipe client added `ServiceUnreachableError`, the load balancer's own 404, kept " +
-            'apart from `SourceUnavailableError` because logs and alerts read the code and status.',
+            'apart from `SourceUnavailableError` because logs and alerts read the code and status. ' +
+            "GREW 2026-11-27 (second): the food client added its own `ServiceUnreachableError`, the load balancer's " +
+            'own 404 for food, kept apart from `SourceBusyError` (food answered busy) so a caller can tell the two.',
         files: [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
-            { file: 'packages/clients/food-service/src/errors.ts', classes: 18, components: 0 },
+            { file: 'packages/clients/food-service/src/errors.ts', classes: 19, components: 0 },
             { file: 'packages/clients/recipe-service/src/errors.ts', classes: 23, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },

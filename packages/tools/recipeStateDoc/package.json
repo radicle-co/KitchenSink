@@ -1,0 +1,35 @@
+{
+    "name": "@kitchensink/recipe-state-doc",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "description": "Writes the tables and diagrams of docs/architecture/recipeStateModel.md, and recipeStateModel.json, from the recipe-core state module (ADR-0103). CI fails on a diff.",
+    "scripts": {
+        "test": "vitest run",
+        "test:integration": "vitest run --config vitest.integration.config.ts",
+        "lint": "eslint .",
+        "typecheck": "tsc --noEmit",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "generate": "tsx bin/generate.ts",
+        "verify": "tsx bin/generate.ts --check"
+    },
+    "dependencies": {
+        "@commise/features-recipes": "*",
+        "@kitchensink/recipe-core": "*",
+        "prettier": "^3.10.1"
+    },
+    "devDependencies": {
+        "@kitchensink/eslint": "*",
+        "@kitchensink/typescript": "*",
+        "@kitchensink/vitest": "*",
+        "@types/node": "^24.13.3",
+        "eslint": "^10.0.3",
+        "tsx": "^4.23.15",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.12"
+    },
+    "engines": {
+        "node": "24.x"
+    }
+}

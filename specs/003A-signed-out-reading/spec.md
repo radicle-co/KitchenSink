@@ -79,7 +79,7 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
 - It reads food names and nutrition for a public recipe without any user's credential.
 - It opens a shared link in the app on a phone with the app. Without the app, the link opens on the web
   (`021-FR-016`).
-- It invites a signed-out reader to sign up only after they tap an account action ("Save", "Save a copy" or "Rate"),
+- It invites a signed-out reader to sign up only after they tap an account action ("Save", "Save a copy", "Rate" or "Report"),
   and brings them back to the same recipe (`021-FR-050` to `021-FR-053`).
 
 ### What this feature does NOT do
@@ -94,8 +94,8 @@ The owner confirmed on 2026-11-09 that it stays switched off until then (Clarifi
   ignores it, except to count it.
 - It adds no creator page, chef directory, collection page, embed widget, licence panel, report form or takedown flow.
 - It adds no signed-out search, list, feed, bulk or export route (`021-FR-060`).
-- It adds no new account action. A signed-out reader is offered the same actions a signed-in reader has: "Save" to a
-  collection, "Save a copy" and "Rate this recipe" (FR-020).
+- It adds no account action of its own. A signed-out reader is offered the same actions a signed-in reader has: "Save"
+  to a collection, "Save a copy", "Rate this recipe" and, on a Commise-written page, "Report a problem" (FR-020).
 
 ### Words used in this spec
 
@@ -208,7 +208,7 @@ number.
 
 ### User Story 4 - A signed-out reader taps an account action (Priority: P2)
 
-A signed-out reader taps "Save", "Save a copy" or "Rate this recipe". A sheet says what a free account gives, with sign up and
+A signed-out reader taps "Save", "Save a copy", "Rate this recipe" or "Report a problem". A sheet says what a free account gives, with sign up and
 sign in side by side. It closes in one tap. After they sign up or sign in, they land back on the same recipe, and the
 action they tapped is offered again for one confirmation. It is never done silently.
 
@@ -223,8 +223,8 @@ exists after the reader confirms, and none after "Not now".
 1. **Given** a signed-out reader, **When** the page loads, **Then** it shows exactly two prompts: a small header control
    and one end card after the recipe. No modal, overlay, interstitial, countdown or fake limit appears
    (`021-FR-050`).
-2. **Given** a signed-out reader, **When** they tap "Save", "Save a copy" or "Rate this recipe", **Then** the sign-up
-   sheet opens,
+2. **Given** a signed-out reader, **When** they tap "Save", "Save a copy", "Rate this recipe" or "Report a problem",
+   **Then** the sign-up sheet opens,
    titled with the action they tapped, and lists only what an account gives today (`021-FR-051`, FR-020).
 3. **Given** the reader signs up or signs in from the sheet, **When** they return, **Then** they are on the same recipe
    through the app's parsed return path, and the action is offered once for confirmation (`021-FR-052`).
@@ -483,6 +483,8 @@ The 021 Sessions of 2026-10-27 to 2026-11-04 were read first, and nothing settle
   state (`001-FR-045a`).
 - **FR-020**: The signed-out account actions MUST be the ones a signed-in reader has on another cook's public recipe:
   "Save" (the app's normal save to a collection), "Save a copy" and "Rate this recipe" (owner ruling 2026-11-09, Q5).
+  "Report a problem" is the fourth, on a Commise-written page only (owner ruling, `020-FR-082`, 2026-11-27). A signed-out
+  reader's Report opens the sign-in sheet, and the report form opens on the same recipe after sign-in.
   After sign-in, each behaves exactly as it does everywhere else in the app. The page and the sheet MUST NOT show or
   promise an action that does not exist yet, such as "Start cooking" or "Add to plan".
 - **FR-021**: The pending action MUST travel in the parsed return path as one value from a closed set. A value outside

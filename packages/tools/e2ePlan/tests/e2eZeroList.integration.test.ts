@@ -105,13 +105,20 @@ describe('the zero list, over the real tree', () => {
 
     it('only the repo guards, vitest tests and the policy name the recipe state model value file', () => {
         // The file is zero-listed because no screen reads it. A shipped module that imported it (label keys, say) would
-        // let a changed value change a screen without selecting a test, so each new reader must fail here.
+        // let a changed value change a screen without selecting a test, so each new reader must fail here. The generator
+        // (`packages/tools/recipeStateDoc`) WRITES the file and is a build tool no app ships (ADR-0103).
         const namers = execFileSync('git', ['grep', '-l', 'recipeStateModel\\.json', '--', ':!*.md'], {
             cwd: repo,
             encoding: 'utf8',
         })
             .split('\n')
-            .filter((file) => file !== '' && !file.startsWith('packages/tools/repoGuards/') && !isTestFile(file))
+            .filter(
+                (file) =>
+                    file !== '' &&
+                    !file.startsWith('packages/tools/repoGuards/') &&
+                    !file.startsWith('packages/tools/recipeStateDoc/') &&
+                    !isTestFile(file),
+            )
             .sort();
 
         expect(namers).toEqual(['packages/tools/e2ePlan/src/impactPolicy.ts']);

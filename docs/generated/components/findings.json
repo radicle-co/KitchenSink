@@ -7,7 +7,7 @@
         "missing-component-doc": 167,
         "missing-module-doc": 24,
         "platform-singleton": 114,
-        "ref-api": 22,
+        "ref-api": 24,
         "unclassified-layer": 96,
         "undocumented-prop": 236
     },
@@ -556,8 +556,28 @@
             "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
             "message": "the web and native leaves declare different prop names",
             "evidence": [
-                "web: accessibilityLabel disabled icon onPress tone",
-                "native: accessibilityLabel description disabled expanded icon onPress ref tone"
+                "web: accessibilityLabel disabled focusRequested icon onFocusRequestHandled onPress tone",
+                "native: accessibilityLabel description disabled expanded focusRequested icon onFocusRequestHandled onPress ref tone"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/iconButton/IconButton",
+            "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.native.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
+            ]
+        },
+        {
+            "rule": "ref-api",
+            "severity": "violation",
+            "component": "designSystem/iconButton/IconButton",
+            "sourcePath": "packages/apps/commise/ui/src/iconButton/IconButton.tsx",
+            "message": "refs are near-forbidden; permitted only to wrap an external non-declarative system",
+            "evidence": [
+                "useRef"
             ]
         },
         {

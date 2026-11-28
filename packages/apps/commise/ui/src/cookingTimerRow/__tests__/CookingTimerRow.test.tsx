@@ -179,3 +179,72 @@ describe('CookingTimerSummary (web)', () => {
         expect(box?.style.overflow).toBe('hidden');
     });
 });
+
+describe('CookingTimerRow (web), focus across states', () => {
+    const running = (a: ReturnType<typeof actions>): CookingTimerRowState => ({
+        kind: 'running',
+        pause: { label: 'Pause Roast timer', onPress: a.pause },
+        cancel: { label: 'Cancel Roast timer', onPress: a.cancel },
+    });
+    const paused = (a: ReturnType<typeof actions>): CookingTimerRowState => ({
+        kind: 'paused',
+        resume: { label: 'Resume Roast timer', onPress: a.resume },
+        cancel: { label: 'Cancel Roast timer', onPress: a.cancel },
+    });
+
+    it('keeps focus on the primary action when Pause becomes Resume, and back', () => {
+        const a = actions();
+        const { rerender } = render(rowOf(running(a)));
+        const primary = screen.getByRole('button', { name: 'Pause Roast timer' });
+        primary.focus();
+
+        rerender(rowOf(paused(a)));
+
+        expect(screen.getByRole('button', { name: 'Resume Roast timer' })).toBe(primary);
+        expect(document.activeElement).toBe(primary);
+
+        rerender(rowOf(running(a)));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Pause Roast timer' }));
+    });
+
+    it('lands focus on Stop when the focused Pause becomes the done row, so Enter stops the alarm', () => {
+        const a = actions();
+        const { rerender } = render(rowOf(running(a)));
+        screen.getByRole('button', { name: 'Pause Roast timer' }).focus();
+
+        rerender(rowOf({ kind: 'done', stop: { label: 'Stop Roast timer', onPress: a.stop } }));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Stop Roast timer' }));
+    });
+
+    it('keeps focus on Cancel when the state changes around it', () => {
+        const a = actions();
+        const { rerender } = render(rowOf(running(a)));
+        screen.getByRole('button', { name: 'Cancel Roast timer' }).focus();
+
+        rerender(rowOf(paused(a)));
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel Roast timer' }));
+    });
+
+    it("passes an action's focus request to its button, and acknowledges it", () => {
+        const a = actions();
+        const handled = vi.fn<() => void>();
+        render(
+            rowOf({
+                kind: 'running',
+                pause: { label: 'Pause Roast timer', onPress: a.pause },
+                cancel: {
+                    label: 'Cancel Roast timer',
+                    onPress: a.cancel,
+                    focusRequested: true,
+                    onFocusRequestHandled: handled,
+                },
+            }),
+        );
+
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Cancel Roast timer' }));
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+});

@@ -13,6 +13,10 @@ export interface TimerRowAction {
     readonly label: string;
     /** Called once per press. */
     readonly onPress: () => void;
+    /** The host asks for focus on this action's button (a level; see `IconButtonProps.focusRequested`). */
+    readonly focusRequested?: boolean;
+    /** Called once the button has taken a requested focus. */
+    readonly onFocusRequestHandled?: () => void;
 }
 
 /**

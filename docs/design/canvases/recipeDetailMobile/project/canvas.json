@@ -1115,6 +1115,83 @@
       "w": 820,
       "h": 3338,
       "title": "Recipe detail, why it stays private (mobile, iPad 820)"
+    },
+    "RecipeDetailTooCloseAfterReviewIphone390.dc.html": {
+      "x": 0,
+      "y": 44775,
+      "w": 390,
+      "h": 4145,
+      "title": "Recipe detail, made private after a check, steps too close (mobile, iPhone 390)"
+    },
+    "RecipeDetailSourceHoldAfterCheckIphone390.dc.html": {
+      "x": 470,
+      "y": 44775,
+      "w": 390,
+      "h": 3982,
+      "title": "Recipe detail, made private after a check, source hold (mobile, iPhone 390)"
+    },
+    "RecipeDetailSourceIphone390.dc.html": {
+      "x": 940,
+      "y": 44775,
+      "w": 390,
+      "h": 3800,
+      "title": "Recipe detail, private recipe saved from a web page (mobile, iPhone 390)"
+    },
+    "RecipePublicVersionReportSignInIphone390.dc.html": {
+      "x": 1410,
+      "y": 44775,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe detail, written by Commise, signed-out report (mobile, iPhone 390)"
+    },
+    "RecipeDetailTooCloseAfterReviewAndroid384.dc.html": {
+      "x": 0,
+      "y": 49420,
+      "w": 384,
+      "h": 4112,
+      "title": "Recipe detail, made private after a check, steps too close (mobile, Android 384)"
+    },
+    "RecipeDetailSourceHoldAfterCheckAndroid384.dc.html": {
+      "x": 464,
+      "y": 49420,
+      "w": 384,
+      "h": 3949,
+      "title": "Recipe detail, made private after a check, source hold (mobile, Android 384)"
+    },
+    "RecipeDetailSourceAndroid384.dc.html": {
+      "x": 928,
+      "y": 49420,
+      "w": 384,
+      "h": 3767,
+      "title": "Recipe detail, private recipe saved from a web page (mobile, Android 384)"
+    },
+    "RecipePublicVersionReportSignInAndroid384.dc.html": {
+      "x": 1392,
+      "y": 49420,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe detail, written by Commise, signed-out report (mobile, Android 384)"
+    },
+    "RecipeHeldSaveDetailIphone390.dc.html": {
+      "x": 0,
+      "y": 53932,
+      "w": 390,
+      "h": 1130,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (mobile, iPhone 390)"
+    },
+    "RecipeHeldSaveDetailIpad820.dc.html": {
+      "x": 470,
+      "y": 53932,
+      "w": 820,
+      "h": 1180,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (mobile, iPad 820)"
+    },
+    "RecipeHeldSaveDetailLargeTextIphone390.dc.html": {
+      "x": 1370,
+      "y": 53932,
+      "w": 390,
+      "h": 1856,
+      "title": "Recipe detail, refused save and Save and hide at the largest text (mobile, iPhone 390)"
     }
   },
   "order": [
@@ -1275,7 +1352,18 @@
     "RecipeMakePublicStatementPaidSiteIpad820.dc.html",
     "RecipeRefusalNoticeIphone390.dc.html",
     "RecipeRefusalNoticeAndroid384.dc.html",
-    "RecipeRefusalNoticeIpad820.dc.html"
+    "RecipeRefusalNoticeIpad820.dc.html",
+    "RecipeDetailTooCloseAfterReviewIphone390.dc.html",
+    "RecipeDetailSourceHoldAfterCheckIphone390.dc.html",
+    "RecipeDetailSourceIphone390.dc.html",
+    "RecipePublicVersionReportSignInIphone390.dc.html",
+    "RecipeDetailTooCloseAfterReviewAndroid384.dc.html",
+    "RecipeDetailSourceHoldAfterCheckAndroid384.dc.html",
+    "RecipeDetailSourceAndroid384.dc.html",
+    "RecipePublicVersionReportSignInAndroid384.dc.html",
+    "RecipeHeldSaveDetailIphone390.dc.html",
+    "RecipeHeldSaveDetailIpad820.dc.html",
+    "RecipeHeldSaveDetailLargeTextIphone390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1331,6 +1419,20 @@
       "x": 0,
       "y": 32474,
       "text": "Recipe detail, public version: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes0": {
+      "x": 0,
+      "y": 44515,
+      "text": "Recipe detail, state boxes and the Written by Commise report sheet: mobile, iPhone 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes1": {
+      "x": 0,
+      "y": 49160,
+      "text": "Recipe detail, state boxes and the Written by Commise report sheet: mobile, Android 384",
       "kind": "title1",
       "maxW": 2400
     }

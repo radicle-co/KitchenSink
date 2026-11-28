@@ -172,6 +172,10 @@ const REF_SITES: Readonly<Record<string, RefSite>> = {
         verdict: 'sanctioned',
         why: 'One node handle, the button, for a host focus request: a sheet it opened gives focus back to it when it closes. `.focus()` on web and `View.focus()` on native have no declarative form. The same level-triggered request, acknowledged once taken, that Input, Button and Combobox take.',
     },
+    'designSystem/iconButton/IconButton': {
+        verdict: 'sanctioned',
+        why: "One node handle, the button, for a host focus request (the timer row keeps focus on the same control when Pause becomes Resume or Stop): `.focus()` on web and the screen-reader cursor (`moveScreenReaderFocus`) on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button takes. On native the node is also the host's own `ref`, composed with `useComposedRefs`.",
+    },
     'designSystem/input/Input': {
         verdict: 'sanctioned',
         why: "One node handle, the field, for a host focus request (a field the host has just shown, such as an ingredient group's name): `.focus()` on web and `TextInput.focus()` on native, neither of which has a declarative form. The same level-triggered request, acknowledged once taken, that Button and Combobox take. On native the same node is also the one the field reveal host measures to hold the field in view, and the one the screen-reader cursor moves to when the screen names the field.",

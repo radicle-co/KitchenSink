@@ -15,6 +15,7 @@ import {
     NotFoundError as FoodNotFoundError,
     RateLimitedError as FoodRateLimitedError,
     RequesterLimitReachedError,
+    ServiceUnreachableError as FoodServiceUnreachableError,
     SourceBusyError,
 } from '@kitchensink/food-service-client';
 import { NotFoundError as RecipeNotFoundError, UnexpectedResponseError } from '@kitchensink/recipe-service-client';
@@ -53,6 +54,10 @@ describe('shouldRetryQuery — transient failures keep retrying, up to the cap',
     it('retries a 5xx', () => {
         // The assertion a blanket `retry: false` cannot pass.
         expect(shouldRetryQuery(0, new UnexpectedResponseError(500))).toBe(true);
+    });
+
+    it('retries the load balancer answering for the FOOD service, because a 404 that is not food is an outage', () => {
+        expect(shouldRetryQuery(0, new FoodServiceUnreachableError())).toBe(true);
     });
 
     it('retries a transport failure', () => {

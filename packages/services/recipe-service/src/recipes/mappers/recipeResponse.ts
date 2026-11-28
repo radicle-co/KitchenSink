@@ -9,6 +9,7 @@
  * `RecipesService.list` project through it; leaving it on the service would have made the assembler import
  * the orchestrator to render a response, inverting the dependency direction.
  */
+import { type HiddenReason } from '@kitchensink/recipe-core/recipe-state';
 import {
     isBoundBy,
     type RecipeDetailNutrition,
@@ -94,6 +95,8 @@ export interface RecipeResponseExtras {
     coverPhotoUrl?: string;
     /** Whether any line is bound to a private food (the cook's own list only; ADR-0029 section 4). */
     holdsPrivateFood?: boolean;
+    /** Why the read rule hides this public recipe from readers, for its OWNER only (`hiddenReasonOfRow`); omitted for everyone else. */
+    hiddenReason?: HiddenReason;
     /**
      * The owner-only statement facts (DETAIL reads only): set by the assembler for the recipe's own owner and for nobody else, so
      * a stranger's response carries none of the three keys.
@@ -118,6 +121,18 @@ export interface RecipeResponseExtras {
 }
 
 /**
+ * The domain type's `hiddenReason` is an open wire string; only the caller's decided `extras.hiddenReason` may reach the
+ * response, so the domain value is dropped here. Pure: it copies.
+ */
+function withoutHiddenReason<T extends { hiddenReason?: string }>(value: T): Omit<T, 'hiddenReason'> {
+    const copy = { ...value };
+
+    delete copy.hiddenReason;
+
+    return copy;
+}
+
+/**
  * The recipe-level fields every projection shares, from the canonical {@link recipeRowToDomain} Data Mapper,
  * plus the optional extras. Pure.
  *
@@ -128,7 +143,7 @@ function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseE
     const { description: _canonicalDescription, sourceKind: _domainKind, ...base } = recipeRowToDomain(recipe);
 
     return {
-        ...base,
+        ...withoutHiddenReason(base),
         // The kind straight from the row: the server writes only kinds it knows (the domain type admits a client's
         // `unrecognised` read, which the server never sends).
         ...(recipe.sourceKind !== null ? { sourceKind: recipe.sourceKind } : {}),
@@ -138,6 +153,7 @@ function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseE
         // Cover photo (FR-001c) — absent when the recipe has no photos.
         ...(extras.coverPhotoUrl !== undefined ? { coverPhotoUrl: extras.coverPhotoUrl } : {}),
         ...(extras.holdsPrivateFood !== undefined ? { holdsPrivateFood: extras.holdsPrivateFood } : {}),
+        ...(extras.hiddenReason !== undefined ? { hiddenReason: extras.hiddenReason } : {}),
         // Embedded photos + per-serving nutrition for the detail read (absent on list/search metadata).
         ...(extras.photos !== undefined ? { photos: extras.photos } : {}),
         ...(extras.nutrition !== undefined ? { nutrition: extras.nutrition } : {}),
@@ -197,6 +213,9 @@ export function toRecipeResponse(
  * @param extras - The resolved cover URL.
  * @returns The list item.
  */
-export function toRecipeSummaryResponse(row: ListRecipeRow, extras: RecipeResponseExtras = {}): RecipeSummaryResponse {
+export function toRecipeSummaryResponse(
+    row: Pick<ListRecipeRow, 'recipe'>,
+    extras: RecipeResponseExtras = {},
+): RecipeSummaryResponse {
     return toRecipeBase(row.recipe, extras);
 }

@@ -24,6 +24,7 @@ import { RECIPE_LINE_VERIFICATIONS_DAL } from '../../../src/recipes/recipes.toke
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const VIEWER = '01JABSTENTIONVIEWER0000001';
@@ -50,6 +51,7 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
                 findById: (id: string) =>
                     Promise.resolve(
                         id === RECIPE_ID

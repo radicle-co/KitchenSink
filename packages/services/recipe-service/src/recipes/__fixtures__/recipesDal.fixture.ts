@@ -79,6 +79,10 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         // ADR-0029 section 4: no captured owners to clear and no private lines by default.
         clearPublicFoodOwners: vi.fn<RecipesDal['clearPublicFoodOwners']>(() => Promise.resolve(undefined)),
         privateFoodLines: vi.fn<RecipesDal['privateFoodLines']>(() => Promise.resolve([])),
+        // Nothing holds a recipe by default; a suite about the owner's reason supplies the facts.
+        findOwnerHiddenFacts: vi.fn<RecipesDal['findOwnerHiddenFacts']>(() =>
+            Promise.resolve({ ownerHeldFromReaders: false, hasCookSourceEvidence: false }),
+        ),
         setVisibility: vi.fn<RecipesDal['setVisibility']>(),
     } satisfies Partial<RecipesDal>;
 

@@ -43,3 +43,5 @@ export type { LabelKey, LabelViewer, LabelledNameKey } from './labelledNames.js'
 export { RETIRED_NAMES } from './retiredNames.js';
 export type { RetiredGroup, RetiredName } from './retiredNames.js';
 export { noticeWithEarned } from './earnedNotice.js';
+export { hiddenReasonOf, knownHiddenReasonOf } from './hiddenReason.js';
+export type { HiddenReason, HiddenReasonFacts } from './hiddenReason.js';

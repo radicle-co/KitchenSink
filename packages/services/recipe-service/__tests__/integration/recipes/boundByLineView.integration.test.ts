@@ -27,6 +27,7 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const VIEWER = '01JBOUNDBYLINEVIEWER000001';
@@ -81,6 +82,7 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
                 findById: (id: string) =>
                     Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregate()) : undefined),
             }),

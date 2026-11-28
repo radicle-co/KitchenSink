@@ -118,6 +118,11 @@ describe('the detector: one red fixture per comparison form', () => {
         ['a shorthand hold', 'const heldFromReaders = f(r); const row = { id, heldFromReaders };', HELD_FORM],
         ['a hold from a variable', 'const row = { id, heldFromReaders: held };', HELD_FORM],
         ['a hold from another function', 'const row = { id, heldFromReaders: heldOf(r) };', HELD_FORM],
+        [
+            'a hold from the owner-gated select',
+            'const row = { id, heldFromReaders: ownerHeldFromReadersSql(v) };',
+            HELD_FORM,
+        ],
     ] as const)('%s', (_name, source, form) => {
         expect(formsOf('x.ts', source)).toContain(form);
     });
@@ -127,6 +132,7 @@ describe('the detector: one red fixture per comparison form', () => {
         ['a string that is not SQL', "const a = 'visibility = public is a phrase';"],
         ['a column in a select list', 'const q = sql`SELECT recipes.visibility, recipes.status FROM recipes`;'],
         ['a hold taken from a selected column', 'const row = { id, heldFromReaders: heldFromReadersSql() };'],
+        ['a hold taken from the presence fragment', 'const row = { id, heldFromReaders: hiddenFromReadersSql() };'],
         ['a type member named for the field', 'interface R { readonly heldFromReaders: boolean }'],
         ['a quoted column in a select list', 'const q = sql`SELECT r."visibility" FROM recipes r`;'],
         ['another property compared with public', "const a = row.kind === 'public';"],

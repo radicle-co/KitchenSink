@@ -129,6 +129,12 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                // Held by the correction hold the suite seeds, as the database rule would answer.
+                findOwnerHiddenFacts: () =>
+                    Promise.resolve({
+                        ownerHeldFromReaders: stored.sourceCorrectionHold,
+                        hasCookSourceEvidence: false,
+                    }),
                 create,
                 update,
                 findById: readStored,

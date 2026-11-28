@@ -69,7 +69,9 @@ import { quantityFromColumns, statedMeasureFromColumns } from './dal/quantityCol
 import { userNutritionFromColumns } from './dal/userNutritionColumns.js';
 import { sourceConflictOfEvidence, statementRequiredOfEvidence } from './domain/sourceEvidence.js';
 import type { RecipeResponse } from './dto/recipeResponse.dto.js';
+import { hiddenReasonOfRow } from './mappers/hiddenReasonOfRow.js';
 import type { OwnerStatementView } from './mappers/recipeResponse.js';
+import type { HiddenReason } from '@kitchensink/recipe-core/recipe-state';
 import { FoodLookupsDal } from '../ingredients/dal/foodLookups.dal.js';
 import {
     catalogStatusOf,
@@ -234,7 +236,7 @@ function countWithheldContributions(
 @Injectable()
 export class RecipeDetailAssembler {
     public constructor(
-        @Inject(RECIPES_DAL) private readonly dal: Pick<RecipesDal, 'findNutritionInputs'>,
+        @Inject(RECIPES_DAL) private readonly dal: Pick<RecipesDal, 'findNutritionInputs' | 'findOwnerHiddenFacts'>,
         private readonly lookups: FoodLookupsDal,
         private readonly identities: LineIdentityReader,
         @Inject(RECIPE_PHOTOS_DAL) private readonly photosDal: PhotosDal,
@@ -311,7 +313,10 @@ export class RecipeDetailAssembler {
         const ownerStatement =
             options.viewerId === aggregate.recipe.ownerId ? await this.ownerStatementOf(aggregate.recipe) : undefined;
 
+        const hiddenReason = await this.hiddenReasonOf(aggregate.recipe, options.viewerId);
+
         return toRecipeResponse(aggregate, lineViews, audience, {
+            ...(hiddenReason !== undefined ? { hiddenReason } : {}),
             photos,
             // `nutrition` is the detail read's ONE calorie representation — no top-level copy of the same
             // figure (ADR-0021): completeness is reported once (`nutrition.isComplete`), and so is the figure.
@@ -320,6 +325,26 @@ export class RecipeDetailAssembler {
             ...(options.viewerRating !== undefined ? { viewerRating: options.viewerRating } : {}),
             ...(ownerStatement !== undefined ? { ownerStatement } : {}),
         });
+    }
+
+    /**
+     * Why the read rule hides this recipe from readers, for its OWNER only. Every detail response comes through here (create,
+     * update, clone, rebind, visibility and the rating write), so the mutation responses that feed the client's detail cache
+     * carry it too. A viewer who is not the owner pays no read.
+     *
+     * @sideEffect One `recipes` read, for the owner.
+     */
+    private async hiddenReasonOf(
+        recipe: RecipeAggregate['recipe'],
+        viewerId: string | undefined,
+    ): Promise<HiddenReason | undefined> {
+        if (viewerId === undefined || viewerId !== recipe.ownerId) {
+            return undefined;
+        }
+
+        const facts = await this.dal.findOwnerHiddenFacts(recipe.id, viewerId);
+
+        return facts === undefined ? undefined : hiddenReasonOfRow(recipe, { viewerId, ...facts });
     }
 
     /**

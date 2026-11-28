@@ -2963,7 +2963,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 25 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3050,7 +3050,7 @@
                         },
                         {
                             "name": "member",
-                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>",
+                            "type": "Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 25 more ...; deletedAt?: string | undefined; }>",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3161,7 +3161,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 25 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -3292,7 +3292,7 @@
                         },
                         {
                             "name": "members",
-                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; }>[]",
+                            "type": "readonly Readonly<{ id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 25 more ...; deletedAt?: string | undefined; }>[]",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -12007,7 +12007,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
@@ -12185,7 +12185,7 @@
                         },
                         {
                             "name": "read",
-                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 23 more ...; deletedAt?: string | undefined; ...",
+                            "type": "OmitKeyof<UseInfiniteQueryOptions<Readonly<{ results: readonly { recipe: { id: string; ownerId: string; title: string; description: string; prepTimeMinutes: number; cookTimeMinutes: number; totalTimeMinutes: number; servings: number; visibility: \"public\" | \"private\"; ... 24 more ...; deletedAt?: string | undefined; ...",
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,

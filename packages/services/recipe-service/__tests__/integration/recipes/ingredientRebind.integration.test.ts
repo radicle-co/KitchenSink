@@ -34,6 +34,7 @@ import { readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDa
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JREBINDNOOPCOOK000000001';
@@ -130,7 +131,7 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            recipesDalDouble({ findById, readConflict, transaction }),
+            recipesDalDouble({ findOwnerHiddenFacts: noOwnerHiddenFacts, findById, readConflict, transaction }),
             { provide: ResolutionMappingsDal, useValue: { runInTransaction } },
             {
                 provide: FoodLookupsDal,

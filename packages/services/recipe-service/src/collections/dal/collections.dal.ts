@@ -34,10 +34,13 @@ import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import {
     activeRecipe,
+    cookSourceEvidenceOf,
+    ownerHeldFromReadersSql,
     readableBy,
     readableRecipeColumns,
     type ReadableRecipeRow,
 } from '../../recipes/dal/recipePredicates.js';
+import type { OwnerHiddenFacts } from '../../recipes/dal/recipes.dal.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { COLLECTION_COVER_LIMIT } from '../collections.schema.js';
@@ -467,9 +470,14 @@ export class CollectionsDal {
     public async listRecipes(
         collectionId: string,
         viewerId: string,
-    ): Promise<Array<RecipeRow & { addedVia: RecipeCollectionAddedVia }>> {
+    ): Promise<Array<RecipeRow & { addedVia: RecipeCollectionAddedVia } & OwnerHiddenFacts>> {
         const rows = await this.db
-            .select({ ...getTableColumns(recipes), addedVia: recipeCollections.addedVia })
+            .select({
+                ...getTableColumns(recipes),
+                addedVia: recipeCollections.addedVia,
+                ownerHeldFromReaders: ownerHeldFromReadersSql(viewerId),
+                hasCookSourceEvidence: cookSourceEvidenceOf(viewerId),
+            })
             .from(recipeCollections)
             .innerJoin(recipes, eq(recipeCollections.recipeId, recipes.id))
             .where(this.membershipPredicate(collectionId, viewerId))

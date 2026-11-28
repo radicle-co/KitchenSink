@@ -31,7 +31,7 @@ import { fakeRecipesDal } from './recipesDal.fixture.js';
 
 /** Every collaborator {@link RecipeDetailAssembler} takes, by NAME rather than by position. */
 export interface RecipeDetailAssemblerCollaborators {
-    readonly dal: Pick<RecipesDal, 'findNutritionInputs'>;
+    readonly dal: Pick<RecipesDal, 'findNutritionInputs' | 'findOwnerHiddenFacts'>;
     readonly lookups: FoodLookupsDal;
     readonly refs: FoodRefsGateway;
     readonly photosDal: PhotosDal;

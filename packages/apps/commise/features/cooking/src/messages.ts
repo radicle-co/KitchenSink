@@ -86,6 +86,8 @@ interface CookingDoneMessages {
     readonly enjoy: string;
     /** Said only where the screen was kept on. */
     readonly screenOff: string;
+    /** Said instead while a timer holds the screen on (contains `{label}`). */
+    readonly screenOnTimer: string;
     /** The filled action. */
     readonly backToRecipe: string;
     /** The quiet action. */
@@ -299,6 +301,7 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             title: { one: 'All done', other: 'All {count} steps done' },
             enjoy: '{recipe}. Enjoy it.',
             screenOff: 'The screen can turn off again.',
+            screenOnTimer: 'The screen stays on until your {label} timer ends.',
             backToRecipe: 'Back to the recipe',
             cookAgain: 'Cook it again',
         },

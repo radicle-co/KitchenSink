@@ -67,4 +67,11 @@ describe('CookingDone (native)', () => {
         render(<CookingDone {...doneProps({ screenOff: undefined })} />);
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();
     });
+
+    it('says a timer holds the screen on, instead of the line that it can turn off', () => {
+        render(<CookingDone {...doneProps({ screenOnTimer: 'The screen stays on until your Roast timer ends.' })} />);
+
+        expect(screen.getByText('The screen stays on until your Roast timer ends.')).toBeTruthy();
+        expect(screen.queryByText('The screen can turn off again.')).toBeNull();
+    });
 });

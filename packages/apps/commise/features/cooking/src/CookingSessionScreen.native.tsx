@@ -30,6 +30,7 @@ import { panelForBand, useCookingIngredientsPanel } from './ingredients/useCooki
 import { cookingMessages } from './messages.js';
 import { stepOfferMs } from './timer/stepOfferMs.js';
 import { useCookingTimerDock } from './timer/useCookingTimerDock.js';
+import { useHoldingTimer } from './timer/useHoldingTimer.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
@@ -59,7 +60,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
     previewInBody,
     width,
 }) => {
-    const model = useCookingSessionScreen({ recipe, onLeave });
+    const model = useCookingSessionScreen({ recipe, onLeave, holding: useHoldingTimer() });
     const wide = isTwoColumn(width);
     const panel = panelForBand(
         useCookingIngredientsPanel({ recipe, copy: useMessages(cookingMessages), locale: useLocale(), wide }),
@@ -86,7 +87,14 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
             <CookingFrame
                 topBar={<CookingTopBar exit={model.exit} narrow={narrow} />}
                 busy={false}
-                body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
+                body={
+                    <CookingDone
+                        title={done.title}
+                        enjoy={done.enjoy}
+                        screenOff={done.screenOff}
+                        screenOnTimer={done.screenOnTimer}
+                    />
+                }
                 foot={{
                     ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,

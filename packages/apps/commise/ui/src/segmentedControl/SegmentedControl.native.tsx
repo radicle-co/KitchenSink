@@ -12,20 +12,17 @@ import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName, IconProps } from '../icon/props.js';
-import { useTheme } from '../theme/useTheme.native.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+import { SegmentFace } from './SegmentFace.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 import { Text } from '../text/Text.native.js';
 import {
-    SEGMENT_EDGE,
     SEGMENT_GAP,
     SEGMENT_ICON,
-    SEGMENT_ICON_GAP,
     SEGMENT_CHROME_CAP,
     SEGMENT_LABEL_ROLE,
-    SEGMENT_PADDING_X,
     TRACK_INSET,
 } from './nativeSegmentGeometry.js';
 
@@ -39,7 +36,7 @@ const CONTENT_SEGMENT_MIN = 136;
 const SEGMENT_HIT_SLOP = { top: TRACK_INSET, bottom: TRACK_INSET } as const;
 
 /** One segment, with the roles its control's form gives it. */
-interface SegmentFace {
+interface SegmentEntry {
     readonly id: string;
     readonly label: string;
     readonly icon?: IconName;
@@ -55,13 +52,12 @@ const ROLES = {
 
 /** The native design-system segmented control. */
 export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
-    const { colors } = useTheme();
     const windowWidth = useWindowDimensions().width;
     const roles = ROLES[props.form];
     // Only a ROUTE control chooses its width (a view switch is sized by its glyphs on web and fills a row here).
     const routeWidth = props.form === 'route' ? (props.width ?? 'share') : 'share';
     const compactTrack = routeWidth === 'content' || (routeWidth === 'adaptive' && windowWidth >= ADAPTIVE_FROM);
-    const faces: readonly SegmentFace[] =
+    const entries: readonly SegmentEntry[] =
         props.form === 'route'
             ? props.segments.map((segment) => ({
                   id: segment.id,
@@ -90,42 +86,43 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             aria-label={props.label}
             style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
-            {faces.map((face) => (
+            {entries.map((entry) => (
                 <Pressable
-                    key={face.id}
+                    key={entry.id}
                     role={roles.segment}
                     {...(props.form === 'route'
-                        ? { 'aria-selected': face.selected }
-                        : { 'aria-checked': face.selected })}
-                    aria-label={face.label}
-                    onPress={face.onPress}
+                        ? { 'aria-selected': entry.selected }
+                        : { 'aria-checked': entry.selected })}
+                    aria-label={entry.label}
+                    onPress={entry.onPress}
                     // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
                     hitSlop={SEGMENT_HIT_SLOP}
-                    style={[
-                        styles.segment,
-                        compactTrack ? styles.segmentContent : null,
-                        face.selected
-                            ? [styles.selected, { backgroundColor: colors.paper, borderColor: colors.lineControl }]
-                            : null,
-                    ]}
+                    style={[styles.slot, compactTrack ? styles.slotContent : null]}
                 >
-                    {face.icon === undefined ? null : (
-                        <Icon
-                            name={face.icon}
-                            size={SEGMENT_ICON}
-                            tone={face.selected ? 'ink' : 'inkMuted'}
-                            {...glyphScale}
-                        />
-                    )}
-                    {labelHidden ? null : (
-                        <Text
-                            typeRole={SEGMENT_LABEL_ROLE}
-                            chromeCap={SEGMENT_CHROME_CAP}
-                            color={face.selected ? '$ink' : '$inkMuted'}
-                        >
-                            {face.label}
-                        </Text>
-                    )}
+                    <SegmentFace
+                        // The press owner is the Pressable above: a Tamagui press handler adds a second responder view.
+                        // Only the selected segment is lifted: the unselected one carries no shadow field at all.
+                        selected={entry.selected}
+                        {...(entry.selected ? { level: 'sm' as const } : {})}
+                    >
+                        {entry.icon === undefined ? null : (
+                            <Icon
+                                name={entry.icon}
+                                size={SEGMENT_ICON}
+                                tone={entry.selected ? 'ink' : 'inkMuted'}
+                                {...glyphScale}
+                            />
+                        )}
+                        {labelHidden ? null : (
+                            <Text
+                                typeRole={SEGMENT_LABEL_ROLE}
+                                chromeCap={SEGMENT_CHROME_CAP}
+                                color={entry.selected ? '$ink' : '$inkMuted'}
+                            >
+                                {entry.label}
+                            </Text>
+                        )}
+                    </SegmentFace>
                 </Pressable>
             ))}
         </Surface>
@@ -141,21 +138,6 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.full,
     },
     trackContent: { alignSelf: 'flex-start' },
-    segmentContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
-    segment: {
-        flexGrow: 1,
-        flexShrink: 1,
-        flexBasis: 0,
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: SEGMENT_ICON_GAP,
-        borderRadius: nativeTokens.radius.full,
-        // A transparent 1 pt edge on every segment; the selected one colours it `lineControl` (`componentFixes.md` §8),
-        // so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
-        borderWidth: SEGMENT_EDGE,
-        borderColor: 'transparent',
-        paddingHorizontal: SEGMENT_PADDING_X,
-    },
-    selected: nativeTokens.elevation.sm,
+    slot: { flexGrow: 1, flexShrink: 1, flexBasis: 0 },
+    slotContent: { flexGrow: 0, flexBasis: 'auto', minWidth: CONTENT_SEGMENT_MIN },
 });

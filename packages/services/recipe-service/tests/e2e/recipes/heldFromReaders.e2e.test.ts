@@ -219,6 +219,17 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             expect((await upload(HELD, OWNER)).status).toBe(200);
         });
 
+        it('community search: a held recipe is absent for B, and the clean recipe is listed', async () => {
+            await seedTrio(cause);
+
+            const params = new URLSearchParams({ query: TOKEN, scope: 'community' });
+            const body = (await (await api(`/api/v1/search/recipes?${params.toString()}`, READER)).json()) as {
+                results: { recipe: { id: string } }[];
+            };
+
+            expect(body.results.map((hit) => hit.recipe.id)).toEqual([CLEAN]);
+        });
+
         it('rating: B cannot rate a held recipe (404), can rate a clean one', async () => {
             await seedTrio(cause);
             const put = (id: string): Promise<Response> =>

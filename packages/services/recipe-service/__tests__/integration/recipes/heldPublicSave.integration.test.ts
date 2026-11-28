@@ -28,11 +28,9 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import type {
     ReadableRecipeAggregate,
     RecipeAggregate,
-    RecipesDal,
     UpdateRecipeInput,
 } from '../../../src/recipes/dal/recipes.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -43,7 +41,8 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
-import { lockedFactsOf } from '../../../tests/support/lockedRecipeFacts.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JSOURCESTATEMENTCOOK0001';
@@ -137,19 +136,16 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    update,
-                    findById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableOf(stored) : undefined),
-                    privateFoodLines: () => Promise.resolve([]),
-                    lockAndCountPrivateSlots: () => Promise.resolve(slotsUsed),
-                    lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
-                    setVisibility,
-                    clearPublicFoodOwners: () => Promise.resolve(undefined),
-                    transaction: (work) => work(FAKE_TX),
-                } satisfies Partial<RecipesDal>,
-            },
+            recipesDalDouble({
+                update,
+                findById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableOf(stored) : undefined),
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(slotsUsed),
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                setVisibility,
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                transaction: (work) => work(FAKE_TX),
+            }),
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

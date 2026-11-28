@@ -28,7 +28,6 @@ import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.j
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -38,6 +37,8 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JVERIFYDEDUPCOOK00000001';
@@ -126,14 +127,11 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create: vi.fn(async () => aggregateOf()),
-                    findById: async () => aggregateOf(),
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                },
-            },
+            recipesDalDouble({
+                create: vi.fn(() => Promise.resolve(aggregateOf())),
+                findById: () => Promise.resolve(readableAggregateOf(aggregateOf())),
+                transaction: (work) => work(FAKE_TX),
+            }),
             {
                 provide: VERSIONS_DAL,
                 useValue: {

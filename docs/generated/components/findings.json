@@ -6,10 +6,10 @@
         "cross-platform-props-diverge": 34,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
-        "platform-singleton": 114,
+        "platform-singleton": 115,
         "ref-api": 24,
         "unclassified-layer": 96,
-        "undocumented-prop": 240
+        "undocumented-prop": 241
     },
     "findings": [
         {
@@ -1155,6 +1155,72 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "form"
+            ]
+        },
+        {
+            "rule": "platform-singleton",
+            "severity": "review",
+            "component": "designSystem/segmentedControl/SegmentFace",
+            "sourcePath": "packages/apps/commise/ui/src/segmentedControl/SegmentFace.native.tsx",
+            "message": "a package that ships to both platforms has only one leaf of this component",
+            "evidence": [
+                "native"
+            ]
+        },
+        {
+            "rule": "undocumented-prop",
+            "severity": "gap",
+            "component": "designSystem/segmentedControl/SegmentFace",
+            "sourcePath": "packages/apps/commise/ui/src/segmentedControl/SegmentFace.native.tsx",
+            "message": "props carry no JSDoc description",
+            "evidence": [
+                "accessibilityValue",
+                "aria-checked",
+                "aria-disabled",
+                "aria-expanded",
+                "aria-selected",
+                "aria-valuemin",
+                "aria-valuenow",
+                "aria-valuetext",
+                "dangerouslySetInnerHTML",
+                "debug",
+                "disabled",
+                "htmlFor",
+                "nativeBackgroundAndroid",
+                "nativeForegroundAndroid",
+                "onBlurCapture",
+                "onClickCapture",
+                "onFocusCapture",
+                "onGotPointerCapture",
+                "onGotPointerCaptureCapture",
+                "onKeyDownCapture",
+                "onKeyUpCapture",
+                "onLostPointerCapture",
+                "onLostPointerCaptureCapture",
+                "onPointerCancelCapture",
+                "onPointerDownCapture",
+                "onPointerEnter",
+                "onPointerEnterCapture",
+                "onPointerLeave",
+                "onPointerLeaveCapture",
+                "onPointerMoveCapture",
+                "onPointerOut",
+                "onPointerOutCapture",
+                "onPointerOver",
+                "onPointerOverCapture",
+                "onPointerUpCapture",
+                "onResponderEnd",
+                "onResponderStart",
+                "onTouchCancel",
+                "onTouchCancelCapture",
+                "onTouchEnd",
+                "onTouchEndCapture",
+                "onTouchMove",
+                "onTouchMoveCapture",
+                "onTouchStart",
+                "onTouchStartCapture",
+                "ref",
+                "target"
             ]
         },
         {

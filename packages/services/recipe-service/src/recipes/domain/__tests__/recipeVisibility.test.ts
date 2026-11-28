@@ -8,6 +8,7 @@
  */
 import { describe, it, expect } from 'vitest';
 
+import { READABILITY_TABLE } from '../../../../tests/support/readabilityTable.js';
 import { isRecipeViewableBy } from '../recipeVisibility.js';
 
 const OWNER = 'owner-1';
@@ -92,4 +93,19 @@ describe('isRecipeViewableBy: held from readers (ADR-0105)', () => {
             expect(isRecipeViewableBy({ ownerId, visibility, status, heldFromReaders }, viewer)).toBe(expected);
         },
     );
+});
+
+describe('isRecipeViewableBy over the shared literal readability table', () => {
+    // A tombstone is a query term, not a row field, so only live rows are in the in-memory rule's scope.
+    it.each(READABILITY_TABLE.filter((row) => !row.deleted))('$label', (row) => {
+        const fields = {
+            ownerId: OWNER,
+            visibility: row.visibility,
+            status: row.status,
+            heldFromReaders: row.held,
+        };
+
+        expect(isRecipeViewableBy(fields, OWNER)).toBe(row.ownerReads);
+        expect(isRecipeViewableBy(fields, OTHER)).toBe(row.otherReads);
+    });
 });

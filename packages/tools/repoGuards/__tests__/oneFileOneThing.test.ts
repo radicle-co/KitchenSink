@@ -144,7 +144,7 @@ const GOD_FILE_EXEMPTIONS: readonly GodFileExemption[] = [
             { file: 'packages/apps/commise/features/account/src/authState.errors.ts', classes: 2, components: 0 },
             { file: 'packages/apps/commise/features/account/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/clients/food-service/src/errors.ts', classes: 19, components: 0 },
-            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 23, components: 0 },
+            { file: 'packages/clients/recipe-service/src/errors.ts', classes: 24, components: 0 },
             { file: 'packages/clients/bedrock/src/errors.ts', classes: 6, components: 0 },
             { file: 'packages/clients/usda/src/errors.ts', classes: 7, components: 0 },
             { file: 'packages/shared/cooking/src/errors.ts', classes: 4, components: 0 },

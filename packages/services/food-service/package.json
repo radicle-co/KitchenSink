@@ -32,7 +32,7 @@
         "contract:generate": "tsx contract/generate.ts"
     },
     "dependencies": {
-        "@aws-sdk/client-dynamodb": "^3.716.0",
+        "@aws-sdk/client-dynamodb": "^3.1165.0",
         "@aws-sdk/cloudfront-signer": "^3.1138.0",
         "@aws-sdk/lib-dynamodb": "^3.716.0",
         "@aws-sdk/rds-signer": "^3.935.0",

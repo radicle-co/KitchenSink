@@ -38,6 +38,8 @@ export interface TransitionFacts {
     readonly staffGrant?: boolean;
     /** The staff's new answer can open Public. */
     readonly newAnswerCanOpenPublic?: boolean;
+    /** Every correction row in the recipe's chain (itself and each ancestor) has a third-party answer (ADR-0106). */
+    readonly correctedAnswerThirdParty?: boolean;
 }
 
 /** A refusal that names a failure. `REFUSAL_NONE` is "no refusal", so it is never a failure. */
@@ -87,6 +89,8 @@ const GUARDS: Readonly<Record<GuardName, GuardFn>> = {
     staffCorrection: (facts) => holdsOr(facts.staffGrant === true && facts.sourceConfirmed === true, 'guard'),
     staffCorrectionSetsHold: (facts) =>
         holdsOr(facts.staffGrant === true && facts.newAnswerCanOpenPublic === true, 'guard'),
+    staffHoldClear: (facts) => holdsOr(facts.staffGrant === true, 'guard'),
+    earnedRewriteClearsHold: (facts) => holdsOr(facts.correctedAnswerThirdParty === true, 'guard'),
 };
 
 /**
@@ -120,6 +124,10 @@ function runGuard(name: GuardName, facts: TransitionFacts, move: Move<Axis>): Gu
             return GUARDS.staffCorrection(facts, move);
         case 'staffCorrectionSetsHold':
             return GUARDS.staffCorrectionSetsHold(facts, move);
+        case 'staffHoldClear':
+            return GUARDS.staffHoldClear(facts, move);
+        case 'earnedRewriteClearsHold':
+            return GUARDS.earnedRewriteClearsHold(facts, move);
         default:
             return name satisfies never;
     }

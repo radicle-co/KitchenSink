@@ -6,7 +6,6 @@
  *
  * Edit a cell here and regenerate (`npm run recipeState:generate`); never edit a generated table in the document.
  */
-import { PLANNED } from '@kitchensink/recipe-core/recipe-state/planned';
 
 /** One row of table 4.2: a stored type, with its values written from the module when `object` names a value object. */
 export type StoredValueRow =
@@ -297,10 +296,10 @@ export const HOLD_ROWS: readonly HoldDocRow[] = [
             'the read function `recipe_held_from_readers` hides a held recipe from every reader but its owner. A clone copies the hold at insert, by trigger',
         setBy: 'staff correction (`STAFF_CORRECT`)',
         clearedBy:
-            'staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the corrected answer is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration',
+            'staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when every correction row in the chain of the recipe is third-party (`EARNED_REWRITE_CLEARS_HOLD`, ADR-0106), never a cook declaration',
         ownerLabel:
             'none. `REFUSAL_SOURCE_CORRECTED` carries the wire cause. `VIEW_SAVE_REFUSED.why.sourceCorrected` is the refused-save sheet line and `VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected` the editor card (4.8.2)',
-        built: 'set: yes. Clear: PR 5',
+        built: 'set: yes. Clear: yes (staff route; system method, caller P8h)',
     },
     {
         name: 'HOLD_HIDDEN_AFTER_REPORT',
@@ -422,17 +421,6 @@ export const CONFIRMATION_ROWS: readonly EdgeDocRow[] = [
     },
 ];
 
-/** The `to` cell of a PLANNED row, so a cell the model states once is not kept twice. */
-function plannedTo(eventId: string): string {
-    const found = PLANNED.find((row) => row.eventId === eventId);
-
-    if (found === undefined) {
-        throw new Error(`No PLANNED row ${eventId}`);
-    }
-
-    return found.to;
-}
-
 /** Table 5.4. */
 export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
     {
@@ -450,8 +438,8 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`CLEAR_SOURCE_HOLD`',
         actor: 'staff',
         guard: 'grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1)',
-        to: plannedTo('CLEAR_SOURCE_HOLD'),
-        built: 'PLANNED until PR 5',
+        to: 'unset. Readable again if the audience is public and nothing else hides it (ADR-0105). Clears this recipe and the same-owner clones the correction held (ADR-0106)',
+        built: 'yes',
     },
 ];
 

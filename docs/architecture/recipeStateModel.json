@@ -487,9 +487,9 @@
             "stored": "`recipes.source_correction_hold`",
             "enforcement": "the read function `recipe_held_from_readers` hides a held recipe from every reader but its owner. A clone copies the hold at insert, by trigger",
             "setBy": "staff correction (`STAFF_CORRECT`)",
-            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the corrected answer is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration",
+            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when every correction row in the chain of the recipe is third-party (`EARNED_REWRITE_CLEARS_HOLD`, ADR-0106), never a cook declaration",
             "ownerLabel": "none. `REFUSAL_SOURCE_CORRECTED` carries the wire cause. `VIEW_SAVE_REFUSED.why.sourceCorrected` is the refused-save sheet line and `VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected` the editor card (4.8.2)",
-            "built": "set: yes. Clear: PR 5"
+            "built": "set: yes. Clear: yes (staff route; system method, caller P8h)"
         },
         {
             "name": "HOLD_HIDDEN_AFTER_REPORT",
@@ -790,20 +790,25 @@
             "actors": ["staff"],
             "guard": "staffCorrectionSetsHold",
             "moves": [{ "from": "unset", "to": "set" }]
+        },
+        {
+            "id": "CLEAR_SOURCE_HOLD",
+            "axis": "holdSourceCorrected",
+            "event": "CLEAR_SOURCE_HOLD",
+            "actors": ["staff"],
+            "guard": "staffHoldClear",
+            "moves": [{ "from": "set", "to": "unset" }]
+        },
+        {
+            "id": "EARNED_REWRITE_CLEARS_HOLD",
+            "axis": "holdSourceCorrected",
+            "event": "REWRITE_EARNS_FACT",
+            "actors": ["system"],
+            "guard": "earnedRewriteClearsHold",
+            "moves": [{ "from": "set", "to": "unset" }]
         }
     ],
     "planned": [
-        {
-            "axis": "holds",
-            "axisLabel": "holds",
-            "eventId": "CLEAR_SOURCE_HOLD",
-            "from": "`HOLD_SOURCE_CORRECTED` set",
-            "event": "`CLEAR_SOURCE_HOLD`",
-            "actor": "staff",
-            "guard": "5.4",
-            "to": "unset. Readable again if the audience is public and nothing else hides it (ADR-0105)",
-            "pending": "PR 5"
-        },
         {
             "axis": "holds",
             "axisLabel": "holds",
@@ -935,17 +940,6 @@
             "guard": "ADR-0097 D3, in order: the P4a check passes, the source re-run passes, 020 allows. Any origin, own and unstated included (G1)",
             "to": "the evidence rule no longer holds it. Readable if nothing else hides it",
             "pending": "P10 (seam, stubbed), P4b, 020"
-        },
-        {
-            "axis": "holds",
-            "axisLabel": "holds",
-            "eventId": "EARNED_REWRITE_CLEARS_HOLD",
-            "from": "`HOLD_SOURCE_CORRECTED` set",
-            "event": "`REWRITE_EARNS_FACT`",
-            "actor": "system",
-            "guard": "the corrected answer is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)",
-            "to": "unset. The correction record stays. Clears exactly this recipe, and no clone: each clone clears on its own earned rewrite or by staff. Readable again if the audience is public and nothing else hides it",
-            "pending": "B10b, PR 5"
         },
         {
             "axis": "lifecycleAudience",

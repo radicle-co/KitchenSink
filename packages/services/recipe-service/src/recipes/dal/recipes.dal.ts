@@ -513,14 +513,13 @@ export class RecipesDal {
         id: string,
         expectedVersion: number,
     ): Promise<
-        | { current: ReadableRecipeAggregate; baseVersion?: RecipeVersionRow; serverVersion?: RecipeVersionRow }
-        | undefined
+        { current: RecipeAggregate; baseVersion?: RecipeVersionRow; serverVersion?: RecipeVersionRow } | undefined
     > {
         return this.db.transaction(async (tx) => {
             await tx.execute(sql`SET TRANSACTION ISOLATION LEVEL REPEATABLE READ`);
 
             const [recipe] = await tx
-                .select(readableRecipeColumns())
+                .select()
                 .from(recipes)
                 .where(and(eq(recipes.id, id), activeRecipe()))
                 .limit(1);

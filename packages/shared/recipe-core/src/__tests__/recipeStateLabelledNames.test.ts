@@ -80,11 +80,10 @@ describe('LABELLED_NAMES: held means hidden (ADR-0105, AE10)', () => {
         const all = Object.keys(LABELLED_NAMES).flatMap((name) => labelKeysOf(name as keyof typeof LABELLED_NAMES));
 
         expect(all.filter((key) => /\.way/.test(key) && /slot|pro|premium|close|back|upsell/i.test(key))).toEqual([]);
-        expect(
-            all.filter((key) =>
-                /wayPrivateSave|savePrivate|changesKept|waysHeading|draftKept|publishPrivate$/.test(key),
-            ),
-        ).toEqual([]);
+        expect(all.filter((key) => /wayPrivateSave|savePrivate|changesKept|waysHeading|draftKept/.test(key))).toEqual(
+            [],
+        );
+        expect(all.filter((key) => key.endsWith('.publishPrivate'))).toEqual([]);
     });
 
     it('keeps the cause a plain string union, equal to the why shapes of the refused-save sheet', () => {

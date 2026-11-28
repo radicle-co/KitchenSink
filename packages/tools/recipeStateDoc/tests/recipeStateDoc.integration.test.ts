@@ -49,8 +49,18 @@ describe('the committed model document (ADR-0105)', () => {
     it('lists the six chips in precedence order, in the sentence and in the table', () => {
         expect(doc).toContain('Draft, Hidden, In review, Checking, Public or Private');
 
-        const table = doc.slice(doc.indexOf('| Chip '), doc.indexOf('Until 020 ships'));
-        const names = [...table.matchAll(/^\| (\w[\w ]*?)\s+\|/gm)].map((m) => m[1]).slice(1);
+        const start = doc.indexOf('| Chip ');
+        const end = doc.indexOf('Until 020 ships');
+
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+
+        const names = doc
+            .slice(start, end)
+            .split('\n')
+            .filter((line) => line.startsWith('| '))
+            .map((line) => line.split('|')[1]?.trim())
+            .slice(2);
 
         expect(names).toEqual(['Draft', 'Hidden', 'In review', 'Checking', 'Public', 'Private']);
     });

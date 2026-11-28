@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { RecipeSourceType } from '../recipe.types.js';
-import { REFUSAL, refusalOf, type RefusalFacts } from '../recipeState/refusalOf.js';
+import { REFUSAL, refusalOf, type RefusalFacts, type ServerRefusalFacts } from '../recipeState/refusalOf.js';
 
 const facts = (overrides: Partial<RefusalFacts> = {}): RefusalFacts => ({
     sourceType: RecipeSourceType.USER_CREATED,
@@ -71,35 +71,29 @@ describe('the save refusal (ADR-0105)', () => {
         const kinds = [null, 'public_web', 'book', 'paid_site', 'unrecognised'] as const;
         const statements = [null, 'authored', 'fromPerson', 'unrecognised'] as const;
         const flags = [false, true] as const;
-        let checked = 0;
+        const combinations: ServerRefusalFacts[] = types.flatMap((sourceType) =>
+            kinds.flatMap((sourceKind) =>
+                statements.flatMap((statementKind) =>
+                    flags.flatMap((held) =>
+                        flags.flatMap((sourceCorrected) =>
+                            flags.flatMap((statementRequired) =>
+                                flags.map((attestedFromPerson) => ({
+                                    sourceType,
+                                    sourceKind,
+                                    statementKind,
+                                    held,
+                                    sourceCorrected,
+                                    statementRequired,
+                                    attestedFromPerson,
+                                })),
+                            ),
+                        ),
+                    ),
+                ),
+            ),
+        );
 
-        for (const sourceType of types) {
-            for (const sourceKind of kinds) {
-                for (const statementKind of statements) {
-                    for (const held of flags) {
-                        for (const sourceCorrected of flags) {
-                            for (const statementRequired of flags) {
-                                for (const attestedFromPerson of flags) {
-                                    const answer = refusalOf({
-                                        sourceType,
-                                        sourceKind,
-                                        statementKind,
-                                        held,
-                                        sourceCorrected,
-                                        statementRequired,
-                                        attestedFromPerson,
-                                    });
-
-                                    expect(answer).not.toBe('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
-                                    checked += 1;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        expect(checked).toBeGreaterThan(500);
+        expect(combinations).toHaveLength(types.length * kinds.length * statements.length * flags.length ** 4);
+        expect(combinations.map(refusalOf)).not.toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
     });
 });

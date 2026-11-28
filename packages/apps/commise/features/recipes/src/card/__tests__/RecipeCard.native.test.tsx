@@ -631,3 +631,16 @@ describe.each(VARIANTS)('RecipeCard (native, %s) — the Hidden chip (hiddenView
         expect(screen.getByText('Private')).toBeTruthy();
     });
 });
+
+// The cover chip draws the glyph its status owns in `statusTone`, so Draft, Private and Public are told apart by shape too.
+describe.each(VARIANTS)('RecipeCard (native, %s) — the cover chip glyph per status', (variant) => {
+    it.each([
+        ['Draft', { status: RecipeStatus.DRAFT }, 'pencil-line'],
+        ['Private', { status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE }, 'lock'],
+    ] as const)('draws the %s glyph', (_name, over, glyph) => {
+        const { container } = renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={model(over)} />);
+
+        expect(glyphsIn(container)).toContain(glyph);
+        expect(glyphsIn(container)).not.toContain('eye-off');
+    });
+});

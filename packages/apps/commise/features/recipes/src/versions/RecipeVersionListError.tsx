@@ -4,7 +4,7 @@
  * @module @commise/features-recipes — the web version history's FAILED state (D3, D13; `buildSpec.md` §6.6: "Error:
  * "We couldn't load the history." + Try again").
  *
- * Under the SAME header the settled list draws, (its pinned-back-bar frame is the container's), so a failed read still has its way back in its usual place. It replaces
+ * Under the SAME header the settled list draws (its pinned-back-bar frame is the container's), so a failed read still has its way back in its usual place. It replaces
  * a bare paragraph and a raw button beside a floating text link. The copy arrives as props from the app's boundary
  * dictionary.
  *

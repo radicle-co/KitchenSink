@@ -322,8 +322,9 @@ def editor_content(size: str, host: str) -> str:
         figure(
             "After Make private and save: one write, and the snackbar says “Changes saved.”. The recipe is now a "
             "private held recipe, so the field is today’s (board P6): Public refused with its shipped line, Private "
-            "chosen. A full slot found by the server reopens the sheet after the slots are read again, so it never "
-            "offers a dead Make private",
+            "chosen. If the hold cleared before the save reached the server, Public is offered again with no line "
+            "(the plain private field). A full slot found by the server reopens the sheet after the slots are read "
+            "again, so it never offers a dead Make private",
             private_card(styles) + f'<p class="p10-snack" role="status">{M["saved"]}</p>',
         ),
         figure(

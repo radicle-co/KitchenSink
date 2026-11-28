@@ -293,7 +293,8 @@ export const HOLD_ROWS: readonly HoldDocRow[] = [
     {
         name: 'HOLD_SOURCE_CORRECTED',
         stored: '`recipes.source_correction_hold`',
-        enforcement: 'CHECK `recipes_held_is_not_public`. A clone copies the hold at insert, by trigger',
+        enforcement:
+            'the read function `recipe_held_from_readers` hides a held recipe from every reader but its owner. A clone copies the hold at insert, by trigger',
         setBy: 'staff correction (`STAFF_CORRECT`)',
         clearedBy:
             'staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the corrected answer is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration',

@@ -241,7 +241,7 @@ describe('a confirmed source answer (e2e, ADR-0100)', () => {
             expect(detail.json).toMatchObject({ sourceCorrected: true, sourceConfirmed: true });
         });
 
-        it('a held DRAFT is refused Public with the typed SOURCE_CORRECTED too, never the CHECK as a 500 (recipes_held_is_not_public)', async () => {
+        it('a held DRAFT is refused Public with the typed SOURCE_CORRECTED too', async () => {
             const { id } = await create({ status: 'draft', visibility: 'private' });
 
             await db.execute(sql`UPDATE recipes SET source_correction_hold = true WHERE id = ${id}`);

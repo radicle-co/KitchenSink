@@ -38,6 +38,8 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             visibility: string;
             status: string;
             held: boolean;
+            /** Held by the correction-hold column alone (migration 0099 lets it be public). */
+            correctionHold?: boolean;
             deleted?: boolean;
             sourceType?: string;
             title: string;
@@ -49,8 +51,9 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             await client.query('BEGIN');
             await client.query(
                 `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-                                      total_time_minutes, servings, visibility, status, source_type, deleted_at)
-                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, $5, $6, $7)`,
+                                      total_time_minutes, servings, visibility, status, source_type, deleted_at,
+                                      source_correction_hold)
+                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, $5, $6, $7, $8)`,
                 [
                     id,
                     OWNER,
@@ -59,6 +62,7 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
                     row.status,
                     row.sourceType ?? 'user_created',
                     row.deleted === true ? new Date() : null,
+                    row.correctionHold === true,
                 ],
             );
 
@@ -181,6 +185,41 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
         // Controls: a readable recipe of another cook is a 403 (visible, not owned); the owner may upload to the held one.
         expect((await upload(CLEAN, READER)).status).toBe(403);
         expect((await upload(HELD, OWNER)).status).toBe(200);
+    });
+
+    it('a PUBLIC recipe held by the correction hold alone answers cook B as a private and a missing id do, on every path', async () => {
+        const HOLD = rid(5);
+
+        await seedTrio();
+        await seed(HOLD, {
+            visibility: 'public',
+            status: 'published',
+            held: false,
+            correctionHold: true,
+            title: `${TOKEN} hold`,
+        });
+
+        const paths = [`/api/v1/recipes/${HOLD}`, `/api/v1/recipes/${HOLD}/versions`, `/api/v1/recipes/${HOLD}/photos`];
+
+        for (const path of paths) {
+            const held = await shape(await api(path, READER), HOLD);
+
+            expect(held.startsWith('404 ')).toBe(true);
+            expect(held).toBe(await shape(await api(path.replace(HOLD, PRIVATE), READER), PRIVATE));
+            expect(held).toBe(await shape(await api(path.replace(HOLD, MISSING), READER), MISSING));
+            // Controls: the owner reads it, and a clean public recipe is read on the same path.
+            expect((await api(path, OWNER)).status).toBe(200);
+            expect((await api(path.replace(HOLD, CLEAN), READER)).status).toBe(200);
+        }
+
+        expect((await api(`/api/v1/recipes/${HOLD}/clone`, READER, { method: 'POST', body: '{}' })).status).toBe(404);
+
+        const params = new URLSearchParams({ query: TOKEN, scope: 'community' });
+        const body = (await (await api(`/api/v1/search/recipes?${params.toString()}`, READER)).json()) as {
+            results: { recipe: { id: string } }[];
+        };
+
+        expect(body.results.map((hit) => hit.recipe.id)).toEqual([CLEAN]);
     });
 
     it('AE3b: a curator public-domain recipe (imported_public, no kind) is readable by B on detail and search', async () => {

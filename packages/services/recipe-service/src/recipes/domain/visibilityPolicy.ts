@@ -255,9 +255,9 @@ export function evaluatePublishedState(
         readonly statementRequired: boolean;
     },
 ): VisibilityDecision {
-    // ⛔ The one refusal that does not wait for a published recipe: the database refuses a held recipe that is public whatever its
-    // status (`recipes_held_is_not_public`, migration 0092), so a PUBLIC DRAFT of one is answered here, as a typed refusal, and
-    // never reaches the CHECK as a 500. Containment is asked first, as everywhere.
+    // ⛔ The one refusal that does not wait for a published recipe: a PUBLIC DRAFT of a held recipe is answered here, as a typed
+    // refusal. The database no longer refuses it (migration 0099 dropped the CHECK; the read rule hides a held recipe, ADR-0105),
+    // so this stays until the save path that owns a held recipe's audience replaces it. Containment is asked first, as everywhere.
     if (
         input.sourceCorrected &&
         input.visibility === RecipeVisibility.PUBLIC &&

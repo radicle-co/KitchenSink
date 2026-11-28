@@ -226,10 +226,6 @@ export const recipes = pgTable(
             'recipes_first_published_has_source_confirmed',
             sql`${table.firstPublishedAt} IS NULL OR ${table.sourceConfirmedAt} IS NOT NULL`,
         ),
-        check(
-            'recipes_held_is_not_public',
-            sql`NOT (${table.sourceCorrectionHold} AND ${table.visibility} = 'public')`,
-        ),
         check('recipes_rating_count_nonneg', sql`${table.ratingCount} >= 0`),
         check(
             'recipes_average_rating_range',

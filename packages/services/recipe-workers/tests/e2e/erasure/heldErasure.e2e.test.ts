@@ -112,8 +112,9 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         const privateReadableElected = await insertRecipe({ held: false, visibility: 'private' });
         const privateHeldElected = await insertRecipe({ held: true, visibility: 'private' });
         const privateReadableNotElected = await insertRecipe({ held: false, visibility: 'private' });
-        // No CHECK backstops the flip (migration 0099): a flip that forgot the held term makes this recipe PUBLIC, and the
-        // survivor assertions below fail on it.
+        // No CHECK backstops the flip (migration 0099). A flip that forgot the held term is NOT caught here: the removal set
+        // (`ownerOnly`) has its own held term and removes the row anyway. The flip's term is pinned by the exact-SQL unit test;
+        // this e2e guards `ownerOnly`.
         const privateCorrectionHeldElected = await insertRecipe({
             held: false,
             visibility: 'private',

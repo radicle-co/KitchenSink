@@ -221,7 +221,7 @@ Each hold names its enforcement:
   and `sourceConflictOf`, which stop a publish) counts every row, and the read side ignores staff rows. PR 5 aligns
   them. 020's `holdSpecification.ts` condition sits beside the function in the same predicates, never inside it.
 - **Known window.** Until P8h, the correction writer still sets a recipe private. The model has no such edge. P8h
-  closes the window. The CHECK `recipes_held_is_not_public` (migration 0092) stands until PR B drops it.
+  closes the window. The CHECK `recipes_held_is_not_public` was dropped in migration 0099: the read function hides a held recipe whatever its visibility.
 
 <!-- recipeState:begin 4.6-1 -->
 

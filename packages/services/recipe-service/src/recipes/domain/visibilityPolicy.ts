@@ -257,7 +257,7 @@ export function evaluatePublishedState(
 ): VisibilityDecision {
     // ⛔ The one refusal that does not wait for a published recipe: a PUBLIC DRAFT of a held recipe is answered here, as a typed
     // refusal. The database no longer refuses it (migration 0099 dropped the CHECK; the read rule hides a held recipe, ADR-0105),
-    // so this stays until the save path that owns a held recipe's audience replaces it. Containment is asked first, as everywhere.
+    // so this stays until P8h (the writer flip) and P10 (the save sheet) replace it. Containment is asked first, as everywhere.
     if (
         input.sourceCorrected &&
         input.visibility === RecipeVisibility.PUBLIC &&

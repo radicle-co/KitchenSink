@@ -2,7 +2,8 @@
  * Account erasure and the source lock's two facts (migration 0092, ADR-0100), against a REAL Postgres.
  *
  *  1. A recipe held off Public by a staff correction is never DONATED: the donation sets `visibility = 'public'`, and nothing in
- *     the database stops it (the CHECK was dropped in migration 0099), so the erasure's own held term is what keeps it out. The
+ *     the database stops it (the CHECK was dropped in migration 0099), so the erasure's own held terms keep it out: the flip's term
+ *     is pinned by the exact-SQL unit test, and this e2e guards the removal set's term. The
  *     held recipe is removed with the owner-only set instead; the same recipe unheld is donated.
  *  2. A staff account's erasure relabels the `actor_account_id` of every correction it made, on recipes that belong to OTHER
  *     owners and survive, to ONE `erased_` token. The append-only trigger admits that swap only while the job is in flight.

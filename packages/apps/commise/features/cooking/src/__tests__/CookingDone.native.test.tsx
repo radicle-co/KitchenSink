@@ -8,8 +8,7 @@ import { cleanup, screen } from '@testing-library/react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { CookingDone } from '../CookingDone.native.js';
-import type { CookingDoneProps } from '../cookingViewProps.js';
+import { CookingDone, type NativeCookingDoneProps } from '../CookingDone.native.js';
 
 // react-native-web does not implement `sendAccessibilityEvent`; the focus move is asserted as the call it makes.
 vi.mock('react-native', async (importOriginal) => {
@@ -23,11 +22,12 @@ afterEach(() => {
     vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
 });
 
-function doneProps(overrides: Partial<CookingDoneProps> = {}): CookingDoneProps {
+function doneProps(overrides: Partial<NativeCookingDoneProps> = {}): NativeCookingDoneProps {
     return {
         title: 'All 6 steps done',
         enjoy: 'Roast chicken. Enjoy it.',
         screenNote: 'The screen can turn off again.',
+        titleSignal: 0,
         ...overrides,
     };
 }
@@ -57,6 +57,20 @@ describe('CookingDone (native)', () => {
 
         rerender(<CookingDone {...doneProps({ enjoy: 'Soup. Enjoy it.' })} />);
         expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
+    });
+
+    it('moves the cursor onto the title again each time the signal advances, and not on a plain re-render', () => {
+        const { rerender } = render(<CookingDone {...doneProps()} />);
+
+        rerender(<CookingDone {...doneProps({ titleSignal: 1 })} />);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(2);
+
+        rerender(<CookingDone {...doneProps({ titleSignal: 1, enjoy: 'Soup. Enjoy it.' })} />);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(2);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(
+            screen.getByRole('heading', { name: 'All 6 steps done' }),
+            'focus',
+        );
     });
 
     it('says the screen can turn off only when it was kept on', () => {

@@ -139,8 +139,8 @@
                             "name": "titleSignal",
                             "type": "number",
                             "typeDetail": null,
-                            "required": false,
-                            "defaultValue": "0",
+                            "required": true,
+                            "defaultValue": null,
                             "description": "Advances when a Cancel or Stop takes a row off Done; the title remounts, so the cursor lands on it again.",
                             "declaredIn": null
                         }

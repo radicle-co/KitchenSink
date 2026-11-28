@@ -21,7 +21,7 @@ import type { CookingDoneProps } from './cookingViewProps.js';
 /** The native Done body's props: the shared ones, plus the counter that moves the cursor back to the title. */
 export type NativeCookingDoneProps = CookingDoneProps & {
     /** Advances when a Cancel or Stop takes a row off Done; the title remounts, so the cursor lands on it again. */
-    readonly titleSignal?: number;
+    readonly titleSignal: number;
 };
 
 /** The title as the screen's heading. Mounting it moves the cursor onto it, so a new `key` moves the cursor again. */
@@ -40,7 +40,7 @@ const DoneHeading: FC<Pick<CookingDoneProps, 'title'>> = ({ title }) => {
 };
 
 /** The native Done body. */
-export const CookingDone: FC<NativeCookingDoneProps> = ({ title, enjoy, screenNote, titleSignal = 0 }) => (
+export const CookingDone: FC<NativeCookingDoneProps> = ({ title, enjoy, screenNote, titleSignal }) => (
     <YStack gap="$3" paddingHorizontal="$4" paddingVertical="$5">
         <DoneHeading key={titleSignal} title={title} />
         <Text typeRole="body" color="$ink">

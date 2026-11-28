@@ -155,16 +155,29 @@ describe('CookingScreen: focus on Done', () => {
         disconnect();
     });
 
-    it('leaves no request behind: Cook again opens step 1 with no title to take focus', () => {
+    it('leaves no request behind: after Cook again step 1 holds focus as it does, and a second Done takes it once', () => {
+        const focused = vi.spyOn(HTMLElement.prototype, 'focus');
+        const titleFocuses = (): number =>
+            focused.mock.contexts.filter((node) => node instanceof HTMLHeadingElement).length;
         setup();
         timeThenFinish();
         press(/^Cancel /);
+        const afterCancel = titleFocuses();
         act(() => {
             vi.advanceTimersByTime(DONE_SETTLE_MS);
         });
         press(/^Cook it again/u);
 
         expect(screen.queryByRole('heading', { name: /steps? done/iu })).toBeNull();
-        expect(document.activeElement).not.toBe(document.body.querySelector('h1'));
+        expect(titleFocuses()).toBe(afterCancel);
+        expect(document.activeElement).toBe(screen.getByRole('button', { name: /^Next step, step 2/u }));
+
+        goToRoast();
+        press(/^Next step, step 3/u);
+        press(/^Finish/u);
+
+        expect(titleFocuses()).toBe(afterCancel + 1);
+        expect(document.activeElement).toBe(title());
+        focused.mockRestore();
     });
 });

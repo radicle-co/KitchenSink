@@ -55,7 +55,7 @@ export interface TimerDock {
     readonly forward: ForwardFocus;
     /**
      * Advances when a Cancel or Stop on Done takes a row away, so Done's title can take focus the button lost. A counter,
-     * so nothing stays pending: it is inert on mount and a Cook again remounts Done.
+     * so nothing stays pending: it is inert on mount.
      */
     readonly doneTitleSignal: number;
 }
@@ -96,6 +96,12 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finish
     const { order, command, start } = useCookingTimers();
     const [focus, setFocus] = useState<FocusRequest | undefined>(undefined);
     const [doneTitleSignal, setDoneTitleSignal] = useState(0);
+    // Done draws neither an offer nor Next, so Done's title takes the focus a Cancel or Stop button lost there.
+    const bumpIfDone = (): void => {
+        if (finished) {
+            setDoneTitleSignal((signal) => signal + 1);
+        }
+    };
     const [held, setHeld] = useState<HeldUndo | undefined>(undefined);
     const running = order.some((entry) => entry.kind === 'live' && entry.timer.kind === 'running');
     const nowMs = useSecondTick(running);
@@ -152,9 +158,9 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finish
 
         setHeld({ handle, id: undo.id });
 
-        // Done draws neither an offer nor Next, so Done's title takes the focus the Cancel button lost.
+        // Done has no offer and no Next to take the focus the Cancel button lost: its title does.
         if (finished) {
-            setDoneTitleSignal((signal) => signal + 1);
+            bumpIfDone();
 
             return;
         }
@@ -198,9 +204,7 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finish
                     primary: control(row.stopLabel, own, () => {
                         command({ kind: 'stop', id: row.id, run: row.run });
 
-                        if (finished) {
-                            setDoneTitleSignal((signal) => signal + 1);
-                        }
+                        bumpIfDone();
                     }),
                 };
         }

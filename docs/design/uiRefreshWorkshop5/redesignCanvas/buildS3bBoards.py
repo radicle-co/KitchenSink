@@ -9,6 +9,9 @@ import re
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python -I leaves the script folder off the path
+from boardPrune import prune  # noqa: E402
+
 HERE = Path(__file__).parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()  # the folder the boards are written to
 THEMES = (HERE / 'themes.css').read_text()
@@ -336,4 +339,13 @@ for name, html in [
     ('RecipeDetailExitSnackbarS3bWeb', exit_web()),
 ]:
     (OUT / f'{name}.dc.html').write_text(html)
+prune(
+    OUT / f'{name}.dc.html'
+    for name in (
+        'CookingModeAlarmGoToStepS3bMobile',
+        'CookingModeAlarmGoToStepS3bWeb',
+        'RecipeDetailExitSnackbarS3bMobile',
+        'RecipeDetailExitSnackbarS3bWeb',
+    )
+)
 print('ok')

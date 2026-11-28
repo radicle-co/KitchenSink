@@ -12,9 +12,13 @@ cooking mode boards from an earlier run.
 
 import json
 import re
+import sys
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))  # python -I leaves the script folder off the path
+from boardPrune import prune  # noqa: E402
+
 MOCKUP = HERE.parent / "cookingMode/workshop/round3/designerC/mockup.html"
 SIZES = {
     "phone": ("Mobile", "phone", "Cooking mode: phone"),
@@ -91,6 +95,7 @@ def main() -> None:
         old.unlink()
 
     seen = set()
+    written = []
     screen_tag = r'<div\s+class="screen[^"]*"\s+data-theme="light"\s+data-screen="([a-zA-Z0-9]+)"[^>]*>'
     for match in re.finditer(screen_tag, source):
         screen = match.group(1)
@@ -106,10 +111,13 @@ def main() -> None:
         width, height = int(dims.group(1)), int(dims.group(2))
         words = re.sub(r"(?<!^)([A-Z])", r" \1", state).lower()
         title = f"Cooking mode, {words} ({size_label})"
-        (HERE / "boards" / f"{name}.dc.html").write_text(board(title, style, fonts, html, width, height))
+        path = HERE / "boards" / f"{name}.dc.html"
+        path.write_text(board(title, style, fonts, html, width, height))
+        written.append(path)
         extra[name] = {"row": row, "w": width, "h": height, "title": title}
 
     extra_path.write_text(json.dumps(extra, indent=1) + "\n")
+    prune(written)
     print(f"{len(seen)} cooking mode boards written")
 
 

@@ -11,6 +11,7 @@ defaults to an empty value or 0.
 from pathlib import Path
 import sys
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+from boardPrune import prune  # noqa: E402
 from doneRowCss import DOCK_ACTS_CSS  # noqa: E402
 
 HERE = Path(__file__).parent
@@ -370,6 +371,7 @@ def web(m):
 def write(m):
     (OUT / 'CookingModeResumeS4aMobile.dc.html').write_text(mobile(m))
     (OUT / 'CookingModeResumeS4aWeb.dc.html').write_text(web(m))
+    prune([OUT / 'CookingModeResumeS4aMobile.dc.html', OUT / 'CookingModeResumeS4aWeb.dc.html'])
 
 
 if __name__ == '__main__':

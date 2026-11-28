@@ -16,6 +16,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import mockupBoards  # noqa: E402
+from boardPrune import prune  # noqa: E402
 from mockupBoards import board, mockup_fonts, mockup_style, screens  # noqa: E402
 
 # The shared SIZES has no 320 phone and no 820 tablet. Longer keys go first, because `screens` matches by prefix.
@@ -64,6 +65,7 @@ def main() -> None:
     extra_path = HERE / "extraBoards.json"
     mine = {f"{s}{suffix}" for s in STATES for suffix, _, _ in SIZES.values()}
     extra = {k: v for k, v in json.loads(extra_path.read_text()).items() if k not in mine}
+    written = []
     found = {(s.state, s.size): s for s in screens(source)}
     wanted = {(state, size) for state in STATES for size in ("phone", "phone320", "tab820", "web1280")}
     if set(found) != wanted:
@@ -75,20 +77,23 @@ def main() -> None:
             screen = found[(state, size)]
             suffix, size_label, _ = SIZES[size]
             name = f"{state}{suffix}"
-            _write(name, f"{title} ({size_label})", style, fonts, screen)
+            written.append(_write(name, f"{title} ({size_label})", style, fonts, screen))
             extra[name] = {"after": tail[group][0], "w": screen.width, "h": screen.height, "title": f"{title} ({size_label})"}
             tail[group][0] = name
         screen = found[(state, "web1280")]
         name = state
-        _write(name, f"{title} (web)", style, fonts, screen)
+        written.append(_write(name, f"{title} (web)", style, fonts, screen))
         extra[name] = {"after": tail[group][1], "w": screen.width, "h": screen.height, "title": f"{title} (web)"}
         tail[group][1] = name
     extra_path.write_text(json.dumps(extra, indent=4) + "\n")
+    prune(written)
     print(f"{len(STATES) * 4} private foods boards written")
 
 
-def _write(name, title, style, fonts, screen) -> None:
-    (HERE / "boards" / f"{name}.dc.html").write_text(board(title, style, fonts, screen.html, screen.width, screen.height))
+def _write(name, title, style, fonts, screen) -> Path:
+    path = HERE / "boards" / f"{name}.dc.html"
+    path.write_text(board(title, style, fonts, screen.html, screen.width, screen.height))
+    return path
 
 
 if __name__ == "__main__":

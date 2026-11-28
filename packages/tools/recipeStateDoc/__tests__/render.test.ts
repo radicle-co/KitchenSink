@@ -2,6 +2,7 @@
  * The pure renderers of the recipe state doc. The golden comparison against the committed document is the integration
  * test; here each rule is pinned on small inputs, so a broken rule fails with a small diff.
  */
+import { recipeStateMessages } from '@commise/features-recipes/recipe-state-messages';
 import { CREATIONS, Hold, REFUSAL, TRANSITIONS, type TransitionRow } from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
 
@@ -178,13 +179,14 @@ describe('the prose is keyed by the module', () => {
 });
 
 describe('adaptedTable (4.8)', () => {
-    const labels = {
+    const labels: Readonly<Record<string, string>> = {
         'VIEW_ADAPTED_BY_COOK.heading.owner': 'Adapted by you from',
         'VIEW_ADAPTED_BY_COOK.heading.reader': 'Adapted by {cook} from',
         'VIEW_ADAPTED_BY_COOK.headingNoCitation.book.owner': 'Adapted by you from a book',
         'VIEW_ADAPTED_BY_COOK.headingNoCitation.book.reader': 'Adapted by {cook} from a book',
         'VIEW_ADAPTED_BY_COOK.earnedSentence': 'This recipe is now marked Adapted by you.',
-    } as const;
+    };
+    const labelOf = new Map(Object.entries(labels));
 
     it('writes a row per heading shape, from the registry’s shapes and the messages', () => {
         const text = adaptedTable(
@@ -195,7 +197,7 @@ describe('adaptedTable (4.8)', () => {
                 '.headingNoCitation.book.reader',
                 '.earnedSentence',
             ],
-            (shape) => labels[`VIEW_ADAPTED_BY_COOK${shape}` as keyof typeof labels],
+            (shape) => labelOf.get(`VIEW_ADAPTED_BY_COOK${shape}`) ?? '',
         );
 
         expect(text).toContain(
@@ -226,11 +228,13 @@ describe('enCellOf', () => {
     });
 
     it('quotes the sentence of the messages file for {line}, so the document keeps no copy', () => {
+        const { refusals } = recipeStateMessages.en;
+
         expect(enCellOf({ name: 'REFUSAL_STATEMENT_REQUIRED', en: '{line}' })).toBe(
-            'Say where this recipe is from before making it public.',
+            refusals.REFUSAL_STATEMENT_REQUIRED,
         );
         expect(enCellOf({ name: 'REFUSAL_SOURCE_CORRECTED', en: '{line} (planned)' })).toBe(
-            'This recipe stays private because its source was corrected. (planned)',
+            `${refusals.REFUSAL_SOURCE_CORRECTED} (planned)`,
         );
     });
 
@@ -242,7 +246,7 @@ describe('enCellOf', () => {
 describe('labelsIn', () => {
     it('fills a {label:KEY} from the messages and leaves other text alone', () => {
         expect(labelsIn('Owner "{label:VIEW_HIDDEN_AFTER_REPORT.owner}" only')).toBe(
-            'Owner "Hidden after a report. Only you can see it now." only',
+            `Owner "${recipeStateMessages.en.labels['VIEW_HIDDEN_AFTER_REPORT.owner']}" only`,
         );
     });
 

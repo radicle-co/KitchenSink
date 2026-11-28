@@ -1,83 +1,94 @@
 /**
  * PLANNED edges are not enforced, so nothing at runtime may read them (docs/architecture/recipeStateModel.md 5). The one
- * reader is the doc generator. The list is a subpath export of recipe-core and not part of its root entry, so a stray
- * import has to name the subpath, and this guard finds it.
+ * reader is the doc generator. The list is a subpath export of recipe-core and not part of its root entry, so a read
+ * names the subpath or a relative path to `plannedTransitions.ts`. This guard parses every tracked source with the house
+ * scanner (`workspaceSourceScan.ts`) and finds both.
+ *
+ * Allowed readers: `packages/tools/recipeStateDoc/**` and test files (`__tests__/`, `*.test.ts`).
+ *
+ * ## Mutation evidence
+ *
+ *   1. The predicate ignoring relative specifiers (`spec.startsWith('.')` made `false`) -> the unit case that feeds it a
+ *      non-test recipe-core module importing `./recipeState/plannedTransitions.js` goes red (run seen red, then restored).
+ *   2. `export { PLANNED } from './plannedTransitions.js';` added to `recipeState.ts` -> the repo-wide case reports that
+ *      file (run seen red, then removed).
  */
-/// <reference types="vite/client" />
+import { readFileSync } from 'node:fs';
+import { join, posix } from 'node:path';
+
 import { describe, expect, it } from 'vitest';
 
+import recipeCorePackage from '../../../shared/recipe-core/package.json' with { type: 'json' };
+import { repoRoot } from './serviceSources.js';
+import { isSource, moduleSpecifiers, trackedPackageFiles } from './workspaceSourceScan.js';
+
 const SUBPATH = '@kitchensink/recipe-core/recipe-state/planned';
+const PLANNED_MODULE = 'packages/shared/recipe-core/src/recipeState/plannedTransitions';
+const GENERATOR = 'packages/tools/recipeStateDoc/';
+const SOURCE_EXTENSION = /\.[cm]?[jt]sx?$/u;
 
-/** Every source file of the workspaces, as raw text, read lazily. Installed packages and build output are left out. */
-const SOURCES = import.meta.glob<string>(
-    [
-        '../../../../packages/**/*.{ts,tsx,mts,cts,js,mjs,cjs}',
-        '!../../../../packages/**/{node_modules,dist,dist-lambda,.next,.turbo,cdk.out,coverage}/**',
-        '!../../../../packages/tools/repoGuards/**',
-        '!../../../../packages/shared/recipe-core/src/recipeState/plannedTransitions.ts',
-    ],
-    { query: '?raw', import: 'default' },
-);
+const isTestFile = (file: string): boolean => file.includes('/__tests__/') || /\.test\.[cm]?[jt]sx?$/u.test(file);
 
-const ROOT_INDEX = import.meta.glob<string>('../../../shared/recipe-core/src/index.ts', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
+/**
+ * @param file - Repo-relative path of a source file.
+ * @param text - Its source.
+ * @returns True when it imports or re-exports the planned transitions, by the subpath or by a relative path. Pure.
+ */
+function readsPlanned(file: string, text: string): boolean {
+    return moduleSpecifiers(file, text).some(
+        (spec) =>
+            spec === SUBPATH ||
+            (spec.startsWith('.') &&
+                posix.join(posix.dirname(file), spec).replace(SOURCE_EXTENSION, '') === PLANNED_MODULE),
+    );
+}
+
+/** @sideEffect Reads the file. */
+const readsPlannedInRepo = (file: string): boolean => readsPlanned(file, readFileSync(join(repoRoot, file), 'utf8'));
+
+describe('readsPlanned', () => {
+    const CORE_MODULE = 'packages/shared/recipe-core/src/recipeState/recipeState.ts';
+
+    it.each([
+        ['a sibling re-export', CORE_MODULE, "export { PLANNED } from './plannedTransitions.js';"],
+        [
+            'a relative import from another folder of recipe-core',
+            'packages/shared/recipe-core/src/sourceRules.ts',
+            "import { PLANNED } from './recipeState/plannedTransitions.js';",
+        ],
+        ['the subpath', 'packages/apps/commise/web/src/x.ts', `import { PLANNED } from '${SUBPATH}';`],
+    ])('finds %s', (_label, file, text) => {
+        expect(readsPlanned(file, text)).toBe(true);
+    });
+
+    it('does not mistake another module for it', () => {
+        expect(readsPlanned(CORE_MODULE, "export { TRANSITIONS } from './transitions.js';")).toBe(false);
+        expect(readsPlanned(CORE_MODULE, "// export { PLANNED } from './plannedTransitions.js';")).toBe(false);
+    });
 });
-const MANIFEST = import.meta.glob<string>('../../../shared/recipe-core/package.json', {
-    query: '?raw',
-    import: 'default',
-    eager: true,
-});
-
-/** The modules beside `plannedTransitions.ts`, as text. The state module's own entry is one of them. */
-const MODULE_FILES = import.meta.glob<string>(
-    [
-        '../../../shared/recipe-core/src/recipeState/*.ts',
-        '!../../../shared/recipe-core/src/recipeState/plannedTransitions.ts',
-    ],
-    { query: '?raw', import: 'default', eager: true },
-);
 
 describe('the planned transitions subpath', () => {
-    it('is not imported or re-exported by any other module of the state model', () => {
-        expect(Object.keys(MODULE_FILES).length).toBeGreaterThan(5);
+    it('is read only by the recipe state doc generator and by tests', () => {
+        const readers = trackedPackageFiles()
+            .filter(isSource)
+            .filter((file) => file !== `${PLANNED_MODULE}.ts`)
+            .filter((file) => !isTestFile(file))
+            .filter((file) => !file.startsWith(GENERATOR))
+            .filter((file) => readsPlannedInRepo(file));
+
+        expect(readers).toEqual([]);
+    });
+
+    it('is read by the generator, so the scan above is looking at the right files', () => {
         expect(
-            Object.entries(MODULE_FILES)
-                .filter(([, text]) =>
-                    text
-                        .split('\n')
-                        .some(
-                            (line) =>
-                                line.includes('plannedTransitions') &&
-                                (line.includes(' from ') || line.includes('import(')),
-                        ),
-                )
-                .map(([file]) => file),
-        ).toEqual([]);
-    });
-
-    it('is imported only by the recipe state doc generator', async () => {
-        const sources = await Promise.all(
-            Object.entries(SOURCES).map(async ([file, load]) => ({ file, text: await load() })),
-        );
-        const importers = sources.filter(({ text }) => text.includes(SUBPATH)).map(({ file }) => file);
-
-        expect(sources.length).toBeGreaterThan(1000);
-        expect(importers.length).toBeGreaterThan(0);
-        expect(importers.filter((file) => !file.includes('/recipeStateDoc/'))).toEqual([]);
-    });
-
-    it('is not re-exported from the root entry of recipe-core', () => {
-        const [index] = Object.values(ROOT_INDEX);
-
-        expect(index).toContain('export');
-        expect(index).not.toMatch(/plannedTransitions/u);
+            trackedPackageFiles()
+                .filter(isSource)
+                .filter((file) => file.startsWith(GENERATOR))
+                .filter((file) => readsPlannedInRepo(file)).length,
+        ).toBeGreaterThan(0);
     });
 
     it('is declared as a subpath export', () => {
-        const [manifest] = Object.values(MANIFEST);
-
-        expect(manifest).toContain('"./recipe-state/planned": "./src/recipeState/plannedTransitions.ts"');
+        expect(recipeCorePackage.exports['./recipe-state/planned']).toBe('./src/recipeState/plannedTransitions.ts');
     });
 });

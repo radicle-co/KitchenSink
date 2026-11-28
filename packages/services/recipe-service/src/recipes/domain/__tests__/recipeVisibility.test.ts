@@ -108,4 +108,13 @@ describe('isRecipeViewableBy over the shared literal readability table', () => {
         expect(isRecipeViewableBy(fields, OWNER)).toBe(row.ownerReads);
         expect(isRecipeViewableBy(fields, OTHER)).toBe(row.otherReads);
     });
+
+    it('covers all 16 combinations of visibility, status, held and deleted, once each', () => {
+        const combinations = READABILITY_TABLE.map(
+            (row) => `${row.visibility}/${row.status}/${row.held}/${row.deleted}`,
+        );
+
+        expect(new Set(combinations).size).toBe(16);
+        expect(combinations).toHaveLength(16);
+    });
 });

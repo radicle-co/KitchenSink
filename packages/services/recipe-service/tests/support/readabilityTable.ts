@@ -1,8 +1,4 @@
-/**
- * The ONE literal readability table for ADR-0105: every row is a recipe state and, written by hand, who reads it. The unit
- * test of `isRecipeViewableBy` and the LOCAL e2e of the real `readableBy` / `communityOf` both consume it, so the two rule
- * forms are held to the same answers. No expected value is derived.
- */
+/** One recipe state, and who reads it. */
 export interface ReadabilityRow {
     readonly label: string;
     readonly visibility: 'public' | 'private';
@@ -17,6 +13,11 @@ export interface ReadabilityRow {
     readonly otherReads: boolean;
 }
 
+/**
+ * The ONE literal readability table for ADR-0105: every row is a recipe state and, written by hand, who reads it. The unit
+ * test of `isRecipeViewableBy` and the LOCAL e2e of the real `readableBy` / `communityOf` both consume it, so the two rule
+ * forms are held to the same answers. No expected value is derived. It holds all 16 combinations of visibility, status, held and deleted.
+ */
 export const READABILITY_TABLE: readonly ReadabilityRow[] = [
     {
         label: 'pubClean',
@@ -85,6 +86,78 @@ export const READABILITY_TABLE: readonly ReadabilityRow[] = [
         label: 'pubHeldDeleted',
         visibility: 'public',
         status: 'published',
+        held: true,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'privDraftClean',
+        visibility: 'private',
+        status: 'draft',
+        held: false,
+        deleted: false,
+        ownerReads: true,
+        otherReads: false,
+    },
+    {
+        label: 'privDraftHeld',
+        visibility: 'private',
+        status: 'draft',
+        held: true,
+        deleted: false,
+        ownerReads: true,
+        otherReads: false,
+    },
+    {
+        label: 'privCleanDeleted',
+        visibility: 'private',
+        status: 'published',
+        held: false,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'privHeldDeleted',
+        visibility: 'private',
+        status: 'published',
+        held: true,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'privDraftCleanDeleted',
+        visibility: 'private',
+        status: 'draft',
+        held: false,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'privDraftHeldDeleted',
+        visibility: 'private',
+        status: 'draft',
+        held: true,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'draftPubCleanDeleted',
+        visibility: 'public',
+        status: 'draft',
+        held: false,
+        deleted: true,
+        ownerReads: false,
+        otherReads: false,
+    },
+    {
+        label: 'draftPubHeldDeleted',
+        visibility: 'public',
+        status: 'draft',
         held: true,
         deleted: true,
         ownerReads: false,

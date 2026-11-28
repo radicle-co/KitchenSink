@@ -235,6 +235,7 @@ export {
 export type { PublicConfirmWording, StatementWording } from './statementWordings.js';
 export {
     PRIVATE_ONLY_SOURCE_KEYS,
+    PRIVATE_ONLY_SOURCE_KEYS_JSON,
     SOURCE_CORRECTION_GROUNDS,
     SOURCE_CORRECTION_REASON_MAX_LENGTH,
     privateOnlySourceKey,

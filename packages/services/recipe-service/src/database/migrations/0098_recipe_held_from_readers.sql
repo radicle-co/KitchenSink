@@ -9,8 +9,8 @@
 -- Two evidence definitions exist on purpose until a later change aligns them. The WRITE side (`recipe_holds_third_party_source`,
 -- 0086, and `sourceConflictOf`) counts every evidence row. This READ side ignores `capture = 'staffCorrection'` rows, so a
 -- mistaken staff correction, once undone and cleared, is readable again; a correct correction to a book stays hidden through
--- term (c). `recipe_holds_third_party_source` is untouched. The content-source check's `SOURCE_CHECK_ALLOWS_SQL` sits BESIDE
--- this function in the service predicates and never inside it.
+-- term (c). `recipe_holds_third_party_source` is untouched. The content-source check's `SOURCE_CHECK_ALLOWS_SQL` will sit
+-- beside it when 020 ships, in the service predicates and never inside this function.
 --
 -- The argument is the caller's whole `recipes` row, so no caller names an origin column and a later change to the inputs
 -- replaces only this body. Both functions answer a strict boolean, never NULL.

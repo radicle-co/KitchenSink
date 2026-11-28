@@ -17,7 +17,7 @@
  */
 import { and, eq, getTableColumns, isNull, ne, not, or, sql, type SQL } from 'drizzle-orm';
 
-import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
+import { PRIVATE_ONLY_SOURCE_KEYS_JSON } from '@kitchensink/recipe-core';
 
 import { recipes, type RecipeRow } from '../../database/schema/index.js';
 
@@ -26,9 +26,6 @@ export function activeRecipe(): SQL {
     return isNull(recipes.deletedAt);
 }
 
-/** recipe-core's private-only keys as the ONE jsonb parameter every caller of the hold binds. */
-const PRIVATE_ONLY_KEYS_JSON = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
-
 /**
  * The read rule's hold (ADR-0105): the database function `recipe_held_from_readers` over the `recipes` row of the query's
  * own FROM, with recipe-core's private-only keys bound as ONE jsonb parameter (never copied into SQL). It is both the
@@ -36,7 +33,7 @@ const PRIVATE_ONLY_KEYS_JSON = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
  * has one SQL source and no TypeScript twin.
  */
 export function heldFromReadersSql(): SQL<boolean> {
-    return sql<boolean>`recipe_held_from_readers(${recipes}, ${PRIVATE_ONLY_KEYS_JSON}::jsonb)`;
+    return sql<boolean>`recipe_held_from_readers(${recipes}, ${PRIVATE_ONLY_SOURCE_KEYS_JSON}::jsonb)`;
 }
 
 /** A recipe row plus the read rule's hold, as selected by {@link readableRecipeColumns}. */

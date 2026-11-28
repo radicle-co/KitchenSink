@@ -5,7 +5,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
-    PRIVATE_ONLY_SOURCE_KEYS,
+    PRIVATE_ONLY_SOURCE_KEYS_JSON,
     cdnOwnerPrefixInvalidationPath,
     erasureQueueMessageKind,
     ownerMediaPrefix,
@@ -704,7 +704,6 @@ export const eraseRecipeRows = async (
     // yields no rows, so the flip safely matches nothing. Parameterized throughout — no SQL built from the
     // (client-originated) ids.
     const publishElectionJson = JSON.stringify([...publishRecipeIds]);
-    const privateOnlyKeysJson = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
 
     // The owner-only (removed) predicate — the exact negation of "truly public". Named once so the removed-set
     // SELECT, the clone-detach subqueries, and the DELETE all key on the IDENTICAL two-axis rule; a drift
@@ -712,8 +711,8 @@ export const eraseRecipeRows = async (
     //    "Truly public" excludes a recipe the read rule hides from readers (`recipe_held_from_readers`, ADR-0105): a held recipe is
     //    readable by nobody but its owner, so it is removed with the owner, never kept and never donated. The function takes the
     //    `recipes` row of its own FROM and the bound private-only keys, so no rule text or key list is copied here. The call shape
-    //    mirrors `heldFromReadersSql` in recipe-service (no SQL text crosses a package boundary); the e2e proves they agree.
-    const heldFromReaders = sql`recipe_held_from_readers(recipes, ${privateOnlyKeysJson}::jsonb)`;
+    //    mirrors `heldFromReadersSql` in recipe-service (no SQL text crosses a package boundary); each side's exact-SQL unit test pins its call.
+    const heldFromReaders = sql`recipe_held_from_readers(recipes, ${PRIVATE_ONLY_SOURCE_KEYS_JSON}::jsonb)`;
     const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published' AND NOT ${heldFromReaders})`;
 
     return db.transaction(async (tx) => {

@@ -1,6 +1,6 @@
 /**
  * The detector behind `recipeReadRulePredicate.test.ts` (ADR-0105): every place a recipe-service or recipe-workers source file
- * COMPARES a recipe's visibility, or fills the read rule's hold with a literal. Pure over source text.
+ * COMPARES a recipe's visibility, or fills the read rule's hold from anything but the SQL function. Pure over source text.
  *
  * It reads the AST without a type checker (the mechanism of `serviceSecurityInvariants.test.ts`), so it cannot tell a recipe's
  * `.visibility` from a collection's: every comparison of a `visibility` name fires, and the guard allowlists files and holds the
@@ -9,8 +9,9 @@
  * What fires: `===`, `!==`, `==`, `!=` between a visibility name and `'public'`, `'private'`, `X.PUBLIC`, `X.PRIVATE` or a
  * constant named for them; a `switch` over a visibility name; Drizzle `eq`, `ne`, `inArray` and `notInArray` whose first
  * argument is a visibility name; a template literal (or a SQL-looking string) with `visibility` followed by `=`, `<>`, `!=`,
- * `IN`, `NOT IN`, `= ANY` or `IS [NOT] DISTINCT FROM`; a `${x.visibility}` interpolation; and a boolean literal given to
- * `heldFromReaders`.
+ * `IN`, `NOT IN`, `= ANY` or `IS [NOT] DISTINCT FROM` (the column may be quoted or qualified, and cast with `::type`); a
+ * `${x.visibility}` interpolation; and a `heldFromReaders` property, shorthand or not, whose value is not a `heldFromReadersSql()`
+ * call.
  *
  * Limit, stated: a visibility copied to another name first (`const v = row.visibility; v === 'public'`) is not seen, and a read
  * with no visibility predicate at all cannot be seen by any text rule. The truth-table e2e per path covers those.
@@ -33,8 +34,36 @@ export interface VisibilitySite {
 const DRIZZLE_COMPARISONS = new Set(['eq', 'ne', 'inArray', 'notInArray']);
 const VISIBILITY_VALUE = /^(?:public|private)$/iu;
 const CONSTANT_NAMED_FOR_VALUE = /(?:^|_)(?:PUBLIC|PRIVATE)$|^(?:PUBLIC|PRIVATE)(?:_|$)/u;
-const SQL_COMPARISON = /\bvisibility\b\s*(?:<>|!=|=|\bnot\s+in\b|\bin\s*\(|\bis\s+(?:not\s+)?distinct\s+from\b)/iu;
+/** `visibility`, an optional closing quote (`"visibility"`, `r."visibility"`), an optional cast (`::text`), then a comparison. */
+const SQL_COMPARISON =
+    /\bvisibility\b"?\s*(?:::\s*[\w.]+\s*)?(?:<>|!=|=|\bnot\s+in\b|\bin\s*\(|\bis\s+(?:not\s+)?distinct\s+from\b)/iu;
 const SQL_WORD = /\b(?:select|update|delete|where|from|set)\b/iu;
+
+/** The form name of a `heldFromReaders` filled from anything but the SQL selection. */
+export const HELD_FORM = 'heldFromReaders not from heldFromReadersSql';
+
+/**
+ * Whether a node gives the `heldFromReaders` field a value other than a `heldFromReadersSql()` call: a literal, a column, a
+ * ternary or a shorthand `{ heldFromReaders }` is a TypeScript twin of the rule (ADR-0105), which has ONE source, the function.
+ * Today exactly one site fills the field, `readableRecipeColumns`. Pure.
+ */
+function isHeldFromReadersFilledOutsideTheFunction(node: ts.Node): boolean {
+    if (ts.isShorthandPropertyAssignment(node)) {
+        return node.name.text === 'heldFromReaders';
+    }
+
+    if (!ts.isPropertyAssignment(node) || !ts.isIdentifier(node.name) || node.name.text !== 'heldFromReaders') {
+        return false;
+    }
+
+    const init = node.initializer;
+
+    return !(
+        ts.isCallExpression(init) &&
+        ts.isIdentifier(init.expression) &&
+        init.expression.text === 'heldFromReadersSql'
+    );
+}
 
 /** Whether a node names a visibility: `x.visibility`, `x['visibility']` or a bare `visibility`. */
 function isVisibilityName(node: ts.Node): boolean {
@@ -107,7 +136,7 @@ function sqlTextOf(node: ts.Node): string | undefined {
 }
 
 /**
- * Every visibility comparison and every literal `heldFromReaders` in one file.
+ * Every visibility comparison and every `heldFromReaders` not filled by `heldFromReadersSql()` in one file.
  *
  * @param file - Repo-relative path, used for the site key.
  * @param contents - The file's source text.
@@ -161,14 +190,8 @@ export function visibilitySitesOf(file: string, contents: string): readonly Visi
             add(node, 'sql interpolation');
         }
 
-        if (
-            ts.isPropertyAssignment(node) &&
-            ts.isIdentifier(node.name) &&
-            node.name.text === 'heldFromReaders' &&
-            (node.initializer.kind === ts.SyntaxKind.TrueKeyword ||
-                node.initializer.kind === ts.SyntaxKind.FalseKeyword)
-        ) {
-            add(node, 'heldFromReaders literal');
+        if (isHeldFromReadersFilledOutsideTheFunction(node)) {
+            add(node, HELD_FORM);
         }
     });
 

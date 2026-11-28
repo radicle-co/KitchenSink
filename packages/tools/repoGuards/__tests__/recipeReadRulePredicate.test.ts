@@ -9,16 +9,18 @@
  * - Every non-test `.ts` under `recipe-service/src` and `recipe-workers/src` is scanned, whether or not it imports the
  *   `recipes` table: recipe-workers reads through raw `sql` and never imports it.
  * - A visibility comparison fires (`recipeVisibilityReads.ts` lists the forms). A file may hold one only if it is in
- *   {@link ALLOWLIST}, each entry with its reason, and then every SITE (`file#function`) holds its count EXACTLY in
- *   `recipeReadRuleBaseline.json`. A write check removed in one method and a read added in another fails even when the file
- *   total is equal. Any change to a count updates the baseline in the same PR, where a reviewer sees it.
- * - A boolean literal given to `heldFromReaders` fails anywhere in non-test code; `__fixtures__`, `__tests__` and `tests` are test
- *   code, and no non-test file may import from a `__fixtures__` path.
- * - The erasure worker must contain `recipe_held_from_readers`, because its kept set is a raw SQL statement this scan cannot
- *   follow into the database.
+ *   `recipeReadRuleBaseline.json`, the ONE registry: every SITE (`file#function`) it records carries its count and its reason,
+ *   and the allowlist of files is the set of files those keys name. The counts are held EXACTLY, so a write check removed in
+ *   one method and a read added in another fails even when the file total is equal. This is an approval baseline, not a
+ *   ratchet: a count may rise, with its reason written in the same PR, where a reviewer sees it.
+ * - In non-test code a `heldFromReaders` property, shorthand or not, fails unless its value is a `heldFromReadersSql()` call
+ *   (today exactly one site, `readableRecipeColumns`), so no TypeScript twin of the rule can be written. `__fixtures__`,
+ *   `__tests__` and `tests` are test code, and no non-test file may import from a `__fixtures__` path.
+ * - The erasure worker and the shared predicates must contain `recipe_held_from_readers` in CODE (comments stripped), because
+ *   the worker's kept set is a raw SQL statement this scan cannot follow into the database.
  *
  * ✅ THE FIX FOR A FAILURE: read through `readableBy`, `viewableBy`, `communityOf` or `isRecipeViewableBy`. A genuine WRITE
- * check or another entity's visibility goes in the allowlist with its reason, and the baseline records its sites.
+ * check or another entity's visibility is recorded in the baseline with its reason.
  *
  * Limit, stated: the guard fails a comparison it can see. A read with no visibility predicate at all is caught only by the
  * per-path truth-table e2e (`heldFromReaders.e2e.test.ts`).
@@ -28,42 +30,23 @@ import path from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import { fixtureImportsOf, visibilitySitesOf, type VisibilitySite } from './recipeVisibilityReads.js';
+import { over, stale, type FileCounts } from './ratchetBaseline.js';
+import { fixtureImportsOf, HELD_FORM, visibilitySitesOf, type VisibilitySite } from './recipeVisibilityReads.js';
 import { isTestFile, presentFiles, repoRoot } from './serviceSources.js';
+import { withoutTsComments } from './sourceComments.js';
 
 const SCOPES = ['packages/services/recipe-service/src', 'packages/services/recipe-workers/src'] as const;
 const BASELINE_PATH = 'packages/tools/repoGuards/__tests__/recipeReadRuleBaseline.json';
 const PREDICATES = 'packages/services/recipe-service/src/recipes/dal/recipePredicates.ts';
-const VIEWABLE = 'packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts';
 const ERASURE = 'packages/services/recipe-workers/src/handlers/accountErasureWorker.ts';
-const SVC = 'packages/services/recipe-service/src/';
 
-/** Files that may compare a visibility, each with the reason. Not an exemption from the count: see the baseline. */
-const ALLOWLIST: Readonly<Record<string, string>> = {
-    [PREDICATES]: 'the shared SQL predicates: the one place the read rule is written in SQL',
-    [VIEWABLE]: 'the shared in-memory predicate: the one place the read rule is written in TypeScript',
-    [ERASURE]: 'account erasure removes the owner-only set; it must call recipe_held_from_readers (checked below)',
-    [`${SVC}database/schema/recipes.ts`]: 'the recipes table definition: its CHECK constraints',
-    [`${SVC}database/schema/collections.ts`]: 'the collections table definition: a collection has its own visibility',
-    [`${SVC}database/schema/recipeImports.ts`]: 'the import tables definition: an import item has its own visibility',
-    [`${SVC}collections/collections.errors.ts`]: 'collection visibility, not a recipe read',
-    [`${SVC}collections/collections.service.ts`]: 'collection visibility and its publish check, not a recipe read',
-    [`${SVC}ingredients/foodCatalog.gateway.ts`]: 'a FOOD entry has its own visibility',
-    [`${SVC}ingredients/foodRefs.gateway.ts`]: 'a FOOD entry has its own visibility',
-    [`${SVC}ingredients/resolution/lexicalTier.ts`]: 'a FOOD entry has its own visibility',
-    [`${SVC}recipes/dal/privateSlots.dal.ts`]: 'private-slot counting: a write rule of the owner, not a read',
-    [`${SVC}recipes/dal/sourceCorrections.dal.ts`]: 'staff hold of the owner’s clones: a write, not a read',
-    [`${SVC}recipes/domain/privateSlotPolicy.ts`]: 'private-slot write policy',
-    [`${SVC}recipes/domain/publicFoodsPolicy.ts`]: 'publish policy: whether a public recipe may hold a private food',
-    [`${SVC}recipes/domain/statementAttestation.ts`]: 'publish policy: when a public confirmation is owed',
-    [`${SVC}recipes/domain/visibilityPolicy.ts`]: 'write policy: which visibility a recipe may hold',
-    [`${SVC}recipes/recipes.service.ts`]:
-        'write checks (setVisibility, private-food link check); reads go through the predicates',
-};
+/** One recorded site: how many comparisons it holds, and why each is not a recipe read. */
+interface RecordedSite {
+    readonly count: number;
+    readonly reason: string;
+}
 
-type SiteCounts = Readonly<Record<string, number>>;
-
-function countsOf(sites: readonly VisibilitySite[]): SiteCounts {
+function countsOf(sites: readonly VisibilitySite[]): FileCounts {
     const counts: Record<string, number> = {};
 
     for (const { site } of sites) {
@@ -74,16 +57,12 @@ function countsOf(sites: readonly VisibilitySite[]): SiteCounts {
 }
 
 /**
- * Every difference between the sites found and the sites recorded: a site above its count (or new), and a recorded site
- * below it (stale). Equality is the rule, so a change in either direction updates the baseline. Pure.
+ * Every difference between the sites found and the sites recorded, through the house helpers: a site above its count (or new)
+ * is `over`, and a recorded site below its count is `stale`. Equality is the rule, so a change in either direction updates the
+ * approval baseline. Pure.
  */
-function baselineDifferences(actual: SiteCounts, recorded: SiteCounts): string[] {
-    const keys = new Set([...Object.keys(actual), ...Object.keys(recorded)]);
-
-    return [...keys]
-        .filter((key) => (actual[key] ?? 0) !== (recorded[key] ?? 0))
-        .sort()
-        .map((key) => `${key}: found ${actual[key] ?? 0}, recorded ${recorded[key] ?? 0}`);
+function baselineDifferences(actual: FileCounts, recorded: FileCounts): string[] {
+    return [...over(actual, recorded), ...stale(actual, recorded)].sort();
 }
 
 const formsOf = (file: string, source: string): string[] => visibilitySitesOf(file, source).map((site) => site.form);
@@ -118,6 +97,10 @@ describe('the detector: one red fixture per comparison form', () => {
         ['sql IS DISTINCT FROM', "const q = sql`WHERE visibility IS DISTINCT FROM 'private'`;", 'sql text'],
         ['sql IS NOT DISTINCT FROM', "const q = sql`WHERE visibility IS NOT DISTINCT FROM 'private'`;", 'sql text'],
         ['sql NOT (visibility = ...)', "const q = sql`WHERE NOT (visibility = 'public')`;", 'sql text'],
+        ['a quoted column', 'const q = sql`WHERE "visibility" = \'public\'`;', 'sql text'],
+        ['a qualified quoted column', 'const q = sql`WHERE r."visibility" = \'public\'`;', 'sql text'],
+        ['a cast column', "const q = sql`WHERE visibility::text = 'public'`;", 'sql text'],
+        ['a quoted cast column', 'const q = sql`WHERE r."visibility"::text <> \'private\'`;', 'sql text'],
         ['an interpolated column', 'const q = sql`WHERE ${recipes.visibility} = ${v}`;', 'sql interpolation'],
         ['a plain SQL string', 'const q = "SELECT id FROM recipes WHERE visibility = \'public\'";', 'sql text'],
         [
@@ -125,8 +108,13 @@ describe('the detector: one red fixture per comparison form', () => {
             "pool.query(`DELETE FROM recipes WHERE visibility <> 'private'`);",
             'sql text',
         ],
-        ['a literal hold', 'const row = { id, heldFromReaders: false };', 'heldFromReaders literal'],
-        ['a literal true hold', 'const row = { id, heldFromReaders: true };', 'heldFromReaders literal'],
+        ['a literal hold', 'const row = { id, heldFromReaders: false };', HELD_FORM],
+        ['a literal true hold', 'const row = { id, heldFromReaders: true };', HELD_FORM],
+        ['a hold copied from a column', 'const row = { id, heldFromReaders: r.sourceCorrectionHold };', HELD_FORM],
+        ['a hold from a ternary', "const row = { id, heldFromReaders: r.kind === 'x' ? true : false };", HELD_FORM],
+        ['a shorthand hold', 'const heldFromReaders = f(r); const row = { id, heldFromReaders };', HELD_FORM],
+        ['a hold from a variable', 'const row = { id, heldFromReaders: held };', HELD_FORM],
+        ['a hold from another function', 'const row = { id, heldFromReaders: heldOf(r) };', HELD_FORM],
     ] as const)('%s', (_name, source, form) => {
         expect(formsOf('x.ts', source)).toContain(form);
     });
@@ -136,7 +124,8 @@ describe('the detector: one red fixture per comparison form', () => {
         ['a string that is not SQL', "const a = 'visibility = public is a phrase';"],
         ['a column in a select list', 'const q = sql`SELECT recipes.visibility, recipes.status FROM recipes`;'],
         ['a hold taken from a selected column', 'const row = { id, heldFromReaders: heldFromReadersSql() };'],
-        ['a hold taken from a variable', 'const row = { id, heldFromReaders: held };'],
+        ['a type member named for the field', 'interface R { readonly heldFromReaders: boolean }'],
+        ['a quoted column in a select list', 'const q = sql`SELECT r."visibility" FROM recipes r`;'],
         ['another property compared with public', "const a = row.kind === 'public';"],
     ] as const)('stays green on %s', (_name, source) => {
         expect(formsOf('x.ts', source)).toEqual([]);
@@ -165,10 +154,10 @@ describe('the baseline comparison', () => {
     });
 
     it('fails a new site, a higher count, a lower count and a stale entry', () => {
-        expect(baselineDifferences({ 'f#a': 1, 'f#b': 1 }, { 'f#a': 1 })).toEqual(['f#b: found 1, recorded 0']);
-        expect(baselineDifferences({ 'f#a': 2 }, { 'f#a': 1 })).toEqual(['f#a: found 2, recorded 1']);
-        expect(baselineDifferences({ 'f#a': 1 }, { 'f#a': 2 })).toEqual(['f#a: found 1, recorded 2']);
-        expect(baselineDifferences({}, { 'f#a': 1 })).toEqual(['f#a: found 0, recorded 1']);
+        expect(baselineDifferences({ 'f#a': 1, 'f#b': 1 }, { 'f#a': 1 })).toEqual(['f#b: 1 > 0']);
+        expect(baselineDifferences({ 'f#a': 2 }, { 'f#a': 1 })).toEqual(['f#a: 2 > 1']);
+        expect(baselineDifferences({ 'f#a': 1 }, { 'f#a': 2 })).toEqual(['f#a: recorded 2, now 1']);
+        expect(baselineDifferences({}, { 'f#a': 1 })).toEqual(['f#a: recorded 1, now 0']);
     });
 
     it('swap: a write check removed from one method and a read added to another in the SAME file fails at the same file total', () => {
@@ -190,42 +179,67 @@ describe('the baseline comparison', () => {
     });
 });
 
+describe('a name that only a comment mentions', () => {
+    it('does not satisfy the code check: comments are stripped first', () => {
+        const source = '/** recipe_held_from_readers is called here */\n// recipe_held_from_readers\nconst a = 1;';
+
+        expect(source).toContain('recipe_held_from_readers');
+        expect(withoutTsComments(source)).not.toContain('recipe_held_from_readers');
+    });
+
+    it('is satisfied by the name in code', () => {
+        expect(withoutTsComments('const q = sql`recipe_held_from_readers(r, $1)`;')).toContain(
+            'recipe_held_from_readers',
+        );
+    });
+});
+
 describe('the tree', () => {
     const files = presentFiles([...SCOPES]).filter((file) => file.endsWith('.ts') && !isTestFile(file));
     const sources = new Map(files.map((file) => [file, readFileSync(path.join(repoRoot, file), 'utf8')] as const));
     const found = files.flatMap((file) => visibilitySitesOf(file, sources.get(file) ?? ''));
-    const baseline = (JSON.parse(readFileSync(path.join(repoRoot, BASELINE_PATH), 'utf8')) as { sites: SiteCounts })
-        .sites;
+    const registry = (
+        JSON.parse(readFileSync(path.join(repoRoot, BASELINE_PATH), 'utf8')) as {
+            sites: Record<string, RecordedSite>;
+        }
+    ).sites;
+    const recorded: FileCounts = Object.fromEntries(Object.entries(registry).map(([site, { count }]) => [site, count]));
+    const allowlisted = new Set(Object.keys(registry).map((site) => site.split('#')[0] ?? ''));
+    const comparisons = found.filter((site) => site.form !== HELD_FORM);
+    const code = (file: string): string => withoutTsComments(sources.get(file) ?? '', file);
 
     it('scans the services it names', () => {
         expect(files.some((file) => file.startsWith(SCOPES[0]))).toBe(true);
         expect(files.some((file) => file.startsWith(SCOPES[1]))).toBe(true);
     });
 
-    it('compares a recipe visibility only in an allowlisted file', () => {
-        const outside = found
-            .filter((site) => site.form !== 'heldFromReaders literal')
-            .filter((site) => ALLOWLIST[site.site.split('#')[0] ?? ''] === undefined)
+    it('compares a recipe visibility only in a file the registry names', () => {
+        const outside = comparisons
+            .filter((site) => !allowlisted.has(site.site.split('#')[0] ?? ''))
             .map((site) => `${site.site} (${site.form})`);
 
         expect(outside).toEqual([]);
     });
 
-    it('holds the count of every allowlisted site exactly', () => {
-        const allowed = countsOf(found.filter((site) => ALLOWLIST[site.site.split('#')[0] ?? ''] !== undefined));
-
-        expect(baselineDifferences(allowed, baseline)).toEqual([]);
+    it('holds the count of every recorded site exactly', () => {
+        expect(baselineDifferences(countsOf(comparisons), recorded)).toEqual([]);
     });
 
-    it('gives every allowlist entry a reason and a file that exists', () => {
-        for (const [file, reason] of Object.entries(ALLOWLIST)) {
-            expect(reason.trim().length, file).toBeGreaterThan(10);
+    it('gives every recorded site a reason, a count of at least one and a scanned file with a site', () => {
+        const filesWithSites = new Set(comparisons.map((site) => site.site.split('#')[0]));
+
+        for (const [site, { count, reason }] of Object.entries(registry)) {
+            const file = site.split('#')[0] ?? '';
+
+            expect(reason.trim().length, site).toBeGreaterThan(10);
+            expect(count, site).toBeGreaterThanOrEqual(1);
             expect(sources.has(file), `${file} is not a scanned file`).toBe(true);
+            expect(filesWithSites.has(file), `${file} has no site left: a dead entry`).toBe(true);
         }
     });
 
-    it('never fills heldFromReaders with a literal in non-test code', () => {
-        expect(found.filter((site) => site.form === 'heldFromReaders literal').map((site) => site.site)).toEqual([]);
+    it('fills heldFromReaders only from heldFromReadersSql() in non-test code', () => {
+        expect(found.filter((site) => site.form === HELD_FORM).map((site) => site.site)).toEqual([]);
     });
 
     it('imports nothing from a __fixtures__ path in non-test code', () => {
@@ -238,11 +252,11 @@ describe('the tree', () => {
         expect(importers).toEqual([]);
     });
 
-    it('has the erasure worker call recipe_held_from_readers', () => {
-        expect(sources.get(ERASURE)).toContain('recipe_held_from_readers');
+    it('has the erasure worker call recipe_held_from_readers in code', () => {
+        expect(code(ERASURE)).toContain('recipe_held_from_readers');
     });
 
-    it('has the predicates call recipe_held_from_readers', () => {
-        expect(sources.get(PREDICATES)).toContain('recipe_held_from_readers');
+    it('has the predicates call recipe_held_from_readers in code', () => {
+        expect(code(PREDICATES)).toContain('recipe_held_from_readers');
     });
 });

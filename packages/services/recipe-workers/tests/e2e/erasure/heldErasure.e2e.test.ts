@@ -35,13 +35,21 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         await pool.end();
     });
 
-    /** A published recipe of the cook, `held` by cook-captured book evidence. A curator recipe is `imported_public`, no kind. */
-    async function insertPublic(held: boolean, sourceType = 'user_created'): Promise<string> {
+    /**
+     * A published recipe of the cook, `held` by cook-captured book evidence. A curator recipe is `imported_public`, no kind.
+     * A PRIVATE recipe is what the donate-flip acts on: elected and readable it ends public, elected and held it is removed.
+     */
+    async function insertRecipe(
+        held: boolean,
+        visibility = 'public',
+        sourceType = 'user_created',
+        correctionHold = false,
+    ): Promise<string> {
         return db.transaction(async (tx) => {
             const { rows } = await tx.execute<{ id: string }>(sql`
                 INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
-                                     total_time_minutes, visibility, status, source_type)
-                VALUES (${COOK}, 'held erasure probe', 'probe', 2, 5, 5, 10, 'public', 'published', ${sourceType})
+                                     total_time_minutes, visibility, status, source_type, source_correction_hold)
+                VALUES (${COOK}, 'held erasure probe', 'probe', 2, 5, 5, 10, ${visibility}, 'published', ${sourceType}, ${correctionHold})
                 RETURNING id
             `);
             const id = rows[0]?.id;
@@ -73,11 +81,11 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
     }
 
     it('removes a held public recipe whether or not it was elected, and keeps or donates the readable ones', async () => {
-        const heldElected = await insertPublic(true);
-        const heldNotElected = await insertPublic(true);
-        const readableElected = await insertPublic(false);
-        const readableKept = await insertPublic(false);
-        const curator = await insertPublic(false, 'imported_public');
+        const heldElected = await insertRecipe(true);
+        const heldNotElected = await insertRecipe(true);
+        const readableElected = await insertRecipe(false);
+        const readableKept = await insertRecipe(false);
+        const curator = await insertRecipe(false, 'public', 'imported_public');
 
         await erase([heldElected, readableElected]);
 
@@ -86,5 +94,20 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         expect(await survivor(readableElected)).toEqual({ visibility: 'public' });
         expect(await survivor(readableKept)).toEqual({ visibility: 'public' });
         expect(await survivor(curator)).toEqual({ visibility: 'public' });
+    });
+
+    it('donates a PRIVATE readable elected recipe, removes private held elected ones (cook-captured evidence, staff hold), and removes a private one not elected', async () => {
+        const privateReadableElected = await insertRecipe(false, 'private');
+        const privateHeldElected = await insertRecipe(true, 'private');
+        const privateReadableNotElected = await insertRecipe(false, 'private');
+        // The database's own CHECK refuses a held (staff-held) recipe made public, so a flip that forgot the held term errors here.
+        const privateCorrectionHeldElected = await insertRecipe(false, 'private', 'user_created', true);
+
+        await erase([privateReadableElected, privateHeldElected, privateCorrectionHeldElected]);
+
+        expect(await survivor(privateReadableElected)).toEqual({ visibility: 'public' });
+        expect(await survivor(privateHeldElected)).toBeUndefined();
+        expect(await survivor(privateCorrectionHeldElected)).toBeUndefined();
+        expect(await survivor(privateReadableNotElected)).toBeUndefined();
     });
 });

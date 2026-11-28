@@ -1,25 +1,88 @@
 {
     "sites": {
-        "packages/services/recipe-service/src/collections/collections.errors.ts#invalidVisibilityError": 1,
-        "packages/services/recipe-service/src/collections/collections.service.ts#assertMayPublish": 1,
-        "packages/services/recipe-service/src/collections/collections.service.ts#isCollectionVisibleTo": 1,
-        "packages/services/recipe-service/src/database/schema/collections.ts#<top>": 1,
-        "packages/services/recipe-service/src/database/schema/recipeImports.ts#<top>": 2,
-        "packages/services/recipe-service/src/database/schema/recipes.ts#<top>": 3,
-        "packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts#toCatalogHit": 1,
-        "packages/services/recipe-service/src/ingredients/foodRefs.gateway.ts#toAnswer": 1,
-        "packages/services/recipe-service/src/ingredients/resolution/lexicalTier.ts#isAuthorAugmented": 1,
-        "packages/services/recipe-service/src/recipes/dal/privateSlots.dal.ts#PrivateSlotsDal.count": 1,
-        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#communityOf": 1,
-        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#viewableBy": 1,
-        "packages/services/recipe-service/src/recipes/dal/sourceCorrections.dal.ts#SourceCorrectionsDal.holdOwnersClones": 1,
-        "packages/services/recipe-service/src/recipes/domain/privateSlotPolicy.ts#holdsPrivateSlot": 1,
-        "packages/services/recipe-service/src/recipes/domain/publicFoodsPolicy.ts#evaluatePublicFoods": 1,
-        "packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts#isRecipeViewableBy": 1,
-        "packages/services/recipe-service/src/recipes/domain/statementAttestation.ts#publicConfirmationDutyOf": 2,
-        "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#evaluatePublishedState": 2,
-        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.assertNoPrivateFoodLinesIn": 1,
-        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.setVisibility": 2,
-        "packages/services/recipe-workers/src/handlers/accountErasureWorker.ts#eraseRecipeRows": 2
+        "packages/services/recipe-service/src/collections/collections.errors.ts#invalidVisibilityError": {
+            "count": 1,
+            "reason": "collection visibility error, not a recipe read"
+        },
+        "packages/services/recipe-service/src/collections/collections.service.ts#assertMayPublish": {
+            "count": 1,
+            "reason": "a collection publish check, not a recipe read"
+        },
+        "packages/services/recipe-service/src/collections/collections.service.ts#isCollectionVisibleTo": {
+            "count": 1,
+            "reason": "a collection has its own visibility, not a recipe read"
+        },
+        "packages/services/recipe-service/src/database/schema/collections.ts#<top>": {
+            "count": 1,
+            "reason": "the collections table definition: its own visibility CHECK"
+        },
+        "packages/services/recipe-service/src/database/schema/recipeImports.ts#<top>": {
+            "count": 2,
+            "reason": "the import tables definition: an import item has its own visibility"
+        },
+        "packages/services/recipe-service/src/database/schema/recipes.ts#<top>": {
+            "count": 3,
+            "reason": "the recipes table definition: its CHECK constraints"
+        },
+        "packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts#toCatalogHit": {
+            "count": 1,
+            "reason": "a FOOD entry has its own visibility"
+        },
+        "packages/services/recipe-service/src/ingredients/foodRefs.gateway.ts#toAnswer": {
+            "count": 1,
+            "reason": "a FOOD entry has its own visibility"
+        },
+        "packages/services/recipe-service/src/ingredients/resolution/lexicalTier.ts#isAuthorAugmented": {
+            "count": 1,
+            "reason": "a FOOD entry has its own visibility"
+        },
+        "packages/services/recipe-service/src/recipes/dal/privateSlots.dal.ts#PrivateSlotsDal.count": {
+            "count": 1,
+            "reason": "private-slot counting: an owner write rule, not a read"
+        },
+        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#communityOf": {
+            "count": 1,
+            "reason": "the shared SQL predicate: the one place the read rule is written in SQL"
+        },
+        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#viewableBy": {
+            "count": 1,
+            "reason": "the shared SQL predicate: the one place the read rule is written in SQL"
+        },
+        "packages/services/recipe-service/src/recipes/dal/sourceCorrections.dal.ts#SourceCorrectionsDal.holdOwnersClones": {
+            "count": 1,
+            "reason": "staff hold of the owner clones: a write, not a read"
+        },
+        "packages/services/recipe-service/src/recipes/domain/privateSlotPolicy.ts#holdsPrivateSlot": {
+            "count": 1,
+            "reason": "private-slot write policy"
+        },
+        "packages/services/recipe-service/src/recipes/domain/publicFoodsPolicy.ts#evaluatePublicFoods": {
+            "count": 1,
+            "reason": "publish policy: whether a public recipe may hold a private food"
+        },
+        "packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts#isRecipeViewableBy": {
+            "count": 1,
+            "reason": "the shared in-memory predicate: the one place the read rule is written in TypeScript"
+        },
+        "packages/services/recipe-service/src/recipes/domain/statementAttestation.ts#publicConfirmationDutyOf": {
+            "count": 2,
+            "reason": "publish policy: when a public confirmation is owed"
+        },
+        "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#evaluatePublishedState": {
+            "count": 2,
+            "reason": "write policy: which visibility a recipe may hold"
+        },
+        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.assertNoPrivateFoodLinesIn": {
+            "count": 1,
+            "reason": "a write check: the private-food link rule on publish"
+        },
+        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.setVisibility": {
+            "count": 2,
+            "reason": "a write check: who may change a recipe visibility"
+        },
+        "packages/services/recipe-workers/src/handlers/accountErasureWorker.ts#eraseRecipeRows": {
+            "count": 2,
+            "reason": "erasure removes the owner-only set; the worker must call recipe_held_from_readers (checked in the test)"
+        }
     }
 }

@@ -8,11 +8,13 @@ import { sourceConflictOf, type SourceEvidenceFacts } from '../sourceConflict.js
  * literal, so a mutant that drops a clause (the claim exemption, the book and paid-site arm, the private-only short circuit)
  * fails at least one row.
  */
-const WEB: SourceEvidenceFacts = { sourceDomain: 'allrecipes.com', sourceKind: 'public_web' };
-const PASTED_PAGE: SourceEvidenceFacts = { sourceDomain: 'allrecipes.com', sourceKind: null };
-const BOOK: SourceEvidenceFacts = { sourceDomain: null, sourceKind: 'book' };
-const PAID_CITATION_ONLY: SourceEvidenceFacts = { sourceDomain: null, sourceKind: 'paid_site' };
-const NO_FACTS: SourceEvidenceFacts = { sourceDomain: null, sourceKind: null };
+const WEB: SourceEvidenceFacts = { capture: 'other', sourceDomain: 'allrecipes.com', sourceKind: 'public_web' };
+const PASTED_PAGE: SourceEvidenceFacts = { capture: 'other', sourceDomain: 'allrecipes.com', sourceKind: null };
+const BOOK: SourceEvidenceFacts = { capture: 'other', sourceDomain: null, sourceKind: 'book' };
+const PAID_CITATION_ONLY: SourceEvidenceFacts = { capture: 'other', sourceDomain: null, sourceKind: 'paid_site' };
+const STAFF_WEB: SourceEvidenceFacts = { ...WEB, capture: 'staffCorrection' };
+const STAFF_BOOK: SourceEvidenceFacts = { ...BOOK, capture: 'staffCorrection' };
+const NO_FACTS: SourceEvidenceFacts = { capture: 'other', sourceDomain: null, sourceKind: null };
 
 const COOK_WRITTEN = { sourceType: RecipeSourceType.USER_CREATED, sourceKind: null } as const;
 const CURATOR_TEXT = { sourceType: RecipeSourceType.IMPORTED_PUBLIC, sourceKind: null } as const;
@@ -32,6 +34,25 @@ describe('sourceConflictOf', () => {
         ['the curator text that also carries web evidence', CURATOR_TEXT, [WEB], true],
         ['a web copy (private-only already; the rule is not asked)', WEB_COPY, [WEB], false],
         ['a book recipe (private-only already)', BOOK_RECIPE, [BOOK], false],
+        [
+            'a cook-written recipe, only a staffCorrection web row (staff finding, not a cook claim)',
+            COOK_WRITTEN,
+            [STAFF_WEB],
+            false,
+        ],
+        ['a cook-written recipe, only a staffCorrection book row', COOK_WRITTEN, [STAFF_BOOK], false],
+        [
+            'a cook-written recipe, a staffCorrection row plus a genuine cook book row',
+            COOK_WRITTEN,
+            [STAFF_BOOK, BOOK],
+            true,
+        ],
+        [
+            'a cook-written recipe, a staffCorrection row plus a genuine cook web row',
+            COOK_WRITTEN,
+            [STAFF_WEB, WEB],
+            true,
+        ],
     ] as const)('%s', (_name, recipe, evidence, expected) => {
         expect(sourceConflictOf({ evidence, ...recipe, verifiedSiteClaims: [] })).toBe(expected);
     });

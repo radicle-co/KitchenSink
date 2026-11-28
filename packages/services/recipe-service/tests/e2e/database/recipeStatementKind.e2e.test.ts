@@ -304,6 +304,7 @@ describe('recipes.statement_kind and content_pasted_at (migration 0087)', () => 
                                         contentPasted: pasted,
                                         // Only the count matters to the rule; the stored rows are read back, never assumed.
                                         evidence: Array.from({ length: Number(rows[0]?.evidence) }, () => ({
+                                            capture: 'other' as const,
                                             sourceDomain: null,
                                             sourceKind: null,
                                         })),

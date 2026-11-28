@@ -4,6 +4,7 @@ import { RecipeSourceType } from '@kitchensink/recipe-core';
 import { resolveStatementProvenance } from '../provenancePolicy.js';
 import { evidenceListOf, sourceConflictOfEvidence, type EvidenceCapturePath } from '../sourceEvidence.js';
 import type { ResolvedProvenance } from '../provenancePolicy.js';
+import { STAFF_EVIDENCE_MATRIX } from '../__fixtures__/staffEvidenceMatrix.js';
 
 /** The one row a provenance leaves, or `undefined` for none: the list helper read as the tests below ask the question. */
 function evidenceRowOf(provenance: ResolvedProvenance, path: EvidenceCapturePath) {
@@ -130,5 +131,15 @@ describe('evidenceListOf — none or one row', () => {
     it('is empty for a provenance that states no source, and one row for one that does', () => {
         expect(evidenceListOf(defined(OWN), 'editor')).toEqual([]);
         expect(evidenceListOf(defined(BOOK), 'editor')).toHaveLength(1);
+    });
+});
+
+describe('sourceConflictOfEvidence — staff evidence (the AE7 matrix, ADR-0106)', () => {
+    it.each(STAFF_EVIDENCE_MATRIX.map((row) => [row.name, row] as const))('%s', (_name, row) => {
+        expect(sourceConflictOfEvidence(row.evidence, row.recipe)).toBe(row.conflict);
+    });
+
+    it('holds at least one row and releases at least one, so a rule that ignores every capture or none fails', () => {
+        expect(new Set(STAFF_EVIDENCE_MATRIX.map((row) => row.conflict))).toEqual(new Set([true, false]));
     });
 });

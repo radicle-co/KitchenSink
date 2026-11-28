@@ -11,9 +11,9 @@
  * migration (the evidence half exists in SQL as well, held to this file by a LOCAL e2e parity test). No caller re-derives the
  * rule, and none reads evidence rows itself to decide Public.
  *
- * The SQL twin of the evidence half is the database function `recipe_holds_third_party_source(recipe_id)` (migration 0086), used
- * by account erasure beside the bound `PRIVATE_ONLY_SOURCE_KEYS`; a LOCAL e2e test checks the pair against this predicate over
- * the label cross product. It is a function and not an exported SQL string because no SQL text crosses a package boundary
+ * The SQL twin of the evidence half is the database function `recipe_holds_third_party_source(recipe_id)` (migration 0086). It has no
+ * caller after the read rule moved to `recipe_held_from_readers` (0098), and it still counts `staffCorrection` rows, which this
+ * predicate ignores (ADR-0106); a LOCAL e2e test checks the pair over shapes with no such row and pins the divergence. It is a function and not an exported SQL string because no SQL text crosses a package boundary
  * (`sql.raw` is banned in services, `serviceSecurityInvariants` G3).
  *
  * Why evidence and not the stored statement: the statement can be cleared (`PATCH statement: null` resolves to
@@ -30,6 +30,13 @@ import {
 
 /** The facts of one evidence row the rule reads. */
 export interface SourceEvidenceFacts {
+    /**
+     * How the row was captured. A row a staff correction appended (`staffCorrection`) records staff's finding, not a claim by the
+     * cook, so it never holds a recipe out of Public (ADR-0106): without that, a mistaken correction, once cleared, could never be
+     * made Public. A correct correction to a book still keeps the recipe private through its label. REQUIRED, so every caller
+     * states it.
+     */
+    readonly capture: 'staffCorrection' | 'other';
     /** The registrable domain of a stated or pasted web source, or `null` (a book, or a citation with no site). */
     readonly sourceDomain: string | null;
     /** The kind the cook stated, or `null` (a pasted page that stated none). */
@@ -70,7 +77,8 @@ export function sourceConflictOf(input: SourceConflictInput): boolean {
 
     return input.evidence.some(
         (row) =>
-            (row.sourceDomain !== null && !input.verifiedSiteClaims.includes(row.sourceDomain)) ||
-            (row.sourceKind !== null && OFFLINE_KINDS.has(row.sourceKind)),
+            row.capture !== 'staffCorrection' &&
+            ((row.sourceDomain !== null && !input.verifiedSiteClaims.includes(row.sourceDomain)) ||
+                (row.sourceKind !== null && OFFLINE_KINDS.has(row.sourceKind))),
     );
 }

@@ -207,6 +207,13 @@ function createFakeDb(): FakeDbControl {
 const OWNER = '01JQ8N2X4RBV6WK3ZT5Y7A9C0P';
 const OWNER_2 = '01JQ8N2X4RBV6WK3ZT5Y7A9C1Q';
 
+/** The kept-set negation as rendered: a held recipe is not "truly public" (ADR-0105). Exact text, no regex. */
+const OWNER_ONLY_TEXT = (first: number, second: number): string =>
+    `owner_id = $${first} AND NOT (visibility = 'public' AND status = 'published' AND NOT recipe_held_from_readers(recipes, $${second}::jsonb))`;
+/** The donate-flip as rendered: ONE held term replaces the private-only, evidence and correction-hold terms. */
+const FLIP_TEXT =
+    "UPDATE recipes SET visibility = 'public', status = 'published', updated_at = now() WHERE id IN (SELECT jsonb_array_elements_text($1::jsonb)::uuid) AND owner_id = $2 AND NOT recipe_holds_private_food(id) AND NOT recipe_held_from_readers(recipes, $3::jsonb) AND NOT recipe_needs_statement(id) AND NOT recipe_is_from_person(id)";
+
 beforeEach(() => {
     vi.clearAllMocks();
     timeline = [];
@@ -365,7 +372,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // never be, so it joins the removed set like one that holds a private food.
         // Rewritten for ADR-0105 (qse TEST-CHANGE): the private-only label term is now inside the ONE read function, which
         // the flip calls with the same bound keys; no rule text or key list is copied in this statement.
-        expect(flip?.text).toMatch(/and not recipe_held_from_readers\(recipes, \$\d::jsonb\)/i);
+        expect(flip?.text).toBe(FLIP_TEXT);
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
@@ -380,7 +387,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // The database's own evidence rule (migration 0086), not a copy of it: the same shape as `recipe_holds_private_food`.
         // Rewritten for ADR-0105 (qse TEST-CHANGE): the evidence rule and the correction hold (migration 0092, whose CHECK would
         // refuse the flip and roll the erasure back) are two terms of `recipe_held_from_readers`, which the flip calls.
-        expect(flip?.text).toMatch(/and not recipe_held_from_readers\(recipes, \$\d::jsonb\)/i);
+        expect(flip?.text).toBe(FLIP_TEXT);
         expect(flip?.text).not.toMatch(/recipe_holds_third_party_source|source_correction_hold/i);
         // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
@@ -399,7 +406,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // …and "from another person" (migration 0087, ADR-0095): a donation would publish a recipe the cook said is not theirs.
         expect(flip?.text).toMatch(/and not recipe_is_from_person\(id\)/i);
         // Rewritten for ADR-0105 (qse TEST-CHANGE): the held term (evidence, hold, private-only label) is the one function.
-        expect(flip?.text).toMatch(/and not recipe_held_from_readers\(recipes, \$\d::jsonb\)/i);
+        expect(flip?.text).toBe(FLIP_TEXT);
         // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.
         expect(flip?.params).toEqual([JSON.stringify([DONATE_1]), OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
@@ -417,9 +424,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // public-visibility DRAFT — leaving it orphaned under an erased owner. This pins both axes.
         expect(select?.text).toMatch(/where owner_id = \$\d/i);
         // ADR-0105: a recipe held from readers is not truly public, so it is in the removed set (qse TEST-CHANGE).
-        expect(select?.text).toMatch(
-            /not \(visibility = 'public' and status = 'published' and not recipe_held_from_readers\(recipes, \$\d::jsonb\)\)/i,
-        );
+        expect(select?.text).toBe(`SELECT id FROM recipes WHERE ${OWNER_ONLY_TEXT(1, 2)}`);
         expect(select?.params).toEqual([OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
     });
 
@@ -549,8 +554,8 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // would then FK-fail. Both sides key on the identical owner-only predicate.
         expect(detach?.text).toMatch(/cloned_from_id in \(select id from recipes where owner_id = \$\d/i);
         expect(detach?.text).toMatch(/id not in \(select id from recipes where owner_id = \$\d/i);
-        expect(detach?.text).toMatch(
-            /not \(visibility = 'public' and status = 'published' and not recipe_held_from_readers\(recipes, \$\d::jsonb\)\)/i,
+        expect(detach?.text).toBe(
+            `UPDATE recipes SET cloned_from_id = NULL, updated_at = now() WHERE cloned_from_id IN (SELECT id FROM recipes WHERE ${OWNER_ONLY_TEXT(1, 2)}) AND id NOT IN (SELECT id FROM recipes WHERE ${OWNER_ONLY_TEXT(3, 4)})`,
         );
         expect(detach?.text).not.toMatch(/owner_id <>/i);
         const keys = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
@@ -571,9 +576,7 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         // that preserves truly-public + donated recipes. A plain `DELETE ... WHERE owner_id` (the OLD
         // behaviour) would drop the `NOT (public AND published)` guard and delete the KEPT recipes too.
         expect(del?.text).toMatch(/delete from recipes where owner_id = \$\d/i);
-        expect(del?.text).toMatch(
-            /not \(visibility = 'public' and status = 'published' and not recipe_held_from_readers\(recipes, \$\d::jsonb\)\)/i,
-        );
+        expect(del?.text).toBe(`DELETE FROM recipes WHERE ${OWNER_ONLY_TEXT(1, 2)}`);
         expect(del?.params).toEqual([OWNER, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)]);
         // Tombstones are erased too — a `deleted_at IS NULL` filter would leave a tombstoned owner-only
         // recipe (and its cascade) behind while reporting success (data-model.md §Hard purge).

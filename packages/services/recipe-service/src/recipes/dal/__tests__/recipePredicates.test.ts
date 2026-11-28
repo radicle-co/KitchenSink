@@ -75,7 +75,6 @@ describe('recipe read predicates (S-R3)', () => {
 
 /** The bound private-only keys, exactly as every caller of `recipe_held_from_readers` binds them (ADR-0105). */
 const KEYS_PARAM = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
-const HELD_CALL = 'recipe_held_from_readers("recipes", $';
 const VIEWER = '01HVIEWER0000000000000000';
 
 describe('the held-from-readers term (ADR-0105)', () => {
@@ -95,18 +94,21 @@ describe('the held-from-readers term (ADR-0105)', () => {
         expect(params).toEqual(['public', KEYS_PARAM, VIEWER]);
     });
 
-    it('communityOf() adds NOT held to the public published non-owner scope', () => {
+    it('communityOf() adds NOT held to the public published non-owner scope (exact SQL and params)', () => {
         const { sql, params } = compile(communityOf(VIEWER));
 
-        expect(sql).toContain(`and not ${HELD_CALL}`);
-        expect(sql).toContain('"recipes"."owner_id" <> $');
-        expect(params).toContain(KEYS_PARAM);
+        expect(sql).toBe(
+            '("recipes"."deleted_at" is null and "recipes"."visibility" = $1 and "recipes"."status" = $2 and not recipe_held_from_readers("recipes", $3::jsonb) and "recipes"."owner_id" <> $4)',
+        );
+        expect(params).toEqual(['public', 'published', KEYS_PARAM, VIEWER]);
     });
 
-    it('readableBy() carries the held term exactly once, through viewableBy', () => {
-        const { sql } = compile(readableBy(VIEWER));
+    it('readableBy() carries the held term exactly once, through viewableBy (exact SQL and params)', () => {
+        const { sql, params } = compile(readableBy(VIEWER));
 
-        expect(sql.split('recipe_held_from_readers(').length - 1).toBe(1);
-        expect(sql).toContain(`and not ${HELD_CALL}`);
+        expect(sql).toBe(
+            '("recipes"."deleted_at" is null and (("recipes"."visibility" = $1 and not recipe_held_from_readers("recipes", $2::jsonb)) or "recipes"."owner_id" = $3) and ("recipes"."status" = $4 or "recipes"."owner_id" = $5))',
+        );
+        expect(params).toEqual(['public', KEYS_PARAM, VIEWER, 'published', VIEWER]);
     });
 });

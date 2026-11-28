@@ -229,7 +229,11 @@ describe('the tree', () => {
     });
 
     it('imports nothing from a __fixtures__ path in non-test code', () => {
-        const importers = files.filter((file) => fixtureImportsOf(file, sources.get(file) ?? '').length > 0);
+        const importers = files.filter(
+            (file) =>
+                (sources.get(file) ?? '').includes('__fixtures__') &&
+                fixtureImportsOf(file, sources.get(file) ?? '').length > 0,
+        );
 
         expect(importers).toEqual([]);
     });

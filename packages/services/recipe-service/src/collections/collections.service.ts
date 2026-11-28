@@ -420,7 +420,7 @@ export class CollectionsService {
      *
      * FR-011 also says a pull removes "recipes the cloner can no longer access". That need is already
      * met, continuously and without a pull: `listRecipes` filters every membership read by
-     * `visibility = 'public' OR owner_id = viewer`, so a recipe that goes private vanishes from the
+     * `readableBy` (`recipes/dal/recipePredicates.ts`), so a recipe that goes private or is held from readers vanishes from the
      * clone on the next read. Deleting those rows here would be strictly worse — irreversible, and a
      * recipe restored to public could never return.
      *

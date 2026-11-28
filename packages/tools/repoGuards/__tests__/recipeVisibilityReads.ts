@@ -17,7 +17,7 @@
  */
 import ts from 'typescript';
 
-import { visit } from './serviceSources.js';
+import { moduleSpecifiers, visit } from './serviceSources.js';
 
 /** Parsed WITH parent pointers: a site's enclosing function is found by walking up. */
 function parseWithParents(file: string, contents: string): ts.SourceFile {
@@ -94,11 +94,12 @@ function enclosingName(node: ts.Node): string {
 
 /** The text a template literal part or a string contributes to SQL. */
 function sqlTextOf(node: ts.Node): string | undefined {
-    if (ts.isNoSubstitutionTemplateLiteral(node) || ts.isTemplateHead(node) || ts.isTemplateMiddle(node)) {
-        return node.text;
-    }
-
-    if (ts.isTemplateTail(node)) {
+    if (
+        ts.isNoSubstitutionTemplateLiteral(node) ||
+        ts.isTemplateHead(node) ||
+        ts.isTemplateMiddle(node) ||
+        ts.isTemplateTail(node)
+    ) {
         return node.text;
     }
 
@@ -175,23 +176,11 @@ export function visibilitySitesOf(file: string, contents: string): readonly Visi
 }
 
 /**
- * Every module specifier a file imports that reaches a `__fixtures__` directory. Pure.
+ * Every module specifier a file imports, exports from or requires that reaches a `__fixtures__` directory. Pure.
  *
+ * @param file - Repo-relative path.
  * @param contents - The file's source text.
  */
 export function fixtureImportsOf(file: string, contents: string): readonly string[] {
-    const found: string[] = [];
-
-    visit(parseWithParents(file, contents), (node) => {
-        if (
-            (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
-            node.moduleSpecifier !== undefined &&
-            ts.isStringLiteral(node.moduleSpecifier) &&
-            /(?:^|\/)__fixtures__(?:\/|$)/u.test(node.moduleSpecifier.text)
-        ) {
-            found.push(node.moduleSpecifier.text);
-        }
-    });
-
-    return found;
+    return moduleSpecifiers({ file, contents }).filter((specifier) => /(?:^|\/)__fixtures__(?:\/|$)/u.test(specifier));
 }

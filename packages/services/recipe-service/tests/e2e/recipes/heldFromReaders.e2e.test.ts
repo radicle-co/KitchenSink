@@ -24,6 +24,7 @@ const HELD = rid(1);
 const CLEAN = rid(2);
 const PRIVATE = rid(3);
 const MISSING = rid(99);
+const CURATOR = rid(4);
 const TOKEN = 'zzheldfromreaders';
 
 describe('held from readers: every non-owner read path (ADR-0105)', () => {
@@ -33,7 +34,14 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
 
     async function seed(
         id: string,
-        row: { visibility: string; status: string; held: boolean; deleted?: boolean; title: string },
+        row: {
+            visibility: string;
+            status: string;
+            held: boolean;
+            deleted?: boolean;
+            sourceType?: string;
+            title: string;
+        },
     ): Promise<void> {
         const client = await pool.connect();
 
@@ -42,8 +50,16 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             await client.query(
                 `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
                                       total_time_minutes, servings, visibility, status, source_type, deleted_at)
-                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, $5, 'user_created', $6)`,
-                [id, OWNER, row.title, row.visibility, row.status, row.deleted === true ? new Date() : null],
+                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, $5, $6, $7)`,
+                [
+                    id,
+                    OWNER,
+                    row.title,
+                    row.visibility,
+                    row.status,
+                    row.sourceType ?? 'user_created',
+                    row.deleted === true ? new Date() : null,
+                ],
             );
 
             if (row.held) {
@@ -121,6 +137,65 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
         expect((await api(path(HELD), OWNER, { method })).status).toBe(200);
     });
 
+    it('one version: a held recipe answers cook B as a private and a missing id do; a readable one is read', async () => {
+        await seedTrio();
+
+        for (const id of [HELD, CLEAN, PRIVATE]) {
+            await pool.query(
+                `INSERT INTO recipe_versions (recipe_id, version_number, snapshot, created_by)
+                 VALUES ($1, 1, '{"title":"v1"}'::jsonb, $2)`,
+                [id, OWNER],
+            );
+        }
+
+        const path = (id: string): string => `/api/v1/recipes/${id}/versions/1`;
+        const held = await shape(await api(path(HELD), READER), HELD);
+
+        expect(held.startsWith('404 ')).toBe(true);
+        expect(held).toBe(await shape(await api(path(PRIVATE), READER), PRIVATE));
+        expect(held).toBe(await shape(await api(path(MISSING), READER), MISSING));
+        // Controls: every one has a version row, so the 404 above is the hold; a clean public recipe's version is read, and
+        // the owner reads the held recipe's version.
+        expect((await api(path(CLEAN), READER)).status).toBe(200);
+        expect((await api(path(HELD), OWNER)).status).toBe(200);
+    });
+
+    it('photo upload: cook B gets the held recipe as a private and a missing id (404), and a readable one as not-owner (403)', async () => {
+        await seedTrio();
+        const upload = (id: string, as: string): Promise<Response> =>
+            api(`/api/v1/recipes/${id}/photos/upload-url`, as, {
+                method: 'POST',
+                body: JSON.stringify({ fileName: 'dish.png', contentType: 'image/png', fileSize: 1024 }),
+            });
+        const held = await shape(await upload(HELD, READER), HELD);
+
+        expect(held.startsWith('404 ')).toBe(true);
+        expect(held).toBe(await shape(await upload(PRIVATE, READER), PRIVATE));
+        expect(held).toBe(await shape(await upload(MISSING, READER), MISSING));
+        // Controls: a readable recipe of another cook is a 403 (visible, not owned); the owner may upload to the held one.
+        expect((await upload(CLEAN, READER)).status).toBe(403);
+        expect((await upload(HELD, OWNER)).status).toBe(200);
+    });
+
+    it('AE3b: a curator public-domain recipe (imported_public, no kind) is readable by B on detail and search', async () => {
+        await seed(CURATOR, {
+            visibility: 'public',
+            status: 'published',
+            held: false,
+            sourceType: 'imported_public',
+            title: `${TOKEN} curator`,
+        });
+
+        expect((await api(`/api/v1/recipes/${CURATOR}`, READER)).status).toBe(200);
+
+        const params = new URLSearchParams({ query: TOKEN, scope: 'community' });
+        const body = (await (await api(`/api/v1/search/recipes?${params.toString()}`, READER)).json()) as {
+            results: { recipe: { id: string } }[];
+        };
+
+        expect(body.results.map((hit) => hit.recipe.id)).toEqual([CURATOR]);
+    });
+
     it('rating: B cannot rate a held recipe (404), can rate a clean one', async () => {
         await seedTrio();
         const put = (id: string): Promise<Response> =>
@@ -170,17 +245,27 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
         expect((await add(HELD)).status).toBe(404);
         expect((await add(CLEAN)).status).toBeLessThan(300);
 
+        const members = async (): Promise<string[]> => {
+            const response = await api(`/api/v1/collections/${id}`, READER);
+
+            expect(response.status).toBe(200);
+
+            const body = (await response.json()) as { recipes: { id: string }[] };
+
+            return body.recipes.map((member) => member.id);
+        };
+
+        // Control: while it is readable the member is listed, so the absence below is the hold and nothing else.
+        expect(await members()).toContain(CLEAN);
+
         // A member that BECOMES held after it was added is hidden from the list (readableBy on the join).
         await pool.query(
             `INSERT INTO recipe_source_evidence (recipe_id, capture, source_kind, citation)
              VALUES ($1, 'editorCitation', 'book', 'A Cookbook, p. 9')`,
             [CLEAN],
         );
-        const detail = (await (await api(`/api/v1/collections/${id}`, READER)).json()) as {
-            recipes?: { id: string }[];
-        };
 
-        expect((detail.recipes ?? []).map((r) => r.id)).not.toContain(CLEAN);
+        expect(await members()).not.toContain(CLEAN);
     });
 
     it('the shared literal readability table, through the real readableBy and communityOf (search)', async () => {

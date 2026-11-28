@@ -711,7 +711,8 @@ export const eraseRecipeRows = async (
     // between any two of them would sweep a different set than it deleted.
     //    "Truly public" excludes a recipe the read rule hides from readers (`recipe_held_from_readers`, ADR-0105): a held recipe is
     //    readable by nobody but its owner, so it is removed with the owner, never kept and never donated. The function takes the
-    //    `recipes` row of its own FROM and the bound private-only keys, so no rule text or key list is copied here.
+    //    `recipes` row of its own FROM and the bound private-only keys, so no rule text or key list is copied here. The call shape
+    //    mirrors `heldFromReadersSql` in recipe-service (no SQL text crosses a package boundary); the e2e proves they agree.
     const heldFromReaders = sql`recipe_held_from_readers(recipes, ${privateOnlyKeysJson}::jsonb)`;
     const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published' AND NOT ${heldFromReaders})`;
 

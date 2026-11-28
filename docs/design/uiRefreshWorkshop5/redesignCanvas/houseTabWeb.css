@@ -1,0 +1,39 @@
+.rd .tabbar {
+    background: var(--paper);
+    border-top: 1px solid var(--line-divider);
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: 1fr;
+    padding: 8px 0 30px;
+    flex: none;
+    margin-top: auto;
+}
+.rd .vp .tabbar {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 3;
+}
+.rd .tab {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    color: var(--ink-muted);
+    font-size: 14px;
+    font-weight: 500;
+    min-height: 44px;
+    justify-content: center;
+}
+.rd .tab .ic {
+    width: 24px;
+    height: 24px;
+    stroke-width: 1.5;
+}
+.rd .tab.on {
+    color: var(--action-text);
+}
+.rd .tab.on .ic {
+    stroke-width: 1.9;
+}

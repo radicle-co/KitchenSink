@@ -447,4 +447,49 @@ describe('a correction hold clear (e2e, ADR-0106)', () => {
             await expect(earned(clone)).resolves.toEqual({ cleared: false, reason: 'ownAnswerInChain' });
         });
     });
+
+    describe('the write side agrees with the read side (AE7, ADR-0106)', () => {
+        const askPublic = (id: string) =>
+            send('PATCH', `/api/v1/recipes/${id}/visibility`, {
+                visibility: 'public',
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+            });
+
+        it('a cleared mistaken own correction can be made Public: the staff evidence row is not the cook’s claim', async () => {
+            const id = await mistakenOwn();
+
+            await clears.clearByStaff(staff(), id, await clearRequest(id));
+            await db.execute(sql`UPDATE recipes SET source_kind = NULL, source_url = NULL WHERE id = ${id}`);
+
+            expect((await askPublic(id)).status).toBe(200);
+            expect((await readRow(id)).visibility).toBe('public');
+            expect(await readableBy(OTHER_COOK, id)).toBe(200);
+        });
+
+        it('a correction to a book, cleared, stays private by its label: Public is refused', async () => {
+            const id = await paidToBook();
+
+            await clears.clearByStaff(staff(), id, await clearRequest(id));
+
+            const answer = await askPublic(id);
+
+            expect(answer.status).toBeGreaterThanOrEqual(400);
+            expect((await readRow(id)).visibility).toBe('private');
+        });
+
+        it('a staff row beside a genuine cook web link still refuses Public (SOURCE_CONFLICT)', async () => {
+            const id = await mistakenOwn();
+
+            await clears.clearByStaff(staff(), id, await clearRequest(id));
+            await db.execute(sql`UPDATE recipes SET source_kind = NULL, source_url = NULL WHERE id = ${id}`);
+            await db.execute(sql`
+                INSERT INTO recipe_source_evidence (recipe_id, capture, source_url, source_key, source_domain, source_kind)
+                VALUES (${id}::uuid, 'editorLink', ${LINK}, 'allrecipes.com/recipe/1/soup', 'allrecipes.com', 'public_web')`);
+
+            const answer = await askPublic(id);
+
+            expect(answer.status).toBeGreaterThanOrEqual(400);
+            expect((await readRow(id)).visibility).toBe('private');
+        });
+    });
 });

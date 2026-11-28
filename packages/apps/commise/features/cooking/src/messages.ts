@@ -121,9 +121,9 @@ interface CookingEmptyMessages {
     readonly back: string;
 }
 
-/** A recipe that cannot be read any more. It never says why. */
+/** A recipe that cannot be read any more. It never says why. Its title is `commonMessages.recipeUnavailable`. */
 interface CookingGoneMessages {
-    /** The words are `commonMessages.recipeUnavailable`: the one reader sentence. */
+    /** The way out of the screen. */
     readonly home: string;
 }
 

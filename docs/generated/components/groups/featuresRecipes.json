@@ -36162,7 +36162,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx",
                     "dir": "packages/apps/commise/features/recipes/src/versions",
-                    "moduleDoc": "@commise/features-recipes — the web version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"Error:\n\"We couldn't load the history.\" + Try again\").\n\nUnder the SAME header the settled list draws, (its pinned-back-bar frame is the container's), so a failed read still has its way back in its usual place. It replaces\na bare paragraph and a raw button beside a floating text link. The copy arrives as props from the app's boundary\ndictionary.\n\nPresentational: props → JSX.",
+                    "moduleDoc": "@commise/features-recipes — the web version history's FAILED state (D3, D13; `buildSpec.md` §6.6: \"Error:\n\"We couldn't load the history.\" + Try again\").\n\nUnder the SAME header the settled list draws (its pinned-back-bar frame is the container's), so a failed read still has its way back in its usual place. It replaces\na bare paragraph and a raw button beside a floating text link. The copy arrives as props from the app's boundary\ndictionary.\n\nPresentational: props → JSX.",
                     "moduleTags": [
                         {
                             "name": "module",

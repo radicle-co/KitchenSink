@@ -93,6 +93,44 @@ const GUARDS: Readonly<Record<GuardName, GuardFn>> = {
 };
 
 /**
+ * Runs the guard a row names. A switch, not `GUARDS[name](...)`: every call names its guard in the source, and a guard
+ * added to `GuardName` without a case fails the build at `never`.
+ *
+ * @param name - The guard's name.
+ * @param facts - The facts it reads.
+ * @param move - The move it guards.
+ * @returns What the guard answers. Pure.
+ */
+function runGuard(name: GuardName, facts: TransitionFacts, move: Move<Axis>): GuardAnswer {
+    switch (name) {
+        case 'none':
+            return GUARDS.none(facts, move);
+        case 'publishSheetAccepted':
+            return GUARDS.publishSheetAccepted(facts, move);
+        case 'publishable':
+            return GUARDS.publishable(facts, move);
+        case 'privateSlotFree':
+            return GUARDS.privateSlotFree(facts, move);
+        case 'forcesPrivate':
+            return GUARDS.forcesPrivate(facts, move);
+        case 'donationElected':
+            return GUARDS.donationElected(facts, move);
+        case 'sourceLockOpen':
+            return GUARDS.sourceLockOpen(facts, move);
+        case 'curatorGrant':
+            return GUARDS.curatorGrant(facts, move);
+        case 'downgradeAllowed':
+            return GUARDS.downgradeAllowed(facts, move);
+        case 'staffCorrection':
+            return GUARDS.staffCorrection(facts, move);
+        case 'staffCorrectionSetsHold':
+            return GUARDS.staffCorrectionSetsHold(facts, move);
+        default:
+            return name satisfies never;
+    }
+}
+
+/**
  * What `nextState` answers: the new state, or why not. A failure names a refusal of the model, or says it was the edge
  * (`noEdge`), the actor (`actor`) or a guard the model has no refusal for (`guard`).
  */
@@ -157,8 +195,7 @@ export function nextState<A extends Axis>(
         }
     }
 
-    const guard = GUARDS[found.row.guard];
-    const answer = guard(facts, found.move);
+    const answer = runGuard(found.row.guard, facts, found.move);
 
     if (answer === null) {
         return { ok: true, to: found.move.to };

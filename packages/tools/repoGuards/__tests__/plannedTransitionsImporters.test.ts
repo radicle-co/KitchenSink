@@ -10,7 +10,7 @@
  *
  *   1. The predicate ignoring relative specifiers (`spec.startsWith('.')` made `false`) -> the unit case that feeds it a
  *      non-test recipe-core module importing `./recipeState/plannedTransitions.js` goes red (run seen red, then restored).
- *   2. `export { PLANNED } from './plannedTransitions.js';` added to `recipeState.ts` -> the repo-wide case reports that
+ *   2. `export * from './plannedTransitions.js';` added to `recipeState.ts` -> the repo-wide case reports that
  *      file (run seen red, then removed).
  */
 import { readFileSync } from 'node:fs';
@@ -18,7 +18,6 @@ import { join, posix } from 'node:path';
 
 import { describe, expect, it } from 'vitest';
 
-import recipeCorePackage from '../../../shared/recipe-core/package.json' with { type: 'json' };
 import { repoRoot } from './serviceSources.js';
 import { isSource, moduleSpecifiers, trackedPackageFiles } from './workspaceSourceScan.js';
 
@@ -43,6 +42,22 @@ function readsPlanned(file: string, text: string): boolean {
     );
 }
 
+/**
+ * @param text - The text of a `package.json`.
+ * @returns Its `exports` map, or an empty one when it has none. Pure.
+ */
+function exportsOf(text: string): Readonly<Record<string, unknown>> {
+    const manifest: unknown = JSON.parse(text);
+
+    if (typeof manifest === 'object' && manifest !== null && 'exports' in manifest) {
+        const { exports } = manifest;
+
+        return typeof exports === 'object' && exports !== null ? Object.fromEntries(Object.entries(exports)) : {};
+    }
+
+    return {};
+}
+
 /** @sideEffect Reads the file. */
 const readsPlannedInRepo = (file: string): boolean => readsPlanned(file, readFileSync(join(repoRoot, file), 'utf8'));
 
@@ -50,20 +65,20 @@ describe('readsPlanned', () => {
     const CORE_MODULE = 'packages/shared/recipe-core/src/recipeState/recipeState.ts';
 
     it.each([
-        ['a sibling re-export', CORE_MODULE, "export { PLANNED } from './plannedTransitions.js';"],
+        ['a sibling re-export', CORE_MODULE, "export * from './plannedTransitions.js';"],
         [
             'a relative import from another folder of recipe-core',
             'packages/shared/recipe-core/src/sourceRules.ts',
-            "import { PLANNED } from './recipeState/plannedTransitions.js';",
+            "import * as planned from './recipeState/plannedTransitions.js';",
         ],
-        ['the subpath', 'packages/apps/commise/web/src/x.ts', `import { PLANNED } from '${SUBPATH}';`],
+        ['the subpath', 'packages/apps/commise/web/src/x.ts', `import * as planned from '${SUBPATH}';`],
     ])('finds %s', (_label, file, text) => {
         expect(readsPlanned(file, text)).toBe(true);
     });
 
     it('does not mistake another module for it', () => {
-        expect(readsPlanned(CORE_MODULE, "export { TRANSITIONS } from './transitions.js';")).toBe(false);
-        expect(readsPlanned(CORE_MODULE, "// export { PLANNED } from './plannedTransitions.js';")).toBe(false);
+        expect(readsPlanned(CORE_MODULE, "export * from './transitions.js';")).toBe(false);
+        expect(readsPlanned(CORE_MODULE, "// export * from './plannedTransitions.js';")).toBe(false);
     });
 });
 
@@ -89,6 +104,10 @@ describe('the planned transitions subpath', () => {
     });
 
     it('is declared as a subpath export', () => {
-        expect(recipeCorePackage.exports['./recipe-state/planned']).toBe('./src/recipeState/plannedTransitions.ts');
+        expect(
+            exportsOf(readFileSync(join(repoRoot, 'packages/shared/recipe-core/package.json'), 'utf8'))[
+                './recipe-state/planned'
+            ],
+        ).toBe('./src/recipeState/plannedTransitions.ts');
     });
 });

@@ -111,7 +111,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
         const title = screen.getByText(homeMessages.en.roadmap.titles.nutrition);
 
         // REWRITTEN for ADR-0080: the title and the badge are the design system's Tamagui `Text`, read through the
-        // resolver that follows the theme variables. The edge below is still React Native's, read as computed.
+        // resolver that follows the theme variables. The card's edge is the `$lineDivider` token, read the same way.
         expect(resolvedColour(title, 'color')).toBe(rgb(colours.ink));
         expect(resolvedColour(screen.getByText(homeMessages.en.roadmap.soon), 'color')).toBe(rgb(colours.inkMuted));
 
@@ -121,7 +121,7 @@ describe.each(['light', 'dark'] as const)('the shell and Home leaves — the %s 
             card = card.parentElement;
         }
 
-        expect(card === null ? undefined : getComputedStyle(card).borderTopColor).toBe(rgb(colours.lineDivider));
+        expect(card === null ? undefined : resolvedColour(card, 'borderTopColor')).toBe(rgb(colours.lineDivider));
     });
 
     it('the nutrition skeleton draws its ring and bars in surfaceMuted', () => {

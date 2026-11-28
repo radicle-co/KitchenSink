@@ -778,6 +778,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
                 };
             };
 
+            expect((await stateOf(viaChoice.id)).confirmed).toEqual([true, true]);
             expect(await stateOf(viaChoice.id)).toEqual(await stateOf(viaTwoCalls.id));
         });
     });

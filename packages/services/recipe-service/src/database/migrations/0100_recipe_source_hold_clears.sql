@@ -52,7 +52,7 @@ BEGIN
     NEW.xact_id := pg_current_xact_id();
     NEW.recorded_at := now();
 
-    -- Locks the recipe (a no-op when the service already holds the lock) so two direct writers serialise.
+    -- Reads the hold under the recipe row lock, so the check sees a stable row.
     SELECT source_correction_hold INTO held FROM recipes WHERE id = NEW.recipe_id FOR UPDATE;
 
     IF held IS NOT TRUE AND FOUND THEN

@@ -416,6 +416,30 @@ describe('a correction hold clear (e2e, ADR-0106)', () => {
     describe('the earned clear (AE2a, AE3)', () => {
         const earned = (id: string) => db.transaction((tx) => clears.clearByEarnedRewrite(tx, id));
 
+        it.each([
+            ['an own answer', { kind: 'authored' }, 'ownAnswerInChain'],
+            ['a from-person answer', { kind: 'fromPerson' }, 'fromPersonAnswerInChain'],
+        ] as const)(
+            'reads the chain past one ancestor: a leaf two clones below a root once corrected to %s is refused',
+            async (_name, answer, reason) => {
+                const root = await create({ statement: PAID, visibility: 'private' });
+
+                await corrections.correct(staff(), root, correction(answer));
+                await corrections.correct(staff(), root, correction(BOOK));
+
+                const middle = await cloneOf(root, COOK);
+                const leaf = await cloneOf(middle, COOK);
+
+                await db.execute(
+                    sql`UPDATE recipes SET source_correction_hold = true WHERE id IN (${middle}, ${leaf})`,
+                );
+
+                await expect(earned(leaf)).resolves.toEqual({ cleared: false, reason });
+                expect((await readRow(leaf)).sourceCorrectionHold).toBe(true);
+                expect(await recordsOf(leaf)).toHaveLength(0);
+            },
+        );
+
         it('clears a paid-site-to-book recipe: the column is false and the record names the cause earnedRewrite with no actor', async () => {
             const id = await paidToBook();
 

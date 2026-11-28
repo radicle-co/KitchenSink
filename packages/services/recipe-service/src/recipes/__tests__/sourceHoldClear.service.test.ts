@@ -119,7 +119,19 @@ function build(setup: Setup = {}) {
         dal as unknown as SourceHoldClearsDal,
     );
 
-    return { service, calls, recordClears, releaseHolds, beginCount, lockOwner };
+    return {
+        service,
+        calls,
+        recordClears,
+        releaseHolds,
+        beginCount,
+        lockOwner,
+        lockHoldFacts,
+        readCorrectionChain,
+        readLatestCorrectionId,
+        lockOwnersDescendants,
+        releasableDescendants,
+    };
 }
 
 const captured: string[] = [];
@@ -246,6 +258,34 @@ describe('SourceHoldClearService.clearByStaff', () => {
             details: { reason: 'LOCK_CONFLICT' },
         });
         expect(metricLines()).toEqual([]);
+    });
+
+    it('passes the caller transaction to every read and lock, so none runs on the pool outside the row lock', async () => {
+        captureLog();
+        const t = build();
+
+        await t.service.clearByStaff(staff(), RECIPE_ID, body());
+
+        expect(t.lockHoldFacts).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID);
+        expect(t.readLatestCorrectionId).toHaveBeenCalledWith(RECIPE_ID, FAKE_TX);
+        expect(t.lockOwnersDescendants).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID, OWNER);
+        expect(t.releasableDescendants).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID, OWNER);
+    });
+
+    it('passes the caller transaction to the earned clear reads too', async () => {
+        const t = build();
+
+        await t.service.clearByEarnedRewrite(FAKE_TX, RECIPE_ID);
+
+        expect(t.lockHoldFacts).toHaveBeenCalledWith(FAKE_TX, RECIPE_ID);
+        expect(t.readCorrectionChain).toHaveBeenCalledWith(RECIPE_ID, FAKE_TX);
+    });
+
+    it('lets a Postgres error with another code (a unique violation) through unchanged, not as LOCK_CONFLICT', async () => {
+        const failure = Object.assign(new DatabaseError('duplicate key', 0, 'error'), { code: '23505' });
+        const t = build({ transactionFails: failure });
+
+        await expect(t.service.clearByStaff(staff(), RECIPE_ID, body())).rejects.toBe(failure);
     });
 
     it('maps the deadlock as Drizzle really throws it: a DrizzleQueryError wrapping the driver error', async () => {

@@ -18,8 +18,6 @@ interface LabelledName {
     readonly viewer: LabelViewer;
 }
 
-/** The parts of a too-close or source-hold box. */
-const BOX = ['.title', '.body', '.link', '.primary'] as const;
 const OWNER_READER = ['.owner', '.reader'] as const;
 
 export const LABELLED_NAMES = {
@@ -35,7 +33,6 @@ export const LABELLED_NAMES = {
     ORIGIN_COMMISE_WRITTEN: { shapes: [''], viewer: 'any' },
     VIEW_IN_REVIEW: { shapes: [''], viewer: 'owner' },
     VIEW_CHECKING: { shapes: [''], viewer: 'owner' },
-    VIEW_NOT_APPROVED: { shapes: [''], viewer: 'owner' },
     VIEW_ADAPTED_BY_COOK: {
         // Written out, not built with `flatMap`: a computed list widens to `string` and `LabelKey` stops being checked.
         shapes: [
@@ -56,20 +53,30 @@ export const LABELLED_NAMES = {
     VIEW_COPY_OF_COMMISE_PAGE: { shapes: [''], viewer: 'both' },
     VIEW_CHANGES_ON_DEVICE: { shapes: [''], viewer: 'owner' },
     VIEW_HIDDEN_AFTER_REPORT: { shapes: OWNER_READER, viewer: 'both' },
-    VIEW_TOO_CLOSE_SAVED_PRIVATE: {
-        shapes: [...BOX, '.secondary', '.upsellLine', '.upsellAction'],
+    VIEW_HIDDEN: { shapes: [''], viewer: 'owner' },
+    VIEW_HIDDEN_REASON: {
+        shapes: ['.heldSource', '.tooClose', '.afterCheck', '.notApproved', '.sourceCorrected'],
         viewer: 'owner',
     },
-    VIEW_TOO_CLOSE_NO_SLOT: {
-        shapes: [...BOX, '.manageAction', '.upgradeAction', '.upsellAction'],
+    // The refused-save sheet. It reuses shipped keys by name and never copies them, so none is a shape here.
+    VIEW_SAVE_REFUSED: {
+        shapes: [
+            '.title',
+            '.why.heldSource',
+            '.why.tooClose',
+            '.why.notApproved',
+            '.why.sourceCorrected',
+            '.wayRewrite',
+            '.wayRewriteAction',
+            '.wayDiscard',
+            '.wayHide',
+            '.wayHideAction',
+        ],
         viewer: 'owner',
     },
-    VIEW_TOO_CLOSE_AFTER_REVIEW: {
-        shapes: [...BOX, '.secondary', '.upsellLine', '.upsellAction'],
-        viewer: 'owner',
-    },
-    VIEW_SOURCE_HOLD_SAVED_PRIVATE: { shapes: BOX, viewer: 'owner' },
-    VIEW_SOURCE_HOLD_AFTER_CHECK: { shapes: BOX, viewer: 'owner' },
+    VIEW_CARD_CANNOT_STAY_PUBLIC: { shapes: ['.heldSource', '.tooClose', '.sourceCorrected'], viewer: 'owner' },
+    VIEW_SAVE_REFUSED_LATE: { shapes: [''], viewer: 'owner' },
+    VIEW_DRAFT_DOOR: { shapes: ['.title', '.publishPrivateOnly'], viewer: 'owner' },
     HOLD_REMOVED: { shapes: [''], viewer: 'owner' },
     SOURCE_HEADING: { shapes: [''], viewer: 'any' },
     REPORT_ACTION: { shapes: [''], viewer: 'any' },

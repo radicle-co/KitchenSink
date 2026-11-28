@@ -44,11 +44,7 @@ export interface RecipeStateMessages {
 }
 
 const existing = recipeActionMessages.en.publicRefusal;
-const SEE_SOURCE = 'See the source';
 const EDIT_STEPS = 'Edit steps';
-const DISMISS = 'Dismiss';
-const UPSELL_LINE = 'Let AI rewrite the steps in new words with Pro.';
-const EDIT_WITH_AI = 'Edit with AI';
 const ADAPTED_FROM_BOOK = 'a cookbook or magazine';
 const ADAPTED_FROM_PAID = 'a paid website';
 const ADAPTED_FROM_WEB = 'a web page';
@@ -70,7 +66,6 @@ export const recipeStateMessages: LocalizedMessages<RecipeStateMessages> = {
             ORIGIN_COMMISE_WRITTEN: 'Written by Commise',
             VIEW_IN_REVIEW: 'In review',
             VIEW_CHECKING: 'Checking',
-            VIEW_NOT_APPROVED: 'Not approved to be public.',
             'VIEW_ADAPTED_BY_COOK.owner': 'Adapted by you',
             'VIEW_ADAPTED_BY_COOK.reader': 'Adapted by {cook}',
             'VIEW_ADAPTED_BY_COOK.heading.owner': 'Adapted by you from',
@@ -87,40 +82,36 @@ export const recipeStateMessages: LocalizedMessages<RecipeStateMessages> = {
             VIEW_CHANGES_ON_DEVICE: editorMessages.en.status.changesOnDevice,
             'VIEW_HIDDEN_AFTER_REPORT.owner': 'Hidden after a report. Only you can see it now.',
             'VIEW_HIDDEN_AFTER_REPORT.reader': 'This recipe isn’t available right now.',
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.title': 'Saved as private',
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.body':
-                'Your steps are still too close to the source’s wording to share, so we saved this recipe as private. Change the steps in your own words to make it public.',
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.link': SEE_SOURCE,
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.primary': EDIT_STEPS,
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.secondary': DISMISS,
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellLine': UPSELL_LINE,
-            'VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellAction': EDIT_WITH_AI,
-            'VIEW_TOO_CLOSE_NO_SLOT.title': 'Not saved yet',
-            'VIEW_TOO_CLOSE_NO_SLOT.body':
-                'Your steps are too close to the source’s wording to share, and all {total} of your private recipes are in use. To save it, change the steps, delete a private recipe, or upgrade to Pro. Your changes are saved on this device.',
-            'VIEW_TOO_CLOSE_NO_SLOT.link': SEE_SOURCE,
-            'VIEW_TOO_CLOSE_NO_SLOT.primary': EDIT_STEPS,
-            'VIEW_TOO_CLOSE_NO_SLOT.manageAction': 'Manage private recipes',
-            'VIEW_TOO_CLOSE_NO_SLOT.upgradeAction': 'Upgrade to Pro',
-            'VIEW_TOO_CLOSE_NO_SLOT.upsellAction': EDIT_WITH_AI,
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.title': 'Made private after a check',
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.body':
-                'We checked this recipe, and its steps are too close to the source’s wording to share. Only you can see it now. Change the steps in your own words to make it public again.',
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.link': SEE_SOURCE,
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.primary': EDIT_STEPS,
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.secondary': 'Delete recipe',
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.upsellLine': UPSELL_LINE,
-            'VIEW_TOO_CLOSE_AFTER_REVIEW.upsellAction': EDIT_WITH_AI,
-            'VIEW_SOURCE_HOLD_SAVED_PRIVATE.title': 'Saved as private',
-            'VIEW_SOURCE_HOLD_SAVED_PRIVATE.body':
-                'This recipe was saved with a source, such as a web page or a book, so it can’t be public. We saved it as private, so only you can see it now.',
-            'VIEW_SOURCE_HOLD_SAVED_PRIVATE.link': SEE_SOURCE,
-            'VIEW_SOURCE_HOLD_SAVED_PRIVATE.primary': DISMISS,
-            'VIEW_SOURCE_HOLD_AFTER_CHECK.title': 'Made private after a check',
-            'VIEW_SOURCE_HOLD_AFTER_CHECK.body':
-                'We checked this recipe’s source. It comes from a web page or a book, so it can’t be public. Only you can see it now.',
-            'VIEW_SOURCE_HOLD_AFTER_CHECK.link': SEE_SOURCE,
-            'VIEW_SOURCE_HOLD_AFTER_CHECK.primary': DISMISS,
+            VIEW_HIDDEN: 'Hidden',
+            'VIEW_HIDDEN_REASON.heldSource': 'Hidden because it was saved with a source. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.tooClose':
+                'Hidden because its steps are too close to the source’s wording. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.afterCheck': 'Hidden after a check. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.notApproved':
+                'Hidden because it wasn’t approved to be public. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.sourceCorrected': 'Hidden because its source was corrected. Only you can see it now.',
+            'VIEW_SAVE_REFUSED.title': 'This recipe can’t stay public',
+            'VIEW_SAVE_REFUSED.why.heldSource':
+                'It was saved with a source, such as a web page or a book, so it can’t be public.',
+            'VIEW_SAVE_REFUSED.why.tooClose': 'Its steps are too close to the source’s wording to share.',
+            'VIEW_SAVE_REFUSED.why.notApproved': 'It wasn’t approved to be public.',
+            'VIEW_SAVE_REFUSED.why.sourceCorrected': 'Its source was corrected, so it can’t be public as it is.',
+            'VIEW_SAVE_REFUSED.wayRewrite': 'Change the steps in your own words to keep it public.',
+            'VIEW_SAVE_REFUSED.wayRewriteAction': EDIT_STEPS,
+            'VIEW_SAVE_REFUSED.wayDiscard': 'Discard your changes to keep the public recipe as it is.',
+            'VIEW_SAVE_REFUSED.wayHide':
+                'Or save your changes and hide this recipe. Only you will be able to see it, and it won’t use one of your private recipes.',
+            'VIEW_SAVE_REFUSED.wayHideAction': 'Save and hide',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.heldSource':
+                'This recipe can’t stay public because it was saved with a source.',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.tooClose':
+                'This recipe can’t stay public because its steps are too close to the source’s wording.',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected':
+                'This recipe can’t be public because its source was corrected.',
+            VIEW_SAVE_REFUSED_LATE:
+                'Your changes weren’t saved because this recipe can’t stay public. Open the editor to choose what to do.',
+            'VIEW_DRAFT_DOOR.title': 'This recipe can’t be public',
+            'VIEW_DRAFT_DOOR.publishPrivateOnly': 'Publish this recipe as private instead.',
             HOLD_REMOVED: 'Removed from public view. Only you can see it now.',
             SOURCE_HEADING: 'Source',
             REPORT_ACTION: 'Report a problem',

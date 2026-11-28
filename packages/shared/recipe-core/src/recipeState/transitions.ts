@@ -24,7 +24,6 @@ export const GUARD_NAMES = [
     'publishSheetAccepted',
     'publishable',
     'privateSlotFree',
-    'forcesPrivate',
     'donationElected',
     'sourceLockOpen',
     'curatorGrant',
@@ -121,14 +120,6 @@ export const TRANSITIONS: readonly TransitionRow[] = [
         event: 'MAKE_PRIVATE',
         actors: ['cook'],
         guard: 'privateSlotFree',
-        moves: [{ from: 'PPu', to: 'PPr' }],
-    }),
-    row({
-        id: 'FORCE_PRIVATE',
-        axis: 'lifecycleAudience',
-        event: 'FORCE_PRIVATE',
-        actors: ['system', 'staff'],
-        guard: 'forcesPrivate',
         moves: [{ from: 'PPu', to: 'PPr' }],
     }),
     row({

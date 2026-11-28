@@ -27,6 +27,12 @@ export interface ViewableRecipeFields {
      * type forces every enforcement point to supply it.
      */
     readonly status: string;
+    /**
+     * Whether the recipe is held from readers (`recipe_held_from_readers`, ADR-0105): a held recipe is read only by its
+     * owner. REQUIRED, and selected only through `heldFromReadersSql()`, so a select that forgets it fails to compile
+     * and one that fills it with a literal fails the repo guard.
+     */
+    readonly heldFromReaders: boolean;
 }
 
 /**
@@ -34,5 +40,8 @@ export interface ViewableRecipeFields {
  * AND `published`. The draft term (W8-a.3) is orthogonal to visibility — a public draft is owner-only. Pure.
  */
 export function isRecipeViewableBy(recipe: ViewableRecipeFields, viewerId: string): boolean {
-    return recipe.ownerId === viewerId || (recipe.visibility === 'public' && recipe.status === 'published');
+    return (
+        recipe.ownerId === viewerId ||
+        (recipe.visibility === 'public' && recipe.status === 'published' && !recipe.heldFromReaders)
+    );
 }

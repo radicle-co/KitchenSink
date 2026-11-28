@@ -6,6 +6,7 @@
  *
  * Edit a cell here and regenerate (`npm run recipeState:generate`); never edit a generated table in the document.
  */
+import { PLANNED } from '@kitchensink/recipe-core/recipe-state/planned';
 
 /** One row of table 4.2: a stored type, with its values written from the module when `object` names a value object. */
 export type StoredValueRow =
@@ -259,11 +260,11 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
         built: 'pending: 020 (ADR-0074 §3a)',
     },
     {
-        name: 'REFUSAL_DETECTED_NO_PRIVATE_SLOT',
+        name: 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC',
         computedBy: 'server',
-        wire: '403 `SOURCE_DETECTED_NO_PRIVATE_SLOT`',
-        en: 'none as a line. The no-slot box shows (4.8.2)',
-        built: 'pending: 020 (ADR-0074 §3a)',
+        wire: "400 `INVALID_VISIBILITY`, `details.reason` 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC', `details.cause`: a `SaveRefusalCause` string (P10 wraps it as `{kind}` at its seam)",
+        en: 'none as a line. The refused-save sheet shows (4.8.2)',
+        built: 'pending: P10 (held source), 020 (too close, not approved)',
     },
     {
         name: 'REFUSAL_PUBLIC_VERSION_COPY',
@@ -294,8 +295,10 @@ export const HOLD_ROWS: readonly HoldDocRow[] = [
         stored: '`recipes.source_correction_hold`',
         enforcement: 'CHECK `recipes_held_is_not_public`. A clone copies the hold at insert, by trigger',
         setBy: 'staff correction (`STAFF_CORRECT`)',
-        clearedBy: 'staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1). Never the cook',
-        ownerLabel: 'none. `REFUSAL_SOURCE_CORRECTED` carries the copy',
+        clearedBy:
+            'staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the corrected answer is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration',
+        ownerLabel:
+            'none. `REFUSAL_SOURCE_CORRECTED` carries the wire cause. `VIEW_SAVE_REFUSED.why.sourceCorrected` is the refused-save sheet line and `VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected` the editor card (4.8.2)',
         built: 'set: yes. Clear: PR 5',
     },
     {
@@ -349,13 +352,7 @@ export const LIFECYCLE_ROWS: readonly EdgeDocRow[] = [
     {
         group: 'MAKE_PRIVATE_PUBLISHED',
         from: 'PPu',
-        guard: 'a slot (ADR-0073 allows over-limit only for `FORCE_PRIVATE`)',
-        to: 'PPr',
-    },
-    {
-        group: 'FORCE_PRIVATE',
-        from: 'PPu',
-        guard: 'the origin answer forces private, or a staff correction. A staff correction always makes the recipe private. For a new answer that can open Public, it also sets `HOLD_SOURCE_CORRECTED`',
+        guard: 'a free private slot (ADR-0073). No actor but the cook makes a recipe private (ADR-0105)',
         to: 'PPr',
     },
     {
@@ -372,7 +369,7 @@ export const LIFECYCLE_ROWS: readonly EdgeDocRow[] = [
     },
     {
         group: 'ERASE_DONATE',
-        from: 'DPr, DPu, PPr (PPu stays PPu)',
+        from: 'DPr, DPu, PPr (a PPu that is not held from readers stays PPu. A held PPu is deleted, ADR-0105)',
         guard: 'the cook elected it, no statement owed, not `ORIGIN_PERSON`, no hold. Sets `SOURCE_CONFIRMED`. Never from Del',
         to: 'PPu',
     },
@@ -423,6 +420,17 @@ export const CONFIRMATION_ROWS: readonly EdgeDocRow[] = [
     },
 ];
 
+/** The `to` cell of a PLANNED row, so a cell the model states once is not kept twice. */
+function plannedTo(eventId: string): string {
+    const found = PLANNED.find((row) => row.eventId === eventId);
+
+    if (found === undefined) {
+        throw new Error(`No PLANNED row ${eventId}`);
+    }
+
+    return found.to;
+}
+
 /** Table 5.4. */
 export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
     {
@@ -431,7 +439,7 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`STAFF_CORRECT` (as in 5.2)',
         actor: 'staff',
         guard: 'the new answer can open Public',
-        to: 'set, with `FORCE_PRIVATE` in the same transaction',
+        to: 'set. The correction writer still makes the recipe private until P8h (ADR-0105). The read rule hides it either way',
         built: 'yes',
     },
     {
@@ -440,7 +448,7 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`CLEAR_SOURCE_HOLD`',
         actor: 'staff',
         guard: 'grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1)',
-        to: 'unset. Audience unchanged (private)',
+        to: plannedTo('CLEAR_SOURCE_HOLD'),
         built: 'PLANNED until PR 5',
     },
 ];

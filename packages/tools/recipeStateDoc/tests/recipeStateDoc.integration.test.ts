@@ -40,3 +40,28 @@ describe('recipeStateModel.md and .json', () => {
         expect(doc).toContain("keeps the source's credit line (such as `source_attribution`) and adds the site link");
     });
 });
+
+describe('the committed model document (ADR-0105)', () => {
+    it('names no FORCE_PRIVATE and no forcesPrivate', () => {
+        expect(doc).not.toMatch(/FORCE_PRIVATE|forcesPrivate/);
+    });
+
+    it('lists the six chips in precedence order, in the sentence and in the table', () => {
+        expect(doc).toContain('Draft, Hidden, In review, Checking, Public or Private');
+
+        const start = doc.indexOf('| Chip ');
+        const end = doc.indexOf('Until 020 ships');
+
+        expect(start).toBeGreaterThanOrEqual(0);
+        expect(end).toBeGreaterThan(start);
+
+        const names = doc
+            .slice(start, end)
+            .split('\n')
+            .filter((line) => line.startsWith('| '))
+            .map((line) => line.split('|')[1]?.trim())
+            .slice(2);
+
+        expect(names).toEqual(['Draft', 'Hidden', 'In review', 'Checking', 'Public', 'Private']);
+    });
+});

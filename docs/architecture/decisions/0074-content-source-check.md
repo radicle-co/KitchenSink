@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
+- **Superseded in part by:** [ADR-0105](0105-a-held-recipe-is-hidden-never-made-private.md): §3a, the bullet "Not approved ends review" (its move to private) and the second write-side refusal (a detected save with no free slot).
 - **Amended by:** [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md): the hold covers every door to public and fails closed, and a missing or unknown input reads as held (spec 020 section K). Every other part stands.
 - **Amended by:** [ADR-0076](0076-founder-reviews-at-launch-with-a-paid-backup.md): who reviews at launch. The
   founder reviews, a paid backup covers, and a half-time reviewer is hired on a volume trigger. Every decision in

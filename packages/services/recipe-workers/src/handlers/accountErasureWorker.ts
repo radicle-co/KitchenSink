@@ -5,7 +5,7 @@ import type { SQSHandler, SQSRecord } from 'aws-lambda';
 import { DeleteObjectsCommand, ListObjectsV2Command, S3Client } from '@aws-sdk/client-s3';
 import type { NodePgDatabase } from 'drizzle-orm/node-postgres';
 import {
-    PRIVATE_ONLY_SOURCE_KEYS,
+    PRIVATE_ONLY_SOURCE_KEYS_JSON,
     cdnOwnerPrefixInvalidationPath,
     erasureQueueMessageKind,
     ownerMediaPrefix,
@@ -704,12 +704,16 @@ export const eraseRecipeRows = async (
     // yields no rows, so the flip safely matches nothing. Parameterized throughout — no SQL built from the
     // (client-originated) ids.
     const publishElectionJson = JSON.stringify([...publishRecipeIds]);
-    const privateOnlyKeysJson = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
 
     // The owner-only (removed) predicate — the exact negation of "truly public". Named once so the removed-set
     // SELECT, the clone-detach subqueries, and the DELETE all key on the IDENTICAL two-axis rule; a drift
     // between any two of them would sweep a different set than it deleted.
-    const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published')`;
+    //    "Truly public" excludes a recipe the read rule hides from readers (`recipe_held_from_readers`, ADR-0105): a held recipe is
+    //    readable by nobody but its owner, so it is removed with the owner, never kept and never donated. The function takes the
+    //    `recipes` row of its own FROM and the bound private-only keys, so no rule text or key list is copied here. The call shape
+    //    mirrors `heldFromReadersSql` in recipe-service (no SQL text crosses a package boundary); each side's exact-SQL unit test pins its call.
+    const heldFromReaders = sql`recipe_held_from_readers(recipes, ${PRIVATE_ONLY_SOURCE_KEYS_JSON}::jsonb)`;
+    const ownerOnly = sql`owner_id = ${ownerId} AND NOT (visibility = 'public' AND status = 'published' AND NOT ${heldFromReaders})`;
 
     return db.transaction(async (tx) => {
         // 0. author_handles TOMBSTONE (migration 0056) — FIRST, so this transaction takes the `author_handles` lock
@@ -730,16 +734,11 @@ export const eraseRecipeRows = async (
         //    ⛔ ONLY a recipe that holds no private food (ADR-0029 section 6): a public recipe may not hold one (migration
         //    0064 would roll this whole transaction back, stranding the erasure), and a dead author's private foods must
         //    stay unreferenced so they are deleted. Such an elected recipe is removed with the owner-only set below.
-        //    ⛔ AND ONLY a recipe that may be public at all (ADR-0089): a book, a paid-site recipe or a copy of a web page is
-        //    private-only, and a donation makes it public. recipe-core's private-only keys, derived from `privateRuleOf`,
-        //    say which; they are bound as ONE jsonb parameter like the election, so the rule is not copied here and no SQL
-        //    text is spliced. A NULL kind is the empty string in the key, so it is never an unknown. Such an elected recipe is removed with the owner-only set below, exactly as one that holds a
-        //    private food is. (Until now a donated book or paid-site recipe was published.)
-        //    ⛔ AND ONLY a recipe the evidence rule does not hold (`sourceConflictOf`, recipe-core): a recipe whose cook stated
-        //    a third-party source and then cleared it reads as their own, and a donation would publish it as such. It follows
-        //    the private-only path: removed with the owner-only set. The private-only half is the bound keys just above; the
-        //    evidence half is the database function `recipe_holds_third_party_source` (migration 0086), the same shape as
-        //    `recipe_holds_private_food`, so neither rule is copied here and no SQL text is spliced.
+        //    ⛔ AND ONLY a recipe the read rule does not hold from readers (ADR-0105): the one database function
+        //    `recipe_held_from_readers` answers the correction hold, cook-captured third-party evidence (`sourceConflictOf`'s
+        //    read-side twin) and a private-only label (ADR-0089: a book, a paid-site recipe or a copy of a web page), the labels
+        //    bound as ONE jsonb parameter from recipe-core. A donation makes a recipe public, so a held one would be published
+        //    as the cook's own; it is removed with the owner-only set below, exactly as one that holds a private food is.
         //    ⛔ AND ONLY a recipe whose cook owes no statement (`statementRequiredOf`, recipe-core): pasted content the
         //    cook never said was theirs would be published as theirs by a donation, so it is removed with the owner-only
         //    set. The database function is `recipe_needs_statement` (migration 0087); it adds no SQL parameter.
@@ -752,12 +751,9 @@ export const eraseRecipeRows = async (
             WHERE id IN (SELECT jsonb_array_elements_text(${publishElectionJson}::jsonb)::uuid)
               AND owner_id = ${ownerId}
               AND NOT recipe_holds_private_food(id)
-              AND (source_type || ':' || COALESCE(source_kind, ''))
-                  NOT IN (SELECT jsonb_array_elements_text(${privateOnlyKeysJson}::jsonb))
-              AND NOT recipe_holds_third_party_source(id)
+              AND NOT ${heldFromReaders}
               AND NOT recipe_needs_statement(id)
               AND NOT recipe_is_from_person(id)
-              AND NOT source_correction_hold
         `);
 
         // 2. The removed set = the owner's rows that are NOT truly-public (owner-only, non-donated). Captured

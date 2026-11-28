@@ -6,7 +6,7 @@
  * pass for the one under test. What is asserted:
  *
  *  1. The ratchet: a hold clears only with a record for the same recipe, the same transaction and the same instant, and a clear
- *     is never followed by a hold in that transaction. Mutation: drop the `xact_id` predicate and the earlier-transaction row fails.
+ *     is never followed by a hold in that transaction. Mutation: drop either predicate alone and the owner-written row that differs in only that column fails.
  *  2. One record per clear: `UNIQUE (recipe_id, xact_id)`; a record for a recipe that is not held is refused at insert; a record
  *     whose clear was rolled back to a savepoint is refused at commit.
  *  3. A BEFORE UPDATE trigger that sorts after the ratchet cannot clear the hold unseen (the ratchet is an AFTER trigger).
@@ -139,6 +139,43 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
             });
             expect(await holdOf(id)).toBe(true);
         });
+
+        // The stamp trigger writes both columns, so each predicate is proven by an owner-written row that differs in ONE of them.
+        it.each([
+            ['xact_id differs (same instant)', `now()`, `'1'::xid8`],
+            ['recorded_at differs (same transaction)', `now() - interval '1 second'`, `pg_current_xact_id()`],
+        ])(
+            'refuses a clear whose record %s, so each of the two predicates is needed',
+            async (_name, recordedAt, xact) => {
+                const id = await insertRecipe(true);
+
+                await roleDb.asOwner(async (client) => {
+                    await client.query('BEGIN');
+
+                    try {
+                        await client.query(
+                            `ALTER TABLE recipe_source_hold_clears DISABLE TRIGGER trg_recipe_source_hold_clears_stamp`,
+                        );
+                        await client.query(
+                            `INSERT INTO recipe_source_hold_clears (recipe_id, cause, actor_account_id, reason, recorded_at, xact_id)
+                         VALUES ($1, 'staff', 'staff01', 'a mistaken correction', ${recordedAt}, ${xact})`,
+                            [id],
+                        );
+                        await expect(
+                            client.query(`UPDATE recipes SET source_correction_hold = false WHERE id = $1`, [id]),
+                        ).rejects.toMatchObject({
+                            code: CHECK_VIOLATION,
+                            message: expect.stringContaining(
+                                'cleared only with a clear record in the same transaction',
+                            ),
+                        });
+                    } finally {
+                        await client.query('ROLLBACK');
+                    }
+                });
+                expect(await holdOf(id)).toBe(true);
+            },
+        );
 
         it('refuses a clear whose record is for ANOTHER recipe', async () => {
             const id = await insertRecipe(true);

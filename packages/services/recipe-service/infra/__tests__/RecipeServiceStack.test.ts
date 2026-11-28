@@ -1461,6 +1461,10 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
 describe('the hold-clear volume alarm (ADR-0106)', () => {
     const ENABLED = { alarmsEnabled: true, alertEmail: 'ops@example.com' } as const;
 
+    it('uses the owner-approved threshold of 10 holds in a day, pinned here and not read back from the constant', () => {
+        expect(SOURCE_HOLD_CLEARED_DAILY_THRESHOLD).toBe(10);
+    });
+
     it('watches Commise/RecipeSource source.holdCleared on the Stage dimension: Sum over 86400 s, above the threshold, missing data not breaching', () => {
         const template = synthTemplate('prod', 'prod', undefined, ENABLED);
         const matching = template.findResources('AWS::CloudWatch::Alarm', {
@@ -1472,7 +1476,7 @@ describe('the hold-clear volume alarm (ADR-0106)', () => {
                 Statistic: 'Sum',
                 Period: 86400,
                 EvaluationPeriods: 1,
-                Threshold: SOURCE_HOLD_CLEARED_DAILY_THRESHOLD,
+                Threshold: 10,
                 ComparisonOperator: 'GreaterThanThreshold',
                 TreatMissingData: 'notBreaching',
             },

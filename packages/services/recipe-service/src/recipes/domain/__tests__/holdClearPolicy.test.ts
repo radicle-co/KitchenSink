@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { holdClearPolicy, type ChainAnswer } from '../holdClearPolicy.js';
+import { holdClearPolicy, type ChainAnswer, type EarnedHoldClearRefusal } from '../holdClearPolicy.js';
 import type { SourceAnswerKind } from '../sourceCorrectionScopePolicy.js';
 
 const chain = (...answers: SourceAnswerKind[]): ChainAnswer[] =>
@@ -77,5 +77,19 @@ describe('holdClearPolicy: earned rewrite (every correction row in the chain mus
     it('refuses a recipe that is not held as notHeld, before it reads the chain', () => {
         expect(earned([], false)).toEqual({ kind: 'refuse', reason: 'notHeld' });
         expect(earned(['book'], false)).toEqual({ kind: 'refuse', reason: 'notHeld' });
+    });
+});
+
+describe('holdClearPolicy: every earned refusal has a case', () => {
+    // Typed by the union, so a new refusal fails to compile until it has a row here.
+    const CASES: Record<EarnedHoldClearRefusal, { held: boolean; answers: SourceAnswerKind[] }> = {
+        notHeld: { held: false, answers: ['book'] },
+        noCorrectionRow: { held: true, answers: [] },
+        ownAnswerInChain: { held: true, answers: ['own'] },
+        fromPersonAnswerInChain: { held: true, answers: ['person'] },
+    };
+
+    it.each(Object.entries(CASES))('%s is reachable', (reason, { held, answers }) => {
+        expect(earned(answers, held)).toEqual({ kind: 'refuse', reason });
     });
 });

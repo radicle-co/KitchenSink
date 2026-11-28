@@ -17,6 +17,7 @@ import type { FC, ReactNode } from 'react';
 import { StyleSheet, View } from 'react-native';
 
 import { hasLiquidGlass } from '../chromeSurface/liquidGlass.native.js';
+import { Elevated } from '../elevation/Elevated.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import { useTheme } from '../theme/useTheme.native.js';
 import { Text } from '../text/Text.native.js';
@@ -31,7 +32,7 @@ export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWi
     const glass = hasLiquidGlass();
     // The pill grows with its label up to the 1.5x chrome cap; the collapsed disc stays 56 (designer, 2026-11-02).
     const pillHeight = fabHeightAt(useTextScale());
-    const shape = presentation === 'icon' ? styles.disc : [styles.pill, { height: pillHeight }];
+    const shape = presentation === 'icon' ? styles.disc : { ...styles.pill, height: pillHeight };
 
     const content: ReactNode = (
         <>
@@ -68,9 +69,9 @@ export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWi
     }
 
     return (
-        <View style={[styles.face, shape, nativeTokens.elevation.lg, { backgroundColor: colors.action }]}>
+        <Elevated level="lg" style={{ ...styles.face, ...shape, backgroundColor: colors.action }}>
             {content}
-        </View>
+        </Elevated>
     );
 };
 

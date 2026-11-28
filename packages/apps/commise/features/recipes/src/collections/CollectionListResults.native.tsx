@@ -13,6 +13,7 @@ import { LoadMoreControl } from '@commise/ui/load-more';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { contentWidthOf, containerClassOf } from '@commise/ui/container-class';
+import { Elevated } from '@commise/ui/elevation';
 import { Icon } from '@commise/ui/icon';
 import { nativeTokens } from '@commise/ui/native';
 import { PressScale } from '@commise/ui/press-scale';
@@ -222,7 +223,10 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
             width="fill"
             onPress={() => onSelect(collection.id)}
         >
-            <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+            <Elevated
+                level="sm"
+                style={{ ...styles.card, backgroundColor: colors.paper, borderColor: colors.lineDivider }}
+            >
                 <View style={styles.clip}>
                     <CollectionCover collection={collection} />
                     <View style={styles.cardBody}>
@@ -256,7 +260,7 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
                         )}
                     </View>
                 </View>
-            </View>
+            </Elevated>
         </PressScale>
     );
 };
@@ -281,7 +285,7 @@ const styles = StyleSheet.create({
     // No `flex: 1`: a cell that grows vertically fills the recycler's ESTIMATE and is measured at it, which left a blank slot
     // between rows. The cell takes its card's height, and its width from the column.
     cell: { paddingHorizontal: nativeTokens.spacing[2] },
-    card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth, ...nativeTokens.elevation.sm },
+    card: { borderRadius: nativeTokens.radius.md, borderWidth: StyleSheet.hairlineWidth },
     clip: { borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cardBody: { padding: nativeTokens.spacing[3], gap: nativeTokens.spacing[1] },
     meta: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'center', gap: nativeTokens.spacing[1] },

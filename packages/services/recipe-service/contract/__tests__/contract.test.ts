@@ -687,6 +687,8 @@ describe('every published component’s zod is REACHABLE from @kitchensink/schem
         SourceCorrectionPreview: 'sourceCorrectionPreviewSchema',
         SourceCorrectionRequest: 'sourceCorrectionRequestSchema',
         SourceCorrectionResponse: 'sourceCorrectionResponseSchema',
+        SourceHoldClearRequest: 'sourceHoldClearRequestSchema',
+        SourceHoldClearResponse: 'sourceHoldClearResponseSchema',
         PrivateSlotUsage: 'privateSlotUsageSchema',
         RebindIngredientLineRequest: 'rebindIngredientLineRequestSchema',
         SetRatingRequest: 'setRatingRequestSchema',

@@ -22,8 +22,10 @@ import {
 import { RecipesDal } from './dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
 import { SourceCorrectionsDal } from './dal/sourceCorrections.dal.js';
+import { SourceHoldClearsDal } from './dal/sourceHoldClears.dal.js';
 import { SourceCorrectionController } from './sourceCorrection.controller.js';
 import { SourceCorrectionService } from './sourceCorrection.service.js';
+import { SourceHoldClearService } from './sourceHoldClear.service.js';
 import { RecipeStatementAttestationsDal } from './dal/recipeStatementAttestations.dal.js';
 import { RatingsDal } from '../ratings/dal/ratings.dal.js';
 import { PhotosDal } from '../photos/dal/photos.dal.js';
@@ -139,6 +141,13 @@ import { CURATION_DISAGREEMENT_SINK, emitCurationDisagreement, ParseJobMatchView
             useFactory: (db: RecipeDrizzle): SourceCorrectionsDal => new SourceCorrectionsDal(db),
         },
         SourceCorrectionService,
+        // ADR-0106 — the two ways back from a correction hold: the DAL over the caller's transaction, and the Command.
+        {
+            provide: SourceHoldClearsDal,
+            inject: [DrizzleProvider],
+            useFactory: (db: RecipeDrizzle): SourceHoldClearsDal => new SourceHoldClearsDal(db),
+        },
+        SourceHoldClearService,
         // Judges and records every write that can leave a recipe public (ADR-0095): the one owner of both tables above.
         PublicStatementGate,
         {

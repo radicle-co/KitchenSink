@@ -21,16 +21,24 @@ import { and, eq, sql } from 'drizzle-orm';
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipes } from '../../database/schema/index.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
-import type { HoldClearCause } from '@kitchensink/recipe-core';
+import {
+    recipeSourceKindSchema,
+    recipeSourceTypeSchema,
+    recipeStatementKindSchema,
+    type HoldClearCause,
+    type RecipeSourceKind,
+    type RecipeSourceType,
+    type RecipeStatementKind,
+} from '@kitchensink/recipe-core';
 import { activeRecipe } from './recipePredicates.js';
 
 /** One correction row of a chain, as the policy needs it. Row 0 is the newest of the nearest recipe that has one. */
 export interface CorrectionChainRow {
     readonly id: string;
     readonly recipeId: string;
-    readonly newSourceType: string;
-    readonly newSourceKind: string | null;
-    readonly newStatementKind: string | null;
+    readonly newSourceType: RecipeSourceType;
+    readonly newSourceKind: RecipeSourceKind | null;
+    readonly newStatementKind: RecipeStatementKind | null;
 }
 
 /** What `recordClears` writes. */
@@ -51,6 +59,8 @@ type ChainRowRaw = {
 };
 
 export class SourceHoldClearsDal {
+    public constructor(private readonly db: RecipeDrizzle) {}
+
     /**
      * The recipe's owner and hold, read `FOR UPDATE`.
      *
@@ -75,11 +85,14 @@ export class SourceHoldClearsDal {
     /**
      * Every correction row of the recipe and of each ancestor, nearest recipe first, newest first within a recipe.
      *
-     * @param db - A transaction or the pool: the preview reads it unlocked.
      * @param id - The recipe.
+     * @param db - The caller's transaction; the pool when omitted (the preview reads it unlocked).
      * @returns The rows; empty when no recipe in the chain was ever corrected.
      */
-    public async readCorrectionChain(db: RecipeTx | RecipeDrizzle, id: string): Promise<readonly CorrectionChainRow[]> {
+    public async readCorrectionChain(
+        id: string,
+        db: RecipeTx | RecipeDrizzle = this.db,
+    ): Promise<readonly CorrectionChainRow[]> {
         const result = await db.execute<ChainRowRaw>(sql`
             WITH RECURSIVE chain(id, depth) AS (
                 SELECT ${id}::uuid, 0
@@ -92,12 +105,13 @@ export class SourceHoldClearsDal {
              ORDER BY c.depth ASC, k.recorded_at DESC, k.id DESC
         `);
 
+        // Parsed, not cast: a stored value outside the vocabulary throws here and never reads as a third-party answer.
         return (result.rows ?? []).map((row) => ({
             id: row.id,
             recipeId: row.recipe_id,
-            newSourceType: row.new_source_type,
-            newSourceKind: row.new_source_kind,
-            newStatementKind: row.new_statement_kind,
+            newSourceType: recipeSourceTypeSchema.parse(row.new_source_type),
+            newSourceKind: recipeSourceKindSchema.nullable().parse(row.new_source_kind),
+            newStatementKind: recipeStatementKindSchema.nullable().parse(row.new_statement_kind),
         }));
     }
 

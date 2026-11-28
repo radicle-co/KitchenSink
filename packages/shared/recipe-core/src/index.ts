@@ -25,6 +25,7 @@ export {
     RecipeDifficulty,
     RecipeMealType,
     RecipeErrorCode,
+    HOLD_CLEAR_CONFLICT_REASONS,
     IMPORT_LOCKED_STAGES,
     RecipeSearchSortBy,
     RECIPE_SOURCE_KINDS,
@@ -115,6 +116,7 @@ export type {
     RecipeVersionPendingArchive,
     VersionConflictDetails,
     VersionConflictSide,
+    HoldClearConflictReason,
     ImportLockedStage,
 } from './recipe.types.js';
 export {

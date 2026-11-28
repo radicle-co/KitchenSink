@@ -5,7 +5,12 @@
 import { SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
 import { describe, expect, it, vi } from 'vitest';
 
-import { recordSourceCorrected, recordSourceCorrectionRefused, recordSourceLockRefused } from '../sourceEvents.js';
+import {
+    recordSourceCorrected,
+    recordSourceCorrectionRefused,
+    recordSourceHoldCleared,
+    recordSourceLockRefused,
+} from '../sourceEvents.js';
 
 function lineOf(emit: (sink: (line: string) => void) => void): Record<string, unknown> {
     const sink = vi.fn();
@@ -89,5 +94,23 @@ describe('the source lock events', () => {
 
         expect(text).not.toContain('SECRET');
         expect(text).not.toContain('secret.example');
+    });
+
+    it('source.holdCleared is valued at the number of holds cleared, dimensioned by Stage alone, and carries no id or reason', () => {
+        const line = lineOf((sink) => {
+            recordSourceHoldCleared({ released: 3 }, 'prod', sink);
+        });
+
+        expect(line).toMatchObject({ event: 'source.holdCleared', Stage: 'prod', 'source.holdCleared': 3 });
+        expect(Object.keys(line).sort()).toEqual(['Stage', '_aws', 'event', 'source.holdCleared']);
+        expect(line['_aws']).toMatchObject({
+            CloudWatchMetrics: [
+                {
+                    Namespace: SOURCE_EVENT_NAMESPACE,
+                    Dimensions: [['Stage']],
+                    Metrics: [{ Name: 'source.holdCleared' }],
+                },
+            ],
+        });
     });
 });

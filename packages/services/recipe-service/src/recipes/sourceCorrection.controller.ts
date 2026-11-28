@@ -14,6 +14,7 @@ import {
     Header,
     HttpCode,
     HttpStatus,
+    Inject,
     Param,
     ParseUUIDPipe,
     Post,
@@ -25,15 +26,21 @@ import { ZodValidationPipe } from 'nestjs-zod';
 import { CurrentPrincipal } from '../auth/currentPrincipal.decorator.js';
 import type { Principal } from '../auth/principal.js';
 import { WriteRateLimit } from '../common/throttle/throttle.decorators.js';
+import { SourceHoldClearDto } from './dto/sourceHoldClear.dto.js';
 import { SourceCorrectionDto } from './dto/sourceCorrection.dto.js';
 import { SourceCorrectionPreviewQueryDto } from './dto/sourceCorrectionPreviewQuery.dto.js';
-import type { SourceCorrectionPreview, SourceCorrectionResponse } from './recipes.schema.js';
+import type { SourceCorrectionPreview, SourceCorrectionResponse, SourceHoldClearResponse } from './recipes.schema.js';
 import { SourceCorrectionService } from './sourceCorrection.service.js';
+import { SourceHoldClearService } from './sourceHoldClear.service.js';
 
 @Controller('api/v1/recipes')
 @UsePipes(ZodValidationPipe)
 export class SourceCorrectionController {
-    public constructor(private readonly sourceCorrection: SourceCorrectionService) {}
+    public constructor(
+        private readonly sourceCorrection: SourceCorrectionService,
+        // `Pick` types emit `Object` as metadata, so the class token is named in the module and the type is narrowed here.
+        @Inject(SourceHoldClearService) private readonly holdClear: Pick<SourceHoldClearService, 'clearByStaff'>,
+    ) {}
 
     /** Correct a recipe's source answer. A mutation, so the erasure lock applies to the staff caller as it does to any write. */
     @Post(':id/source-correction')
@@ -59,5 +66,20 @@ export class SourceCorrectionController {
         @Query() query: SourceCorrectionPreviewQueryDto,
     ): Promise<SourceCorrectionPreview> {
         return this.sourceCorrection.preview(principal, id, query.ownerAccountId);
+    }
+
+    /**
+     * Clear a recipe's correction hold (ADR-0106). A mutation, so the erasure lock applies to the staff caller as to any write. The
+     * earned clear has no route: `SourceHoldClearService.clearByEarnedRewrite` is reached only from the cook's rewrite.
+     */
+    @Post(':id/source-correction/hold-clear')
+    @HttpCode(HttpStatus.OK)
+    @WriteRateLimit()
+    public async clearSourceHold(
+        @CurrentPrincipal() principal: Principal,
+        @Param('id', ParseUUIDPipe) id: string,
+        @Body() body: SourceHoldClearDto,
+    ): Promise<SourceHoldClearResponse> {
+        return this.holdClear.clearByStaff(principal, id, body);
     }
 }

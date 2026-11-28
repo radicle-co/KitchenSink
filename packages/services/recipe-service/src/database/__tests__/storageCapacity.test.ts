@@ -259,6 +259,7 @@ const accounts: readonly ColumnAccount[] = [
     { table: 'author_handles', column: 'user_id', why: PRINCIPAL_DERIVED },
     { table: 'recipe_statement_attestations', column: 'account_id', why: PRINCIPAL_DERIVED },
     { table: 'recipe_source_corrections', column: 'actor_account_id', why: PRINCIPAL_DERIVED },
+    { table: 'recipe_source_hold_clears', column: 'actor_account_id', why: PRINCIPAL_DERIVED },
     { table: 'account_erasure_jobs', column: 'owner_id', why: PRINCIPAL_DERIVED },
 
     // ── ingredient resolution knowledge base (plan U10, 0021) ─────────────────────────────────────

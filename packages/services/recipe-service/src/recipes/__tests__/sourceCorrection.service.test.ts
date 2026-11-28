@@ -13,6 +13,7 @@ import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import type { CorrectableRecipe } from '../domain/sourceCorrectionScopePolicy.js';
+import type { CorrectionChainRow } from '../dal/sourceHoldClears.dal.js';
 import type { SourceCorrectionsDal } from '../dal/sourceCorrections.dal.js';
 import { SourceCorrectionService } from '../sourceCorrection.service.js';
 import { SOURCE_CORRECT_SCOPE, type SourceCorrectionRequest } from '../recipes.schema.js';
@@ -50,7 +51,7 @@ const body = (over: Partial<SourceCorrectionRequest> = {}): SourceCorrectionRequ
 });
 
 /** The calls, in order, so the ORDER of the work is an assertion. */
-function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
+function build(recipe: CorrectableRecipe | null = BOOK_RECIPE, chain: readonly CorrectionChainRow[] = []) {
     const calls: string[] = [];
     const rewrite = vi.fn<SourceCorrectionsDal['rewriteSource']>(() => {
         calls.push('rewrite');
@@ -98,10 +99,17 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
         return fn(FAKE_TX);
     };
 
+    const readCorrectionChain = vi.fn((_id: string) => {
+        calls.push('readChain');
+
+        return Promise.resolve(chain);
+    });
+
     const service = new SourceCorrectionService(
         { transaction, lockAndCountPrivateSlots: lockOwner },
         { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones, readPreview },
         { insert: evidence },
+        { readCorrectionChain },
     );
 
     return { service, calls, rewrite, record, holdClones, evidence, lockRecipe, lockOwner, readPreview };
@@ -309,9 +317,28 @@ describe('SourceCorrectionService.preview', () => {
             visibility: 'private',
             answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' },
             sourceCorrected: false,
+            latestCorrectionId: null,
         });
-        expect(t.calls).toEqual(['readPreview']);
+        expect(t.calls).toEqual(['readPreview', 'readChain']);
         expect(t.rewrite).not.toHaveBeenCalled();
+    });
+
+    it('names the newest correction of the chain (row 0), and null when the chain has none', async () => {
+        const chainRow = (id: string): CorrectionChainRow => ({
+            id,
+            recipeId: RECIPE_ID,
+            newSourceType: 'imported_physical',
+            newSourceKind: 'book',
+            newStatementKind: 'source',
+        });
+        const withRows = build(BOOK_RECIPE, [chainRow('newest-row'), chainRow('older-row')]);
+
+        await expect(withRows.service.preview(staff(), RECIPE_ID, OWNER)).resolves.toMatchObject({
+            latestCorrectionId: 'newest-row',
+        });
+        await expect(build().service.preview(staff(), RECIPE_ID, OWNER)).resolves.toMatchObject({
+            latestCorrectionId: null,
+        });
     });
 
     it.each([

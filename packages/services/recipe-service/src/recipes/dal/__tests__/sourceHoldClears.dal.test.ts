@@ -32,7 +32,7 @@ const statements = (): string[] =>
 
 beforeEach(() => {
     control = makeFakeDrizzle<RecipeDrizzle>();
-    dal = new SourceHoldClearsDal();
+    dal = new SourceHoldClearsDal(control.db);
 });
 
 describe('SourceHoldClearsDal.lockHoldFacts', () => {
@@ -53,7 +53,7 @@ describe('SourceHoldClearsDal.lockHoldFacts', () => {
 
 describe('SourceHoldClearsDal.readCorrectionChain', () => {
     it('walks cloned_from_id with a CYCLE clause and no depth cap, newest and nearest first', async () => {
-        await dal.readCorrectionChain(control.db, ROOT);
+        await dal.readCorrectionChain(ROOT);
 
         const [text] = statements();
 

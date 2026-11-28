@@ -8,6 +8,7 @@
  */
 import 'reflect-metadata';
 
+import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
@@ -17,6 +18,10 @@ import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { ReadableRecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
+import { makeRawRecipeSearchRow } from '../../../src/search/__fixtures__/search.fixtures.js';
+import { SearchDal } from '../../../src/search/dal/search.dal.js';
+import { SEARCH_DAL } from '../../../src/search/search.service.js';
+import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { RATINGS_DAL } from '../../../src/ratings/ratings.service.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import {
@@ -50,6 +55,21 @@ const aggregateOf = (recipe: ReturnType<typeof makeRecipeRow>, heldFromReaders: 
     steps: [],
     ingredients: [],
 });
+
+/**
+ * The REAL search DAL over a fake `db.execute`: every statement answers the held public recipe of OWNER, flagged held for the
+ * owner by a database that (on purpose) ignores who asks. So a gate that is missing in the DAL, the service, the controller or
+ * the response schema shows up as a key on the wire.
+ */
+let searchedRow: Record<string, unknown> = {};
+const executed: unknown[] = [];
+const fakeSearchDb = {
+    execute: async (statement: unknown): Promise<{ rows: Array<Record<string, unknown>> }> => {
+        executed.push(statement);
+
+        return { rows: [searchedRow] };
+    },
+} as unknown as RecipeDrizzle;
 
 let booted: BootedServiceApp;
 
@@ -111,6 +131,7 @@ beforeAll(async () => {
                     ],
                 },
             },
+            { provide: SEARCH_DAL, useValue: new SearchDal(fakeSearchDb) },
             { provide: RATINGS_DAL, useValue: { upsert: async () => ({}), delete: async () => undefined } },
             { provide: RecipeSourceEvidenceDal, useValue: { list: async () => [] } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
@@ -188,5 +209,69 @@ describe('GET /api/v1/recipes/:id and the rating write (detail producers)', () =
 
         expect(response.status).toBe(200);
         expect(await response.json()).not.toHaveProperty('hiddenReason');
+    });
+});
+
+describe('the read paths that must never carry the key (qse rows a, b, c)', () => {
+    it('(a) detail read by a non-owner: no key, even when the double reports the recipe held with evidence for the owner', async () => {
+        heldFacts.set(clean.id, true);
+
+        const response = await get(READER, `/api/v1/recipes/${clean.id}`);
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).not.toHaveProperty('hiddenReason');
+        heldFacts.delete(clean.id);
+    });
+
+    it('(b) search by another cook: no item carries the key, though the database row says held', async () => {
+        searchedRow = makeRawRecipeSearchRow({
+            id: held.id,
+            owner_id: OWNER,
+            owner_held_from_readers: true,
+            source_correction_hold: true,
+        });
+
+        const response = await get(READER, '/api/v1/search/recipes?query=pasta');
+        const body = (await response.json()) as { results: Array<{ recipe: Record<string, unknown> }> };
+
+        expect(response.status).toBe(200);
+        expect(body.results).toHaveLength(1);
+        expect(body.results[0]!.recipe).not.toHaveProperty('hiddenReason');
+    });
+
+    it('(c) community search by the owner: the page read selects false for both facts, and no item carries the key', async () => {
+        executed.length = 0;
+        // What the database answers to a statement that selects `false`: the owner's own row is never in this scope.
+        searchedRow = makeRawRecipeSearchRow({
+            id: held.id,
+            owner_id: OWNER,
+            owner_held_from_readers: false,
+            source_correction_hold: true,
+        });
+
+        const response = await get(OWNER, '/api/v1/search/recipes?query=pasta&scope=community');
+        const body = (await response.json()) as { results: Array<{ recipe: Record<string, unknown> }> };
+        const pageSql = new PgDialect().sqlToQuery(executed[0] as Parameters<PgDialect['sqlToQuery']>[0]).sql;
+
+        expect(response.status).toBe(200);
+        expect(pageSql).toContain('false AS owner_held_from_readers');
+        expect(pageSql).toContain('false AS has_cook_source_evidence');
+        expect(body.results).toHaveLength(1);
+        expect(body.results[0]!.recipe).not.toHaveProperty('hiddenReason');
+    });
+
+    it('control: the owner searching without a scope gets the reason on the same row', async () => {
+        searchedRow = makeRawRecipeSearchRow({
+            id: held.id,
+            owner_id: OWNER,
+            owner_held_from_readers: true,
+            source_correction_hold: true,
+        });
+
+        const body = (await (await get(OWNER, '/api/v1/search/recipes?query=pasta')).json()) as {
+            results: Array<{ recipe: Record<string, unknown> }>;
+        };
+
+        expect(body.results[0]?.recipe).toMatchObject({ hiddenReason: 'sourceCorrected' });
     });
 });

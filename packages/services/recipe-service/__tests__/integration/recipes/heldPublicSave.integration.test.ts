@@ -79,6 +79,9 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
  */
 let heldFromReaders = false;
 
+/** The cook-evidence term the double reports for the owner (hiddenViews): set with `heldFromReaders` by the test that needs it. */
+let cookEvidence = false;
+
 /** The read path's aggregate: the stored row plus the hold the real DAL selects. */
 function readableOf(recipe: RecipeRow): ReadableRecipeAggregate {
     return { ...aggregateOf(recipe), recipe: { ...recipe, heldFromReaders } };
@@ -141,7 +144,7 @@ beforeAll(async () => {
                 provide: RECIPES_DAL,
                 useValue: {
                     findOwnerHiddenFacts: () =>
-                        Promise.resolve({ ownerHeldFromReaders: heldFromReaders, hasCookSourceEvidence: false }),
+                        Promise.resolve({ ownerHeldFromReaders: heldFromReaders, hasCookSourceEvidence: cookEvidence }),
                     update,
                     findById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableOf(stored) : undefined),
                     privateFoodLines: () => Promise.resolve([]),
@@ -192,6 +195,7 @@ beforeAll(async () => {
 afterEach(() => {
     evidence = [];
     heldFromReaders = false;
+    cookEvidence = false;
     slotsUsed = 0;
     vi.clearAllMocks();
 });
@@ -393,4 +397,43 @@ describe('PATCH /api/v1/recipes/{id} with heldSave "private" (heldPublicSave U8)
         expect(response.status).toBe(400);
         expect(update).not.toHaveBeenCalled();
     });
+});
+
+/**
+ * hiddenViews U2 (AE3, detail callers): every mutation response is a detail response, and the OWNER's carries `hiddenReason`
+ * for a recipe the read rule holds. Each row has its control: the same write of the same recipe, nothing holding it, has no key.
+ */
+describe('owner mutation responses carry hiddenReason (hiddenViews AE3)', () => {
+    const edit = () => ({
+        expectedVersion: stored.currentVersion,
+        title: 'A new title',
+        publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+    });
+    const visibility = () => ({ visibility: 'public', publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN });
+
+    it.each([
+        ['an update', 'PATCH', `/api/v1/recipes/${RECIPE_ID}`, edit],
+        ['a set-visibility', 'PATCH', `/api/v1/recipes/${RECIPE_ID}/visibility`, visibility],
+    ] as const)(
+        '%s answers the owner of a held public recipe with the reason, and a clean one with none',
+        async (_name, method, path, body) => {
+            stored = heldRow();
+            heldFromReaders = true;
+            cookEvidence = true;
+
+            const held = await call(method, path, body());
+
+            expect(held.status).toBe(200);
+            expect(await held.json()).toMatchObject({ hiddenReason: 'heldSource' });
+
+            heldFromReaders = false;
+            cookEvidence = false;
+            stored = heldRow();
+
+            const control = await call(method, path, body());
+
+            expect(control.status).toBe(200);
+            expect(await control.json()).not.toHaveProperty('hiddenReason');
+        },
+    );
 });

@@ -80,7 +80,7 @@ export function timerNameOf(
  * @param timer - Its typed label, if any, and where it came from.
  * @param step - The step the timer is matched to now.
  * @param copy - The timer copy.
- * @returns {@link timerNameOf}'s text. Pure.
+ * @returns The text of `timerNameOf`. Pure.
  */
 export function timerLabel(
     timer: Pick<ActiveTimer, 'label' | 'origin'>,

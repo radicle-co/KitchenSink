@@ -10,7 +10,6 @@ import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { makeCookingWrapper } from '@commise/features-cooking/testing/mobile';
 import { ReportPageFootContext } from '@commise/ui/popup-insets';
-import { stepDigestsOf } from '@kitchensink/cooking-core';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -291,7 +290,7 @@ describe('CookingModeScreen: the dock foot', () => {
             store.start({
                 recipeId: 'rec_1',
                 stepIndex: 0,
-                stepDigest: stepDigestsOf(FOUR)[0] ?? '',
+                stepDigest: 'digest-of-step-1',
                 label: undefined,
                 origin: { kind: 'added' },
                 durationMs: 60_000,

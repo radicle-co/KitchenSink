@@ -11,7 +11,7 @@
         "implementationsWithModuleDoc": 40,
         "implementationsWithComponentDoc": 40,
         "documentedProps": 126,
-        "classifiedComponents": 21,
+        "classifiedComponents": 22,
         "componentsWithPatternTag": 11,
         "crossPlatformComponents": 19
     },
@@ -275,7 +275,7 @@
             "packageName": "@commise/features-cooking",
             "layer": "feature",
             "dir": "packages/apps/commise/features/cooking/src",
-            "kind": "unclassified",
+            "kind": "presentational",
             "patterns": [
                 "Adapter — the foot's rectangle, as `PopupInsetsProvider` reads page chrome"
             ],
@@ -291,7 +291,7 @@
                     "platform": "web",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingFootInsets.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingFootInsets — tells the app's one snackbar host where the cooking foot starts, so a snackbar (the\ntimer's Undo) draws above the dock and Back / Next instead of over them.\n\nThe cooking route has no AppShell and no column, so the host keeps centring on the viewport; only the bottom changes.\nThe foot is found by its id when it is read and when the watch starts, so no ref is held.",
+                    "moduleDoc": "CookingFootInsets — tells the app's one snackbar host where the cooking foot starts, so a snackbar (the\ntimer's Undo) draws above the dock and Back / Next instead of over them.\n\nThe cooking route has no AppShell and no column, so the host keeps centring on the viewport; only the bottom changes.\nThe foot is found by its id when it is read and when the watch starts, so no ref is held.\n\nPresentational: props → JSX, plus the provider it wraps.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -310,7 +310,7 @@
                     "usesRefApi": [],
                     "booleanPropsSelectingSubtree": [],
                     "docSignals": {
-                        "presentational": false,
+                        "presentational": true,
                         "orchestration": false
                     }
                 }

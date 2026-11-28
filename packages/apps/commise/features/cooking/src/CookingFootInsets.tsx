@@ -7,6 +7,8 @@
  * The cooking route has no AppShell and no column, so the host keeps centring on the viewport; only the bottom changes.
  * The foot is found by its id when it is read and when the watch starts, so no ref is held.
  *
+ * Presentational: props → JSX, plus the provider it wraps.
+ *
  * @pattern Adapter — the foot's rectangle, as `PopupInsetsProvider` reads page chrome
  */
 import { PopupInsetsProvider, resizeWatchOf, type PopupInsets, type PopupInsetsWatch } from '@commise/ui/popup-insets';

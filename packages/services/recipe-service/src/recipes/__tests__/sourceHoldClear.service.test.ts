@@ -12,9 +12,9 @@ import { DatabaseError } from 'pg';
 import type { RecipeTx } from '../../database/unitOfWork.js';
 import type { Principal } from '../../auth/principal.js';
 import { FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
-import type { CorrectionChainRow, SourceHoldClearsDal } from '../dal/sourceHoldClears.dal.js';
+import type { CorrectionChainRow } from '../dal/sourceHoldClears.dal.js';
 import { SOURCE_CORRECT_SCOPE, type SourceHoldClearRequest } from '../recipes.schema.js';
-import { SourceHoldClearService } from '../sourceHoldClear.service.js';
+import { SourceHoldClearService, type HoldClearsPort } from '../sourceHoldClear.service.js';
 
 const OWNER = '01JUOWNER000000000000000A1';
 const STAFF = '01JUSTAFF0000000000000000A';
@@ -105,7 +105,7 @@ function build(setup: Setup = {}) {
         return result;
     };
 
-    const dal = {
+    const dal: HoldClearsPort = {
         lockHoldFacts,
         readCorrectionChain,
         readLatestCorrectionId,
@@ -114,10 +114,7 @@ function build(setup: Setup = {}) {
         recordClears,
         releaseHolds,
     };
-    const service = new SourceHoldClearService(
-        { transaction, lockAndCountPrivateSlots: lockOwner },
-        dal as unknown as SourceHoldClearsDal,
-    );
+    const service = new SourceHoldClearService({ transaction, lockAndCountPrivateSlots: lockOwner }, dal);
 
     return {
         service,

@@ -662,10 +662,10 @@ export const sourceCorrectionPreviewSchema = z.object({
         .nullable(),
     sourceCorrected: z.boolean(),
     /**
-     * The newest correction row of the recipe, or of the nearest ancestor that has one (ADR-0106): the id staff send back to a
+     * The newest correction row across the recipe and every ancestor, by recorded time (ADR-0106): the id staff send back to a
      * hold clear, which refuses if it is no longer the newest. `null` when no recipe in the chain was ever corrected.
      */
-    latestCorrectionId: z.string().nullable(),
+    latestCorrectionId: z.uuid().nullable(),
 });
 
 /** The correction preview. */

@@ -73,7 +73,7 @@ describe('SourceHoldClearsDal.readLatestCorrectionId', () => {
         expect(text).toContain('CYCLE id SET is_cycle USING path');
         expect(text).toContain('ORDER BY k.recorded_at DESC, k.id DESC');
         expect(text).toContain('LIMIT 1');
-        expect(text).not.toContain('depth');
+        expect(text).not.toMatch(/ORDER BY.*depth/);
     });
 
     it('answers null when no recipe in the chain was ever corrected', async () => {

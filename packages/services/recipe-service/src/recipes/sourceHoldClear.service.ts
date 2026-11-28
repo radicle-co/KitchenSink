@@ -74,11 +74,23 @@ type StaffOutcome =
     | { readonly kind: 'notFound' }
     | { readonly kind: 'refused'; readonly reason: (typeof STAFF_REFUSAL_CODE)[StaffHoldClearRefusal] };
 
+/** The clear DAL methods this service calls: a structural seam, so a test double is checked against the real signatures. */
+export type HoldClearsPort = Pick<
+    SourceHoldClearsDal,
+    | 'lockHoldFacts'
+    | 'readCorrectionChain'
+    | 'readLatestCorrectionId'
+    | 'lockOwnersDescendants'
+    | 'releasableDescendants'
+    | 'recordClears'
+    | 'releaseHolds'
+>;
+
 @Injectable()
 export class SourceHoldClearService {
     public constructor(
         @Inject(RECIPES_DAL) private readonly dal: Pick<RecipesDal, 'transaction' | 'lockAndCountPrivateSlots'>,
-        @Inject(SourceHoldClearsDal) private readonly clears: SourceHoldClearsDal,
+        @Inject(SourceHoldClearsDal) private readonly clears: HoldClearsPort,
     ) {}
 
     /**

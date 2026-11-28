@@ -146,7 +146,7 @@ describe('a hold clear under concurrency (e2e, ADR-0106)', () => {
 
         for (;;) {
             const { rows } = await pool.query<{ n: string }>(
-                `SELECT count(*) AS n FROM pg_locks WHERE locktype = $1 AND NOT granted`,
+                `SELECT count(*) AS n FROM pg_locks WHERE locktype = $1 AND NOT granted AND (database IS NULL OR database = (SELECT oid FROM pg_database WHERE datname = current_database()))`,
                 [locktype],
             );
 
@@ -268,7 +268,7 @@ describe('a hold clear under concurrency (e2e, ADR-0106)', () => {
         await waitForWaiters('advisory');
 
         const { rows } = await pool.query<{ n: string }>(
-            `SELECT count(*) AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted`,
+            `SELECT count(*) AS n FROM pg_locks WHERE locktype = 'advisory' AND NOT granted AND (database IS NULL OR database = (SELECT oid FROM pg_database WHERE datname = current_database()))`,
         );
 
         expect(Number(rows[0]?.n)).toBe(1);

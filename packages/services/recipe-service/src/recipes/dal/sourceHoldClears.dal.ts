@@ -30,6 +30,7 @@ import {
     type RecipeSourceType,
     type RecipeStatementKind,
 } from '@kitchensink/recipe-core';
+import { ancestorChainCte, descendantsCte } from './cloneWalks.js';
 import { activeRecipe } from './recipePredicates.js';
 
 /** One correction row of a chain, as the policy needs it. Row 0 is the newest of the nearest recipe that has one. */
@@ -94,11 +95,7 @@ export class SourceHoldClearsDal {
         db: RecipeTx | RecipeDrizzle = this.db,
     ): Promise<readonly CorrectionChainRow[]> {
         const result = await db.execute<ChainRowRaw>(sql`
-            WITH RECURSIVE chain(id, depth) AS (
-                SELECT ${id}::uuid, 0
-                UNION ALL
-                SELECT r.cloned_from_id, c.depth + 1 FROM chain c JOIN recipes r ON r.id = c.id WHERE r.cloned_from_id IS NOT NULL
-            ) CYCLE id SET is_cycle USING path
+            ${ancestorChainCte(id)}
             SELECT k.id, k.recipe_id, k.new_source_type, k.new_source_kind, k.new_statement_kind
               FROM chain c JOIN recipe_source_corrections k ON k.recipe_id = c.id
              WHERE NOT c.is_cycle
@@ -126,11 +123,7 @@ export class SourceHoldClearsDal {
      */
     public async readLatestCorrectionId(id: string, db: RecipeTx | RecipeDrizzle = this.db): Promise<string | null> {
         const result = await db.execute<{ id: string }>(sql`
-            WITH RECURSIVE chain(id) AS (
-                SELECT ${id}::uuid
-                UNION ALL
-                SELECT r.cloned_from_id FROM chain c JOIN recipes r ON r.id = c.id WHERE r.cloned_from_id IS NOT NULL
-            ) CYCLE id SET is_cycle USING path
+            ${ancestorChainCte(id)}
             SELECT k.id FROM chain c JOIN recipe_source_corrections k ON k.recipe_id = c.id
              WHERE NOT c.is_cycle
              ORDER BY k.recorded_at DESC, k.id DESC
@@ -150,13 +143,9 @@ export class SourceHoldClearsDal {
      */
     public async lockOwnersDescendants(tx: RecipeTx, rootId: string, ownerId: string): Promise<void> {
         await tx.execute(sql`
-            WITH RECURSIVE d(id) AS (
-                SELECT id FROM recipes WHERE cloned_from_id = ${rootId}::uuid
-                UNION
-                SELECT r.id FROM recipes r JOIN d ON r.cloned_from_id = d.id
-            )
+            ${descendantsCte(rootId)}
             SELECT r.id FROM recipes r
-             WHERE r.id IN (SELECT id FROM d) AND r.owner_id = ${ownerId} AND r.deleted_at IS NULL
+             WHERE r.id IN (SELECT id FROM descendants) AND r.owner_id = ${ownerId} AND r.deleted_at IS NULL
              ORDER BY r.id FOR UPDATE
         `);
     }

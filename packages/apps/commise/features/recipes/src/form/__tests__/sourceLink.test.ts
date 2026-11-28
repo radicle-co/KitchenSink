@@ -479,6 +479,15 @@ describe('sourceRowOf: a paid website is locked, with no link', () => {
                 },
                 { kind: 'openAnswered', answer: 'book', citation: 'Salt Fat Acid Heat' },
             ],
+            // The row reads `locks` for EVERY kind (one rule, `answerLocks`); it keeps no list of locking kinds of its own.
+            [
+                { statement: { kind: 'fromPerson', wording: w('statementFromPerson.v2') }, locks: false },
+                { kind: 'openAnswered', answer: 'fromPerson' },
+            ],
+            [
+                { statement: { kind: 'paid_site', citation: 'Sam', wording: w('statementPaidSite.v1') }, locks: false },
+                { kind: 'openAnswered', answer: 'paidSite', citation: 'Sam' },
+            ],
             [{ statement: { kind: 'authored', wording: w('statementAuthored.v1') }, locks: true }, { kind: 'own' }],
         ];
 

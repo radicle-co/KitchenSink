@@ -15,7 +15,7 @@ import type { EditorMessages } from '../editor/messages.js';
 import type { SourceStatementMessages } from './messages.js';
 import {
     answersFor,
-    lockNoteShown,
+    answerLocks,
     phaseOf,
     visibleFieldErrorOf,
     type StatementAnswer,
@@ -206,7 +206,7 @@ export function sheetViewOf(input: {
         body: words.body,
         options: answersFor(surface).map((answer) => {
             const hint = HINT_KEY[answer] === undefined ? undefined : m[HINT_KEY[answer]];
-            const note = lockNoteShown(answer, surface, recipeConfirmed) ? m.lockNote : undefined;
+            const note = answerLocks({ answer, surface, recipeConfirmed }) ? m.lockNote : undefined;
             const text = [hint, note].filter((part) => part !== undefined).join(' ');
 
             return { id: answer, label: m[LABEL_KEY[answer]], ...(text === '' ? {} : { hint: text }) };

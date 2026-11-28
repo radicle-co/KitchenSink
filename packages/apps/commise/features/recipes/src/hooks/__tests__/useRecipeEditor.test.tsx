@@ -4988,6 +4988,36 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         expect(result.current.rowStated).toEqual({ statement: null, locks: false });
     });
 
+    describe('the row holds the rule\u2019s answer once (answerLocks)', () => {
+        const book = {
+            kind: 'book',
+            citation: 'Salt Fat Acid Heat',
+            wording: { version: 'statementBook.v2', locale: 'en' },
+        } as const;
+        const paid = {
+            kind: 'paid_site',
+            citation: 'Sam',
+            wording: { version: 'statementPaidSite.v1', locale: 'en' },
+        } as const;
+        const person = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } } as const;
+
+        it.each([
+            ['a book from the first answer on a draft', book, 'firstAnswer', false],
+            ['a book from the change sheet on a draft', book, 'change', false],
+            ['a book from the downgrade, which confirms', book, 'downgrade', true],
+            ['a paid website from the first answer (it locks when stated)', paid, 'firstAnswer', true],
+            ['another person from the change sheet (it locks when stated)', person, 'change', true],
+        ] as const)('%s: locks %s', (_name, statement, sheet, locks) => {
+            const { result } = mount();
+
+            act(() => {
+                result.current.answerRowStatement({ statement, visibility: RecipeVisibility.PRIVATE }, sheet);
+            });
+
+            expect(result.current.rowStated?.locks).toBe(locks);
+        });
+    });
+
     it('⛔ a refused answer is dropped, the refusal is told, and the rest of the draft goes again', async () => {
         const { result, port } = mount();
 

@@ -11,7 +11,8 @@ import {
     answersFor,
     confirmsAt,
     initialSheet,
-    lockNoteShown,
+    answerLocks,
+    statementAnswerOf,
     statementWriteOf,
     type StatementAnswer,
     type StatementSurface,
@@ -55,42 +56,66 @@ describe('answersFor: the answers each purpose offers (designer D1, D3)', () => 
     });
 });
 
-describe('lockNoteShown: under an answer exactly when confirming it locks it (designer D1)', () => {
-    const surfaces: readonly StatementSurface[] = [
-        'editor',
-        'recipePage',
-        'recipePageOwn',
-        'firstAnswer',
-        'change',
-        'downgrade',
+describe('answerLocks: the one rule for whether confirming an answer locks it (designer D1)', () => {
+    // Written out by hand, never derived from `confirmsAt`: a cell is the rule's own claim. `confirmed` is the recipe's source.
+    const table: ReadonlyArray<readonly [StatementAnswer, StatementSurface, boolean, boolean]> = [
+        ...(['editor', 'recipePage', 'recipePageOwn', 'downgrade'] as const).flatMap((surface) => [
+            ['publicWeb', surface, false, true] as const,
+            ['book', surface, false, true] as const,
+        ]),
+        ...(['firstAnswer', 'change'] as const).flatMap((surface) => [
+            ['publicWeb', surface, false, false] as const,
+            ['book', surface, false, false] as const,
+        ]),
+        ...(['editor', 'recipePage', 'recipePageOwn', 'firstAnswer', 'change', 'downgrade'] as const).flatMap(
+            (surface) => [
+                ['publicWeb', surface, true, true] as const,
+                ['book', surface, true, true] as const,
+                ['paidSite', surface, false, true] as const,
+                ['paidSite', surface, true, true] as const,
+                ['fromPerson', surface, false, true] as const,
+                ['fromPerson', surface, true, true] as const,
+                ['authored', surface, false, false] as const,
+                ['authored', surface, true, false] as const,
+                ['publishPrivately', surface, false, false] as const,
+                ['publishPrivately', surface, true, false] as const,
+            ],
+        ),
     ];
 
-    it.each(surfaces)('%s: never under "I wrote this" or "Publish privately"', (surface) => {
-        for (const confirmed of [false, true]) {
-            expect(lockNoteShown('authored', surface, confirmed)).toBe(false);
-            expect(lockNoteShown('publishPrivately', surface, confirmed)).toBe(false);
-        }
+    it.each(table)('%s on %s, recipe confirmed %s: locks %s', (answer, surface, recipeConfirmed, expected) => {
+        expect(answerLocks({ answer, surface, recipeConfirmed })).toBe(expected);
     });
 
-    it.each(surfaces)('%s: always under a paid website and another person (they lock when stated)', (surface) => {
-        for (const confirmed of [false, true]) {
-            expect(lockNoteShown('paidSite', surface, confirmed)).toBe(true);
-            expect(lockNoteShown('fromPerson', surface, confirmed)).toBe(true);
-        }
-    });
+    it('covers every answer on every surface, confirmed or not', () => {
+        const keys = new Set(table.map(([answer, surface, confirmed]) => `${answer}|${surface}|${confirmed}`));
 
-    it.each(surfaces)(
-        '%s: under a web page and a book only when the act confirms or the recipe is confirmed',
-        (surface) => {
-            for (const answer of ['publicWeb', 'book'] as const) {
-                expect(lockNoteShown(answer, surface, true)).toBe(true);
-                expect(lockNoteShown(answer, surface, false)).toBe(confirmsAt(surface));
-            }
-        },
-    );
+        expect(keys.size).toBe(6 * 6 * 2);
+    });
 
     it('the acts that confirm are Publish, Make public and the downgrade, and not an answer on a draft', () => {
+        const surfaces: readonly StatementSurface[] = [
+            'editor',
+            'recipePage',
+            'recipePageOwn',
+            'firstAnswer',
+            'change',
+            'downgrade',
+        ];
+
         expect(surfaces.filter(confirmsAt)).toEqual(['editor', 'recipePage', 'recipePageOwn', 'downgrade']);
+    });
+});
+
+describe('statementAnswerOf: the sheet answer a stored statement kind came from', () => {
+    it.each([
+        ['authored', 'authored'],
+        ['public_web', 'publicWeb'],
+        ['paid_site', 'paidSite'],
+        ['book', 'book'],
+        ['fromPerson', 'fromPerson'],
+    ] as const)('%s is the %s answer', (kind, answer) => {
+        expect(statementAnswerOf(kind)).toBe(answer);
     });
 });
 
@@ -150,7 +175,7 @@ describe('sheetViewOf: what each purpose draws', () => {
         ]);
     });
 
-    it('draws the lock note after the hint, in the same block, exactly where lockNoteShown says', () => {
+    it('draws the lock note after the hint, in the same block, exactly where answerLocks says', () => {
         const options = (surface: StatementSurface, confirmed = false) =>
             Object.fromEntries(view(surface, { recipeConfirmed: confirmed }).options.map((o) => [o.id, o.hint]));
 

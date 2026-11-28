@@ -14,7 +14,7 @@ import { useReducer } from 'react';
 
 import {
     initialSheet,
-    lockNoteShown,
+    answerLocks,
     sheetReducer,
     statementFieldErrorOf,
     statementWriteOf,
@@ -75,7 +75,11 @@ export function useStatementSheet(options: UseStatementSheetOptions): StatementS
                     state.answer,
                     state,
                     options.locale,
-                    lockNoteShown(state.answer, options.surface, options.recipeConfirmed),
+                    answerLocks({
+                        answer: state.answer,
+                        surface: options.surface,
+                        recipeConfirmed: options.recipeConfirmed,
+                    }),
                 ),
             );
         },

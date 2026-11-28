@@ -373,8 +373,11 @@ export type SourceRowModel =
      * no locked line.
      */
     | { readonly kind: 'own' }
-    /** A book nobody has confirmed yet (an import stored it): the answer, its title, and a way to change it. */
-    | { readonly kind: 'openAnswered'; readonly answer: 'book'; readonly citation: string }
+    /**
+     * An answer nobody has confirmed yet (a book an import stored, or an answer the cook just gave that does not lock until
+     * the act confirms): the answer, its citation if it has one, and a way to change it.
+     */
+    | { readonly kind: 'openAnswered'; readonly answer: LockedAnswer; readonly citation?: string }
     | { readonly kind: 'empty'; readonly text: string }
     | {
           readonly kind: 'filled';
@@ -417,24 +420,31 @@ function lockedRowOf(recipe: StoredRecipe): SourceRowModel {
 }
 
 /**
- * The row of an answer the cook just gave in the Source row's sheet, before any write has carried it. A paid website and
- * another person lock when stated; a book only when the act confirms. Pure.
+ * The row of an answer the cook just gave in the Source row's sheet, before any write has carried it. `locks` is the rule's
+ * answer (`answerLocks`, decided once when the cook confirmed), so the row keeps no list of locking kinds. Pure.
  */
 function answeredRowOf(statement: RecipeStatementInput, locks: boolean): SourceRowModel {
     switch (statement.kind) {
         case 'paid_site':
-            return { kind: 'lockedAnswer', answer: 'paidSite', citation: statement.citation };
+            return answeredOf('paidSite', statement.citation, locks);
         case 'fromPerson':
-            return { kind: 'lockedAnswer', answer: 'fromPerson' };
+            return answeredOf('fromPerson', undefined, locks);
         case 'book':
-            return locks
-                ? { kind: 'lockedAnswer', answer: 'book', citation: statement.citation }
-                : { kind: 'openAnswered', answer: 'book', citation: statement.citation };
+            return answeredOf('book', statement.citation, locks);
         case 'authored':
             return { kind: 'own' };
         case 'public_web':
             return { kind: 'empty', text: statement.citation };
     }
+}
+
+/** One answer the row draws as locked or open by `locks`, the rule's answer (`answerLocks`), never a list of kinds. Pure. */
+function answeredOf(answer: LockedAnswer, citation: string | undefined, locks: boolean): SourceRowModel {
+    const withCitation = citation === undefined ? {} : { citation };
+
+    return locks
+        ? { kind: 'lockedAnswer', answer, ...withCitation }
+        : { kind: 'openAnswered', answer, ...withCitation };
 }
 
 /**

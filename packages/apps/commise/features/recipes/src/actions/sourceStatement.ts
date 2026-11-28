@@ -78,18 +78,27 @@ export function confirmsAt(surface: StatementSurface): boolean {
     return surface === 'editor' || surface === 'recipePage' || surface === 'recipePageOwn' || surface === 'downgrade';
 }
 
+/** The inputs of {@link answerLocks}. */
+export interface AnswerLockInput {
+    readonly answer: StatementAnswer;
+    /** Why the sheet is asked: whether the act confirms is `confirmsAt` of it. */
+    readonly surface: StatementSurface;
+    /** The recipe's source is confirmed already. */
+    readonly recipeConfirmed: boolean;
+}
+
 /**
- * Whether the lock note ("Once you confirm, this answer is locked.") is drawn under an answer: exactly when confirming it locks
- * it. A paid website and another person lock when stated; a web page and a book lock only when the act confirms or the recipe
- * is confirmed already; "I wrote this" never locks (it can still become a cookbook or a paid website).
+ * Whether confirming an answer locks it: the ONE rule. The lock note ("Once you confirm, this answer is locked.") is drawn
+ * under an answer exactly when this is true, the wording version recorded is the one that includes the note, and the Source row
+ * draws the answer locked from the confirm. A paid website and another person lock when stated; a web page and a book lock
+ * only when the act confirms or the recipe is confirmed already; "I wrote this" never locks (it can still become a cookbook or
+ * a paid website).
  *
- * @param answer - The answer.
- * @param surface - Why the sheet is asked.
- * @param recipeConfirmed - The recipe's source is confirmed already.
- * @returns `true` to draw the note. Pure.
+ * @param input - The answer, why the sheet is asked, and whether the recipe's source is confirmed.
+ * @returns `true` when confirming the answer locks it. Pure.
  */
-export function lockNoteShown(answer: StatementAnswer, surface: StatementSurface, recipeConfirmed: boolean): boolean {
-    switch (answer) {
+export function answerLocks(input: AnswerLockInput): boolean {
+    switch (input.answer) {
         case 'authored':
         case 'publishPrivately':
             return false;
@@ -98,7 +107,27 @@ export function lockNoteShown(answer: StatementAnswer, surface: StatementSurface
             return true;
         case 'publicWeb':
         case 'book':
-            return recipeConfirmed || confirmsAt(surface);
+            return input.recipeConfirmed || confirmsAt(input.surface);
+    }
+}
+
+/**
+ * The sheet answer a statement kind on the wire came from. Pure.
+ *
+ * @param kind - The statement's kind.
+ */
+export function statementAnswerOf(kind: RecipeStatementInput['kind']): StatementAnswer {
+    switch (kind) {
+        case 'authored':
+            return 'authored';
+        case 'public_web':
+            return 'publicWeb';
+        case 'paid_site':
+            return 'paidSite';
+        case 'book':
+            return 'book';
+        case 'fromPerson':
+            return 'fromPerson';
     }
 }
 

@@ -102,7 +102,7 @@ import {
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
 import type { PublicRefusal } from '../actions/publicRefusal.js';
-import { publicWordingOf, confirmsAt, type StatementWrite } from '../actions/sourceStatement.js';
+import { answerLocks, publicWordingOf, statementAnswerOf, type StatementWrite } from '../actions/sourceStatement.js';
 import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
 import { createStatementStore, type RowAnswer, type StatementStore } from '../editor/statementStore.js';
@@ -1649,8 +1649,11 @@ function answerRowStatement(ctx: EditorContext, write: StatementWrite, sheet: So
             statement: statement === undefined || statement.kind === 'authored' ? null : statement,
             locks:
                 statement !== undefined &&
-                statement.kind !== 'authored' &&
-                (confirmsAt(sheet) || stored?.sourceConfirmed === true),
+                answerLocks({
+                    answer: statementAnswerOf(statement.kind),
+                    surface: sheet,
+                    recipeConfirmed: stored?.sourceConfirmed === true,
+                }),
         };
 
         ctx.statement.rowAnswer(row);

@@ -1,6 +1,5 @@
 /**
- * @module @commise/features-recipes/recipeState/chipOf — the ONE rule for the status chip an owner sees on a recipe, read
- * by the card (`recipeCardView`) and the detail status (`detailStatusLine`) so the two cannot disagree.
+ * @module @commise/features-recipes/recipeState/chipOf — the ONE rule for the status chip an owner sees on a recipe.
  *
  * Precedence: Draft, then Hidden, then Public or Private. Hidden is the owner's public recipe that the read rule hides from
  * readers; the wire says so with `hiddenReason`, and its PRESENCE is the whole fact (an unknown reason, and `other`, are

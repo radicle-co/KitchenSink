@@ -15,10 +15,9 @@
  * @pattern Facade — the route's boundary and navigation over the shared version-history view
  */
 import { commonMessages } from '@commise/features-core/common';
-import { RecipeVersionListError, recipeVersionMessages } from '@commise/features-recipes';
+import { RecipeVersionListError, recipeVersionMessages, versionListErrorOf } from '@commise/features-recipes';
 import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
-import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import { useParams } from 'next/navigation';
 import type { FC } from 'react';
 
@@ -46,13 +45,9 @@ const VersionsError: FC<{
     const { versionList } = useMessages(recipeVersionMessages);
     const { recipeUnavailable } = useMessages(commonMessages);
 
-    return isNotFoundError(error) ? (
-        <RecipeVersionListError title={recipeUnavailable} onBack={onBack} backHref={backHref} />
-    ) : (
+    return (
         <RecipeVersionListError
-            title={versionList.loadError}
-            retryLabel={versionList.retry}
-            onRetry={onRetry}
+            {...versionListErrorOf(error, { versionList, recipeUnavailable }, onRetry)}
             onBack={onBack}
             backHref={backHref}
         />

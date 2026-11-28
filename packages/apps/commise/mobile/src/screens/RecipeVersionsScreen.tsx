@@ -17,11 +17,15 @@
  * @pattern Facade — one screen over the shared version-history session, in the shared pushed-page frame
  */
 import { commonMessages } from '@commise/features-core/common';
-import { RecipeVersionListError, RecipeVersionListSkeleton, recipeVersionMessages } from '@commise/features-recipes';
+import {
+    RecipeVersionListError,
+    RecipeVersionListSkeleton,
+    recipeVersionMessages,
+    versionListErrorOf,
+} from '@commise/features-recipes';
 import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
-import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import { PushedPageFrame } from '@commise/ui/pushed-page';
 import { useId, type JSX, type ReactNode } from 'react';
 import { ScrollView, StyleSheet } from 'react-native';
@@ -74,16 +78,9 @@ export function RecipeVersionsScreen({ recipeId, onBack, onOpenFood }: RecipeVer
             loading={framed(<RecipeVersionListSkeleton label={versionList.loading} />)}
             renderError={({ error, resetErrorBoundary }) =>
                 framed(
-                    // A 404 is final (deleted, private or hidden, and nothing says which): the one reader sentence, no retry.
-                    isNotFoundError(error) ? (
-                        <RecipeVersionListError title={recipeUnavailable} />
-                    ) : (
-                        <RecipeVersionListError
-                            title={versionList.loadError}
-                            retryLabel={versionList.retry}
-                            onRetry={resetErrorBoundary}
-                        />
-                    ),
+                    <RecipeVersionListError
+                        {...versionListErrorOf(error, { versionList, recipeUnavailable }, resetErrorBoundary)}
+                    />,
                 )
             }
             resetKeys={[recipeId]}

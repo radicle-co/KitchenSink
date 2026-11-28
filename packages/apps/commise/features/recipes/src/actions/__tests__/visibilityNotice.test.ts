@@ -174,7 +174,7 @@ describe('visibilityNoticeOf — the Hidden line', () => {
         ({ kind: 'standing', reason: 'hidden', text: copy.hiddenReason[key] }) as const;
 
     it.each(['heldSource', 'sourceCorrected'] as const)('says the %s line, from its own key', (reason) => {
-        expect(noticeOf({ knownRefusal: undefined, hiddenReason: reason })).toEqual(standing(reason));
+        expect(noticeOf({ knownRefusal: undefined, chip: 'hidden', hiddenReason: reason })).toEqual(standing(reason));
     });
 
     it('says the two lines in different words', () => {
@@ -182,20 +182,26 @@ describe('visibilityNoticeOf — the Hidden line', () => {
     });
 
     it.each([['other'], ['aReasonFromANewerServer'], ['']])('says no line for %j: the chip alone', (hiddenReason) => {
-        expect(noticeOf({ knownRefusal: undefined, hiddenReason })).toBeUndefined();
+        expect(noticeOf({ knownRefusal: undefined, chip: 'hidden', hiddenReason })).toBeUndefined();
     });
 
     it('says nothing without a reason, or to a viewer who is not the owner', () => {
         expect(noticeOf({ knownRefusal: undefined, hiddenReason: undefined })).toBeUndefined();
-        expect(noticeOf({ knownRefusal: undefined, viewerIsOwner: false, hiddenReason: 'heldSource' })).toBeUndefined();
+        expect(
+            noticeOf({ knownRefusal: undefined, viewerIsOwner: false, chip: 'hidden', hiddenReason: 'heldSource' }),
+        ).toBeUndefined();
     });
 
     it('lets a moment win: a refused Private and a failed write come before the line', () => {
-        expect(noticeOf({ serverRefusal: 'final', hiddenReason: 'heldSource' })).toEqual(moment(FINAL));
-        expect(noticeOf({ writeFailed: true, hiddenReason: 'heldSource' })).toEqual(moment(copy.error));
+        expect(noticeOf({ serverRefusal: 'final', chip: 'hidden', hiddenReason: 'heldSource' })).toEqual(moment(FINAL));
+        expect(noticeOf({ writeFailed: true, chip: 'hidden', hiddenReason: 'heldSource' })).toEqual(moment(copy.error));
     });
 
-    it('says nothing once the recipe is private, whatever reason the caller still holds', () => {
-        expect(noticeOf({ isPublic: false, hiddenReason: 'heldSource' })).toBeUndefined();
-    });
+    // The decision reads the chip, so a draft (public, with a reason) or a private recipe says nothing, with no filter by the caller.
+    it.each(['draft', 'public', 'private'] as const)(
+        'says nothing when the chip is %s, whatever reason is held',
+        (chip) => {
+            expect(noticeOf({ knownRefusal: undefined, chip, hiddenReason: 'heldSource' })).toBeUndefined();
+        },
+    );
 });

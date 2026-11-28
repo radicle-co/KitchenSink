@@ -37,7 +37,7 @@ describe('RecipeVersionListError (web) — a final failure', () => {
 
         expect(screen.getByRole('alert').textContent).toContain('This recipe isn’t available.');
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
-        expect(screen.getAllByRole('link', { hidden: true }).length).toBeGreaterThan(0);
+        expect(screen.getByRole('link', { name: versionList.backToRecipe, hidden: true })).toBeTruthy();
     });
 });
 

@@ -43,6 +43,15 @@ function badgeOf(text: string): HTMLElement {
 }
 
 describe('StatusBadge (native)', () => {
+    // hiddenViews U4: the eye-off glyph is decorative, so the badge's accessible name is exactly its words.
+    it('names the hidden badge by its words alone, with no label of its own', () => {
+        const { container } = renderWithTamagui(<StatusBadge status="hidden">Hidden</StatusBadge>, 'light');
+
+        expect(container.textContent).toBe('Hidden');
+        expect(badgeOf('Hidden').getAttribute('aria-label')).toBeNull();
+        expect(screen.getByText('Hidden')).toBeTruthy();
+    });
+
     it('paints PRO as the grey pair in the light theme', () => {
         renderWithTamagui(<StatusBadge status="pro">PRO</StatusBadge>, 'light');
 

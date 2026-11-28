@@ -27,6 +27,7 @@
 import { fillTemplate } from '@commise/i18n';
 import { knownHiddenReasonOf } from '@kitchensink/recipe-core/recipe-state';
 import type { PublicRefusalMessages, RecipeVisibilityToggleMessages } from './messages.js';
+import type { RecipeChip } from '../recipeState/chipOf.js';
 import type { PrivateRefusal } from './privateGate.js';
 import { publicRefusalLineOf, type PublicRefusal } from './publicRefusal.js';
 
@@ -58,11 +59,9 @@ export interface VisibilityNoticeInput {
      * refusal `SOURCE_CONFLICT` a moment ago). Said as a standing line while the recipe is not public; `none` says nothing.
      */
     readonly standing: PublicRefusal;
-    /**
-     * Why the owner's public recipe is Hidden, as the wire states it (an open string), once the chip says Hidden: the caller
-     * passes it only when `chipOf` is `hidden`, so a draft or a private recipe never says it. `other`, a newer server's reason
-     * and an absent one have no line (`knownHiddenReasonOf`).
-     */
+    /** The recipe's chip (`chipOf`): the Hidden line is said only while it is `hidden`, so a draft says nothing. */
+    readonly chip?: RecipeChip | undefined;
+    /** Why the recipe is Hidden, as the wire states it (an open string). `other`, a newer reason and none have no line. */
     readonly hiddenReason?: string | undefined;
 }
 
@@ -128,7 +127,7 @@ export function visibilityNoticeOf(
 
     if (input.isPublic) {
         // Why a PUBLIC recipe is Hidden: a standing line like the private one, never announced (it is not a change the cook made).
-        const known = knownHiddenReasonOf(input.hiddenReason);
+        const known = input.chip === 'hidden' ? knownHiddenReasonOf(input.hiddenReason) : undefined;
 
         return known === undefined
             ? undefined

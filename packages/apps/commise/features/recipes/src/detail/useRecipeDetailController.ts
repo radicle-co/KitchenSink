@@ -331,8 +331,8 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             knownRefusal: recipePrivate.refusal,
             writeFailed: genericFailure && !confirmOpen && !statementOpen,
             standing,
-            // Said only while the chip says Hidden: a draft, or a private recipe with a stale reason, says nothing.
-            hiddenReason: chipOf(recipe) === 'hidden' ? recipe.hiddenReason : undefined,
+            chip: chipOf(recipe),
+            hiddenReason: recipe.hiddenReason,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),

@@ -74,6 +74,19 @@ describe('StatusBadge (web)', () => {
         expect(badge.getAttribute('aria-label')).toBeNull();
     });
 
+    // hiddenViews U4: the eye-off glyph is decorative, so the badge's accessible name is exactly its words.
+    it('names the hidden badge by its words alone: no label, a decorative glyph, no extra text', () => {
+        const { container } = render(<StatusBadge status="hidden">Hidden</StatusBadge>);
+
+        const badge = badgeOf('Hidden');
+
+        expect(badge.textContent).toBe('Hidden');
+        expect(container.textContent).toBe('Hidden');
+        expect(badge.getAttribute('aria-label')).toBeNull();
+        expect(badge.getAttribute('role')).toBeNull();
+        expect(badge.querySelector('svg.lucide-eye-off')?.getAttribute('aria-hidden')).toBe('true');
+    });
+
     it('is a filled badge, never a dashed outline, so it cannot pass for a stand-in name', () => {
         for (const status of BADGE_STATUSES) {
             const { unmount } = render(<StatusBadge status={status}>Word</StatusBadge>);

@@ -79,7 +79,7 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown
 
 /**
  * The evidence table as a double: stateful, so a statement written by one request is read by the next, which is the whole
- * of the rule under test. `insertEvidence` records the transaction it was handed, so a test can prove it is the write's own.
+ * of the rule under test. `insertEvidence` records the transaction it was handed.
  */
 let evidence: RecipeSourceEvidenceRow[] = [];
 const insertEvidence = vi.fn(async (_tx: unknown, row: NewRecipeSourceEvidenceRow) => {
@@ -105,8 +105,6 @@ const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
     evidence.filter((row) => row.recipeId === recipeId),
 );
 
-/** The row as a concurrent write left it, when a test stages a race: what the row lock reads instead of `stored`. */
-let underLock: RecipeRow | undefined;
 const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) =>
     aggregateOf({ ...stored, visibility }),
 );
@@ -147,7 +145,7 @@ beforeAll(async () => {
                     privateFoodLines: async () => [],
                     lockAndCountPrivateSlots: async () => 0,
                     lockSlotFacts: async () => {
-                        const row = underLock ?? stored;
+                        const row = stored;
 
                         return {
                             visibility: row.visibility,
@@ -203,7 +201,6 @@ beforeAll(async () => {
 });
 
 afterEach(() => {
-    underLock = undefined;
     evidence = [];
     vi.clearAllMocks();
 });
@@ -267,6 +264,7 @@ describe('PATCH /api/v1/recipes/{id} — a held published public recipe (today, 
             details: { reason: 'SOURCE_CONFLICT' },
         });
         expect(update).not.toHaveBeenCalled();
+        expect(setVisibility).not.toHaveBeenCalled();
         expect(insertEvidence).not.toHaveBeenCalled();
     });
 

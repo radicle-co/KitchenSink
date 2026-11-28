@@ -727,6 +727,106 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
     });
 });
 
+describe('RecipesService.update - heldSave "private" is the cook choosing private in the same write (heldPublicSave U8)', () => {
+    const PATCH = { expectedVersion: 1, title: 'New', heldSave: 'private' } as const;
+
+    /** A recipe the cook holds, with the facts the lock reads (the same row the pre-read found). */
+    function holding(
+        used: number,
+        facts: { visibility: 'public' | 'private'; status: 'draft' | 'published' } = {
+            visibility: 'public',
+            status: 'published',
+        },
+    ) {
+        const found = aggregate({ visibility: facts.visibility, status: facts.status, currentVersion: 1 });
+        const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', status: facts.status }));
+        const lockAndCountPrivateSlots = vi.fn(async () => used);
+        const dal = fakeRecipesDal({
+            findById: vi.fn().mockResolvedValue(found),
+            update,
+            lockAndCountPrivateSlots,
+            lockSlotFacts: vi.fn(async (): Promise<LockedRecipeFacts> => ({
+                ...facts,
+                sourceType: 'user_created',
+                sourceKind: null,
+                statementKind: null,
+                contentPastedAt: null,
+                clonedFromId: null,
+                sourceAttribution: null,
+                sourceUrl: null,
+                sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                sourceCorrectionHold: false,
+            })),
+        });
+
+        return { dal, update, lockAndCountPrivateSlots };
+    }
+
+    it.each([0, 49])(
+        'writes visibility private with the edit at %i used, counted under the lock before the write',
+        async (used) => {
+            const { dal, update, lockAndCountPrivateSlots } = holding(used);
+
+            await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+            expect(update).toHaveBeenCalledOnce();
+            expect(update).toHaveBeenCalledWith(
+                'r-1',
+                expect.objectContaining({ title: 'New', visibility: RecipeVisibility.PRIVATE }),
+                FAKE_TX,
+            );
+            expect(lockAndCountPrivateSlots).toHaveBeenCalledWith(FAKE_TX, OWNER);
+            expect(lockAndCountPrivateSlots.mock.invocationCallOrder[0]).toBeLessThan(
+                update.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+            );
+        },
+    );
+
+    it.each([50, 60])('refuses at %i used with PRIVATE_SLOTS_FULL and writes nothing', async (used) => {
+        const { dal, update } = holding(used);
+
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(error.details).toEqual({ used, limit: 50 });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('Premium goes private with no lock and no count', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(5_000);
+
+        await serviceOver(dal).update(premium(), 'r-1', PATCH, undefined);
+
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+    });
+
+    it.each([
+        ['a draft', { visibility: 'public', status: 'draft' }, PATCH],
+        ['a private recipe', { visibility: 'private', status: 'published' }, PATCH],
+        [
+            'hide, which is not honoured before U6',
+            { visibility: 'public', status: 'published' },
+            { ...PATCH, heldSave: 'hide' },
+        ],
+        [
+            'a write that returns it to a draft',
+            { visibility: 'public', status: 'published' },
+            { ...PATCH, status: 'draft' },
+        ],
+    ] as const)(
+        'answers as if the field were absent for %s: the write carries no visibility',
+        async (_label, facts, patch) => {
+            const { dal, update } = holding(10, facts);
+
+            await expect(serviceOver(dal).update(principal(), 'r-1', patch, undefined)).resolves.toBeDefined();
+
+            expect(update).toHaveBeenCalledOnce();
+            expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+        },
+    );
+});
+
 describe('RecipesService.getPrivateSlotUsage - the read the editor shows (ADR-0073)', () => {
     it('reports a free cook as limited, with the live count and the server-stated limit', async () => {
         const countPrivateSlots = vi.fn(async () => 12);

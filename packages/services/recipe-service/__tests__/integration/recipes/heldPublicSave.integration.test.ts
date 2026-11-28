@@ -55,6 +55,9 @@ const BASIL: FoodLookupArm = {
 /** The recipe the double holds. Each test sets it. */
 let stored: RecipeRow;
 
+/** The live private count the slot lock reports. Reset after each test. */
+let slotsUsed = 0;
+
 function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     return {
         recipe,
@@ -122,7 +125,7 @@ beforeAll(async () => {
                     update,
                     findById: (id: string) => Promise.resolve(id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: () => Promise.resolve([]),
-                    lockAndCountPrivateSlots: () => Promise.resolve(0),
+                    lockAndCountPrivateSlots: () => Promise.resolve(slotsUsed),
                     lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                     setVisibility,
                     clearPublicFoodOwners: () => Promise.resolve(undefined),
@@ -168,6 +171,7 @@ beforeAll(async () => {
 
 afterEach(() => {
     evidence = [];
+    slotsUsed = 0;
     vi.clearAllMocks();
 });
 
@@ -250,5 +254,97 @@ describe('PATCH /api/v1/recipes/{id} — a held published public recipe (today, 
             expect.objectContaining({ title: 'A new title' }),
             expect.anything(),
         );
+    });
+});
+
+/**
+ * heldPublicSave U8 (AE3, AE9): `heldSave: 'private'` saves the edit AND makes the recipe private in ONE write, over the real
+ * pipeline (mocked DALs). The slot lock is taken first, so a free cook gets 200 and not the fail-closed 500 (redteam R1);
+ * it is honoured for any owned published public recipe, held or not (R3); a full slot answers 403 and writes nothing.
+ */
+describe('PATCH /api/v1/recipes/{id} with heldSave "private" (heldPublicSave U8)', () => {
+    const patch = (over: Record<string, unknown> = {}) => ({
+        expectedVersion: stored.currentVersion,
+        title: 'A new title',
+        heldSave: 'private',
+        ...over,
+    });
+
+    it('a held row with a free slot: 200, content saved, private, version bumped, no evidence appended', async () => {
+        stored = heldRow();
+        webEvidence();
+        slotsUsed = 10;
+        const version = stored.currentVersion;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch());
+
+        expect(response.status).toBe(200);
+        expect(update).toHaveBeenCalledWith(
+            RECIPE_ID,
+            expect.objectContaining({ title: 'A new title', visibility: 'private' }),
+            expect.anything(),
+        );
+        expect(stored).toMatchObject({ visibility: 'private', currentVersion: version + 1 });
+        expect(setVisibility).not.toHaveBeenCalled();
+        expect(insertEvidence).not.toHaveBeenCalled();
+    });
+
+    it('an UNHELD public row (the hold cleared before the drain) is made private too', async () => {
+        stored = heldRow();
+        slotsUsed = 10;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch());
+
+        expect(response.status).toBe(200);
+        expect(stored.visibility).toBe('private');
+    });
+
+    it.each([
+        [49, 200],
+        [50, 403],
+    ])('at %i private recipes the answer is %i (the 49/50 pair)', async (used, status) => {
+        stored = heldRow();
+        webEvidence();
+        slotsUsed = used;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch());
+
+        expect(response.status).toBe(status);
+
+        if (status === 403) {
+            expect(await refusalOf(response)).toMatchObject({ status: 403, code: 'PRIVATE_SLOTS_FULL' });
+            expect(update).not.toHaveBeenCalled();
+            expect(stored.visibility).toBe('public');
+        }
+    });
+
+    it('a DRAFT with heldSave answers as if the field were absent: no visibility in the write', async () => {
+        stored = { ...heldRow(), status: 'draft' };
+        slotsUsed = 10;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch());
+
+        expect(response.status).toBe(200);
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('"hide" is refused today as the held row it is: 400 SOURCE_CONFLICT, nothing written', async () => {
+        stored = heldRow();
+        webEvidence();
+        slotsUsed = 10;
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch({ heldSave: 'hide' }));
+
+        expect(await refusalOf(response)).toMatchObject({ status: 400, details: { reason: 'SOURCE_CONFLICT' } });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('an unknown heldSave value is a 400 validation error', async () => {
+        stored = heldRow();
+
+        const response = await call('PATCH', `/api/v1/recipes/${RECIPE_ID}`, patch({ heldSave: 'public' }));
+
+        expect(response.status).toBe(400);
+        expect(update).not.toHaveBeenCalled();
     });
 });

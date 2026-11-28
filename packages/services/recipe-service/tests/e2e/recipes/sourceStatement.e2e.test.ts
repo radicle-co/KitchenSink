@@ -677,5 +677,24 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expect(after).toEqual(before);
             expect(after).toMatchObject({ visibility: 'public', status: 'published', currentVersion: version });
         });
+
+        /** heldPublicSave U8 (AE3): the cook's choice, in ONE write, against a real database. */
+        it('PATCH with heldSave "private" saves the edit and makes it private in one write, at 49 private recipes', async () => {
+            const { id, version } = await heldRecipe();
+
+            const edit = await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                title: 'A different title',
+                heldSave: 'private',
+            });
+
+            expect(edit.status).toBe(200);
+            expect(await readRow(id)).toMatchObject({
+                title: 'A different title',
+                visibility: 'private',
+                status: 'published',
+                currentVersion: version + 1,
+            });
+        });
     });
 });

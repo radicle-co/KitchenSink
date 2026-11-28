@@ -17,6 +17,7 @@ import {
     defaultCloneVisibility,
     evaluatePublishedState,
     evaluateVisibility,
+    savesPrivateOnChoice,
     type VisibilityDecision,
 } from '../visibilityPolicy.js';
 import type { ContainmentSubject } from '../../../common/containmentPolicy.js';
@@ -787,5 +788,33 @@ describe('evaluatePublishedState — a held published public recipe is refused t
 
     it('CONTROL: the same state with no evidence on record is allowed', () => {
         expectDecision(held({ sourceConflict: false }), true);
+    });
+});
+
+/**
+ * heldPublicSave U8: `heldSave: 'private'` is the cook's own choice, honoured for an owned published public recipe, held or
+ * not (KTD-8, redteam R3). Every other state answers as if the field were absent: a draft, a private recipe, a write that
+ * leaves the recipe a draft, `'hide'` (not honoured before U6), and no field at all.
+ */
+describe('savesPrivateOnChoice', () => {
+    const base = {
+        heldSave: 'private' as const,
+        status: RecipeStatus.PUBLISHED,
+        visibility: PUBLIC,
+        afterStatus: RecipeStatus.PUBLISHED,
+    };
+
+    it('is true for a published public recipe the write leaves published', () => {
+        expect(savesPrivateOnChoice(base)).toBe(true);
+    });
+
+    it.each([
+        ['a draft', { status: RecipeStatus.DRAFT }],
+        ['a private recipe', { visibility: PRIVATE }],
+        ['a write that leaves it a draft', { afterStatus: RecipeStatus.DRAFT }],
+        ['hide, which is not honoured before U6', { heldSave: 'hide' as const }],
+        ['no field', { heldSave: undefined }],
+    ])('is false for %s', (_label, over) => {
+        expect(savesPrivateOnChoice({ ...base, ...over })).toBe(false);
     });
 });

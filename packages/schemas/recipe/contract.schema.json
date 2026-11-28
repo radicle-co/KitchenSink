@@ -15667,6 +15667,13 @@
                     "maximum": 2147483647,
                     "type": "integer"
                 },
+                "heldSave": {
+                    "enum": [
+                        "private",
+                        "hide"
+                    ],
+                    "type": "string"
+                },
                 "ingredients": {
                     "items": {
                         "additionalProperties": false,

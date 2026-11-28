@@ -318,6 +318,29 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
 }
 
 /**
+ * Whether a save that carries `heldSave` makes the recipe private in the same write (heldPublicSave KTD-8, redteam R3): the cook
+ * chose `'private'` for a recipe that is published and public before the write and published after it. Held or not: a hold can
+ * clear between an offline choice and the drain, and set-visibility's public-to-private is allowed for any owned recipe. Every
+ * other state answers as if the field were absent (a draft, a private recipe, a write that returns it to a draft, `'hide'`,
+ * which waits for the hide change set). The facts are the STORED ones, read under the row lock. Pure.
+ *
+ * ⛔ A move to private takes a slot: the caller asserts it exactly as it does for a statement that forces private.
+ */
+export function savesPrivateOnChoice(input: {
+    readonly heldSave: 'private' | 'hide' | undefined;
+    readonly status: RecipeStatus;
+    readonly visibility: RecipeVisibility;
+    readonly afterStatus: RecipeStatus;
+}): boolean {
+    return (
+        input.heldSave === 'private' &&
+        input.status === RecipeStatus.PUBLISHED &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        input.afterStatus === RecipeStatus.PUBLISHED
+    );
+}
+
+/**
  * The policy-allowed default visibility for a freshly-cloned recipe, derived from the source's
  * `sourceType` and visibility: a clone of a PRIVATE source is `private` (FR-005c: only its owner can clone it, and the
  * copy stays as private as the original); `imported_physical`/`imported_paid` clones default to `private` (they may

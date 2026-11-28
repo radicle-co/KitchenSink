@@ -82,7 +82,12 @@ import {
     slotRuleApplies,
     type PrivateSlotStanding,
 } from './domain/privateSlotPolicy.js';
-import { defaultCloneVisibility, evaluateVisibility, type VisibilityPolicyInput } from './domain/visibilityPolicy.js';
+import {
+    defaultCloneVisibility,
+    evaluateVisibility,
+    savesPrivateOnChoice,
+    type VisibilityPolicyInput,
+} from './domain/visibilityPolicy.js';
 import { isContained, type ContainmentSubject } from '../common/containmentPolicy.js';
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy } from './domain/recipeVisibility.js';
@@ -1486,9 +1491,17 @@ export class RecipesService {
         // ADR-0029 section 4: judged on the state the write leaves, against the lines it leaves (the patch's, else the
         // stored ones), after recapture. The visibility an update leaves is the stored one, except that a stated source sets
         // Private in this same write (ADR-0089). The transaction's last statement re-checks the row it actually wrote.
+        const statusAfter = dto.status ?? recipeStatusSchema.parse(existing.recipe.status);
+        // The cook's own choice to save private (`heldSave`) leaves Private too; the facts under the lock decide what is written.
+        const choosesPrivate = savesPrivateOnChoice({
+            heldSave: dto.heldSave,
+            status: recipeStatusSchema.parse(existing.recipe.status),
+            visibility: existing.recipe.visibility,
+            afterStatus: statusAfter,
+        });
         const publicState = {
-            status: dto.status ?? recipeStatusSchema.parse(existing.recipe.status),
-            visibility: forcesPrivate ? RecipeVisibility.PRIVATE : existing.recipe.visibility,
+            status: statusAfter,
+            visibility: forcesPrivate || choosesPrivate ? RecipeVisibility.PRIVATE : existing.recipe.visibility,
         };
         const nowPublicFoods = await this.publicFoodsGuard(
             caller,
@@ -1532,7 +1545,9 @@ export class RecipesService {
         const mayForcePrivate =
             dto.statement !== undefined && dto.statement !== null && dto.statement.kind !== 'authored';
         const takesSlotLock =
-            (publishesDraft || (leavesPublished && mayForcePrivate)) && slotRuleApplies({ isPremium });
+            // `heldSave` is decided under the row lock, but the slot lock must already be the first statement (redteam R1).
+            (publishesDraft || (leavesPublished && (mayForcePrivate || dto.heldSave !== undefined))) &&
+            slotRuleApplies({ isPremium });
 
         // ⛔ ONE TRANSACTION, and the CAS miss must LEAVE it before it is diagnosed. `raiseVersionConflict`
         // calls `dal.readConflict`, which opens its own transaction AND issues
@@ -1612,12 +1627,8 @@ export class RecipesService {
                     // sets it (Publish / re-draft). The DAL keys off `!== undefined`.
                     status: dto.status,
                     // The source correction (ADR-0089), all four columns together, and the private flip that goes with it.
-                    ...(decided.correction.kind === 'apply'
-                        ? {
-                              provenance: decided.correction.provenance,
-                              ...(decided.forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
-                          }
-                        : {}),
+                    ...(decided.correction.kind === 'apply' ? { provenance: decided.correction.provenance } : {}),
+                    ...(decided.forcesPrivate ? { visibility: RecipeVisibility.PRIVATE } : {}),
                     // The client's word that content was pasted (0087): stored once by the data layer, never cleared.
                     ...(dto.contentPasted === true ? { contentPasted: true as const } : {}),
                     tags: dto.tags,
@@ -1752,7 +1763,15 @@ export class RecipesService {
         const pendingEvidence = applied ? evidenceListOf(correction.provenance, 'editor') : [];
         // A statement that makes a public draft private (ADR-0089) lands in the SAME write, so a draft published in it is a
         // private recipe from the first instant and is judged as one.
-        const forcesPrivate = applied && correction.makePrivate;
+        // So is the cook's own choice to save private (`heldSave: 'private'`, KTD-8), decided on the facts under the lock.
+        const forcesPrivate =
+            (applied && correction.makePrivate) ||
+            savesPrivateOnChoice({
+                heldSave: dto.heldSave,
+                status: current.status,
+                visibility: current.visibility,
+                afterStatus,
+            });
         const visibilityAfter = forcesPrivate ? RecipeVisibility.PRIVATE : current.visibility;
         const sourceAfter = applied
             ? { sourceType: correction.provenance.sourceType, sourceKind: correction.provenance.sourceKind }

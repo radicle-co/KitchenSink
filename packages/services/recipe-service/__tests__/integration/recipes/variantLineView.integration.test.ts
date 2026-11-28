@@ -23,16 +23,10 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import {
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
@@ -116,12 +110,6 @@ beforeAll(async () => {
                 findById: (id: string) =>
                     Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregate()) : undefined),
             }),
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
-            },
             {
                 provide: FoodLookupsDal,
                 useValue: {
@@ -129,7 +117,6 @@ beforeAll(async () => {
                         new Map(ARMS.filter((arm) => ids.includes(arm.lookupId)).map((arm) => [arm.lookupId, arm])),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

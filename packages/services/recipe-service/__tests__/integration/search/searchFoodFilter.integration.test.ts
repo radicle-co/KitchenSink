@@ -14,7 +14,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { RecipeSearchDalResult, RecipeSearchFilters } from '../../../src/search/dal/search.dal.js';
 import { MAX_SEARCH_FOOD_FILTERS } from '../../../src/search/search.schema.js';
 import { SEARCH_DAL } from '../../../src/search/search.service.js';
@@ -70,10 +69,7 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
-        doubles: [
-            { provide: SEARCH_DAL, useValue: { search } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-        ],
+        doubles: [{ provide: SEARCH_DAL, useValue: { search } }],
     });
 });
 

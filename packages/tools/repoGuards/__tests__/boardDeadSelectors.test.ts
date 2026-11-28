@@ -5,8 +5,8 @@
  * `docs/design/canvases/`, and the dead selectors are held per board in `boardUnusedSelectorsBaseline.json` by the
  * rules in `ratchetBaseline.ts`.
  *
- * ✅ THE FIX FOR A FAILURE: delete the rule from the board's `<style>` (in the build script that emits it, not by
- * hand in the board), then lower the board's count in the baseline, or remove its entry at zero.
+ * ✅ THE FIX FOR A FAILURE: re-run the builder that emits the board, which prunes it, then lower the
+ * board's count in the baseline, or remove its entry at zero.
  */
 import { readFileSync } from 'node:fs';
 import path from 'node:path';

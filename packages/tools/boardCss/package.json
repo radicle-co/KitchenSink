@@ -3,7 +3,7 @@
     "version": "0.0.0",
     "private": true,
     "type": "module",
-    "description": "Reads a screen board's CSS and removes the rules no element of the board uses. The dead-selector guard in repo-guards and the board builders share one reading of the board.",
+    "description": "Reads a screen board's CSS, reports the class selectors no element of the board uses, and removes the rules that need one.",
     "exports": {
         "./deadClassSelectors": "./src/deadClassSelectors.ts"
     },

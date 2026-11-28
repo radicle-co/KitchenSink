@@ -86,10 +86,19 @@ describe('conditional at-rules', () => {
 });
 
 describe('what is not a class selector', () => {
-    it('leaves an attribute selector and a content string alone', () => {
-        const css = '[class~=ghost]{a:b}\n.used::after{content:".ghost"}';
+    it('leaves an attribute selector and a content string alone, and removes the dead rule beside them', () => {
+        const live = '[class~=ghost]{a:b}\n.used::after{content:".ghost"}\n';
 
-        expectPruned(css, css);
+        expectPruned(`${live}.ghost{c:d}\n`, live);
+    });
+
+    it('reads an escaped class name as the class the element carries', () => {
+        const html = makeBoard({ css: '.md\\:flex{a:b}\n.ghost{c:d}\n', body: '<i class="md:flex"></i>' });
+
+        expect(pruneDeadClassRules(html)).toBe(
+            makeBoard({ css: '.md\\:flex{a:b}\n', body: '<i class="md:flex"></i>' }),
+        );
+        expect(deadClassSelectors(html)).toEqual(['ghost']);
     });
 });
 
@@ -97,6 +106,24 @@ describe('comments', () => {
     it('keeps a comment above a removed rule and removes one inside it', () => {
         expectPruned('/* keep */\n.ghost{a:b}\n', '/* keep */\n');
         expectPruned('.ghost{/* inside */a:b}', '');
+    });
+});
+
+describe('where the cuts fall', () => {
+    it('removes two separate runs from one list', () => {
+        expectPruned('.ghost, .used, .shade, .u2{a:b}', '.used, .u2{a:b}');
+        expectPruned('.ghost, .used, .shade{a:b}', '.used{a:b}');
+    });
+
+    it('removes a rule that shares its line, and leaves its neighbour', () => {
+        expectPruned('.ghost{a:b}.used{c:d}', '.used{c:d}');
+        expectPruned('.used{a:b}.ghost{c:d}', '.used{a:b}');
+    });
+
+    it('counts the selectors removed from an @media block and from a :has() rule', () => {
+        const css = '@media (x){.ghost{a:b}.shade, .used{c:d}}\n.used:has(.ghost){a:b}\n';
+
+        expect(pruneBoard(makeBoard({ css, body: BODY })).removed).toBe(3);
     });
 });
 
@@ -130,6 +157,13 @@ describe('the rest of the board', () => {
 
         expect(pruneDeadClassRules(html)).toBe(html);
         expect(deadClassSelectors(pruneDeadClassRules(html))).toEqual(['ghost']);
+    });
+
+    it('leaves a <style> with CRLF line ends alone, and still reports its dead class', () => {
+        const html = '<style>.ghost{a:b}\r\n.used{c:d}\r\n</style><i class="used"></i>';
+
+        expect(pruneDeadClassRules(html)).toBe(html);
+        expect(deadClassSelectors(html)).toEqual(['ghost']);
     });
 
     it('counts the selectors it removed', () => {

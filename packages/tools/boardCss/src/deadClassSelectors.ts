@@ -5,7 +5,7 @@
  */
 import { parse as parseCss, walk } from 'css-tree';
 
-import { readBoard } from './boardReading.js';
+import { classNameOf, readBoard } from './boardReading.js';
 
 /**
  * The classes a board's `<style>` rules select that nothing in the board uses, sorted and unique. Pure.
@@ -23,7 +23,7 @@ export function deadClassSelectors(html: string): readonly string[] {
                 walk(rule.prelude, {
                     visit: 'ClassSelector',
                     enter(selector) {
-                        selected.add(selector.name);
+                        selected.add(classNameOf(selector));
                     },
                 });
             },

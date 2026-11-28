@@ -1,5 +1,5 @@
-"""Prunes the boards a builder just wrote: the CSS rules no element of a board uses are removed, through the board-css
-CLI (packages/tools/boardCss). The CLI exits non-zero when a board keeps a dead class it cannot remove, and so does this."""
+"""Runs the board-css `prune` command over the boards a builder just wrote, in place. Raises CalledProcessError when a
+board keeps a dead class the command will not remove."""
 import subprocess
 from pathlib import Path
 

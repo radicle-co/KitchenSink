@@ -1,5 +1,5 @@
 /** A board for a test: the given `<style>` text, body and script, in the shape the builders write. */
-export interface BoardParts {
+interface BoardParts {
     readonly css: string;
     readonly body: string;
     readonly script: string;

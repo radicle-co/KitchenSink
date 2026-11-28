@@ -5,7 +5,9 @@
  *   exit 1  a dead class remains that the pruner keeps on purpose, or `--check` found a board that would change
  *   exit 2  no files, an unknown flag, or a file that cannot be read or written
  *
- * Relative paths resolve against `INIT_CWD`, where npm was started. Every file is read before any is written.
+ * Relative paths resolve against `INIT_CWD`, where npm was started. Every file is read and pruned before any is written.
+ * The writes are one file at a time and not atomic: a failed write leaves the earlier boards pruned, and a re-run (the
+ * prune is idempotent) finishes the rest.
  *
  * @sideEffect Reads and writes the named boards, writes to stdout and stderr, and sets the exit code.
  */
@@ -34,30 +36,30 @@ const sources = await Promise.all(paths.map((path) => readFile(path, 'utf8'))).c
     return process.exit(2);
 });
 
-let changed = false;
-let residue = false;
-
-for (const [index, path] of paths.entries()) {
+const results = paths.map((path, index) => {
     const pruned = pruneBoard(sources[index] ?? '');
-    const kept = deadClassSelectors(pruned.html);
 
-    if (pruned.html !== sources[index]) {
-        changed = true;
-        process.stdout.write(`${path}: removed ${pruned.removed} selectors\n`);
+    return { path, ...pruned, changed: pruned.html !== sources[index], kept: deadClassSelectors(pruned.html) };
+});
 
-        if (!check) {
-            await writeFile(path, pruned.html).catch((error: unknown) => {
-                process.stderr.write(`cannot write: ${String(error)}\n`);
-
-                return process.exit(2);
-            });
-        }
+results.forEach(({ path, changed, removed, kept }) => {
+    if (changed) {
+        process.stdout.write(`${path}: removed ${removed} selectors\n`);
     }
 
     if (kept.length > 0) {
-        residue = true;
         process.stdout.write(`${path}: ${kept.length} dead classes kept: ${kept.join(', ')}\n`);
+    }
+});
+
+if (!check) {
+    for (const { path, html } of results.filter((result) => result.changed)) {
+        await writeFile(path, html).catch((error: unknown) => {
+            process.stderr.write(`cannot write ${path}: ${String(error)}\n`);
+
+            return process.exit(2);
+        });
     }
 }
 
-process.exitCode = residue || (check && changed) ? 1 : 0;
+process.exitCode = results.some((result) => result.kept.length > 0 || (check && result.changed)) ? 1 : 0;

@@ -1,12 +1,12 @@
 /**
  * Reads one screen board: the text of each `<style>` with where it sits in the board's source, and the set of classes the
- * board uses. This is the one definition of "used": the dead-selector guard and the pruner both read a board through it,
- * so they cannot disagree about which classes are dead.
+ * board uses. It is the one definition of "used", and {@link classNameOf} is the one way a selector's class is spelled.
  *
  * A class counts as used when it appears in any `class` attribute, or anywhere in a `<script>`: every board carries a
  * script, and a class that script sets at run time is not dead. Missing a dead rule is the safe mistake; failing a live
  * one is not.
  */
+import { ident, type ClassSelector } from 'css-tree';
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';
 
 type Node = DefaultTreeAdapterMap['node'];
@@ -28,6 +28,16 @@ export interface BoardReading {
 
 const TOKEN = /[\w-]+/gu;
 
+/** A class selector's name as the `class` attribute spells it: css-tree keeps the escapes (`md\:flex`), the DOM does not. Pure. */
+export function classNameOf(selector: ClassSelector): string {
+    return ident.decode(selector.name);
+}
+
+/** The text of the text nodes among `children`, joined. Pure. */
+function textOf(children: readonly Node[]): string {
+    return children.map((child) => (defaultTreeAdapter.isTextNode(child) ? child.value : '')).join('');
+}
+
 /** The child nodes of a node: a `<template>`'s content is a fragment of its own, not part of `childNodes`. Pure. */
 function childrenOf(node: Node): readonly Node[] {
     if ('content' in node) {
@@ -43,7 +53,7 @@ function childrenOf(node: Node): readonly Node[] {
  * @param html - The board's source, which the element was parsed from.
  */
 function styleBlock(html: string, children: readonly Node[]): StyleBlock {
-    const text = children.map((child) => (defaultTreeAdapter.isTextNode(child) ? child.value : '')).join('');
+    const text = textOf(children);
     const [only] = children;
     const where = children.length === 1 && only && defaultTreeAdapter.isTextNode(only) ? only.sourceCodeLocation : null;
     const editable = where && html.slice(where.startOffset, where.endOffset) === text;
@@ -65,8 +75,7 @@ function read(html: string, node: Node, styles: StyleBlock[], used: Set<string>)
         }
 
         if (node.tagName === 'script') {
-            const text = node.childNodes.map((c) => (defaultTreeAdapter.isTextNode(c) ? c.value : '')).join('');
-            (text.match(TOKEN) ?? []).forEach((token) => used.add(token));
+            (textOf(node.childNodes).match(TOKEN) ?? []).forEach((token) => used.add(token));
         }
 
         node.attrs

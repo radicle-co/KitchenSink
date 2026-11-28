@@ -10,7 +10,7 @@
  */
 import { parse as parseCss, type CssNode, type Selector } from 'css-tree';
 
-import { readBoard } from './boardReading.js';
+import { classNameOf, readBoard } from './boardReading.js';
 import { deadClassSelectors } from './deadClassSelectors.js';
 
 /** A span of the board's source to delete. */
@@ -37,7 +37,7 @@ const CONDITIONAL = new Set(['media', 'container', 'supports']);
 function requiresDeadClass(node: CssNode, dead: ReadonlySet<string>): boolean {
     switch (node.type) {
         case 'ClassSelector':
-            return dead.has(node.name);
+            return dead.has(classNameOf(node));
         case 'PseudoClassSelector':
             return (
                 MATCH_ANY.has(node.name.toLowerCase()) &&
@@ -61,18 +61,22 @@ function listRequires(node: CssNode, dead: ReadonlySet<string>): boolean {
 
 /** The offsets of a located node. */
 function span(node: CssNode, base: number): Cut {
-    return { start: base + (node.loc?.start.offset ?? 0), end: base + (node.loc?.end.offset ?? 0) };
+    if (!node.loc) {
+        throw new Error('pruneDeadClassRules: a node has no source location; parse with positions: true');
+    }
+
+    return { start: base + node.loc.start.offset, end: base + node.loc.end.offset };
 }
 
 /** Widens a cut over its whole line when nothing else shares it, so no blank line is left behind. Pure. */
-function wholeLine(cut: Cut, html: string, floor: number, ceiling: number): Cut {
+function wholeLine(cut: Cut, html: string, ceiling: number): Cut {
     const lineStart = html.lastIndexOf('\n', cut.start - 1) + 1;
     const newline = html.indexOf('\n', cut.end);
     const lineEnd = newline === -1 || newline >= ceiling ? ceiling : newline + 1;
     const alone =
         /^[ \t]*$/u.test(html.slice(lineStart, cut.start)) && /^[ \t\r]*\n?$/u.test(html.slice(cut.end, lineEnd));
 
-    return alone && lineStart >= floor ? { start: lineStart, end: lineEnd } : cut;
+    return alone ? { start: lineStart, end: lineEnd } : cut;
 }
 
 /** The cuts that delete the items at `gone` from a list that keeps the rest, leaving the kept items' separators alone. */
@@ -143,7 +147,7 @@ function pruneNode(node: CssNode, context: Context): Outcome {
         }
 
         if (count === items.length) {
-            return { cuts: [wholeLine(span(node, base), html, base, limit)], selectors: count, emptied: true };
+            return { cuts: [wholeLine(span(node, base), html, limit)], selectors: count, emptied: true };
         }
 
         return { cuts: listCuts(items, gone, base), selectors: count, emptied: false };
@@ -155,7 +159,7 @@ function pruneNode(node: CssNode, context: Context): Outcome {
 
         if (CONDITIONAL.has(name) && inner.emptied) {
             return {
-                cuts: [wholeLine(span(node, base), html, base, limit)],
+                cuts: [wholeLine(span(node, base), html, limit)],
                 selectors: inner.selectors,
                 emptied: true,
             };

@@ -73,6 +73,13 @@ describe('prune', () => {
         expect(await readFile(path, 'utf8')).toBe(DEAD);
     });
 
+    it('exits 1 under --check for a board that keeps a dead class, and leaves the file as it was', async () => {
+        const path = await board('a.dc.html', RESIDUE);
+
+        expect((await prune(['--check', path])).code).toBe(1);
+        expect(await readFile(path, 'utf8')).toBe(RESIDUE);
+    });
+
     it('exits 0 under --check for a board with nothing to remove', async () => {
         const path = await board('a.dc.html', PRUNED);
 

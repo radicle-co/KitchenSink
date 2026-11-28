@@ -66,9 +66,10 @@ every other hold.
       ships. It is not copied into this function.
     - There is no new visibility value and no new column.
 4. **"Held" means "never publicly readable".** The CHECK `recipes_held_is_not_public` is dropped. A held recipe may be
-   public or private. If it is public, the read rule hides it. The ratchet and the clone trigger of the hold do not
-   change. The writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits
-   for the function to be deployed (the schema deploys first).
+   public or private. If it is public, the read rule hides it. The clone trigger does not change. The ratchet keeps
+   false to true, and PR 5 gives it one guarded way back, the staff clear (Decision 7). The writers stop setting
+   `private` (Decision 1) in the change that drops the CHECK, and that change waits for the function to be deployed
+   (the schema deploys first).
 5. **An edit that cannot stay public.** When a cook edits a recipe that readers can see, and the new content cannot
    stay public (a recorded source holds it, its wording is too close, or it was not approved), the save is refused and
    the edit stays on the device. The same sheet opens for a recipe that is already hidden: it is refused while a

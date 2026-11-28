@@ -40,12 +40,13 @@ const readFootInsets = (): PopupInsets =>
         viewportHeight: document.documentElement.clientHeight,
     });
 
-const NO_WATCH: PopupInsetsWatch = () => () => undefined;
+/** The unwatch of a foot there is nothing to watch. */
+const NOTHING_TO_UNWATCH = (): void => undefined;
 
 const watchFoot: PopupInsetsWatch = (onChange) => {
     const foot = document.getElementById(COOKING_FOOT_ID);
 
-    return (foot === null ? undefined : resizeWatchOf([foot]))?.(onChange) ?? NO_WATCH(onChange);
+    return (foot === null ? undefined : resizeWatchOf([foot]))?.(onChange) ?? NOTHING_TO_UNWATCH;
 };
 
 /** The cooking screen's foot, as the snackbar host reads it. */

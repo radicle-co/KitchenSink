@@ -133,10 +133,14 @@ describe('useCookingTimerDock: the offer', () => {
         const { dock, real } = setup();
 
         press(dock().offer ?? { onPress: vi.fn() });
-        const timer = real.getSnapshot().timers[0];
+        const timer = real.getSnapshot().timers.at(0);
 
-        expect(timer?.stepDigest).toBe(stepDigestsOf(recipe.steps)[1]);
-        expect(timer && timerStepOf(timer, recipe)).toEqual({ number: 2, lines: ['Roast 20 minutes.'] });
+        if (timer === undefined) {
+            throw new Error('The offer started no timer.');
+        }
+
+        expect(timer.stepDigest).toBe(stepDigestsOf(recipe.steps)[1]);
+        expect(timerStepOf(timer, recipe)).toEqual({ number: 2, lines: ['Roast 20 minutes.'] });
     });
 
     it('asks for focus on the new row’s primary control, and lowers the request when it is taken', () => {

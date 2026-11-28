@@ -273,15 +273,18 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
     });
 });
 
+/** A layout handler, as react-native-web keeps it on a View's node. */
+const isLayoutHandler = (value: unknown): value is (event: unknown) => void => typeof value === 'function';
+
 /** Fires the foot's layout the way the native host does: react-native-web keeps the handler on the foot's View. */
 function layOutFoot(height: number): void {
     const foot = screen.getByTestId('cooking-foot').parentElement;
 
-    if (foot === null || !('__reactLayoutHandler' in foot) || typeof foot.__reactLayoutHandler !== 'function') {
+    const handler: unknown = foot === null ? undefined : Reflect.get(foot, '__reactLayoutHandler');
+
+    if (!isLayoutHandler(handler)) {
         throw new Error('The foot carries no layout handler.');
     }
-
-    const handler = foot.__reactLayoutHandler;
 
     act(() => {
         handler({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } });

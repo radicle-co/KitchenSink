@@ -28,7 +28,7 @@ const FootArea = styled(View, { name: 'CookingFoot' });
 export type NativeCookingFrameProps = CookingFrameProps & {
     readonly bodySwipe?: Pick<ViewProps, 'onMoveShouldSetResponder' | 'onResponderRelease'>;
     /** The foot's layout, which the screen reports to the navigator so the one snackbar host draws above it. */
-    readonly onFootLayout?: ViewProps['onLayout'];
+    readonly onFootLayout?: NonNullable<ViewProps['onLayout']>;
 };
 
 /** The native cooking surface. */

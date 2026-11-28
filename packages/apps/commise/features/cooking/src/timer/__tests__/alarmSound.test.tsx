@@ -12,10 +12,12 @@ import { type AlarmSound, AlarmSoundContext, NULL_ALARM_SOUND, useAlarmSound } f
 afterEach(cleanup);
 
 describe('NULL_ALARM_SOUND', () => {
-    it('accepts prime, play and stop and returns nothing', () => {
-        expect(NULL_ALARM_SOUND.prime()).toBeUndefined();
-        expect(NULL_ALARM_SOUND.play()).toBeUndefined();
-        expect(NULL_ALARM_SOUND.stop()).toBeUndefined();
+    it('accepts prime, play and stop without throwing', () => {
+        expect(() => {
+            NULL_ALARM_SOUND.prime();
+            NULL_ALARM_SOUND.play();
+            NULL_ALARM_SOUND.stop();
+        }).not.toThrow();
     });
 });
 
@@ -27,7 +29,8 @@ describe('useAlarmSound', () => {
     });
 
     it('returns the sound a provider supplies, and calls reach it', () => {
-        const sound: AlarmSound = { prime: vi.fn(), play: vi.fn(), stop: vi.fn() };
+        const spies = { prime: vi.fn(), play: vi.fn(), stop: vi.fn() };
+        const sound: AlarmSound = spies;
         const wrapper = ({ children }: { readonly children: ReactNode }): ReactNode => (
             <AlarmSoundContext value={sound}>{children}</AlarmSoundContext>
         );
@@ -35,8 +38,8 @@ describe('useAlarmSound', () => {
 
         expect(result.current).toBe(sound);
         result.current.play();
-        expect(sound.play).toHaveBeenCalledTimes(1);
-        expect(sound.prime).not.toHaveBeenCalled();
-        expect(sound.stop).not.toHaveBeenCalled();
+        expect(spies.play).toHaveBeenCalledTimes(1);
+        expect(spies.prime).not.toHaveBeenCalled();
+        expect(spies.stop).not.toHaveBeenCalled();
     });
 });

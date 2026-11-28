@@ -1,6 +1,6 @@
 /**
- * The foot the navigator gives the snackbar host: the tab bar on a tab, and on a task the larger of the home
- * indicator and the height a task screen's own bottom bar reports. Tabs and tasks are stubs that show the foot they
+ * The foot the navigator gives the snackbar host: the tab bar on a tab, and on a task the home indicator
+ * plus the height a task screen's own bottom bar reports. Tabs and tasks are stubs that show the foot they
  * read and call the reporter, so what is asserted is the navigator's arithmetic.
  */
 import { renderWithProviders } from '@commise/test-utils';

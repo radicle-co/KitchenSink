@@ -122,9 +122,8 @@ describe('timerDockView', () => {
     it('rounds a part of a second up, so the figure and the spoken time agree', () => {
         const { rows } = viewOf({ timers: [running({ endsAt: NOW + 4_001 })] }, NOW);
 
-        expect(rows[0]).toEqual(
-            expect.objectContaining({ figure: '0:05', accessibilityLabel: expect.stringContaining('5 seconds left') }),
-        );
+        expect(rows[0]?.figure).toBe('0:05');
+        expect(rows[0]?.accessibilityLabel).toContain('5 seconds left');
     });
 
     it('draws no row for the held Undo slot, and still shows the offer', () => {

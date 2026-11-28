@@ -71,7 +71,7 @@ export function useCookingSessionScreen({
     readonly recipe: CookingRecipe;
     readonly onLeave: () => void;
     /** The first timer that counts down or rings (`useHoldingTimer`): it keeps the screen on past Done (R12a). */
-    readonly holding?: ActiveTimer | undefined;
+    readonly holding?: ActiveTimer;
 }): CookingSessionScreenModel {
     const copy = useMessages(cookingMessages);
     const locale = useLocale();

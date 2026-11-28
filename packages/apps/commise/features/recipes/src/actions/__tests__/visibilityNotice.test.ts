@@ -198,10 +198,14 @@ describe('visibilityNoticeOf — the Hidden line', () => {
     });
 
     // The decision reads the chip, so a draft (public, with a reason) or a private recipe says nothing, with no filter by the caller.
-    it.each(['draft', 'public', 'private'] as const)(
-        'says nothing when the chip is %s, whatever reason is held',
-        (chip) => {
-            expect(noticeOf({ knownRefusal: undefined, chip, hiddenReason: 'heldSource' })).toBeUndefined();
-        },
-    );
+    it.each(['draft', 'public'] as const)('says nothing when the chip is %s, whatever reason is held', (chip) => {
+        expect(noticeOf({ knownRefusal: undefined, chip, hiddenReason: 'heldSource' })).toBeUndefined();
+    });
+
+    // A private recipe is not public: the audience gate holds even when the caller still passes a Hidden chip and a reason.
+    it.each(['private', 'hidden'] as const)('says nothing for a private recipe whose chip is %s', (chip) => {
+        expect(
+            noticeOf({ knownRefusal: undefined, isPublic: false, chip, hiddenReason: 'heldSource' }),
+        ).toBeUndefined();
+    });
 });

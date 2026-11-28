@@ -59,6 +59,12 @@ export const STAFF_EVIDENCE_MATRIX: readonly StaffEvidenceCase[] = [
         conflict: true,
     },
     {
+        name: 'a pasted-page row is the cook’s claim even with no staff row beside it',
+        recipe: COOK_WRITTEN,
+        evidence: [{ capture: 'pastedPage', sourceDomain: 'allrecipes.com', sourceKind: 'public_web' }],
+        conflict: true,
+    },
+    {
         name: 'a row with no capture counts as the cook’s: the rule fails closed',
         recipe: COOK_WRITTEN,
         evidence: [{ sourceDomain: null, sourceKind: 'book' }],

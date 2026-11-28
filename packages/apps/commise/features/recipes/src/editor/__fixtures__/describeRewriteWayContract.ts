@@ -4,6 +4,7 @@
  * edit is a qse TEST-CHANGE). The factory receives ALL its I/O as injected doubles, so the suite can assert that no
  * mutating call was made.
  */
+import type { SaveRefusalCause } from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -58,12 +59,15 @@ function makeRecordingIo(): { readonly io: RewriteWayIo; readonly mutatingCalls:
     return { io, mutatingCalls };
 }
 
-const CAUSES: readonly BlockCause[] = [
-    { kind: 'heldSource' },
-    { kind: 'tooClose' },
-    { kind: 'notApproved' },
-    { kind: 'sourceCorrected' },
-];
+/** Every refusal cause. A `Record` keyed by the type makes a new cause a compile error here, not a silent gap. */
+const CAUSE_BY_KIND: Record<SaveRefusalCause, BlockCause> = {
+    heldSource: { kind: 'heldSource' },
+    tooClose: { kind: 'tooClose' },
+    notApproved: { kind: 'notApproved' },
+    sourceCorrected: { kind: 'sourceCorrected' },
+};
+
+export const CAUSES: readonly BlockCause[] = Object.values(CAUSE_BY_KIND);
 
 /** One blocked input per door and cause kind. */
 export const BLOCKED_INPUTS: readonly RewriteWayInput[] = CAUSES.flatMap((cause) =>

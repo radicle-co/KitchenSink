@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { CAUSES } from '../__fixtures__/describeRewriteWayContract.js';
 import { waysOutOf, type WaysOutFacts } from '../waysOut.js';
 import type { RewriteWayAnswer } from '../rewriteWay.js';
 
@@ -135,8 +136,7 @@ describe('the rewrite way', () => {
     });
 
     it('offers the same ways for every cause kind (the cause is an input, not a branch yet)', () => {
-        const kinds = ['heldSource', 'tooClose', 'notApproved', 'sourceCorrected'] as const;
-        const [first, ...rest] = kinds.map((kind) => waysOutOf(facts({ cause: { kind }, rewrite: OFFERED })));
+        const [first, ...rest] = CAUSES.map((cause) => waysOutOf(facts({ cause, rewrite: OFFERED })));
 
         for (const other of rest) {
             expect(other).toStrictEqual(first);

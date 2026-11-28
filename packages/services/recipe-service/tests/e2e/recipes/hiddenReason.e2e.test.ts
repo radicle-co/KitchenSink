@@ -138,7 +138,7 @@ describe('hiddenReason: the owner is told, nobody else is', () => {
             `INSERT INTO collections (owner_id, name, visibility) VALUES ($1, 'Mine', 'private') RETURNING id`,
             [owner],
         );
-        const id = created.rows[0]!.id;
+        const id = created.rows[0].id;
 
         await pool.query(
             `INSERT INTO recipe_collections (collection_id, recipe_id, added_via) VALUES ($1, $2, 'manual')`,
@@ -203,7 +203,7 @@ describe('hiddenReason: the owner is told, nobody else is', () => {
             [rid(row.n), PRIVATE_ONLY_SOURCE_KEYS_JSON],
         );
 
-        expect(held.rows[0]?.held === true && row.visibility === 'public').toBe(row.reason !== undefined);
+        expect(held.rows[0]?.held && row.visibility === 'public').toBe(row.reason !== undefined);
     });
 
     it("tells the collection's owner nothing for another cook's held recipe (AE3)", async () => {

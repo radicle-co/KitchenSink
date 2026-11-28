@@ -229,7 +229,7 @@ describe('RecipesDal.findAll: the owner-only hidden facts (hiddenViews U2)', () 
         );
         expect(selectedSql(control.calls, 'hasCookSourceEvidence').sql).toContain('recipe_has_cook_source_evidence');
         expect(rows[0]).toMatchObject({ ownerHeldFromReaders: true, hasCookSourceEvidence: true });
-        expect(rows[0]!.recipe).toStrictEqual(row);
+        expect(rows[0].recipe).toStrictEqual(row);
     });
 });
 

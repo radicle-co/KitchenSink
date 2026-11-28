@@ -256,7 +256,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta' }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('ts_rank');
         expect(pageSql).toContain("plainto_tsquery('english'");
@@ -313,7 +313,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters());
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).not.toContain('plainto_tsquery');
         // Still scoped by visibility + tombstone predicate (S-R3 centralized read-predicates).
@@ -337,7 +337,7 @@ describe('SearchDal.search', () => {
             }),
         );
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('cuisine =');
         expect(pageSql).toContain('dietary_flags @>');
@@ -357,7 +357,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ maxPrepTime: 15, maxCookTime: 20, maxTotalTime: 45 }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('prep_time_minutes > 0 AND prep_time_minutes <=');
         expect(pageSql).toContain('cook_time_minutes > 0 AND cook_time_minutes <=');
@@ -369,7 +369,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({}));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).not.toContain('total_time_minutes > 0');
         expect(pageSql).not.toContain('prep_time_minutes > 0');
@@ -380,7 +380,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta' }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).not.toContain('cook_time_minutes <=');
     });
@@ -481,7 +481,7 @@ describe('SearchDal.search', () => {
         const result = await dal.search(filters({ query: 'pasta' }));
 
         expect(result.results.map((r) => r.recipe.id)).toEqual(['a', 'b']);
-        expect(result.results[0]!.rank).toBe(0.9);
+        expect(result.results[0].rank).toBe(0.9);
         expect(result.total).toBe(7);
         expect(result.facets.dietaryFlags).toEqual([{ value: 'vegetarian', count: 2 }]);
         expect(result.facets.tags).toEqual([
@@ -511,7 +511,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.TITLE }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('title ASC');
     });
@@ -521,7 +521,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.RECENT }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('created_at DESC');
     });
@@ -531,7 +531,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.QUICKEST }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         // A-017: an untimed recipe (0) is the SLOWEST, not the quickest — it sorts after every stated time.
         expect(pageSql).toContain('(total_time_minutes = 0) ASC, total_time_minutes ASC');
@@ -543,7 +543,7 @@ describe('SearchDal.search', () => {
 
         await dal.search(filters({ query: 'pasta', sortBy: RecipeSearchSortBy.MOST_CLONED }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         // Popularity = how many recipes were cloned FROM this one, over the indexed cloned_from_id.
         expect(pageSql).toContain('count(*)');
@@ -571,7 +571,7 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         await dal.search(filters());
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toMatch(
             /\(case when "recipes"\."owner_id" = \$\d+ then recipe_held_from_readers\("recipes", \$\d+::jsonb\) else false end\) AS owner_held_from_readers/,
@@ -587,7 +587,7 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         await dal.search(filters({ scope: 'community' }));
 
-        const pageSql = sqlText(execute.mock.calls[0]![0]);
+        const pageSql = sqlText(execute.mock.calls[0][0]);
 
         expect(pageSql).toContain('false AS owner_held_from_readers');
         expect(pageSql).toContain('false AS has_cook_source_evidence');
@@ -600,7 +600,7 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         const { results } = await dal.search(filters());
 
-        expect(results[0]!.recipe.hiddenReason).toBe('sourceCorrected');
+        expect(results[0].recipe.hiddenReason).toBe('sourceCorrected');
     });
 
     it('tells any other viewer nothing, even when the row reaches them held (the read rule bypassed on purpose)', async () => {
@@ -608,7 +608,7 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         const { results } = await dal.search(filters({ ownerId: OTHER_COOK }));
 
-        expect(results[0]!.recipe).not.toHaveProperty('hiddenReason');
+        expect(results[0].recipe).not.toHaveProperty('hiddenReason');
     });
 
     it('tells nobody for a row the read rule does not hold', async () => {
@@ -616,6 +616,6 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         const { results } = await dal.search(filters());
 
-        expect(results[0]!.recipe).not.toHaveProperty('hiddenReason');
+        expect(results[0].recipe).not.toHaveProperty('hiddenReason');
     });
 });

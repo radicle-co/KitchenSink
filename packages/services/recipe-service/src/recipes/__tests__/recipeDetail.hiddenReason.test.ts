@@ -20,7 +20,7 @@ const read = (
     viewerId: string,
     facts = { ownerHeldFromReaders: true, hasCookSourceEvidence: false },
 ) => {
-    const findOwnerHiddenFacts = vi.fn(async () => facts);
+    const findOwnerHiddenFacts = vi.fn(() => Promise.resolve(facts));
     const assembler = makeRecipeDetailAssembler({ dal: fakeRecipesDal({ findOwnerHiddenFacts }) });
     const aggregate: RecipeAggregate = { recipe, steps: [], ingredients: [] };
 

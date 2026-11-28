@@ -27,8 +27,8 @@ describe('the published recipe contract: hiddenReason', () => {
     ] as const)('lets a %s schema keep a reason it does not know and parse one without', (_name, schema) => {
         const shape = schema.shape as Record<string, { safeParse: (value: unknown) => { success: boolean } }>;
 
-        expect(shape['hiddenReason']!.safeParse('futureReason').success).toBe(true);
-        expect(shape['hiddenReason']!.safeParse(undefined).success).toBe(true);
-        expect(shape['hiddenReason']!.safeParse(7).success).toBe(false);
+        expect(shape['hiddenReason'].safeParse('futureReason').success).toBe(true);
+        expect(shape['hiddenReason'].safeParse(undefined).success).toBe(true);
+        expect(shape['hiddenReason'].safeParse(7).success).toBe(false);
     });
 });

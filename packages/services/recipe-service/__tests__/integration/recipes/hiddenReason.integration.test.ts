@@ -121,64 +121,73 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         doubles: [
             recipesDalDouble({
-                findById: async (id: string) => stored.get(id),
-                findRowById: async (id: string) => stored.get(id)?.recipe,
-                privateFoodLines: async () => [],
+                findById: (id: string) => Promise.resolve(stored.get(id)),
+                findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
+                privateFoodLines: () => Promise.resolve([]),
                 // The database's answer for the OWNER's read, supplied by the suite for each recipe it stores.
-                findOwnerHiddenFacts: async (id: string) => ({
-                    ownerHeldFromReaders: heldFacts.get(id) ?? false,
-                    hasCookSourceEvidence: false,
-                }),
-                findAll: async () => ({
-                    rows: [
-                        { recipe: held, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
-                        { recipe: evidenceHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: true },
-                        { recipe: unmappedHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
-                        { recipe: clean, ownerHeldFromReaders: false, hasCookSourceEvidence: false },
-                    ],
-                    total: 2,
-                }),
+                findOwnerHiddenFacts: (id: string) =>
+                    Promise.resolve({ ownerHeldFromReaders: heldFacts.get(id) ?? false, hasCookSourceEvidence: false }),
+                findAll: () =>
+                    Promise.resolve({
+                        rows: [
+                            { recipe: held, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                            { recipe: evidenceHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: true },
+                            { recipe: unmappedHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                            { recipe: clean, ownerHeldFromReaders: false, hasCookSourceEvidence: false },
+                        ],
+                        total: 2,
+                    }),
             }),
             {
                 provide: CollectionsDal,
                 useValue: {
-                    findById: async () => collection(collectionOwner),
-                    sourceOwnerUsernames: async () => new Map(),
-                    listRecipes: async () => [
-                        { ...held, addedVia: 'manual', ownerHeldFromReaders: true, hasCookSourceEvidence: false },
-                        {
-                            ...evidenceHeld,
-                            addedVia: 'manual',
-                            ownerHeldFromReaders: true,
-                            hasCookSourceEvidence: true,
-                        },
-                        {
-                            ...unmappedHeld,
-                            addedVia: 'manual',
-                            ownerHeldFromReaders: true,
-                            hasCookSourceEvidence: false,
-                        },
-                        { ...clean, addedVia: 'manual', ownerHeldFromReaders: false, hasCookSourceEvidence: false },
-                    ],
+                    findById: () => Promise.resolve(collection(collectionOwner)),
+                    sourceOwnerUsernames: () => Promise.resolve(new Map()),
+                    listRecipes: () =>
+                        Promise.resolve([
+                            { ...held, addedVia: 'manual', ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                            {
+                                ...evidenceHeld,
+                                addedVia: 'manual',
+                                ownerHeldFromReaders: true,
+                                hasCookSourceEvidence: true,
+                            },
+                            {
+                                ...unmappedHeld,
+                                addedVia: 'manual',
+                                ownerHeldFromReaders: true,
+                                hasCookSourceEvidence: false,
+                            },
+                            { ...clean, addedVia: 'manual', ownerHeldFromReaders: false, hasCookSourceEvidence: false },
+                        ]),
                 },
             },
             { provide: SEARCH_DAL, useValue: new SearchDal(fakeSearch.db) },
-            { provide: RATINGS_DAL, useValue: { upsert: async () => ({}), delete: async () => undefined } },
-            { provide: RecipeSourceEvidenceDal, useValue: { list: async () => [] } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined, upsert: async () => ({}) } },
+            {
+                provide: RATINGS_DAL,
+                useValue: { upsert: () => Promise.resolve({}), delete: () => Promise.resolve(undefined) },
+            },
+            { provide: RecipeSourceEvidenceDal, useValue: { list: () => Promise.resolve([]) } },
+            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
+            {
+                provide: RECIPE_RATINGS_DAL,
+                useValue: { findStars: () => Promise.resolve(undefined), upsert: () => Promise.resolve({}) },
+            },
             {
                 provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+                useValue: {
+                    findBandsByKeys: () => Promise.resolve(new Map()),
+                    findExistingKeys: () => Promise.resolve(new Set()),
+                },
             },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
+            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
+            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
         ],
     });
 });
 
 afterAll(async () => {
-    await booted?.close();
+    await booted.close();
 });
 
 describe('GET /api/v1/recipes (the owner list)', () => {
@@ -277,7 +286,7 @@ describe('the read paths that must never carry the key (qse rows a, b, c)', () =
 
         expect(response.status).toBe(200);
         expect(body.results).toHaveLength(1);
-        expect(body.results[0]!.recipe).not.toHaveProperty('hiddenReason');
+        expect(body.results[0].recipe).not.toHaveProperty('hiddenReason');
     });
 
     it('(c) community search by the owner: the page read selects false for both facts, and no item carries the key', async () => {
@@ -298,7 +307,7 @@ describe('the read paths that must never carry the key (qse rows a, b, c)', () =
         expect(pageSql).toContain('false AS owner_held_from_readers');
         expect(pageSql).toContain('false AS has_cook_source_evidence');
         expect(body.results).toHaveLength(1);
-        expect(body.results[0]!.recipe).not.toHaveProperty('hiddenReason');
+        expect(body.results[0].recipe).not.toHaveProperty('hiddenReason');
     });
 
     it('control: the owner searching without a scope gets the reason on the same row', async () => {

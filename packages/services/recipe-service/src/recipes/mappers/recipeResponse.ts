@@ -121,6 +121,18 @@ export interface RecipeResponseExtras {
 }
 
 /**
+ * The domain type's `hiddenReason` is an open wire string; only the caller's decided `extras.hiddenReason` may reach the
+ * response, so the domain value is dropped here. Pure: it copies.
+ */
+function withoutHiddenReason<T extends { hiddenReason?: string }>(value: T): Omit<T, 'hiddenReason'> {
+    const copy = { ...value };
+
+    delete copy.hiddenReason;
+
+    return copy;
+}
+
+/**
  * The recipe-level fields every projection shares, from the canonical {@link recipeRowToDomain} Data Mapper,
  * plus the optional extras. Pure.
  *
@@ -128,13 +140,8 @@ export interface RecipeResponseExtras {
  * optional and OMITTED when unset, whereas the canonical `Recipe.description` is required and defaults to `''`.
  */
 function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseExtras): RecipeSummaryResponse {
-    const {
-        description: _canonicalDescription,
-        sourceKind: _domainKind,
-        // The domain type's open wire string; only the caller's decided `extras.hiddenReason` may reach the response.
-        hiddenReason: _wireReason,
-        ...base
-    } = recipeRowToDomain(recipe);
+    const { description: _canonicalDescription, sourceKind: _domainKind, ...domain } = recipeRowToDomain(recipe);
+    const base = withoutHiddenReason(domain);
 
     return {
         ...base,

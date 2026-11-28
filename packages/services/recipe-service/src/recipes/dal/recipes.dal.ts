@@ -689,13 +689,13 @@ export class RecipesDal {
 
         return {
             rows: pageRows.map((selected) => {
-                const { ownerHeldFromReaders: _held, hasCookSourceEvidence: _evidence, ...recipe } = selected;
+                const { ownerHeldFromReaders, hasCookSourceEvidence, ...recipe } = selected;
                 const coverPhotoKey = coverKeys.get(recipe.id);
 
                 return {
                     recipe,
-                    ownerHeldFromReaders: selected.ownerHeldFromReaders,
-                    hasCookSourceEvidence: selected.hasCookSourceEvidence,
+                    ownerHeldFromReaders,
+                    hasCookSourceEvidence,
                     holdsPrivateFood: holding.has(recipe.id),
                     ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}),
                 };

@@ -56,6 +56,8 @@ interface CookingStepMessages {
     readonly scaleNote: string;
     /** The quiet button under the scale note that opens the ingredients list. Its name is this label. */
     readonly scaleNoteOpen: string;
+    /** The offer to time a step (contains `{duration}`). */
+    readonly timeOffer: string;
 }
 
 /** The ingredients list, held in a sheet over the step (phones) or a column beside it (tablets and wider). */
@@ -279,6 +281,7 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             scaleNote:
                 'The steps give amounts for {base}. You\u2019re making {servings}, so use the amounts in Ingredients.',
             scaleNoteOpen: 'Open ingredients',
+            timeOffer: 'Time {duration}',
         },
         ingredients: {
             title: {

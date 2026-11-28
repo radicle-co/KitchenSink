@@ -70,6 +70,12 @@ describe('PrivateFoodsRefusalSheet (web)', () => {
         expect(screen.getByText(/Or make this recipe private\./u)).toBeTruthy();
     });
 
+    it('at Save changes the make-private way says who can see the recipe, as the full sentence', () => {
+        renderSheet({ door: 'save' });
+
+        expect(screen.getByText('Or make this recipe private. Only you will be able to see it.')).toBeTruthy();
+    });
+
     it('⛔ a cook with no private slot sees the ways that work, one slots line, the draft note and no upsell', async () => {
         const { onClose, onSendAsPrivate } = renderSheet({ canGoPrivate: false });
 

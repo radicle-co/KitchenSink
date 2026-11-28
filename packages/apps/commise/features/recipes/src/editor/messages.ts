@@ -548,7 +548,7 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             wayChange: 'Change or remove these ingredients in the editor.',
             wayAsk: 'Ask to make each food public from its page. Once staff approve it, you can make this recipe public.',
             wayPrivatePublish: 'Or publish this recipe as private.',
-            wayPrivateSave: 'Or make this recipe private. Other cooks won’t be able to see it anymore.',
+            wayPrivateSave: 'Or make this recipe private. Only you will be able to see it.',
             slotsFull: 'Your private recipes are full, so this recipe can’t be made private right now.',
             draftKept: 'Your recipe is saved as a draft.',
             changesKept: 'Your changes are kept on this device. The public recipe hasn’t changed.',

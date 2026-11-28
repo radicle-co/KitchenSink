@@ -5945,6 +5945,8 @@ components:
           format: uri
         holdsPrivateFood:
           type: boolean
+        hiddenReason:
+          type: string
         deletedAt:
           type: string
           format: date-time
@@ -6099,6 +6101,8 @@ components:
           format: uri
         holdsPrivateFood:
           type: boolean
+        hiddenReason:
+          type: string
         deletedAt:
           type: string
           format: date-time
@@ -9022,6 +9026,8 @@ components:
           format: uri
         holdsPrivateFood:
           type: boolean
+        hiddenReason:
+          type: string
         deletedAt:
           type: string
           format: date-time

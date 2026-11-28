@@ -120,6 +120,10 @@
         "./analytics/event-payload": {
             "types": "./dist/analytics/eventPayload.d.ts",
             "default": "./dist/analytics/eventPayload.js"
+        },
+        "./recipe-state": {
+            "types": "./dist/recipeState/recipeState.d.ts",
+            "default": "./dist/recipeState/recipeState.js"
         }
     },
     "dependencies": {

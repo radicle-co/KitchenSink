@@ -52,6 +52,7 @@ import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/
 import { FAKE_TX, readableAggregateOf, readableRowOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const OWNER = '01JSOURCELINEOWNER0000001';
@@ -211,13 +212,21 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
                 findById: (id: string) => Promise.resolve(readableById(id)),
                 create,
                 findRowById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableRowOf(stored) : undefined),
                 // The list row is poisoned with the lines: a mapper that ever projected them would leak here.
                 findAll: () =>
                     Promise.resolve({
-                        rows: [{ recipe: stored, ingredients: aggregateOf().ingredients }],
+                        rows: [
+                            {
+                                recipe: stored,
+                                ownerHeldFromReaders: false,
+                                hasCookSourceEvidence: false,
+                                ingredients: aggregateOf().ingredients,
+                            },
+                        ],
                         total: 1,
                     }),
                 update,

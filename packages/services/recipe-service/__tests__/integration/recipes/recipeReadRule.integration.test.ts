@@ -58,6 +58,11 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: (id: string) =>
+                    Promise.resolve({
+                        ownerHeldFromReaders: stored.get(id)?.recipe.heldFromReaders ?? false,
+                        hasCookSourceEvidence: false,
+                    }),
                 findById: (id: string) => Promise.resolve(stored.get(id)),
                 findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
                 privateFoodLines: () => Promise.resolve([]),

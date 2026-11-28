@@ -23,6 +23,7 @@ import { AuthorHandlesDal } from '../authors/dal/authorHandles.dal.js';
 import { AnalyticsService } from '../analytics/analytics.service.js';
 import { CollectionsDal } from './dal/collections.dal.js';
 import { isRecipeViewableBy } from '../recipes/domain/recipeVisibility.js';
+import { hiddenReasonOfRow } from '../recipes/mappers/hiddenReasonOfRow.js';
 import { recipeRowToDomain } from '../recipes/mappers/recipeRowToDomain.js';
 import {
     collectionNotClonedError,
@@ -208,10 +209,20 @@ export class CollectionsService {
         // This embed emits NO nutrition — see `rowToRecipe` in search.dal.ts for why a pinned "partial"
         // flag was the wrong lie. Fetching it per member would be an N+1 on a collection page; a caller that
         // needs the numbers asks `POST /api/v1/recipes/nutrition-batch` for the page's ids in one call.
-        const recipes = recipeRows.map((row) => ({
-            ...recipeRowToDomain(row),
-            addedVia: row.addedVia,
-        }));
+        const recipes = recipeRows.map((row) => {
+            // The gate is "the viewer owns THIS RECIPE", never "owns the collection": a member is often another cook's.
+            const hiddenReason = hiddenReasonOfRow(row, {
+                viewerId: ownerId,
+                ownerHeldFromReaders: row.ownerHeldFromReaders,
+                hasCookSourceEvidence: row.hasCookSourceEvidence,
+            });
+
+            return {
+                ...recipeRowToDomain(row),
+                addedVia: row.addedVia,
+                ...(hiddenReason !== undefined ? { hiddenReason } : {}),
+            };
+        });
 
         return {
             ...toCollectionResponse(collection, await this.sourceUsernamesOf([collection]), recipes.length),

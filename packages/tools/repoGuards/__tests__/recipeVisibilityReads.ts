@@ -62,7 +62,7 @@ function isHeldFromReadersFilledOutsideTheFunction(node: ts.Node): boolean {
     return !(
         ts.isCallExpression(init) &&
         ts.isIdentifier(init.expression) &&
-        init.expression.text === 'heldFromReadersSql'
+        (init.expression.text === 'heldFromReadersSql' || init.expression.text === 'hiddenFromReadersSql')
     );
 }
 

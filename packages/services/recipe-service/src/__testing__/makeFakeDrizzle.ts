@@ -13,7 +13,7 @@
  * `execute(...)` and `transaction(callback)` are the two calls DAL code treats specially (a raw
  * advisory-lock / isolation-level statement, and unit-of-work enlistment), so they get fixed,
  * queue-independent defaults instead of falling through the generic chain path:
- *   - `execute` always resolves `{ rows: [] }` — DALs only use it for its side effect, never its return
+ *   - `execute` resolves `{ rows: [] }`, or the rows `options.executeRows` returns — DALs only use it for its side effect, never its return
  *     value, so a constant keeps it from perturbing the ordered `enqueue` reads a chain's `.then()` shifts.
  *   - `transaction` invokes its callback with the fake itself, so writes issued inside a transaction land
  *     in the SAME recorded `calls` as writes outside one — proving pass-through the way the real
@@ -43,7 +43,7 @@ export interface FakeDrizzle<TDb> {
 }
 
 /** Build a chainable, awaitable fake Drizzle client for DAL unit tests. */
-export function makeFakeDrizzle<TDb>(): FakeDrizzle<TDb> {
+export function makeFakeDrizzle<TDb>(options: { readonly executeRows?: () => unknown[] } = {}): FakeDrizzle<TDb> {
     const calls: RecordedCall[] = [];
     const results: unknown[] = [];
 
@@ -58,7 +58,7 @@ export function makeFakeDrizzle<TDb>(): FakeDrizzle<TDb> {
                 return (...args: unknown[]): Promise<{ rows: unknown[] }> => {
                     calls.push({ method: 'execute', args });
 
-                    return Promise.resolve({ rows: [] });
+                    return Promise.resolve({ rows: options.executeRows?.() ?? [] });
                 };
             }
 

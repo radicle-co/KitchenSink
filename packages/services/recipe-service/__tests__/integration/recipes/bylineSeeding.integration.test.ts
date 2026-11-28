@@ -22,6 +22,7 @@ import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 import type { RecipeStatus } from '@kitchensink/recipe-core';
 
@@ -63,6 +64,7 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
                 create,
                 transaction: (work) => work(transactionHandle),
             }),

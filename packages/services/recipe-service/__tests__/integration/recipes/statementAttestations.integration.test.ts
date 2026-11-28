@@ -39,6 +39,7 @@ import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/
 import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JATTESTATIONCOOK000001';
@@ -218,6 +219,7 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
                 create,
                 update: async (id: string, patch: UpdateRecipeInput, tx?: unknown) =>
                     writeFindsNoRow ? undefined : update(id, patch, tx),

@@ -36,6 +36,37 @@ export function heldFromReadersSql(): SQL<boolean> {
     return sql<boolean>`recipe_held_from_readers(${recipes}, ${PRIVATE_ONLY_SOURCE_KEYS_JSON}::jsonb)`;
 }
 
+/**
+ * The ONE presence fragment: "the read rule hides this row from readers". {@link viewableBy}, {@link communityOf}, every
+ * reader select and the owner's `hiddenReason` producers all read it, so a term added to the read rule later (spec 020's
+ * source check) changes the readers' answer and the owner's chip together, in one place. Today it is the database function.
+ */
+export function hiddenFromReadersSql(): SQL<boolean> {
+    return heldFromReadersSql();
+}
+
+/**
+ * {@link hiddenFromReadersSql} selected for the viewer's OWN rows only and `false` for every other row (`CASE`, so a non-owner
+ * row never pays for the function): the owner's `hiddenReason` is the only reader of it.
+ *
+ * @param viewerId - The requesting principal's app-user ULID, bound as a parameter.
+ */
+export function ownerHeldFromReadersSql(viewerId: string): SQL<boolean> {
+    return sql<boolean>`(case when ${recipes.ownerId} = ${viewerId} then ${hiddenFromReadersSql()} else false end)`;
+}
+
+/**
+ * Whether cook-captured source evidence holds the recipe, selected for the VIEWER'S OWN rows only and `false` for every other
+ * row: the owner's reason line (`hiddenReasonOf`) needs it, and nobody else may learn it. `CASE`, not `AND`, because Postgres
+ * does not promise the order of `AND`, and a non-owner row must never pay for the probe. The evidence predicate has one source,
+ * the database function (migration 0098); there is no TypeScript copy.
+ *
+ * @param viewerId - The requesting principal's app-user ULID, bound as a parameter.
+ */
+export function cookSourceEvidenceOf(viewerId: string): SQL<boolean> {
+    return sql<boolean>`(case when ${recipes.ownerId} = ${viewerId} then recipe_has_cook_source_evidence(${recipes.id}) else false end)`;
+}
+
 /** A recipe row plus the read rule's hold, as selected by {@link readableRecipeColumns}. */
 export type ReadableRecipeRow = RecipeRow & { readonly heldFromReaders: boolean };
 
@@ -46,7 +77,7 @@ export type ReadableRecipeRow = RecipeRow & { readonly heldFromReaders: boolean 
 export function readableRecipeColumns(): ReturnType<typeof getTableColumns<typeof recipes>> & {
     heldFromReaders: SQL<boolean>;
 } {
-    return { ...getTableColumns(recipes), heldFromReaders: heldFromReadersSql() };
+    return { ...getTableColumns(recipes), heldFromReaders: hiddenFromReadersSql() };
 }
 
 /**
@@ -58,7 +89,7 @@ export function readableRecipeColumns(): ReturnType<typeof getTableColumns<typeo
  */
 export function viewableBy(viewerId: string): SQL {
     // `or` with two defined conditions is always defined.
-    return or(and(eq(recipes.visibility, 'public'), not(heldFromReadersSql())), eq(recipes.ownerId, viewerId)) as SQL;
+    return or(and(eq(recipes.visibility, 'public'), not(hiddenFromReadersSql())), eq(recipes.ownerId, viewerId)) as SQL;
 }
 
 /**
@@ -99,7 +130,7 @@ export function communityOf(viewerId: string): SQL {
         activeRecipe(),
         eq(recipes.visibility, 'public'),
         eq(recipes.status, 'published'),
-        not(heldFromReadersSql()),
+        not(hiddenFromReadersSql()),
         ne(recipes.ownerId, viewerId),
     ) as SQL;
 }

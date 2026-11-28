@@ -415,6 +415,12 @@ export interface Recipe {
      */
     holdsPrivateFood?: boolean;
     /**
+     * Why the read rule hides this PUBLIC recipe from every reader but its owner (`hiddenReasonOf`, recipe-state). ⛔ OWNER-ONLY:
+     * absent for every other viewer, for a private recipe and for a recipe nothing holds. An OPEN string on the wire, so an
+     * older client reads a newer reason as "Hidden, no line" (`knownHiddenReasonOf`).
+     */
+    hiddenReason?: string;
+    /**
      * Soft-delete tombstone (C-007). When set, the recipe is excluded from every
      * production read path. Hard removal happens only via the user-initiated
      * GDPR erasure flow.
@@ -522,6 +528,7 @@ export const recipeSchema = z.object({
     usesPremiumCapability: z.boolean(),
     coverPhotoUrl: z.string().url().optional(),
     holdsPrivateFood: z.boolean().optional(),
+    hiddenReason: z.string().optional(),
     deletedAt: isoDateTimeStringSchema.optional(),
     createdAt: isoDateTimeStringSchema,
     updatedAt: isoDateTimeStringSchema,

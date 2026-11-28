@@ -26,13 +26,19 @@
  * ⛔ No log line carries a recipe id, an owner id or a reason.
  */
 import { Inject, Injectable } from '@nestjs/common';
+import type { HoldClearConflictReason } from '@kitchensink/recipe-core';
 
 import type { Principal } from '../auth/principal.js';
 import { postgresErrorOf } from '../database/postgresError.js';
 import type { RecipeTx } from '../database/unitOfWork.js';
 import type { RecipesDal } from './dal/recipes.dal.js';
 import { SourceHoldClearsDal, type CorrectionChainRow } from './dal/sourceHoldClears.dal.js';
-import { holdClearPolicy, type ChainAnswer, type EarnedHoldClearRefusal } from './domain/holdClearPolicy.js';
+import {
+    holdClearPolicy,
+    type ChainAnswer,
+    type EarnedHoldClearRefusal,
+    type StaffHoldClearRefusal,
+} from './domain/holdClearPolicy.js';
 import { answerOf, evaluateSourceCorrectionPreview } from './domain/sourceCorrectionScopePolicy.js';
 import { holdClearConflict, provenanceNotPermitted, recipeNotFound } from './recipe.error.js';
 import { SOURCE_CORRECT_SCOPE, type SourceHoldClearRequest, type SourceHoldClearResponse } from './recipes.schema.js';
@@ -58,10 +64,15 @@ function chainAnswerOf(row: CorrectionChainRow): ChainAnswer {
     return { id: row.id, answer };
 }
 
+const STAFF_REFUSAL_CODE = {
+    notHeld: 'HOLD_NOT_SET',
+    correctionNotLatest: 'CORRECTION_NOT_LATEST',
+} as const satisfies Record<StaffHoldClearRefusal, HoldClearConflictReason>;
+
 type StaffOutcome =
     | { readonly kind: 'cleared'; readonly released: number }
     | { readonly kind: 'notFound' }
-    | { readonly kind: 'refused'; readonly reason: 'HOLD_NOT_SET' | 'CORRECTION_NOT_LATEST' };
+    | { readonly kind: 'refused'; readonly reason: (typeof STAFF_REFUSAL_CODE)[StaffHoldClearRefusal] };
 
 @Injectable()
 export class SourceHoldClearService {
@@ -178,7 +189,7 @@ export class SourceHoldClearService {
         });
 
         if (verdict.kind === 'refuse') {
-            return { kind: 'refused', reason: verdict.reason === 'notHeld' ? 'HOLD_NOT_SET' : 'CORRECTION_NOT_LATEST' };
+            return { kind: 'refused', reason: STAFF_REFUSAL_CODE[verdict.reason] };
         }
 
         await this.clears.lockOwnersDescendants(tx, recipeId, facts.ownerId);

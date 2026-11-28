@@ -173,7 +173,7 @@ export class SourceCorrectionService {
             return this.refuse(principal, verdict.kind === 'forbidden' ? 'forbidden' : 'notFound', recipeId);
         }
 
-        // The same chain query the hold clear reads, unlocked: display only, and the clear re-reads it under the lock.
+        // Display only: the clear re-reads the chain under the lock.
         const [latest] = await this.holdClears.readCorrectionChain(recipeId);
 
         return {

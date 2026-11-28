@@ -65,6 +65,9 @@ function baselineDifferences(actual: FileCounts, recorded: FileCounts): string[]
     return [...over(actual, recorded), ...stale(actual, recorded)].sort();
 }
 
+/** The file part of a `file#function` site key. */
+const fileOf = (site: string): string => site.split('#')[0] ?? '';
+
 const formsOf = (file: string, source: string): string[] => visibilitySitesOf(file, source).map((site) => site.form);
 
 describe('the detector: one red fixture per comparison form', () => {
@@ -204,7 +207,7 @@ describe('the tree', () => {
         }
     ).sites;
     const recorded: FileCounts = Object.fromEntries(Object.entries(registry).map(([site, { count }]) => [site, count]));
-    const allowlisted = new Set(Object.keys(registry).map((site) => site.split('#')[0] ?? ''));
+    const allowlisted = new Set(Object.keys(registry).map(fileOf));
     const comparisons = found.filter((site) => site.form !== HELD_FORM);
     const code = (file: string): string => withoutTsComments(sources.get(file) ?? '', file);
 
@@ -215,7 +218,7 @@ describe('the tree', () => {
 
     it('compares a recipe visibility only in a file the registry names', () => {
         const outside = comparisons
-            .filter((site) => !allowlisted.has(site.site.split('#')[0] ?? ''))
+            .filter((site) => !allowlisted.has(fileOf(site.site)))
             .map((site) => `${site.site} (${site.form})`);
 
         expect(outside).toEqual([]);
@@ -226,10 +229,10 @@ describe('the tree', () => {
     });
 
     it('gives every recorded site a reason, a count of at least one and a scanned file with a site', () => {
-        const filesWithSites = new Set(comparisons.map((site) => site.site.split('#')[0]));
+        const filesWithSites = new Set(comparisons.map((site) => fileOf(site.site)));
 
         for (const [site, { count, reason }] of Object.entries(registry)) {
-            const file = site.split('#')[0] ?? '';
+            const file = fileOf(site);
 
             expect(reason.trim().length, site).toBeGreaterThan(10);
             expect(count, site).toBeGreaterThanOrEqual(1);

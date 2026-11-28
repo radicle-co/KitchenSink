@@ -16,7 +16,8 @@ export interface ReadabilityRow {
 /**
  * The ONE literal readability table for ADR-0105: every row is a recipe state and, written by hand, who reads it. The unit
  * test of `isRecipeViewableBy` and the LOCAL e2e of the real `readableBy` / `communityOf` both consume it, so the two rule
- * forms are held to the same answers. No expected value is derived. It holds all 16 combinations of visibility, status, held and deleted.
+ * forms are held to the same answers. No expected value is derived. Every combination of visibility, status, held and
+ * deleted appears once.
  */
 export const READABILITY_TABLE: readonly ReadabilityRow[] = [
     {

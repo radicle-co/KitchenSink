@@ -100,9 +100,7 @@ export function failClosedRewriteWay(port: RewriteWayPort, deadlineMs: number = 
             });
 
             try {
-                const answer = await Promise.race([port.answer(input, own.signal).then(parseRewriteWayAnswer), stop]);
-
-                return answer;
+                return await Promise.race([port.answer(input, own.signal).then(parseRewriteWayAnswer), stop]);
             } catch {
                 return UNAVAILABLE;
             } finally {

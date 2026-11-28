@@ -12,6 +12,8 @@ recipeDetailWeb (web 1280, 390) and recipeDetailMobile (iPhone 390, Android 384,
 - They replace RecipeDetailTooCloseAfterReview* and RecipeDetailSourceHoldAfterCheck* (a held recipe is hidden, never
   made private: ADR-0105). RecipePublicVersionHiddenReader* is retired: a reader of a hidden recipe gets the page's
   not-found state, RecipeNotFound*, which now shows the one sentence the app ships and no second line.
+- RecipePublicVersionHidden* (the report-hidden owner board): its owner line moves from a box above the status row
+  to the same standing slot, so one owner line has one shape.
 
 recipesAndCollectionsWeb (web 1280, 390) and recipesAndCollectionsMobile (iPhone 390, Android 384, iPad 820):
 - RecipesHidden: the Recipes list with "Weeknight pad thai" hidden: the cover chip on a grid card, the badge pill on a
@@ -184,7 +186,7 @@ def lines_board(size: str) -> str:
                 panel(M["heldSource"]),
             ),
             figure(
-                "Owner, any other reason, or one this app version does not know (other): the chip alone, no line",
+                "Owner, a reason this app version does not know (other, or an unknown value): the chip alone, no line",
                 panel(None),
             ),
             figure(
@@ -230,6 +232,15 @@ def not_found(s: str) -> str:
         "No retry. The same sentence shows for a recipe that was deleted, made private or hidden from readers, so nobody can tell which.",
         s,
     )
+
+
+def report_board(s: str) -> str:
+    """The report-hidden owner board: its owner line moves from a box above the status row to the standing slot."""
+    m = _search(r'<div class="staticNotice hiddenNote">.*?<p>(.*?)</p></div>', s, re.S)
+    s = s[: m.start()] + s[m.end() :]
+    row = _search(r'<div class="metaRow2[^"]*">', s)
+    end = element_end(s, row.start(), "div")
+    return with_sprite_and_rules(s[:end] + f'<p class="hvLine">{m[1]}</p>' + s[end:])
 
 
 def place(canvas: str, boards: list[tuple[str, int, int, str]], note: str) -> None:
@@ -285,6 +296,11 @@ def main() -> None:
             )
         nf = board_path(dc, f"RecipeNotFound{size}")
         nf.write_text(not_found(nf.read_text()))
+
+    # After the Lines boards, which take their head and stack from these boards.
+    for size in ("Web1280", "Web390", "Iphone390", "Ipad820"):
+        rb = board_path(DWEB if size.startswith("Web") else DMOB, f"RecipePublicVersionHidden{size}")
+        rb.write_text(report_board(rb.read_text()))
 
     for canvas in (DWEB, DMOB):
         for f in (ROOT / canvas / "project").glob("*.dc.html"):

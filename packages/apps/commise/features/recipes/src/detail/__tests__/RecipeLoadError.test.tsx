@@ -6,6 +6,7 @@
 import { NotFoundError } from '@kitchensink/recipe-service-client';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { RecipeLoadError } from '../RecipeLoadError.js';
 import { recipeLoadMessages } from '../messages.js';
@@ -18,7 +19,7 @@ describe('RecipeLoadError', () => {
     it('⛔ says a missing recipe is not available and offers NO retry: a 404 is final', () => {
         render(<RecipeLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />);
 
-        expect(screen.getByRole('alert').textContent).toContain(recipeLoadMessages.en.notFoundTitle);
+        expect(screen.getByRole('alert').textContent).toContain(commonMessages.en.recipeUnavailable);
         expect(screen.queryByRole('button', { name: recipeLoadMessages.en.retry })).toBeNull();
     });
 

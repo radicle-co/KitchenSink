@@ -13,10 +13,10 @@ import { fireEvent } from '@testing-library/dom';
 import { FAB_RESERVED_BOTTOM_PX } from '@commise/ui/create-fab';
 import { LocaleProvider } from '@commise/i18n/react';
 
-import { makeRecipeListItem } from '../../__fixtures__/index.js';
+import { makeRecipe, makeRecipeListItem } from '../../__fixtures__/index.js';
 import { recipeMessages } from '../../messages.js';
 import { RecipeListResults } from '../RecipeListResults.native.js';
-import type { RecipeListResultsProps } from '../model.js';
+import { toRecipeListItem, type RecipeListResultsProps } from '../model.js';
 import { nativeTokens } from '@commise/ui/native';
 import {
     fireScrollAndSettle,
@@ -622,5 +622,25 @@ describe('RecipeListResults (native) — a new layout is a new list', () => {
         rerender(results({ variant: 'compact', searchValue: 'lam' }));
 
         expect(scrollerOf()).toBe(before);
+    });
+});
+
+// hiddenViews AE6: the Recipes list (and its search, which narrows the same items) draws the owner's Hidden chip from the
+// wire item, through the one mapper the library hook uses.
+describe('RecipeListResults (native) — a hidden recipe (hiddenViews AE6)', () => {
+    it.each(['row', 'grid'] as const)('chips only the hidden recipe as Hidden in the %s arrangement', (variant) => {
+        render(
+            results({
+                variant,
+                recipes: [
+                    toRecipeListItem(
+                        makeRecipe({ id: 'h1', title: 'Hidden one', visibility: 'public', hiddenReason: 'other' }),
+                    ),
+                    toRecipeListItem(makeRecipe({ id: 'p1', title: 'Public one', visibility: 'public' })),
+                ],
+            }),
+        );
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
     });
 });

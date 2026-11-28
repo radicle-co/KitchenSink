@@ -32,7 +32,7 @@
 import { Icon } from '@commise/ui/icon';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { isModifiedClick } from '@commise/ui/route-link';
-import { StatusBadge } from '@commise/ui/status-badge';
+import { STATUS_GLYPH, StatusBadge } from '@commise/ui/status-badge';
 import { FOCUS_RING_CLASS } from '@commise/ui/focus-ring';
 import { createContext, useContext, type CSSProperties, type FC, type ReactNode } from 'react';
 
@@ -106,7 +106,7 @@ const CardCover: FC<{ readonly aspect?: '4:3' | '1:1'; readonly chips?: 'all' | 
                           {cover.status !== undefined && (
                               <span className={STATUS_CHIP} style={STATUS_CHIP_STYLE}>
                                   <span>{cover.status.text}</span>
-                                  <Icon name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'} size={16} />
+                                  <Icon name={STATUS_GLYPH[cover.status.status]} size={16} />
                               </span>
                           )}
                           {cover.pro !== undefined && (
@@ -243,7 +243,7 @@ const CardFooter: FC = () => {
 };
 
 /**
- * Row line 3: the Draft or Private badge, and the timestamp at the end. A public recipe shows no status mark, and a glyph
+ * Row line 3: the Draft, Hidden or Private badge, and the timestamp at the end. A public recipe shows no status mark, and a glyph
  * alone is never a status (UI Designer ruling, 2026-11-03).
  */
 const RowStatus: FC = () => {

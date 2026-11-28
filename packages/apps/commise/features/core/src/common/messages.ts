@@ -19,6 +19,11 @@ export interface CommonMessages {
      * was refused. It says the change is still in place, because that is what the cook needs to know.
      */
     readonly undoFailed: string;
+    /**
+     * What a reader sees in place of a recipe they cannot open (detail, cooking mode, version history, the mobile editor): the
+     * same sentence whether it was deleted, made private or hidden, so nothing says which (hiddenViews KTD-7).
+     */
+    readonly recipeUnavailable: string;
 }
 
 /** The shared copy, per locale. */
@@ -26,5 +31,6 @@ export const commonMessages: LocalizedMessages<CommonMessages> = {
     en: {
         undoGone: 'Can’t undo. It was deleted.',
         undoFailed: 'Can’t undo. The change is still in place.',
+        recipeUnavailable: 'This recipe isn’t available.',
     },
 };

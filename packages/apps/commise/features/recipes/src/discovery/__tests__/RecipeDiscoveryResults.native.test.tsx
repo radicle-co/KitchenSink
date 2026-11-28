@@ -24,6 +24,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { PENDING_BAR_DELAY_MS } from '@commise/ui/pending-bar';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.native.js';
@@ -472,5 +473,25 @@ describe("RecipeDiscoveryResults (native) — the scroll host's bind", () => {
         fireScrollAndSettle(boundScroller(bind), { target: { scrollTop: 240 } });
 
         expect(bind.onScroll).toHaveBeenCalled();
+    });
+});
+
+// hiddenViews AE10: owner search results map through the shared card model, so a result that carries the owner's reason
+// is chipped Hidden; a result with none shows no chip.
+describe('RecipeDiscoveryResults (native) — a hidden recipe (hiddenViews AE10)', () => {
+    it('chips only the result that carries a reason', () => {
+        renderResults({
+            results: [
+                makeSearchResult({
+                    id: 'h1',
+                    title: 'Hidden one',
+                    visibility: 'public',
+                    hiddenReason: 'sourceCorrected',
+                }),
+                makeSearchResult({ id: 'p1', title: 'Public one', visibility: 'public' }),
+            ],
+        });
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
     });
 });

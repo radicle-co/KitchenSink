@@ -240,8 +240,8 @@ state.
 **Difficulty** (kept from `specSharedSystem` §4) takes its colours from `difficultyTone` in `tones.ts`. It always shows
 the three-dot meter (●○○ ●●○ ●●●), so it never relies on colour (SC 1.4.1). `error` is never used for difficulty.
 
-**Status** (Draft, Private, Public): `pearl` fill, `ink` text, an icon (pencil-line, lock, globe). Neutral, never
-amber.
+**Status** (Draft, Hidden, Private, Public): `paper` fill, `inkMuted` text, an icon (pencil-line, eye-off, lock,
+globe). Neutral, never amber.
 
 ### 1.5 Type roles (`ui/src/tokens/typography.ts`, native faces in `scale.ts`)
 

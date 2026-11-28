@@ -116,6 +116,14 @@ describe('the glyph Registry', () => {
         expect(webGlyphName('listChecks')).not.toBe(webGlyphName('list'));
     });
 
+    // Hidden status chip (hiddenViews U4): `eye` already means "show", so the Hidden status is its own meaning, and it
+    // is not the lock (Private) or the globe (Public).
+    it('draws eyeOff as the Lucide eye-off on web and on native, and not as eye, lock or globe', () => {
+        expect(webGlyphName('eyeOff')).toBe('eye-off');
+        expect(nativeGlyphNames().get('eyeOff')).toBe('eye-off');
+        expect(['eye', 'lock', 'globe'].map((name) => webGlyphName(name as IconName))).not.toContain('eye-off');
+    });
+
     // Pause-a-timer and resume-a-timer: each draws its own Lucide glyph on both platforms, and neither points a
     // direction (the play triangle points right but means "resume", so it keeps its drawing like the timer does).
     it('draws pause and play as the Lucide pause and play on web and on native, and mirrors neither', () => {

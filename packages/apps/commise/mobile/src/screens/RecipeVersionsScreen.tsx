@@ -16,7 +16,13 @@
  *
  * @pattern Facade — one screen over the shared version-history session, in the shared pushed-page frame
  */
-import { RecipeVersionListError, RecipeVersionListSkeleton, recipeVersionMessages } from '@commise/features-recipes';
+import { commonMessages } from '@commise/features-core/common';
+import {
+    RecipeVersionListError,
+    RecipeVersionListSkeleton,
+    recipeVersionMessages,
+    versionListErrorOf,
+} from '@commise/features-recipes';
 import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
 import { QueryBoundary } from '@commise/query/boundary';
@@ -44,6 +50,7 @@ export interface RecipeVersionsScreenProps {
 export function RecipeVersionsScreen({ recipeId, onBack, onOpenFood }: RecipeVersionsScreenProps): JSX.Element {
     useScreenTrace('RecipeVersionsScreen');
     const { versionList } = useMessages(recipeVersionMessages);
+    const { recipeUnavailable } = useMessages(commonMessages);
     const headingId = useId();
     // The same frame in every branch, so Back is at the same place in loading, failed and settled. Its parent says "Recipe"
     // until the settled read knows the recipe's title.
@@ -69,12 +76,10 @@ export function RecipeVersionsScreen({ recipeId, onBack, onOpenFood }: RecipeVer
     return (
         <QueryBoundary
             loading={framed(<RecipeVersionListSkeleton label={versionList.loading} />)}
-            renderError={({ resetErrorBoundary }) =>
+            renderError={({ error, resetErrorBoundary }) =>
                 framed(
                     <RecipeVersionListError
-                        title={versionList.loadError}
-                        retryLabel={versionList.retry}
-                        onRetry={resetErrorBoundary}
+                        {...versionListErrorOf(error, { versionList, recipeUnavailable }, resetErrorBoundary)}
                     />,
                 )
             }

@@ -7,7 +7,7 @@
  */
 import type { ReactNode } from 'react';
 import { type Locale, fillTemplate } from '@commise/i18n';
-import { RecipeStatus, RecipeVisibility, type RecipeDetail, type RecipeIngredientView } from '@kitchensink/recipe-core';
+import type { RecipeDetail, RecipeIngredientView } from '@kitchensink/recipe-core';
 
 import { formatCalories } from '../card/model.js';
 import { controlName } from '../format/cookAmount.js';
@@ -30,6 +30,7 @@ import {
     type DetailNativeLayout,
 } from './model.js';
 import { isStandInName } from './lineName.js';
+import { chipOf, type RecipeChip } from '../recipeState/chipOf.js';
 import { bylineOf } from '../byline/bylineOf.js';
 import { bylineText } from '../byline/bylineText.js';
 import type { BylineMessages } from '../byline/messages.js';
@@ -146,13 +147,13 @@ export function detailByline(
     return author === undefined ? undefined : fillTemplate(detail.byAuthor, { byline: author });
 }
 
-/** The owner's status beside the version link: the visibility, or the Draft badge. */
+/** The owner's status beside the version link: the visibility (Hidden takes Public's place), or the Draft badge. */
 export type DetailStatus =
-    | { readonly kind: 'visibility'; readonly visibility: 'public' | 'private'; readonly text: string }
+    | { readonly kind: 'visibility'; readonly visibility: Exclude<RecipeChip, 'draft'>; readonly text: string }
     | { readonly kind: 'draft'; readonly text: string };
 
 /**
- * The owner's status: the visibility, or the Draft badge for a draft. Another cook's viewer sees none. The rating is
+ * The owner's status: the chip (`chipOf`): Hidden, Public or Private, or the Draft badge for a draft. Another cook's viewer sees none. The rating is
  * NOT here: the rating card owns it.
  *
  * @param recipe - The recipe.
@@ -161,7 +162,7 @@ export type DetailStatus =
  * @returns The status, or `undefined` for a viewer who is not the owner.
  */
 export function detailStatusLine(
-    recipe: Pick<RecipeDetail, 'visibility' | 'status'>,
+    recipe: Pick<RecipeDetail, 'visibility' | 'status' | 'hiddenReason'>,
     viewerIsOwner: boolean,
     messages: { readonly detail: RecipeDetailMessages; readonly card: RecipeCardMessages },
 ): DetailStatus | undefined {
@@ -171,17 +172,18 @@ export function detailStatusLine(
         return undefined;
     }
 
-    if (recipe.status === RecipeStatus.DRAFT) {
-        return { kind: 'draft', text: card.draftBadge };
+    const chip = chipOf(recipe);
+
+    switch (chip) {
+        case 'draft':
+            return { kind: 'draft', text: card.draftBadge };
+        case 'hidden':
+            return { kind: 'visibility', visibility: chip, text: card.hiddenBadge };
+        case 'public':
+            return { kind: 'visibility', visibility: chip, text: detail.visibilityPublic };
+        case 'private':
+            return { kind: 'visibility', visibility: chip, text: detail.visibilityPrivate };
     }
-
-    const isPublic = recipe.visibility === RecipeVisibility.PUBLIC;
-
-    return {
-        kind: 'visibility',
-        visibility: isPublic ? 'public' : 'private',
-        text: isPublic ? detail.visibilityPublic : detail.visibilityPrivate,
-    };
 }
 
 /**

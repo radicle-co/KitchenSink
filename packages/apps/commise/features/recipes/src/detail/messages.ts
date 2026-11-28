@@ -10,8 +10,6 @@ import type { LocalizedMessages } from '@commise/i18n';
 export interface RecipeLoadMessages {
     /** The read failed for any reason but a 404. */
     readonly errorTitle: string;
-    /** The recipe is gone, or the cook may not see it. A 404 is final: there is no retry beside it. */
-    readonly notFoundTitle: string;
     /** Read again. */
     readonly retry: string;
     /** What the recipe read's loading state is called, on both apps. */
@@ -22,7 +20,6 @@ export interface RecipeLoadMessages {
 export const recipeLoadMessages: LocalizedMessages<RecipeLoadMessages> = {
     en: {
         errorTitle: 'We couldn’t load this recipe.',
-        notFoundTitle: 'This recipe isn’t available.',
         retry: 'Try again',
         loadingLabel: 'Loading recipe…',
     },

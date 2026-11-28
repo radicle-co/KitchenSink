@@ -67,7 +67,9 @@ describe('recipeCardViewOf — the badges', () => {
         expect(view).not.toHaveProperty('footer');
     });
 
-    it.each<[string, RecipeStatus, RecipeVisibility, { status: 'draft' | 'private' | 'public'; text: string }]>([
+    it.each<
+        [string, RecipeStatus, RecipeVisibility, { status: 'draft' | 'hidden' | 'private' | 'public'; text: string }]
+    >([
         [
             'a public draft says Draft, never Public',
             RecipeStatus.DRAFT,
@@ -94,6 +96,31 @@ describe('recipeCardViewOf — the badges', () => {
         ],
     ])('%s', (_case, status, visibility, badge) => {
         expect(viewOf({ status, visibility }).badges.status).toEqual(badge);
+    });
+
+    // hiddenViews AE5/AE6: the owner's Hidden comes from the wire reason through the ONE chip rule, whatever the reason.
+    it.each(['sourceCorrected', 'heldSource', 'other', 'aReasonFromANewerServer'])(
+        'a published public recipe with reason %s says Hidden, read from the card copy key',
+        (hiddenReason) => {
+            const { badges } = viewOf({
+                status: RecipeStatus.PUBLISHED,
+                visibility: RecipeVisibility.PUBLIC,
+                hiddenReason,
+            });
+
+            expect(badges.status).toEqual({ status: 'hidden', text: copy.card.hiddenBadge });
+        },
+    );
+
+    it('says Draft over Hidden, and Private over a stale reason', () => {
+        expect(
+            viewOf({ status: RecipeStatus.DRAFT, visibility: RecipeVisibility.PUBLIC, hiddenReason: 'heldSource' })
+                .badges.status.status,
+        ).toBe('draft');
+        expect(
+            viewOf({ status: RecipeStatus.PUBLISHED, visibility: RecipeVisibility.PRIVATE, hiddenReason: 'heldSource' })
+                .badges.status.status,
+        ).toBe('private');
     });
 
     it.each<[string, string, string, string]>([
@@ -136,7 +163,9 @@ describe('recipeCardViewOf — the rating', () => {
 });
 
 describe('recipeCardViewOf — the cover chips', () => {
-    it.each<[string, RecipeStatus, RecipeVisibility, { status: 'draft' | 'private'; text: string } | undefined]>([
+    it.each<
+        [string, RecipeStatus, RecipeVisibility, { status: 'draft' | 'hidden' | 'private'; text: string } | undefined]
+    >([
         ['a draft shows Draft', RecipeStatus.DRAFT, RecipeVisibility.PUBLIC, { status: 'draft', text: 'Draft' }],
         [
             'a private draft still shows Draft',
@@ -154,6 +183,17 @@ describe('recipeCardViewOf — the cover chips', () => {
         ['a published public recipe shows no status chip', RecipeStatus.PUBLISHED, RecipeVisibility.PUBLIC, undefined],
     ])('%s', (_case, status, visibility, chip) => {
         expect(viewOf({ status, visibility }).cover.status).toEqual(chip);
+    });
+
+    // hiddenViews AE6: Hidden is not the quiet case, so it takes the cover chip beside Draft and Private.
+    it('a published public recipe with a reason shows the Hidden chip on the cover', () => {
+        const { cover } = viewOf({
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            hiddenReason: 'heldSource',
+        });
+
+        expect(cover.status).toEqual({ status: 'hidden', text: copy.card.hiddenBadge });
     });
 
     it.each<[number, string]>([

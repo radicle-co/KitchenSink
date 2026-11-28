@@ -28,6 +28,7 @@ import CookingPotGlyph from 'lucide-react-native/icons/cooking-pot';
 import CopyPlusGlyph from 'lucide-react-native/icons/copy-plus';
 import EllipsisGlyph from 'lucide-react-native/icons/ellipsis';
 import EyeGlyph from 'lucide-react-native/icons/eye';
+import EyeOffGlyph from 'lucide-react-native/icons/eye-off';
 import FlameGlyph from 'lucide-react-native/icons/flame';
 import GlobeGlyph from 'lucide-react-native/icons/globe';
 import HouseGlyph from 'lucide-react-native/icons/house';
@@ -104,6 +105,7 @@ export const GLYPHS: Readonly<Record<IconName, NativeGlyph>> = {
     rotateCcw: RotateCcwGlyph,
     chevronDown: ChevronDownGlyph,
     eye: EyeGlyph,
+    eyeOff: EyeOffGlyph,
     user: UserGlyph,
     minus: MinusGlyph,
     chevronRight: ChevronRightGlyph,

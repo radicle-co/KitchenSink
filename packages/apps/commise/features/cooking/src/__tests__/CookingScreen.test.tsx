@@ -2,6 +2,7 @@ import { fillTemplate, resolveMessages } from '@commise/i18n';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import type { ComponentProps } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { RecipeStatus } from '@kitchensink/recipe-core';
 
@@ -208,7 +209,7 @@ describe('CookingScreen: recipe gone', () => {
         const { onHome } = setup({ kind: 'gone' });
 
         const alert = screen.getByRole('alert');
-        expect(alert.textContent).toBe('This recipe isn’t available any moreGo to Home');
+        expect(alert.textContent).toBe(`${commonMessages.en.recipeUnavailable}${cookingMessages.en.gone.home}`);
         press('Go to Home');
         expect(onHome).toHaveBeenCalledTimes(1);
     });
@@ -230,7 +231,7 @@ describe('CookingScreen: where a cook link goes', () => {
     it('tells another cook a draft is not available, and never why', () => {
         const { onEdit } = setup(ready({ recipe: draft, viewerIsOwner: false }));
 
-        expect(screen.getByRole('alert').textContent).toContain('This recipe isn’t available any more');
+        expect(screen.getByRole('alert').textContent).toContain(commonMessages.en.recipeUnavailable);
         expect(screen.queryByText(/draft/iu)).toBeNull();
         expect(onEdit).not.toHaveBeenCalled();
     });

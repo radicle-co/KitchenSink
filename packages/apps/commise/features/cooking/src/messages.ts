@@ -121,9 +121,9 @@ interface CookingEmptyMessages {
     readonly back: string;
 }
 
-/** A recipe that cannot be read any more. It never says why. */
+/** A recipe that cannot be read any more. It never says why. Its title is `commonMessages.recipeUnavailable`. */
 interface CookingGoneMessages {
-    readonly title: string;
+    /** The way out of the screen. */
     readonly home: string;
 }
 
@@ -293,7 +293,6 @@ export const cookingMessages: LocalizedMessages<CookingMessages> = {
             back: 'Back to the recipe',
         },
         gone: {
-            title: 'This recipe isn’t available any more',
             home: 'Go to Home',
         },
         allSteps: {

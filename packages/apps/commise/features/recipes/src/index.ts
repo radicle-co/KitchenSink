@@ -242,6 +242,7 @@ export type { RecipeDeleteDialogProps, RecipeMakePublicDialogProps, RecipeUpsell
 export { RecipeConflictView } from './versions/RecipeConflictView.js';
 export { RecipeVersionList } from './versions/RecipeVersionList.js';
 export { RecipeVersionListError } from './versions/RecipeVersionListError.js';
+export { versionListErrorOf } from './versions/versionListErrorOf.js';
 export { RecipeVersionListSkeleton } from './versions/RecipeVersionListSkeleton.js';
 export { VersionCompareView } from './versions/VersionCompareView.js';
 export { VersionPreviewModal } from './versions/VersionPreviewModal.js';

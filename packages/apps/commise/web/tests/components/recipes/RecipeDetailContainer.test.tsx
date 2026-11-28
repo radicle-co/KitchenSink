@@ -36,6 +36,7 @@ import {
 } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { buttonSurfaceClass } from '@commise/ui/button';
 import { SnackbarHost } from '@commise/ui/snackbar';
@@ -438,7 +439,7 @@ describe('RecipeDetailContainer', () => {
 
             renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id="missing" />), client);
 
-            expect(await screen.findByText('This recipe isn’t available.')).toBeInTheDocument();
+            expect(await screen.findByText(commonMessages.en.recipeUnavailable)).toBeInTheDocument();
             expect(screen.queryByRole('button', { name: 'Try again' })).not.toBeInTheDocument();
         });
 
@@ -547,7 +548,7 @@ describe('RecipeDetailContainer', () => {
 
                 renderWithRecipeClient(withFoodClient(<RecipeDetailContainer id={EMPTY_ROUTE_RECIPE_ID} />), client);
 
-                expect(screen.queryByText('This recipe isn’t available.')).not.toBeInTheDocument();
+                expect(screen.queryByText(commonMessages.en.recipeUnavailable)).not.toBeInTheDocument();
             });
         });
     });

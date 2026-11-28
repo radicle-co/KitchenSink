@@ -28,6 +28,19 @@ const eyebrowBack = (): HTMLElement => {
 
 afterEach(cleanup);
 
+describe('RecipeVersionListError (web) — a final failure', () => {
+    // hiddenViews R10: a 404 is final, so the alert says its sentence and draws no retry; the header's Back stays.
+    it('draws no Try again when it is given no retry, and keeps Back', () => {
+        render(
+            <RecipeVersionListError title="This recipe isn’t available." onBack={vi.fn()} backHref="/en/recipes/r1" />,
+        );
+
+        expect(screen.getByRole('alert').textContent).toContain('This recipe isn’t available.');
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expect(screen.getByRole('link', { name: versionList.backToRecipe, hidden: true })).toBeTruthy();
+    });
+});
+
 describe('RecipeVersionListError (web)', () => {
     // Every page ends 48 below its last block (`pb-12`), one end padding for every page (designer ruling 2026-11-01,
     // `nativeBoards/designAnswers.md`). It was `pb-10`, 40, which is off the spacing scale.

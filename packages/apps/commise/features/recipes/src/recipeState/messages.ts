@@ -82,14 +82,14 @@ export const recipeStateMessages: LocalizedMessages<RecipeStateMessages> = {
             VIEW_CHANGES_ON_DEVICE: editorMessages.en.status.changesOnDevice,
             'VIEW_HIDDEN_AFTER_REPORT.owner': 'Hidden after a report. Only you can see it now.',
             'VIEW_HIDDEN_AFTER_REPORT.reader': 'This recipe isn’t available right now.',
-            VIEW_HIDDEN: 'Hidden',
-            'VIEW_HIDDEN_REASON.heldSource': 'Hidden because it was saved with a source. Only you can see it now.',
+            VIEW_HIDDEN: recipeMessages.en.card.hiddenBadge,
+            'VIEW_HIDDEN_REASON.heldSource': recipeActionMessages.en.visibility.hiddenReason.heldSource,
             'VIEW_HIDDEN_REASON.tooClose':
                 'Hidden because its steps are too close to the source’s wording. Only you can see it now.',
             'VIEW_HIDDEN_REASON.afterCheck': 'Hidden after a check. Only you can see it now.',
             'VIEW_HIDDEN_REASON.notApproved':
                 'Hidden because it wasn’t approved to be public. Only you can see it now.',
-            'VIEW_HIDDEN_REASON.sourceCorrected': 'Hidden because its source was corrected. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.sourceCorrected': recipeActionMessages.en.visibility.hiddenReason.sourceCorrected,
             'VIEW_SAVE_REFUSED.title': 'This recipe can’t stay public',
             'VIEW_SAVE_REFUSED.why.heldSource':
                 'It was saved with a source, such as a web page or a book, so it can’t be public.',

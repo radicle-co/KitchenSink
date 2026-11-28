@@ -45,3 +45,22 @@ describe('DetailStatusRow (native) — the wrapping row', () => {
         expect(resolvedStyle(row, 'gap')).toBe(gap);
     });
 });
+
+describe('DetailStatusRow (native) — the glyph beside the status word', () => {
+    it.each([
+        ['hidden', 'Hidden', 'eye-off'],
+        ['public', 'Public', 'globe'],
+        ['private', 'Private', 'lock'],
+    ] as const)('draws the %s glyph', (visibility, text, glyph) => {
+        renderWithTamagui(
+            <DetailStatusRow status={{ kind: 'visibility', visibility, text }} onViewVersions={vi.fn()} />,
+            'light',
+        );
+
+        const glyphs = [...document.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')].map(
+            (icon) => icon.dataset['iconName'],
+        );
+
+        expect(glyphs).toContain(glyph);
+    });
+});

@@ -7,6 +7,7 @@ import { cleanup, fireEvent, screen } from '@testing-library/react';
 // The detail leaves draw through the design system's Tamagui components (ADR-0080), so the tree renders in its provider.
 import { render } from '@commise/ui/testing/tamagui';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { RecipeLoadError } from '../RecipeLoadError.js';
 import { recipeLoadMessages } from '../messages.js';
@@ -19,7 +20,7 @@ describe('RecipeLoadError (native)', () => {
     it('⛔ says a missing recipe is not available, assertively, and offers NO retry', () => {
         render(<RecipeLoadError error={new NotFoundError('gone')} onRetry={vi.fn()} back={back} />);
 
-        expect(screen.getByText(recipeLoadMessages.en.notFoundTitle).closest('[aria-live="assertive"]')).not.toBeNull();
+        expect(screen.getByText(commonMessages.en.recipeUnavailable).closest('[aria-live="assertive"]')).not.toBeNull();
         expect(screen.queryByRole('button', { name: recipeLoadMessages.en.retry })).toBeNull();
     });
 

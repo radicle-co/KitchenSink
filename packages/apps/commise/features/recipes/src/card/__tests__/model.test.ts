@@ -56,6 +56,14 @@ describe('toRecipeCardModel', () => {
         });
     });
 
+    // hiddenViews AE6: the owner's reason travels to the chip rule, verbatim (an unknown value too), and is never invented.
+    it('copies the wire hiddenReason, and leaves it absent when the wire has none', () => {
+        expect(toRecipeCardModel(makeRecipe({ hiddenReason: 'aReasonFromANewerServer' })).hiddenReason).toBe(
+            'aReasonFromANewerServer',
+        );
+        expect(toRecipeCardModel(makeRecipe())).not.toHaveProperty('hiddenReason');
+    });
+
     it('projects the merged-card fields (cuisine, tags, version, visibility, status)', () => {
         const recipe = makeRecipe({
             cuisine: 'Mediterranean',

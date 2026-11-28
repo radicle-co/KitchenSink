@@ -9,6 +9,7 @@
  *
  * @pattern Adapter over the design system's `StateNotice` — picks the title and whether a retry is on offer from the error
  */
+import { commonMessages } from '@commise/features-core/common';
 import { useMessages } from '@commise/i18n/react';
 import { StateNotice, type StateNoticeAction } from '@commise/ui/state-notice';
 import { isNotFoundError } from '@kitchensink/recipe-service-client';
@@ -29,11 +30,12 @@ export interface RecipeLoadErrorProps {
 /** A recipe read failed: presentational, props → JSX. */
 export const RecipeLoadError: FC<RecipeLoadErrorProps> = ({ error, onRetry, back }) => {
     const copy = useMessages(recipeLoadMessages);
+    const { recipeUnavailable } = useMessages(commonMessages);
     const notFound = isNotFoundError(error);
 
     return (
         <StateNotice
-            title={notFound ? copy.notFoundTitle : copy.errorTitle}
+            title={notFound ? recipeUnavailable : copy.errorTitle}
             {...(notFound ? {} : { primary: { label: copy.retry, icon: 'refreshCw', onPress: onRetry } })}
             {...(back === undefined ? {} : { secondary: back })}
         />

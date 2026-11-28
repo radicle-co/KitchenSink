@@ -31,7 +31,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { Icon } from '@commise/ui/icon';
 import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
-import { StatusBadge } from '@commise/ui/status-badge';
+import { STATUS_GLYPH, StatusBadge } from '@commise/ui/status-badge';
 import { useTheme } from '@commise/ui/theme';
 import { createContext, useContext, type FC, type ReactNode } from 'react';
 import { StyleSheet, Text, useWindowDimensions, View } from 'react-native';
@@ -129,11 +129,7 @@ const CardCover: FC<{ readonly thumbnail?: boolean }> = ({ thumbnail = false }) 
                           {cover.status !== undefined && (
                               <CoverChip oneLine label={cover.status.text}>
                                   <Text style={[styles.caption, { color: colors.ink }]}>{cover.status.text}</Text>
-                                  <Icon
-                                      name={cover.status.status === 'draft' ? 'pencilLine' : 'lock'}
-                                      size={16}
-                                      tone="ink"
-                                  />
+                                  <Icon name={STATUS_GLYPH[cover.status.status]} size={16} tone="ink" />
                               </CoverChip>
                           )}
                           {cover.pro !== undefined && (
@@ -243,7 +239,7 @@ const CardFooter: FC = () => {
 };
 
 /**
- * Row line 3: the Draft or Private badge, then the timestamp. A public recipe shows no status mark, and a glyph alone is
+ * Row line 3: the Draft, Hidden or Private badge, then the timestamp. A public recipe shows no status mark, and a glyph alone is
  * never a status (UI Designer ruling, 2026-11-03).
  */
 const RowStatus: FC = () => {

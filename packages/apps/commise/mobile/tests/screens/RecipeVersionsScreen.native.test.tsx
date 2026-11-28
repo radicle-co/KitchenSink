@@ -15,12 +15,14 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
 
+import { commonMessages } from '@commise/features-core/common';
 import { recipeVersionMessages } from '@commise/features-recipes';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import type { ReactElement } from 'react';
 import type { RecipeSnapshot } from '@kitchensink/recipe-core';
 import {
+    NotFoundError,
     VersionConflictError,
     VersionLineUnrestorableError,
     type RecipeServiceClient,
@@ -126,6 +128,24 @@ describe('RecipeVersionsScreen — loading and error', () => {
         expect(await screen.findByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: versionList.backToRecipe })).toBeTruthy();
         expect(screen.getByRole('button', { name: versionList.retry })).toBeTruthy();
+    });
+
+    // hiddenViews AE8/R10: a 404 says the shared reader sentence and offers NO retry; Back stays. Either read can 404.
+    it.each([
+        ['the versions read', 'listRecipeVersions'],
+        ['the recipe read', 'getRecipeById'],
+    ] as const)('says the shared sentence with no retry when %s is a 404, and keeps Back', async (_name, failing) => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([makeRecipeVersion({ versionNumber: 1 })]);
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 1 }));
+        vi.spyOn(client, failing).mockRejectedValue(new NotFoundError('Recipe not found'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderVersions(<RecipeVersionsScreen recipeId="rec_1" onBack={vi.fn()} />, client);
+
+        expect((await screen.findByRole('alert')).textContent).toContain(commonMessages.en.recipeUnavailable);
+        expect(screen.queryByRole('button', { name: versionList.retry })).toBeNull();
+        expect(screen.getAllByRole('button', { name: versionList.backToRecipe, hidden: true })).toHaveLength(1);
     });
 
     it('⛔ retries with a real second request and recovers (web parity — an error state needs a way forward)', async () => {

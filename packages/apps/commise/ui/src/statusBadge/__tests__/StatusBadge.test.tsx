@@ -74,6 +74,19 @@ describe('StatusBadge (web)', () => {
         expect(badge.getAttribute('aria-label')).toBeNull();
     });
 
+    // hiddenViews U4: the eye-off glyph is decorative, so the badge's accessible name is exactly its words.
+    it('names the hidden badge by its words alone: no label, a decorative glyph, no extra text', () => {
+        const { container } = render(<StatusBadge status="hidden">Hidden</StatusBadge>);
+
+        const badge = badgeOf('Hidden');
+
+        expect(badge.textContent).toBe('Hidden');
+        expect(container.textContent).toBe('Hidden');
+        expect(badge.getAttribute('aria-label')).toBeNull();
+        expect(badge.getAttribute('role')).toBeNull();
+        expect(badge.querySelector('svg.lucide-eye-off')?.getAttribute('aria-hidden')).toBe('true');
+    });
+
     it('is a filled badge, never a dashed outline, so it cannot pass for a stand-in name', () => {
         for (const status of BADGE_STATUSES) {
             const { unmount } = render(<StatusBadge status={status}>Word</StatusBadge>);
@@ -99,8 +112,9 @@ describe('StatusBadge (web)', () => {
     // REWRITTEN for componentFixes §7: neutral is paper under inkMuted (it was pearl under ink, and vanished on a pearl
     // parent), told apart by the glyph, never amber.
     it('paints the recipe statuses neutral — paper and inkMuted, never amber — told apart by their glyph', () => {
-        const glyphs: Readonly<Record<'draft' | 'private' | 'public', string>> = {
+        const glyphs: Readonly<Record<'draft' | 'hidden' | 'private' | 'public', string>> = {
             draft: 'lucide-pencil-line',
+            hidden: 'lucide-eye-off',
             private: 'lucide-lock',
             public: 'lucide-globe',
         };
@@ -141,7 +155,7 @@ describe('StatusBadge (web)', () => {
 
     // componentFixes §7: a neutral badge is paper with a 1 px lineDivider edge, so it reads on canvas, paper and
     // surfaceMuted alike. Mutation lens: fill it surfaceMuted again, or drop the edge, and a row fails.
-    it.each(['draft', 'private', 'public', 'soon', 'note'] satisfies BadgeStatus[])(
+    it.each(['draft', 'hidden', 'private', 'public', 'soon', 'note'] satisfies BadgeStatus[])(
         '%s keeps its own paper fill and a lineDivider edge on a surfaceMuted parent',
         (status) => {
             render(

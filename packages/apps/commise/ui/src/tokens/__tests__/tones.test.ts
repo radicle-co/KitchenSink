@@ -77,8 +77,14 @@ describe('difficultyTone', () => {
 });
 
 describe('statusTone', () => {
-    it('is keyed by exactly the three statuses', () => {
-        expect(Object.keys(statusTone).sort()).toEqual(['draft', 'private', 'public']);
+    it('is keyed by exactly the four statuses, each with its own glyph', () => {
+        expect(Object.keys(statusTone).sort((a, b) => a.localeCompare(b))).toEqual([
+            'draft',
+            'hidden',
+            'private',
+            'public',
+        ]);
+        expect(new Set(Object.values(statusTone).map((tone) => tone.icon)).size).toBe(4);
     });
 
     // REWRITTEN for componentFixes §7: neutral is paper under inkMuted (was pearl under ink), never amber, told apart by
@@ -86,6 +92,7 @@ describe('statusTone', () => {
     it('is neutral for every status, and the icon tells them apart', () => {
         expect(statusTone).toEqual({
             draft: { fill: role.paper, text: role.inkMuted, icon: 'pencilLine' },
+            hidden: { fill: role.paper, text: role.inkMuted, icon: 'eyeOff' },
             private: { fill: role.paper, text: role.inkMuted, icon: 'lock' },
             public: { fill: role.paper, text: role.inkMuted, icon: 'globe' },
         });
@@ -98,7 +105,7 @@ describe('statusTone', () => {
         }
     });
 
-    it.each(['draft', 'private', 'public'] as const)('%s reads on its fill', (status) => {
+    it.each(['draft', 'hidden', 'private', 'public'] as const)('%s reads on its fill', (status) => {
         const { fill, text } = statusTone[status];
 
         expect(wcagContrast(text, fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);
@@ -133,6 +140,7 @@ describe('the dark tones', () => {
             hard: { fill: roleDark.paper, text: roleDark.inkMuted },
         });
         expect(statusToneDark.draft).toEqual({ fill: roleDark.paper, text: roleDark.inkMuted, icon: 'pencilLine' });
+        expect(statusToneDark.hidden).toEqual({ fill: roleDark.paper, text: roleDark.inkMuted, icon: 'eyeOff' });
     });
 
     it.each(['easy', 'medium', 'hard'] as const)(
@@ -145,7 +153,7 @@ describe('the dark tones', () => {
         },
     );
 
-    it.each(['draft', 'private', 'public'] as const)('the %s status reads in dark', (status) => {
+    it.each(['draft', 'hidden', 'private', 'public'] as const)('the %s status reads in dark', (status) => {
         const { fill, text } = statusToneDark[status];
 
         expect(wcagContrast(text, fill)).toBeGreaterThanOrEqual(AA_NORMAL_TEXT);

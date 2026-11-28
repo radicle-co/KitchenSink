@@ -15,6 +15,7 @@ import { nativeTokens } from '@commise/ui/native';
 import { rgb, systemScheme } from '@commise/ui/testing/system-color-scheme';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { RecipeWidgetLoadError } from '../../components/RecipeWidgetLoadError.native.js';
 import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.js';
 import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidget.native.js';
@@ -237,5 +238,25 @@ describe('the Home recent block’s own fallbacks (native)', () => {
         const retry = within(status).getByRole('button', { name: 'Try again' });
 
         expect(message.nextElementSibling?.contains(retry)).toBe(true);
+    });
+});
+
+// hiddenViews AE6: the Home widget maps wire recipes through the shared card model, so the owner's reason reaches the card.
+describe('RecipeHomeWidget (native) — a hidden recipe (hiddenViews AE6)', () => {
+    it('chips only the owner’s hidden recipe as Hidden', () => {
+        widget({
+            recipes: [
+                makeRecipe({ id: 'h1', title: 'Hidden one', visibility: 'public', hiddenReason: 'heldSource' }),
+                makeRecipe({ id: 'p1', title: 'Public one', visibility: 'public' }),
+            ],
+        });
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
+    });
+
+    it('chips nothing when no recipe carries a reason', () => {
+        widget({ recipes: [makeRecipe({ id: 'p1', title: 'Public one', visibility: 'public' })] });
+
+        expect(screen.queryByText(recipeMessages.en.card.hiddenBadge)).toBeNull();
     });
 });

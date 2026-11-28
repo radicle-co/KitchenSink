@@ -9,7 +9,7 @@
  */
 import { Button } from '@commise/ui/button';
 import { Icon } from '@commise/ui/icon';
-import { StatusBadge } from '@commise/ui/status-badge';
+import { STATUS_GLYPH, StatusBadge } from '@commise/ui/status-badge';
 import { Text } from '@commise/ui/text';
 import { useMessages } from '@commise/i18n/react';
 import type { FC } from 'react';
@@ -43,7 +43,7 @@ export const DetailStatusRow: FC<DetailStatusRowProps> = ({ status, onViewVersio
             {status?.kind === 'draft' && <StatusBadge status="draft">{status.text}</StatusBadge>}
             {status?.kind === 'visibility' && (
                 <Visibility>
-                    <Icon name={status.visibility === 'public' ? 'globe' : 'lock'} size={16} tone="inkMuted" />
+                    <Icon name={STATUS_GLYPH[status.visibility]} size={16} tone="inkMuted" />
                     <Text typeRole="meta" color="$inkMuted">
                         {status.text}
                     </Text>

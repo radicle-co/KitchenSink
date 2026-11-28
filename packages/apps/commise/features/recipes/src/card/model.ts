@@ -77,6 +77,11 @@ export interface RecipeCardModel {
      * omitted it — carried here so the badge layer never has to re-derive draftness.
      */
     readonly status: RecipeStatus;
+    /**
+     * Why the read rule hides this PUBLIC recipe from readers: OWNER-ONLY on the wire, so its presence is the owner's Hidden chip
+     * (`chipOf`). An open string, copied verbatim and never narrowed here.
+     */
+    readonly hiddenReason?: string;
 }
 
 /**
@@ -103,6 +108,7 @@ export const toRecipeCardModel = (recipe: Recipe): RecipeCardModel => ({
     currentVersion: recipe.currentVersion,
     visibility: recipe.visibility,
     status: recipe.status,
+    ...(recipe.hiddenReason !== undefined ? { hiddenReason: recipe.hiddenReason } : {}),
 });
 
 /** The number of stars in the rating display. */

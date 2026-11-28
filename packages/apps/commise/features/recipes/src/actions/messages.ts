@@ -112,6 +112,8 @@ export interface RecipeVisibilityToggleMessages {
      */
     /** `final` says the change could not be made, whatever the reason; `slots` states the SERVER's limit. */
     readonly privateRefused: Readonly<Record<'final' | 'slots', string>>;
+    /** Why the owner's public recipe is Hidden, one line per reason that has one (`knownHiddenReasonOf`). */
+    readonly hiddenReason: Readonly<Record<'heldSource' | 'sourceCorrected', string>>;
 }
 
 /**
@@ -290,6 +292,10 @@ export const recipeActionMessages: LocalizedMessages<RecipeActionMessages> = {
                 // `recipe.visibility.slotsFull`: the editor board's words, now the recipe page's too. `{total}` is the SERVER's
                 // limit (`visibilityNoticeOf` fills it); this package states no number of its own.
                 slots: 'Not available. All {total} of your private slots are in use.',
+            },
+            hiddenReason: {
+                heldSource: 'Hidden because it was saved with a source. Only you can see it now.',
+                sourceCorrected: 'Hidden because its source was corrected. Only you can see it now.',
             },
         },
         publicRefusal: {

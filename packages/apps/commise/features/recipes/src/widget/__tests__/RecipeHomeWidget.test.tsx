@@ -17,6 +17,7 @@ import { LocaleProvider } from '@commise/i18n/react';
 import type { Recipe } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { RecipeWidgetLoadError } from '../../components/RecipeWidgetLoadError.js';
 import { RecipeWidgetLoadingCard } from '../../components/RecipeWidgetLoadingCard.js';
 import RecipeHomeWidget, { type RecipeHomeWidgetProps } from '../RecipeHomeWidget.js';
@@ -280,5 +281,26 @@ describe('the Home recent block’s own fallbacks (web)', () => {
         );
 
         expect(screen.queryByRole('button')).toBeNull();
+    });
+});
+
+// hiddenViews AE6: the Home widget reads wire recipes and maps them through the shared card model, so the owner's reason
+// reaches the card (a mapper that dropped the field goes red here).
+describe('RecipeHomeWidget (web) — a hidden recipe (hiddenViews AE6)', () => {
+    it('chips the owner’s hidden recipe as Hidden, and leaves the others alone', async () => {
+        await renderWidget({
+            recipesPromise: Promise.resolve([
+                makeRecipe({ id: 'h1', title: 'Hidden one', visibility: 'public', hiddenReason: 'heldSource' }),
+                makeRecipe({ id: 'p1', title: 'Public one', visibility: 'public' }),
+            ]),
+        });
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
+        expect(
+            within(screen.getByRole('article', { name: 'Hidden one' })).getByText(recipeMessages.en.card.hiddenBadge),
+        ).toBeTruthy();
+        expect(
+            within(screen.getByRole('article', { name: 'Public one' })).queryByText(recipeMessages.en.card.hiddenBadge),
+        ).toBeNull();
     });
 });

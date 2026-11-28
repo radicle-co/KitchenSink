@@ -134,6 +134,17 @@ describe('applyBlocks', () => {
         expect(() => applyBlocks(doc, {})).toThrow(/a/);
     });
 
+    it('copes with 10,000 repeated begin markers: the first opens the block and the rest are swallowed', () => {
+        const hostile = `${'<!-- recipeState:begin ! -->\n'.repeat(10_000)}<!-- recipeState:end ! -->\n`;
+
+        expect(applyBlocks(hostile, { '!': 'new' })).toBe(
+            '<!-- recipeState:begin ! -->\n\nnew\n\n<!-- recipeState:end ! -->\n',
+        );
+        expect(() => applyBlocks('<!-- recipeState:begin ! -->\n'.repeat(10_000), { '!': 'new' })).toThrow(
+            /end marker/,
+        );
+    });
+
     it('throws for a begin marker that has no end marker, rather than leaving the stale block in place', () => {
         expect(() => applyBlocks('<!-- recipeState:begin a -->\n\nold\n', { a: 'new' })).toThrow(/end marker/);
     });

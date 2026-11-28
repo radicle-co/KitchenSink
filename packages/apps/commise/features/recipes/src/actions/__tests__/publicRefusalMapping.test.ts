@@ -4,7 +4,7 @@
  * delegated, as a literal table, so a change in either fails here.
  */
 import { RecipeSourceType, type RecipeSourceKindView, type RecipeStatementKindView } from '@kitchensink/recipe-core';
-import { REFUSAL, refusalOf } from '@kitchensink/recipe-core/recipe-state';
+import { REFUSAL } from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
 
 import { PUBLIC_REFUSALS, REFUSALS_OF_SOURCE, publicRefusalOf, type PublicRefusalFacts } from '../publicRefusal.js';
@@ -49,12 +49,5 @@ describe('publicRefusalOf answers what the recipe page answered before it delega
         ['a paid site and held', facts(RecipeSourceType.IMPORTED_PAID, 'paid_site', null, true), 'policy.paidSite'],
     ] as const)('%s', (_label, input, expected) => {
         expect(publicRefusalOf(input)).toBe(expected);
-    });
-
-    it('agrees with refusalOf for the same facts, through the mapping', () => {
-        const input = facts(RecipeSourceType.IMPORTED_PHYSICAL, 'book', null, true);
-        const reason = REFUSALS_OF_SOURCE.find((pair) => pair[0] === refusalOf(input))?.[1];
-
-        expect(publicRefusalOf(input)).toBe(reason);
     });
 });

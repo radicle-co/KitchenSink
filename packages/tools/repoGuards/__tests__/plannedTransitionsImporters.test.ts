@@ -30,7 +30,33 @@ const MANIFEST = import.meta.glob<string>('../../../shared/recipe-core/package.j
     eager: true,
 });
 
+/** The modules beside `plannedTransitions.ts`, as text. The state module's own entry is one of them. */
+const MODULE_FILES = import.meta.glob<string>(
+    [
+        '../../../shared/recipe-core/src/recipeState/*.ts',
+        '!../../../shared/recipe-core/src/recipeState/plannedTransitions.ts',
+    ],
+    { query: '?raw', import: 'default', eager: true },
+);
+
 describe('the planned transitions subpath', () => {
+    it('is not imported or re-exported by any other module of the state model', () => {
+        expect(Object.keys(MODULE_FILES).length).toBeGreaterThan(5);
+        expect(
+            Object.entries(MODULE_FILES)
+                .filter(([, text]) =>
+                    text
+                        .split('\n')
+                        .some(
+                            (line) =>
+                                line.includes('plannedTransitions') &&
+                                (line.includes(' from ') || line.includes('import(')),
+                        ),
+                )
+                .map(([file]) => file),
+        ).toEqual([]);
+    });
+
     it('is imported only by the recipe state doc generator', async () => {
         const sources = await Promise.all(
             Object.entries(SOURCES).map(async ([file, load]) => ({ file, text: await load() })),

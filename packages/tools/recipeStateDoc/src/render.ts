@@ -373,7 +373,24 @@ export function renderBlocks(): Record<string, string> {
     };
 }
 
-const BEGIN_MARKER = /^<!-- recipeState:begin (\S+) -->$/u;
+const BEGIN_PREFIX = '<!-- recipeState:begin ';
+const MARKER_SUFFIX = ' -->';
+
+/**
+ * @param line - One line of the document.
+ * @returns The block id when the line is a begin marker, else undefined. Plain string work, so a hostile document costs time in proportion to its length. Pure.
+ */
+function beginIdOf(line: string): string | undefined {
+    const text = line.trim();
+
+    if (!text.startsWith(BEGIN_PREFIX) || !text.endsWith(MARKER_SUFFIX)) {
+        return undefined;
+    }
+
+    const id = text.slice(BEGIN_PREFIX.length, text.length - MARKER_SUFFIX.length);
+
+    return id === '' || id.includes(' ') ? undefined : id;
+}
 
 /**
  * Put the generated blocks into the document between their markers, leaving every other byte alone. The markers are
@@ -392,7 +409,7 @@ export function applyBlocks(markdown: string, blocks: Readonly<Record<string, st
 
     for (const line of markdown.split('\n')) {
         if (endMarker !== undefined) {
-            if (line === endMarker) {
+            if (line.trim() === endMarker) {
                 out.push(line);
                 endMarker = undefined;
             }
@@ -402,7 +419,7 @@ export function applyBlocks(markdown: string, blocks: Readonly<Record<string, st
 
         out.push(line);
 
-        const id = BEGIN_MARKER.exec(line)?.[1];
+        const id = beginIdOf(line);
 
         if (id === undefined) {
             continue;

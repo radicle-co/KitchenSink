@@ -734,7 +734,7 @@ function drainHeld(ctx: EditorContext): boolean {
 function recordSubmit(
     ctx: EditorContext,
     outcome: EditorSubmitOutcome,
-    sent: Pick<OutstandingWrite, 'kind' | 'finishing'> & {
+    sent: Pick<OutstandingWrite, 'kind' | 'finishing' | 'row'> & {
         readonly sent: RecipeFormValues;
         readonly trigger: CheckpointTrigger;
     },
@@ -772,6 +772,7 @@ function recordSubmit(
         kind: sent.kind,
         sent: sent.sent,
         finishing: sent.finishing,
+        ...(sent.row === undefined ? {} : { row: sent.row }),
     });
 }
 
@@ -869,9 +870,18 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
     const kind = intent.intentKind === 'create' ? 'create' : 'update';
     const finishing = isFinishingTrigger(trigger);
 
+    // The row answer the intent carries, read where the intent was made.
+    const { row } = ctx.statement.get();
+
     void ctx.opts.port.submitExclusive(intent).then(
         (outcome) => {
-            recordSubmit(ctx, outcome, { trigger, kind, sent: draft, finishing });
+            recordSubmit(ctx, outcome, {
+                trigger,
+                kind,
+                sent: draft,
+                finishing,
+                ...(row === undefined ? {} : { row }),
+            });
         },
         () => {
             ctx.setMemento('failed');
@@ -1169,8 +1179,12 @@ function adoptWritten(ctx: EditorContext, detail: RecipeDetail, pending: Outstan
     const wasPublished = lifecycleNow(ctx) === 'published';
 
     adoptServerFacts(ctx, detail, pending.sent);
+
     // The server holds the Source row's answer now (and its confirmed fact says whether it locked), so the row reads it there.
-    ctx.statement.clearRow();
+    // Only the answer THIS write carried: a later one the write did not carry stays, and the next write sends it.
+    if (pending.row !== undefined && ctx.statement.get().row === pending.row) {
+        ctx.statement.clearRow();
+    }
 
     if (!pending.finishing) {
         return;

@@ -5030,42 +5030,85 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         });
     });
 
-    it('a second row answer given while the first write is out is not lost when the first write lands', async () => {
-        const { result, port } = mount({ recipe: makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT }) });
+    describe('two Source-row answers, one after the other', () => {
         const book = {
             kind: 'book',
             citation: 'Salt Fat Acid Heat',
             wording: { version: 'statementBook.v2', locale: 'en' },
         } as const;
         const person = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } } as const;
+        const draftRecipe = (currentVersion: number) =>
+            makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, currentVersion });
 
-        act(() => {
-            result.current.answerRowStatement({ statement: book, visibility: RecipeVisibility.PRIVATE }, 'firstAnswer');
-        });
-        await settle();
-        const firstSeq = port.lastSeq();
-        act(() => {
-            result.current.answerRowStatement({ statement: person, visibility: RecipeVisibility.PRIVATE }, 'change');
-        });
-        await settle();
-        act(() => {
-            port.sync(firstSeq, makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, currentVersion: 4 }));
-        });
-        await settle();
+        it('a pending write is replaced losslessly: the second answer rides the replacing record', async () => {
+            const { result, port } = mount({ recipe: draftRecipe(3) });
 
-        // Each answer rides its own write, and only the outstanding write's answer is adopted: the first landing does not clear
-        // the second answer, which the second write carries.
-        expect(port.submitted).toHaveLength(2);
-        expect(port.submitted[0]).toMatchObject({ payload: { input: { statement: { kind: 'book' } } } });
-        expect(port.submitted[1]).toMatchObject({ payload: { input: { statement: { kind: 'fromPerson' } } } });
-        expect(result.current.rowStated?.statement).toEqual(person);
+            act(() => {
+                result.current.answerRowStatement(
+                    { statement: book, visibility: RecipeVisibility.PRIVATE },
+                    'firstAnswer',
+                );
+            });
+            await settle();
+            act(() => {
+                result.current.answerRowStatement(
+                    { statement: person, visibility: RecipeVisibility.PRIVATE },
+                    'change',
+                );
+            });
+            await settle();
 
-        act(() => {
-            port.sync(port.lastSeq(), makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, currentVersion: 5 }));
+            expect(port.submitted).toHaveLength(2);
+            expect(port.submitted[1]).toMatchObject({ payload: { input: { statement: { kind: 'fromPerson' } } } });
+            expect(result.current.rowStated?.statement).toEqual(person);
+
+            act(() => {
+                port.sync(port.lastSeq(), draftRecipe(4));
+            });
+            await settle();
+
+            expect(result.current.rowStated).toBeUndefined();
         });
-        await settle();
 
-        expect(result.current.rowStated).toBeUndefined();
+        it('⛔ a second answer given while the first write is on the wire is sent after it lands, never lost', async () => {
+            const { result, port } = mount({ recipe: draftRecipe(3) });
+
+            act(() => {
+                result.current.answerRowStatement(
+                    { statement: book, visibility: RecipeVisibility.PRIVATE },
+                    'firstAnswer',
+                );
+            });
+            await settle();
+            const firstSeq = port.lastSeq();
+            port.claim(firstSeq);
+            act(() => {
+                result.current.answerRowStatement(
+                    { statement: person, visibility: RecipeVisibility.PRIVATE },
+                    'change',
+                );
+            });
+            await settle();
+
+            expect(port.submitted).toHaveLength(1);
+
+            act(() => {
+                port.sync(firstSeq, draftRecipe(4));
+            });
+            await settle();
+
+            // The first landing did not carry the second answer, so the row still holds it and a second write sends it.
+            expect(result.current.rowStated?.statement).toEqual(person);
+            expect(port.submitted).toHaveLength(2);
+            expect(port.submitted[1]).toMatchObject({ payload: { input: { statement: { kind: 'fromPerson' } } } });
+
+            act(() => {
+                port.sync(port.lastSeq(), draftRecipe(5));
+            });
+            await settle();
+
+            expect(result.current.rowStated).toBeUndefined();
+        });
     });
 
     it('⛔ a refused answer is dropped, the refusal is told, and the rest of the draft goes again', async () => {

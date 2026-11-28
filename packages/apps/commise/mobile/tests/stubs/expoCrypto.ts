@@ -6,3 +6,8 @@
 export function randomUUID(): string {
     return crypto.randomUUID();
 }
+
+/** The timer id's native leaf draws its random bytes here; the Web Crypto global answers as the device would. */
+export function getRandomBytes(byteCount: number): Uint8Array {
+    return crypto.getRandomValues(new Uint8Array(byteCount));
+}

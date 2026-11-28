@@ -11,16 +11,19 @@
  */
 import {
     CookingScreen,
+    DockHeightContext,
     cookingReadSourceOf,
     useCookingRead,
     type CookingScreenProps,
 } from '@commise/features-cooking/mobile';
 import { claimedViewerIdOf, viewerIdOf, viewerKnown } from '@commise/features-recipes/detail';
+import { ReportPageFootContext } from '@commise/ui/popup-insets';
 import { QueryBoundary } from '@commise/query/boundary';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
+import { useRoute } from '@react-navigation/native';
 import { onlineManager, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
-import type { FC } from 'react';
+import { useCallback, useContext, type FC } from 'react';
 
 import { useSessionClaims } from '../hooks/useSessionClaims.js';
 import { useUserProfile } from '../hooks/useUserProfile.js';
@@ -51,35 +54,47 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeav
     const viewer = { id: viewerId, known: viewerKnown(viewerId, profile.isLoading) };
     const detail = recipeQueries(client).detail(recipeId);
 
+    // The navigator draws the one snackbar host above the dock: this screen's reports carry its own route's key.
+    const reportFoot = useContext(ReportPageFootContext);
+    const { key: routeKey } = useRoute();
+    const reportDock = useCallback(
+        (height: number) => {
+            reportFoot({ routeKey, height });
+        },
+        [reportFoot, routeKey],
+    );
+
     const readAgain = (): void => {
         void queryClient.invalidateQueries({ queryKey: detail.queryKey });
     };
 
     return (
-        <QueryBoundary
-            loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} recipeId={recipeId} {...ways} />}
-            renderError={({ error, resetErrorBoundary }) => (
-                <CookingScreen
+        <DockHeightContext value={reportDock}>
+            <QueryBoundary
+                loading={<CookingScreen read={{ kind: 'pending', retry: readAgain }} recipeId={recipeId} {...ways} />}
+                renderError={({ error, resetErrorBoundary }) => (
+                    <CookingScreen
+                        recipeId={recipeId}
+                        read={
+                            isNotFoundError(error)
+                                ? { kind: 'gone' }
+                                : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
+                        }
+                        {...ways}
+                    />
+                )}
+                resetKeys={[recipeId]}
+            >
+                <SettledCooking
+                    key={`${recipeId}|${viewerId ?? ''}`}
+                    detail={detail}
+                    viewer={viewer}
+                    ways={ways}
                     recipeId={recipeId}
-                    read={
-                        isNotFoundError(error)
-                            ? { kind: 'gone' }
-                            : { kind: 'failed', offline: !onlineManager.isOnline(), retry: resetErrorBoundary }
-                    }
-                    {...ways}
+                    readAgain={readAgain}
                 />
-            )}
-            resetKeys={[recipeId]}
-        >
-            <SettledCooking
-                key={`${recipeId}|${viewerId ?? ''}`}
-                detail={detail}
-                viewer={viewer}
-                ways={ways}
-                recipeId={recipeId}
-                readAgain={readAgain}
-            />
-        </QueryBoundary>
+            </QueryBoundary>
+        </DockHeightContext>
     );
 };
 

@@ -18,6 +18,7 @@ import { ScrollView, styled, YStack } from 'tamagui';
 import type { CookingFrameProps } from './cookingViewProps.js';
 import { COOKING_COLUMN } from './cookingLayout.js';
 import { CookingTwoColumnLayout } from './CookingTwoColumnLayout.native.js';
+import { useReportDockHeight } from './useReportDockHeight.native.js';
 
 // Tamagui's own stacks take no responder handlers, so the swipe area is React Native's View, laid out by Tamagui.
 const SwipeArea = styled(View, { name: 'CookingSwipeArea', flex: 1 });
@@ -29,6 +30,7 @@ export type NativeCookingFrameProps = CookingFrameProps & {
 
 /** The native cooking surface. */
 export const CookingFrame: FC<NativeCookingFrameProps> = ({ topBar, body, foot, busy, bodySwipe, column }) => {
+    const onFootLayout = useReportDockHeight(foot?.dock !== undefined);
     const stack = (
         <YStack testID="cooking-column" flex={1} width="100%" maxWidth={COOKING_COLUMN.maxPx} alignSelf="center">
             {topBar}
@@ -38,7 +40,7 @@ export const CookingFrame: FC<NativeCookingFrameProps> = ({ topBar, body, foot, 
                 </ScrollView>
             </SwipeArea>
             {foot === undefined ? null : (
-                <YStack testID="cooking-foot" gap="$2">
+                <YStack testID="cooking-foot" gap="$2" onLayout={onFootLayout}>
                     {foot.dock}
                     {foot.preview}
                     {foot.actions}

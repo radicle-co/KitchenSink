@@ -9,6 +9,8 @@ import { RecipeStatus } from '@kitchensink/recipe-core';
 import { NotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import { makeCookingWrapper } from '@commise/features-cooking/testing/mobile';
+import { ReportPageFootContext } from '@commise/ui/popup-insets';
+import { stepDigestsOf } from '@kitchensink/cooking-core';
 import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
@@ -23,6 +25,8 @@ const { useUserProfileMock } = vi.hoisted(() => ({ useUserProfileMock: vi.fn() }
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: useUserProfileMock }));
 vi.mock('../../src/hooks/useSessionClaims.js', () => ({ useSessionClaims: vi.fn() }));
+// The route's key, which the dock's foot reports travel under; a navigator is not under test here.
+vi.mock('@react-navigation/native', () => ({ useRoute: () => ({ key: 'cook-route' }) }));
 
 const OWNER_ID = 'usr_1';
 const FOUR = [
@@ -42,7 +46,7 @@ const nextStep = () => screen.getByRole('button', { name: /^(Next step|Start ste
 const onLeave = vi.fn();
 const onEdit = vi.fn();
 const onHome = vi.fn();
-const { Wrapper: CookingProviders } = makeCookingWrapper();
+const { Wrapper: CookingProviders, store } = makeCookingWrapper();
 /** The screen under the providers the app root mounts: ticks, timer, snackbar host and hardware Back. */
 const screenOf = () => (
     <CookingProviders>
@@ -269,5 +273,32 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         rerender(screenOf());
 
         expect(await screen.findByText(stepOf(1, 4))).toBeTruthy();
+    });
+});
+
+describe('CookingModeScreen: the dock foot', () => {
+    it('reports under its own route key, and clears the report when the screen goes', async () => {
+        const report = vi.fn();
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
+        const view = renderWithRecipeClient(
+            <ReportPageFootContext value={report}>{screenOf()}</ReportPageFootContext>,
+            client,
+        );
+        await screen.findByText(stepOf(1, 4));
+
+        act(() => {
+            store.start({
+                recipeId: 'rec_1',
+                stepIndex: 0,
+                stepDigest: stepDigestsOf(FOUR)[0] ?? '',
+                label: undefined,
+                origin: { kind: 'added' },
+                durationMs: 60_000,
+            });
+        });
+        view.unmount();
+
+        expect(report).toHaveBeenCalledWith({ routeKey: 'cook-route', height: 0 });
     });
 });

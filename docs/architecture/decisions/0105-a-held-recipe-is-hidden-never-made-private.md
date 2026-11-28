@@ -66,24 +66,31 @@ every other hold.
       ships. It is not copied into this function.
     - There is no new visibility value and no new column.
 4. **"Held" means "never publicly readable".** The CHECK `recipes_held_is_not_public` is dropped. A held recipe may be
-   public or private. If it is public, the read rule hides it. The clone trigger does not change. The ratchet keeps
-   false to true, and PR 5 gives it one guarded way back, the staff clear (Decision 7). The writers stop setting
-   `private` (Decision 1) in the change that drops the CHECK, and that change waits for the function to be deployed
-   (the schema deploys first).
+   public or private. If it is public, the read rule hides it. The clone trigger does not change. No hold is
+   permanent: a held recipe has two ways back. One is the staff clear (Decision 7). The other is a rewrite that earns the
+   fact (Decision 5), which also lifts a correction hold when the corrected answer or the evidence is third-party (a
+   book, a paid site or a web page). The ratchet keeps false to true. PR 5 gives it one guarded true-to-false path, which
+   needs a clear record in the same transaction, either a staff clear or a system clear for the earned rewrite. The
+   writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits for the
+   function to be deployed (the schema deploys first).
 5. **An edit that cannot stay public.** When a cook edits a recipe that readers can see, and the new content cannot
-   stay public (a recorded source holds it, its wording is too close, or it was not approved), the save is refused and
+   stay public (a recorded source or a staff correction holds it, its wording is too close, or it was not approved), the save is refused and
    the edit stays on the device. The same sheet opens for a recipe that is already hidden: it is refused while a
    private slot is free, and with no free slot only an explicit Save and hide saves it. The cook chooses one of these:
     - change the steps in their own words. A rewrite that earns the fact unblocks the recipe, for every origin, own and
       unstated included (ADR-0097 Decision 3 for the unblock, and the owner ruling recorded as model decision Q21 for
-      own and unstated origins).
+      own and unstated origins). When the corrected answer or the evidence is third-party, the earned fact also clears a
+      staff correction hold. This is a system edge on the earned fact (ADR-0097 Decision 3), not a cook declaration, and
+      the correction record stays. A correction to own or "from another person" clears only by staff. This supersedes in
+      part ADR-0103's rejection of a cook-side clear: the cook still cannot declare the hold away (owner ruling
+      2026-11-28).
     - discard the edit.
     - with a free slot, make it private and save.
     - with no free slot, save it and hide it. The recipe stays public and hidden, and the cook chose that.
 6. **A create or a publish that cannot go public** saves a draft. A draft uses no slot (ADR-0073 §12). With a free slot
    the cook may publish it as private. A create of a private recipe with no free slot saves a draft too. Nothing is
    refused for want of a slot.
-7. **Clearing the correction hold** lifts the hold only. A recipe whose audience is private stays private. A recipe
+7. **Clearing the correction hold** is one of the two ways back (Decision 4). It lifts the hold only. A recipe whose audience is private stays private. A recipe
    whose audience is public is readable again when no other term of the read rule hides it (a recorded source or a
    private-only label still does). A cleared correction never makes a "from another person" recipe readable: PR 5
    adds that term with its clear route (ADR-0097 Decision 2). The release of the owner's clones

@@ -65,6 +65,7 @@ export const LABELLED_NAMES = {
             '.why.heldSource',
             '.why.tooClose',
             '.why.notApproved',
+            '.why.sourceCorrected',
             '.wayRewrite',
             '.wayRewriteAction',
             '.wayDiscard',

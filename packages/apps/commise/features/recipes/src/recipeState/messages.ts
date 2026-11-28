@@ -95,6 +95,7 @@ export const recipeStateMessages: LocalizedMessages<RecipeStateMessages> = {
                 'It was saved with a source, such as a web page or a book, so it can’t be public.',
             'VIEW_SAVE_REFUSED.why.tooClose': 'Its steps are too close to the source’s wording to share.',
             'VIEW_SAVE_REFUSED.why.notApproved': 'It wasn’t approved to be public.',
+            'VIEW_SAVE_REFUSED.why.sourceCorrected': 'Its source was corrected, so it can’t be public as it is.',
             'VIEW_SAVE_REFUSED.wayRewrite': 'Change the steps in your own words to keep it public.',
             'VIEW_SAVE_REFUSED.wayRewriteAction': EDIT_STEPS,
             'VIEW_SAVE_REFUSED.wayDiscard': 'Discard your changes to keep the public recipe as it is.',

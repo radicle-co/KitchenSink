@@ -65,6 +65,7 @@ describe('LABELLED_NAMES: held means hidden (ADR-0105, AE10)', () => {
             '.why.heldSource',
             '.why.tooClose',
             '.why.notApproved',
+            '.why.sourceCorrected',
             '.wayRewrite',
             '.wayRewriteAction',
             '.wayDiscard',
@@ -89,7 +90,7 @@ describe('LABELLED_NAMES: held means hidden (ADR-0105, AE10)', () => {
     it('keeps the cause a plain string union, equal to the why shapes of the refused-save sheet', () => {
         type CauseOf<K> = K extends `VIEW_SAVE_REFUSED.why.${infer C}` ? C : never;
 
-        expectTypeOf<SaveRefusalCause>().toEqualTypeOf<'heldSource' | 'tooClose' | 'notApproved'>();
+        expectTypeOf<SaveRefusalCause>().toEqualTypeOf<'heldSource' | 'tooClose' | 'notApproved' | 'sourceCorrected'>();
         expectTypeOf<CauseOf<LabelKey>>().toEqualTypeOf<SaveRefusalCause>();
     });
 

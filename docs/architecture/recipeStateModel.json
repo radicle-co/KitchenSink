@@ -237,6 +237,7 @@
                 "VIEW_SAVE_REFUSED.why.heldSource",
                 "VIEW_SAVE_REFUSED.why.tooClose",
                 "VIEW_SAVE_REFUSED.why.notApproved",
+                "VIEW_SAVE_REFUSED.why.sourceCorrected",
                 "VIEW_SAVE_REFUSED.wayRewrite",
                 "VIEW_SAVE_REFUSED.wayRewriteAction",
                 "VIEW_SAVE_REFUSED.wayDiscard",
@@ -248,6 +249,7 @@
                 "VIEW_SAVE_REFUSED.why.heldSource": "It was saved with a source, such as a web page or a book, so it can’t be public.",
                 "VIEW_SAVE_REFUSED.why.tooClose": "Its steps are too close to the source’s wording to share.",
                 "VIEW_SAVE_REFUSED.why.notApproved": "It wasn’t approved to be public.",
+                "VIEW_SAVE_REFUSED.why.sourceCorrected": "Its source was corrected, so it can’t be public as it is.",
                 "VIEW_SAVE_REFUSED.wayRewrite": "Change the steps in your own words to keep it public.",
                 "VIEW_SAVE_REFUSED.wayRewriteAction": "Edit steps",
                 "VIEW_SAVE_REFUSED.wayDiscard": "Discard your changes to keep the public recipe as it is.",
@@ -485,7 +487,7 @@
             "stored": "`recipes.source_correction_hold`",
             "enforcement": "CHECK `recipes_held_is_not_public`. A clone copies the hold at insert, by trigger",
             "setBy": "staff correction (`STAFF_CORRECT`)",
-            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1). Never the cook",
+            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the answer or the evidence is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned)",
             "ownerLabel": "none. `REFUSAL_SOURCE_CORRECTED` carries the copy",
             "built": "set: yes. Clear: PR 5"
         },
@@ -845,7 +847,7 @@
             "from": "PPu, readable",
             "event": "editor `SAVE`",
             "actor": "cook",
-            "guard": "the new content cannot stay public: a recorded source holds it, its steps are too close, or it was not approved",
+            "guard": "the new content cannot stay public: a recorded source holds it, a staff correction holds it, its steps are too close, or it was not approved",
             "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC`. Nothing saved. The edit stays on the device. The refused-save sheet",
             "pending": "P10 (held source), 020 (too close, not approved)"
         },
@@ -936,6 +938,17 @@
             "guard": "ADR-0097 D3, in order: the P4a check passes, the source re-run passes, 020 allows. Any origin, own and unstated included (G1)",
             "to": "the evidence rule no longer holds it. Readable if nothing else hides it",
             "pending": "P10 (seam, stubbed), P4b, 020"
+        },
+        {
+            "axis": "holds",
+            "axisLabel": "holds",
+            "eventId": "EARNED_REWRITE_CLEARS_HOLD",
+            "from": "`HOLD_SOURCE_CORRECTED` set",
+            "event": "`REWRITE_EARNS_FACT`",
+            "actor": "system",
+            "guard": "the corrected answer or the evidence is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)",
+            "to": "unset. The correction record stays. Readable again if the audience is public and nothing else hides it",
+            "pending": "B10b, PR 5"
         },
         {
             "axis": "lifecycleAudience",

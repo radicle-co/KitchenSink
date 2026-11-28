@@ -44,6 +44,7 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         'PUBLISH_DRAFT_NO_SLOT',
         'HIDE_AFTER_CHECK',
         'SOURCE_HOLD_LIFTED_BY_REWRITE',
+        'EARNED_REWRITE_CLEARS_HOLD',
         'MAKE_PUBLIC_TOO_CLOSE_PRIVATE',
     ];
     const DELETED_IDS = [
@@ -59,7 +60,7 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
     ];
     const ids = PLANNED.map((row) => row.eventId);
 
-    it('holds the ten new rows, in order, and none of the deleted ones', () => {
+    it('holds the eleven new rows, in order, and none of the deleted ones', () => {
         expect(ids.filter((id) => NEW_IDS.includes(id))).toEqual(NEW_IDS);
         expect(ids.filter((id) => DELETED_IDS.includes(id))).toEqual([]);
     });
@@ -71,6 +72,13 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         ).map((row) => row.eventId);
 
         expect(offenders).toEqual([]);
+    });
+
+    it('refuses a save of a recipe a staff correction holds, as it refuses any save that cannot stay public', () => {
+        const row = PLANNED.find((entry) => entry.eventId === 'SAVE_CANNOT_STAY_PUBLIC');
+
+        expect(row?.guard).toContain('a staff correction holds it');
+        expect(row?.to).toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
     });
 
     it("makes Save and hide the cook's own choice, with no free private slot", () => {
@@ -109,5 +117,18 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         expect(makePublic?.guard).toContain('REFUSAL_CONTENT_NOT_APPROVED');
         expect(LABELLED_NAMES.VIEW_DRAFT_DOOR.shapes).toContain('.title');
         expect(LABELLED_NAMES.VIEW_SAVE_REFUSED.shapes).toContain('.why.notApproved');
+    });
+
+    it('clears a correction hold on an earned rewrite only by a system clear, for a third-party answer', () => {
+        const row = PLANNED.find((entry) => entry.eventId === 'EARNED_REWRITE_CLEARS_HOLD');
+
+        expect(row?.from).toContain('HOLD_SOURCE_CORRECTED');
+        expect(row?.actor).toBe('system');
+        expect(row?.guard).toContain('third-party');
+        expect(row?.guard).toContain('clear record');
+        expect(row?.pending).toContain('PR 5');
+        expect(PLANNED.find((entry) => entry.eventId === 'SOURCE_HOLD_LIFTED_BY_REWRITE')?.from).not.toContain(
+            'HOLD_SOURCE_CORRECTED',
+        );
     });
 });

@@ -49,7 +49,7 @@ export const REFUSAL = {
  * Why an editor save of a public recipe is refused (ADR-0105): `REFUSAL_SAVE_CANNOT_STAY_PUBLIC` carries one of these as
  * its cause. A plain string union, so a client wraps it as it needs. `refusalOf` never returns the save reason.
  */
-export type SaveRefusalCause = 'heldSource' | 'tooClose' | 'notApproved';
+export type SaveRefusalCause = 'heldSource' | 'tooClose' | 'notApproved' | 'sourceCorrected';
 
 /** One refusal name, or `REFUSAL_NONE` for "nothing stops it". */
 export type Refusal = keyof typeof REFUSAL;

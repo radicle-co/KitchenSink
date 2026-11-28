@@ -30,16 +30,18 @@ if (unknown.length > 0 || paths.length === 0) {
     process.exit(2);
 }
 
-const sources = await Promise.all(paths.map((path) => readFile(path, 'utf8'))).catch((error: unknown) => {
-    process.stderr.write(`cannot read: ${String(error)}\n`);
+const boards = await Promise.all(paths.map(async (path) => ({ path, source: await readFile(path, 'utf8') }))).catch(
+    (error: unknown) => {
+        process.stderr.write(`cannot read: ${String(error)}\n`);
 
-    return process.exit(2);
-});
+        return process.exit(2);
+    },
+);
 
-const results = paths.map((path, index) => {
-    const pruned = pruneBoard(sources[index] ?? '');
+const results = boards.map(({ path, source }) => {
+    const pruned = pruneBoard(source);
 
-    return { path, ...pruned, changed: pruned.html !== sources[index], kept: deadClassSelectors(pruned.html) };
+    return { path, ...pruned, changed: pruned.html !== source, kept: deadClassSelectors(pruned.html) };
 });
 
 results.forEach(({ path, changed, removed, kept }) => {

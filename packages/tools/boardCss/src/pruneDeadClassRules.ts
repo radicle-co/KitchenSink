@@ -86,7 +86,7 @@ function runCut(
     after: Selector | undefined,
     base: number,
 ): Cut[] {
-    const [first] = run;
+    const first = run.at(0);
     const last = run.at(-1);
 
     if (first === undefined || last === undefined) {

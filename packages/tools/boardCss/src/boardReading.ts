@@ -62,6 +62,16 @@ function styleBlock(html: string, children: readonly Node[]): StyleBlock {
     return { text, offset: editable ? where.startOffset : undefined };
 }
 
+/** Every word a script's text holds, by each way of cutting it into tokens. Pure. */
+function scriptWordsOf(script: string): string[] {
+    return TOKENS.flatMap((token) => Array.from(script.matchAll(token), ([word]) => word));
+}
+
+/** The tokens of an element's `class` attributes. Pure. */
+function classTokensOf(element: DefaultTreeAdapterMap['element']): string[] {
+    return element.attrs.filter(({ name }) => name === 'class').flatMap(({ value }) => value.split(/\s+/u));
+}
+
 /**
  * Walks the board once, adding to `styles` and `used`.
  *
@@ -75,20 +85,10 @@ function read(html: string, node: Node, styles: StyleBlock[], used: Set<string>)
             return;
         }
 
-        if (node.tagName === 'script') {
-            const script = textOf(node.childNodes);
+        const words = node.tagName === 'script' ? scriptWordsOf(textOf(node.childNodes)) : [];
 
-            for (const token of TOKENS) {
-                for (const [word] of script.matchAll(token)) {
-                    used.add(word);
-                }
-            }
-        }
-
-        for (const attr of node.attrs.filter(({ name }) => name === 'class')) {
-            for (const token of attr.value.split(/\s+/u)) {
-                used.add(token);
-            }
+        for (const word of [...words, ...classTokensOf(node)]) {
+            used.add(word);
         }
     }
 

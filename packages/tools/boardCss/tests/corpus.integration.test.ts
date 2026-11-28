@@ -3,8 +3,7 @@
  * hold for the boards of today and of tomorrow: the prune is idempotent, it never touches the HTML, it never drops a
  * selector that names no dead class, and it leaves a dead class only in a selector it keeps on purpose.
  */
-import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { globSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,13 +15,7 @@ import { deadClassSelectors } from '../src/deadClassSelectors.js';
 import { pruneBoard, pruneDeadClassRules } from '../src/pruneDeadClassRules.js';
 
 const root = resolve(fileURLToPath(import.meta.url), '../../../../..');
-const files = execFileSync('git', ['ls-files', 'docs/design/canvases'], {
-    cwd: root,
-    encoding: 'utf8',
-    maxBuffer: 1 << 26,
-})
-    .split('\n')
-    .filter((file) => file.endsWith('.dc.html'));
+const files = globSync('docs/design/canvases/**/*.dc.html', { cwd: root });
 const boards = files.map((file) => ({ file, before: readFileSync(resolve(root, file), 'utf8') }));
 const pruned = boards.map(({ file, before }) => ({ file, before, after: pruneDeadClassRules(before) }));
 

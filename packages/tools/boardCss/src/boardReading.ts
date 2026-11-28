@@ -55,7 +55,7 @@ function childrenOf(node: Node): readonly Node[] {
  */
 function styleBlock(html: string, children: readonly Node[]): StyleBlock {
     const text = textOf(children);
-    const [only] = children;
+    const only = children.at(0);
     const where = children.length === 1 && only && defaultTreeAdapter.isTextNode(only) ? only.sourceCodeLocation : null;
     const editable = where && html.slice(where.startOffset, where.endOffset) === text;
 

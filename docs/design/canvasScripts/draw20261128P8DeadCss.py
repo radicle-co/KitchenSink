@@ -19,7 +19,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from draw20261128HiddenViewsBoards import prune_dead_css  # noqa: E402  # the one copy of the board CSS reader
+from draw20261128HiddenViewsBoards import prune_dead_css  # the one copy of the board CSS reader
 
 ROOT = Path("docs/design/canvases")
 WEB_SIZES = ["Web1280", "Web390"]

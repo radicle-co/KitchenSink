@@ -44,6 +44,7 @@ import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
 import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { recipeActionMessages } from '../actions/messages.js';
 import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
+import { PUBLISH_SHEET_SURFACE } from '../actions/sourceStatement.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
@@ -174,7 +175,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const { publicConfirm } = useMessages(recipeActionMessages);
     const statementSheet = useStatementSheet({
         locale,
-        surface: 'editor',
+        surface: PUBLISH_SHEET_SURFACE,
         recipeConfirmed: seed.recipe?.sourceConfirmed === true,
         onAnswer: editor.answerStatement,
     });

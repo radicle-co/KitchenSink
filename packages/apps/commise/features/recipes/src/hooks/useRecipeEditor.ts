@@ -102,7 +102,13 @@ import {
 } from '../editor/checkpointPolicy.js';
 import type { PrivateRefusal } from '../actions/privateGate.js';
 import type { PublicRefusal } from '../actions/publicRefusal.js';
-import { answerLocks, publicWordingOf, statementAnswerOf, type StatementWrite } from '../actions/sourceStatement.js';
+import {
+    answerLocks,
+    publicWordingOf,
+    PUBLISH_SHEET_SURFACE,
+    statementAnswerOf,
+    type StatementWrite,
+} from '../actions/sourceStatement.js';
 import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
 import { createStatementStore, type RowAnswer, type StatementStore } from '../editor/statementStore.js';
@@ -357,12 +363,9 @@ export interface UseRecipeEditorResult {
      */
     readonly statementAsk: boolean;
     /**
-     * The citation of a paid website the cook confirmed in the sheet this session: the Source row shows it locked from the
-     * confirm, before any write has carried it. `undefined` until then.
-     */
-    /**
-     * What the Source row's own sheet answered this session and no write has carried yet: the row draws it from the confirm.
-     * `undefined` until the cook answers, and again once a write carried it.
+     * What the Source row draws from an answer no write has carried yet: the Publish sheet's confirmed paid-site answer, else
+     * what the Source row's own sheet answered (the Publish sheet's answer wins). Either way `locks` is the rule's answer
+     * (`answerLocks`). `undefined` until the cook answers, and again once a write carried it.
      */
     readonly rowStated: RowAnswer | undefined;
     /** The recipe as the server holds it now (the row's facts), `undefined` before the first server write. */
@@ -805,7 +808,7 @@ function publishAnswerRowOf(
         statement: answer.statement,
         locks: answerLocks({
             answer: 'paidSite',
-            surface: 'editor',
+            surface: PUBLISH_SHEET_SURFACE,
             recipeConfirmed: stored?.sourceConfirmed === true,
         }),
     };

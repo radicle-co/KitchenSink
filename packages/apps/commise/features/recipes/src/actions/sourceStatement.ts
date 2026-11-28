@@ -80,6 +80,9 @@ export function confirmsAt(surface: StatementSurface): boolean {
     return surface === 'editor' || surface === 'recipePage' || surface === 'recipePageOwn' || surface === 'downgrade';
 }
 
+/** The surface of the sheet that Publish and Make public open: the editor's, whose act confirms. ONE fact for the host and the row. */
+export const PUBLISH_SHEET_SURFACE: StatementSurface = 'editor';
+
 /** The inputs of {@link answerLocks}. */
 export interface AnswerLockInput {
     readonly answer: StatementAnswer;

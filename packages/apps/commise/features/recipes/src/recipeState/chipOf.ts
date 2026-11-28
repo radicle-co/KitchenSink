@@ -19,7 +19,7 @@ export type RecipeChip = 'draft' | 'hidden' | 'public' | 'private';
 export interface ChipFacts {
     readonly status: RecipeStatus;
     readonly visibility: RecipeVisibility;
-    readonly hiddenReason?: string | undefined;
+    readonly hiddenReason?: string;
 }
 
 /**

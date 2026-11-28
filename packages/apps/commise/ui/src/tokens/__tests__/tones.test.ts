@@ -78,7 +78,12 @@ describe('difficultyTone', () => {
 
 describe('statusTone', () => {
     it('is keyed by exactly the four statuses, each with its own glyph', () => {
-        expect(Object.keys(statusTone).sort()).toEqual(['draft', 'hidden', 'private', 'public']);
+        expect(Object.keys(statusTone).sort((a, b) => a.localeCompare(b))).toEqual([
+            'draft',
+            'hidden',
+            'private',
+            'public',
+        ]);
         expect(new Set(Object.values(statusTone).map((tone) => tone.icon)).size).toBe(4);
     });
 

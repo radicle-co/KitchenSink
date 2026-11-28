@@ -14,7 +14,7 @@
  * The words stay the caller's (`children`), because they are localised copy and `@commise/ui` holds no catalogue.
  */
 import type { IconName } from '../icon/props.js';
-import { statusTone } from '../tokens/tones.js';
+import { statusTone, type RecipeStatus } from '../tokens/tones.js';
 import type { TypeRole } from '../tokens/typography.js';
 
 /** Every status a badge can state. */
@@ -23,12 +23,17 @@ export const BADGE_STATUSES = ['draft', 'hidden', 'private', 'public', 'pro', 's
 /** A status a badge can state. */
 export type BadgeStatus = (typeof BADGE_STATUSES)[number];
 
-/** The glyph each status draws before its words, or `null` for a status that is only words. */
-export const BADGE_GLYPH: Readonly<Record<BadgeStatus, IconName | null>> = {
+/** The glyph a recipe status draws beside its word, read from the status tones so it is stated once. */
+export const STATUS_GLYPH: Readonly<Record<RecipeStatus, IconName>> = {
     draft: statusTone.draft.icon,
     hidden: statusTone.hidden.icon,
     private: statusTone.private.icon,
     public: statusTone.public.icon,
+};
+
+/** The glyph each status draws before its words, or `null` for a status that is only words. */
+export const BADGE_GLYPH: Readonly<Record<BadgeStatus, IconName | null>> = {
+    ...STATUS_GLYPH,
     pro: null,
     soon: null,
     note: null,

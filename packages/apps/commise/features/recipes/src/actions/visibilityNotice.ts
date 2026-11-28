@@ -60,9 +60,9 @@ export interface VisibilityNoticeInput {
      */
     readonly standing: PublicRefusal;
     /** The recipe's chip (`chipOf`): the Hidden line is said only while it is `hidden`, so a draft says nothing. */
-    readonly chip?: RecipeChip | undefined;
+    readonly chip?: RecipeChip;
     /** Why the recipe is Hidden, as the wire states it (an open string). `other`, a newer reason and none have no line. */
-    readonly hiddenReason?: string | undefined;
+    readonly hiddenReason?: string;
 }
 
 /**

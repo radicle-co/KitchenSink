@@ -33,9 +33,8 @@ import { Icon } from '@commise/ui/icon';
 import { KeepAwakeToggle } from '@commise/ui/keep-awake';
 import { LARGE_TITLE_CLASS } from '@commise/ui/large-title-header';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
-import { StatusBadge } from '@commise/ui/status-badge';
+import { STATUS_GLYPH, StatusBadge } from '@commise/ui/status-badge';
 import { surfaceToneClass } from '@commise/ui/surface-tone';
-import { statusTone } from '@commise/ui/tokens/tones';
 import type { RecipeIngredientView } from '@kitchensink/recipe-core';
 import { scaleRecipeForServings } from '@kitchensink/recipe-core/scaling';
 import Link from 'next/link';
@@ -205,7 +204,7 @@ export const RecipeDetailBody: FC<RecipeDetailBodyWebProps> = ({
                             {status?.kind === 'draft' && <StatusBadge status="draft">{status.text}</StatusBadge>}
                             {status?.kind === 'visibility' && (
                                 <span className="inline-flex items-center gap-1 text-ink-muted">
-                                    <Icon name={statusTone[status.visibility].icon} size={16} />
+                                    <Icon name={STATUS_GLYPH[status.visibility]} size={16} />
                                     {status.text}
                                 </span>
                             )}

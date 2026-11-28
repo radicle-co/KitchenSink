@@ -77,8 +77,12 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
     it('refuses a save of a recipe a staff correction holds, as it refuses any save that cannot stay public', () => {
         const row = PLANNED.find((entry) => entry.eventId === 'SAVE_CANNOT_STAY_PUBLIC');
 
-        expect(row?.guard).toContain('a staff correction holds it');
-        expect(row?.to).toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
+        const hidden = PLANNED.find((entry) => entry.eventId === 'SAVE_WHILE_HIDDEN');
+
+        expect(row?.from).toBe('PPu, readable');
+        expect(row?.guard).not.toContain('staff correction');
+        expect(hidden?.guard).toContain('sourceCorrected');
+        expect(hidden?.to).toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
     });
 
     it("makes Save and hide the cook's own choice, with no free private slot", () => {
@@ -126,6 +130,7 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         expect(row?.actor).toBe('system');
         expect(row?.guard).toContain('third-party');
         expect(row?.guard).toContain('clear record');
+        expect(row?.to).toContain('exactly this recipe');
         expect(row?.pending).toContain('PR 5');
         expect(PLANNED.find((entry) => entry.eventId === 'SOURCE_HOLD_LIFTED_BY_REWRITE')?.from).not.toContain(
             'HOLD_SOURCE_CORRECTED',

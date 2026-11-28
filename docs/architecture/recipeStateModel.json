@@ -487,7 +487,7 @@
             "stored": "`recipes.source_correction_hold`",
             "enforcement": "CHECK `recipes_held_is_not_public`. A clone copies the hold at insert, by trigger",
             "setBy": "staff correction (`STAFF_CORRECT`)",
-            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the answer or the evidence is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned)",
+            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the answer or the evidence is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration",
             "ownerLabel": "none. `REFUSAL_SOURCE_CORRECTED` carries the copy",
             "built": "set: yes. Clear: PR 5"
         },
@@ -847,7 +847,7 @@
             "from": "PPu, readable",
             "event": "editor `SAVE`",
             "actor": "cook",
-            "guard": "the new content cannot stay public: a recorded source holds it, a staff correction holds it, its steps are too close, or it was not approved",
+            "guard": "the new content cannot stay public: a recorded source holds it, its steps are too close, or it was not approved",
             "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC`. Nothing saved. The edit stays on the device. The refused-save sheet",
             "pending": "P10 (held source), 020 (too close, not approved)"
         },
@@ -880,7 +880,7 @@
             "from": "PPu, already held from readers",
             "event": "editor `SAVE`",
             "actor": "cook",
-            "guard": "none: the sheet opens as for any save that cannot stay public",
+            "guard": "none: the sheet opens as for any save that cannot stay public. The sheet’s why line is the cause that hides the recipe: `heldSource`, `sourceCorrected`, `tooClose` or `notApproved`",
             "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC` with a free private slot, so the cook picks a way. With no free private slot only an explicit Save and hide saves it: PPu, saved, still hidden",
             "pending": "P10"
         },
@@ -947,7 +947,7 @@
             "event": "`REWRITE_EARNS_FACT`",
             "actor": "system",
             "guard": "the corrected answer or the evidence is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)",
-            "to": "unset. The correction record stays. Readable again if the audience is public and nothing else hides it",
+            "to": "unset. The correction record stays. Clears exactly this recipe, and no clone: each clone clears on its own earned rewrite or by staff. Readable again if the audience is public and nothing else hides it",
             "pending": "B10b, PR 5"
         },
         {

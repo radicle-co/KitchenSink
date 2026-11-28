@@ -13,7 +13,9 @@
   the last Consequences bullet's "It makes a recipe private and held". The rest stands.
 - **Supersedes:** [ADR-0103](0103-the-recipe-state-model-is-code-and-staff-can-clear-the-correction-hold.md) Decision 2,
   three bullets: "It lifts the hold only. It never makes a recipe public. The recipe stays private…", "The CHECK
-  `recipes_held_is_not_public` does not change", and "Every released recipe stays private". The rest stands.
+  `recipes_held_is_not_public` does not change", and "Every released recipe stays private". Also the words "a
+  staff-only, audited edge" in that decision's first sentence, and the record's "staff actor" (model 4.6.1): a system
+  clear for an earned rewrite writes a clear record too. The rest stands.
 - **Relates to:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)
   Decision 3, whose system unblock this ADR uses. [ADR-0095](0095-a-recorded-source-is-kept-and-a-recipe-is-public-only-with-a-statement.md),
   whose evidence rule is read, in part, by the read-rule function. [ADR-0082](0082-recipes-are-an-open-library-of-facts-cooks-words-and-gated-public-domain.md),
@@ -74,15 +76,15 @@ every other hold.
    writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits for the
    function to be deployed (the schema deploys first).
 5. **An edit that cannot stay public.** When a cook edits a recipe that readers can see, and the new content cannot
-   stay public (a recorded source or a staff correction holds it, its wording is too close, or it was not approved), the save is refused and
+   stay public (a recorded source holds it, its wording is too close, or it was not approved), the save is refused and
    the edit stays on the device. The same sheet opens for a recipe that is already hidden: it is refused while a
    private slot is free, and with no free slot only an explicit Save and hide saves it. The cook chooses one of these:
     - change the steps in their own words. A rewrite that earns the fact unblocks the recipe, for every origin, own and
       unstated included (ADR-0097 Decision 3 for the unblock, and the owner ruling recorded as model decision Q21 for
       own and unstated origins). When the corrected answer or the evidence is third-party, the earned fact also clears a
       staff correction hold. This is a system edge on the earned fact (ADR-0097 Decision 3), not a cook declaration, and
-      the correction record stays. A correction to own or "from another person" clears only by staff. This supersedes in
-      part ADR-0103's rejection of a cook-side clear: the cook still cannot declare the hold away (owner ruling
+      the correction record stays. A correction to own or "from another person" clears only by staff. The rejection of a cook-side
+      clear in ADR-0103 stands: this is a system clear, and the cook still cannot declare the hold away (owner ruling
       2026-11-28).
     - discard the edit.
     - with a free slot, make it private and save.
@@ -94,8 +96,10 @@ every other hold.
    whose audience is public is readable again when no other term of the read rule hides it (a recorded source or a
    private-only label still does). A cleared correction does not make a "from another person" recipe readable. It
    stays hidden until spec 016's family source type ships and the cook confirms the giver agreed (owner ruling
-   2026-11-15). PR 5 adds that term with its clear route (ADR-0097 Decision 2). The release of the owner's clones
-   follows the same rule. Each released clone keeps its own audience.
+   2026-11-15 and the family member or friend row of spec 016's rights table). PR 5 adds that term with its clear
+   route (ADR-0097 Decision 2). The staff clear also releases the owner's clones, and each released clone keeps its own
+   audience. A system clear for an earned rewrite clears exactly the recipe that earned the fact. Each clone clears on
+   its own earned rewrite, or by staff.
 8. **Erasure removes a held public recipe.** It is not kept and it is not donated. The kept set is "public, published
    and not held from readers". A donation is refused for a recipe held from readers.
 9. **A cached public page is purged when a hold is set.** Any surface that caches a public recipe (the signed-out reader

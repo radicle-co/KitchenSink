@@ -2,7 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-27
-- **Superseded in part by:** [ADR-0105](0105-a-held-recipe-is-hidden-never-made-private.md): Decision 2, the bullets "It lifts the hold only. It never makes a recipe public. The recipe stays private…", "The CHECK recipes_held_is_not_public does not change", and "Every released recipe stays private".
+- **Superseded in part by:** [ADR-0105](0105-a-held-recipe-is-hidden-never-made-private.md): Decision 2, the bullets "It lifts the hold only. It never makes a recipe public. The recipe stays private…", "The CHECK recipes_held_is_not_public does not change", and "Every released recipe stays private". Also the words "a staff-only, audited edge" in that decision's first sentence, and the clear record's "staff actor" (model 4.6.1).
 - **Supersedes:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)
   Decision 1, that decision only: the model document is the authority, and its JSON copy follows it. The code is the
   source now, and the document's tables are generated from it (Decision 1 below). The rest of ADR-0097 stands.

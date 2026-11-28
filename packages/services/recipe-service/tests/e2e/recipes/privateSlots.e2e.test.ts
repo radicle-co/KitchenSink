@@ -732,4 +732,37 @@ describe('Free-tier private slots (ADR-0073)', () => {
             expect((await usage()).used).toBe(3);
         });
     });
+
+    describe('heldSave "private" takes a slot like any move to private (heldPublicSave U8)', () => {
+        it.each([
+            [49, 200, 50],
+            [50, 403, 50],
+        ])(
+            'a free cook at %i private recipes: the save of a published public recipe answers %i, leaving %i private',
+            async (held, status, left) => {
+                const cook = newCook();
+                await seed(cook, held, { status: 'published' });
+                const id = await seedComplete(cook, { status: 'published', visibility: 'public' });
+
+                const res = await patchRecipe(id, { expectedVersion: 1, title: 'Edited', heldSave: 'private' });
+
+                expect(res.status).toBe(status);
+                expect(await privateCount(cook)).toBe(left);
+
+                if (status === 403) {
+                    expect((await res.json()) as ErrorBody).toMatchObject({
+                        code: 'PRIVATE_SLOTS_FULL',
+                        details: { used: 50, limit: 50 },
+                    });
+                    const [row] = await db
+                        .select()
+                        .from(recipes)
+                        .where(sql`${recipes.id} = ${id}`);
+
+                    expect(row).toMatchObject({ visibility: 'public' });
+                    expect(row.title).not.toContain('Edited');
+                }
+            },
+        );
+    });
 });

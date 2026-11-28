@@ -558,6 +558,25 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             expect(await readRow(id)).toMatchObject({ status: 'draft' });
         });
 
+        /** heldPublicSave U8 (S9): the cook's `heldSave` never buys a private PUBLISH of a raced draft, which would bypass the slot count. */
+        it('refuses to PUBLISH a raced public draft even with heldSave "private", and leaves it a draft', async () => {
+            const { id, version } = await clearedDraft();
+            await roleDb.asOwner((client) =>
+                client.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]),
+            );
+            const before = await readRow(id);
+
+            expectSourceConflict(
+                await send('PATCH', `/api/v1/recipes/${id}`, {
+                    expectedVersion: version,
+                    status: 'published',
+                    heldSave: 'private',
+                    publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+                }),
+            );
+            expect(await readRow(id)).toEqual(before);
+        });
+
         it('never refuses Private: the same recipe can be made private again and published private', async () => {
             const { id, version } = await clearedDraft();
             const published = await send('PATCH', `/api/v1/recipes/${id}`, {
@@ -676,6 +695,93 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
             expect(after).toEqual(before);
             expect(after).toMatchObject({ visibility: 'public', status: 'published', currentVersion: version });
+        });
+
+        /** heldPublicSave U8 (AE3): the cook's choice, in ONE write, against a real database. */
+        it('PATCH with heldSave "private" saves the edit and makes it private in one write', async () => {
+            const { id, version } = await heldRecipe();
+
+            const edit = await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                title: 'A different title',
+                heldSave: 'private',
+            });
+
+            expect(edit.status).toBe(200);
+            expect(await readRow(id)).toMatchObject({
+                title: 'A different title',
+                visibility: 'private',
+                status: 'published',
+                currentVersion: version + 1,
+            });
+        });
+
+        /**
+         * heldPublicSave U8, parity (plan U8, qse Q3, S15): `heldSave: 'private'` ends in the same stored state as set-visibility
+         * to private followed by the same PATCH. The accepted difference: neither differs in version here, because
+         * set-visibility does not bump it and the PATCH bumps once on both routes. Ids and timestamps differ by nature.
+         */
+        it('PATCH with heldSave "private" ends in the same state as set-visibility private plus the same PATCH', async () => {
+            const viaChoice = await heldRecipe();
+            const viaTwoCalls = await heldRecipe();
+
+            expect(
+                (
+                    await send('PATCH', `/api/v1/recipes/${viaChoice.id}`, {
+                        expectedVersion: viaChoice.version,
+                        title: 'Same title',
+                        heldSave: 'private',
+                    })
+                ).status,
+            ).toBe(200);
+            expect(
+                (await send('PATCH', `/api/v1/recipes/${viaTwoCalls.id}/visibility`, { visibility: 'private' })).status,
+            ).toBe(200);
+            expect(
+                (
+                    await send('PATCH', `/api/v1/recipes/${viaTwoCalls.id}`, {
+                        expectedVersion: viaTwoCalls.version,
+                        title: 'Same title',
+                    })
+                ).status,
+            ).toBe(200);
+
+            const stateOf = async (id: string) => {
+                const row = await readRow(id);
+                const { rows: evidence } = await pool.query(
+                    `SELECT capture, source_kind, source_domain FROM recipe_source_evidence WHERE recipe_id = $1 ORDER BY recorded_at`,
+                    [id],
+                );
+                const { rows: attestations } = await pool.query(
+                    `SELECT choice, wording_version FROM recipe_statement_attestations WHERE recipe_id = $1 ORDER BY recorded_at`,
+                    [id],
+                );
+                const { rows: versions } = await pool.query(
+                    `SELECT count(*)::int AS n FROM recipe_versions WHERE recipe_id = $1`,
+                    [id],
+                );
+
+                // The two timestamps differ by nature; both must be SET on both routes.
+                return {
+                    columns: {
+                        ...row,
+                        id: null,
+                        createdAt: null,
+                        updatedAt: null,
+                        firstPublishedAt: null,
+                        sourceConfirmedAt: null,
+                    },
+                    confirmed: [row.firstPublishedAt !== null, row.sourceConfirmedAt !== null],
+                    evidence,
+                    attestations,
+                    versions,
+                };
+            };
+
+            const chosen = await stateOf(viaChoice.id);
+
+            expect(chosen.confirmed).toEqual([true, true]);
+            expect(chosen).toEqual(await stateOf(viaTwoCalls.id));
         });
     });
 });

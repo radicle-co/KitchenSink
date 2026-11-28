@@ -72,6 +72,10 @@
             "count": 2,
             "reason": "write policy: which visibility a recipe may hold"
         },
+        "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#savesPrivateOnChoice": {
+            "count": 1,
+            "reason": "write policy: whether the cook's heldSave makes the recipe private in the same write"
+        },
         "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.assertNoPrivateFoodLinesIn": {
             "count": 1,
             "reason": "a write check: the private-food link rule on publish"

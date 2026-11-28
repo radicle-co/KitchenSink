@@ -25,7 +25,7 @@ import {
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
-import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
+import type { LockedRecipeFacts, ReadableRecipeAggregate, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
@@ -65,11 +65,15 @@ const CREATE_DTO: CreateRecipeDto = {
     steps: [{ instruction: 'Mix' }],
 };
 
-function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
+function aggregate(
+    overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {},
+    heldFromReaders = false,
+): ReadableRecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, cuisine: 'Thai', ...overrides });
 
     return {
-        recipe,
+        // The read rule's hold, explicit: a held recipe is hidden from every reader but its owner (#536).
+        recipe: { ...recipe, heldFromReaders },
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
         // One line and a cuisine, so a patch that only says `status: 'published'` meets the publish requirements and the
         // refusal under test is the SLOT refusal, not PUBLISH_REQUIREMENTS_UNMET.
@@ -302,7 +306,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(found),
+            findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             setVisibility,
             lockAndCountPrivateSlots,
             lockSlotFacts,
@@ -725,6 +729,186 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
         expect(error.code).toBe(RecipeErrorCode.RECIPE_NOT_FOUND);
         expect(update).not.toHaveBeenCalled();
     });
+});
+
+describe('RecipesService.update - heldSave "private" is the cook choosing private in the same write (heldPublicSave U8)', () => {
+    const PATCH = { expectedVersion: 1, title: 'New', heldSave: 'private' } as const;
+
+    /** A recipe the cook holds, with the facts the lock reads (the same row the pre-read found). */
+    function holding(
+        used: number,
+        facts: { visibility: 'public' | 'private'; status: 'draft' | 'published' } = {
+            visibility: 'public',
+            status: 'published',
+        },
+        preLockVisibility: 'public' | 'private' = facts.visibility,
+        heldFromReaders = false,
+    ) {
+        // `found` is the pre-lock read; `lockSlotFacts` below is the locked one. They may disagree (a race).
+        const found = aggregate(
+            { visibility: preLockVisibility, status: facts.status, currentVersion: 1 },
+            heldFromReaders,
+        );
+        const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', status: facts.status }));
+        const lockAndCountPrivateSlots = vi.fn(() => Promise.resolve(used));
+        const dal = fakeRecipesDal({
+            findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
+            update,
+            lockAndCountPrivateSlots,
+            lockSlotFacts: vi.fn((): Promise<LockedRecipeFacts> =>
+                Promise.resolve({
+                    ...facts,
+                    sourceType: 'user_created',
+                    sourceKind: null,
+                    statementKind: null,
+                    contentPastedAt: null,
+                    clonedFromId: null,
+                    sourceAttribution: null,
+                    sourceUrl: null,
+                    sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                    sourceCorrectionHold: false,
+                }),
+            ),
+        });
+
+        return { dal, update, lockAndCountPrivateSlots };
+    }
+
+    it.each([0, 49])(
+        'writes visibility private with the edit at %i used, counted under the lock before the write',
+        async (used) => {
+            const { dal, update, lockAndCountPrivateSlots } = holding(used);
+
+            await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+            expect(update).toHaveBeenCalledOnce();
+            expect(update).toHaveBeenCalledWith(
+                'r-1',
+                expect.objectContaining({ title: 'New', visibility: RecipeVisibility.PRIVATE }),
+                FAKE_TX,
+            );
+            expect(lockAndCountPrivateSlots).toHaveBeenCalledWith(FAKE_TX, OWNER);
+            expect(lockAndCountPrivateSlots.mock.invocationCallOrder[0]).toBeLessThan(
+                update.mock.invocationCallOrder[0] ?? Number.POSITIVE_INFINITY,
+            );
+        },
+    );
+
+    it.each([50, 60])('refuses at %i used with PRIVATE_SLOTS_FULL and writes nothing', async (used) => {
+        const { dal, update } = holding(used);
+
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(error.details).toEqual({ used, limit: 50 });
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('pre-lock read private, locked read public: the locked read decides, so the slot is counted, and at 50 the save is refused and nothing is written', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(
+            50,
+            { visibility: 'public', status: 'published' },
+            'private',
+        );
+
+        const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
+
+        expect(error.code).toBe(RecipeErrorCode.PRIVATE_SLOTS_FULL);
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('pre-lock read private, locked read public, a free slot: the write carries visibility private', async () => {
+        const { dal, update } = holding(10, { visibility: 'public', status: 'published' }, 'private');
+
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+    });
+
+    it('pre-lock read public, locked read private: nothing to move, so no visibility is written', async () => {
+        const { dal, update } = holding(10, { visibility: 'private', status: 'published' }, 'public');
+
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+        expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+    });
+
+    it('a private-making statement and heldSave together: one slot count, one write, private', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(10);
+
+        await serviceOver(dal).update(
+            principal(),
+            'r-1',
+            {
+                ...PATCH,
+                statement: { kind: 'book', citation: 'A Book', wording: { version: 'statementBook.v1', locale: 'en' } },
+            },
+            undefined,
+        );
+
+        expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
+        expect(update).toHaveBeenCalledOnce();
+        expect(update.mock.calls[0]).toMatchObject([
+            'r-1',
+            { visibility: 'private', provenance: { sourceKind: 'book' } },
+            FAKE_TX,
+        ]);
+    });
+
+    it.each([
+        ['an unheld public recipe', false, RecipeErrorCode.NOT_OWNER],
+        ['a held recipe, which a stranger cannot see (#536)', true, RecipeErrorCode.RECIPE_NOT_FOUND],
+    ])('a stranger on %s is refused before anything is counted or written (AE9)', async (_label, held, code) => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(
+            10,
+            { visibility: 'public', status: 'published' },
+            'public',
+            held,
+        );
+
+        const error = await refusalOf(
+            serviceOver(dal).update(principal({ userId: 'someone-else' }), 'r-1', PATCH, undefined),
+        );
+
+        expect(error.code).toBe(code);
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(update).not.toHaveBeenCalled();
+    });
+
+    it('Premium goes private with no lock and no count', async () => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(5_000);
+
+        await serviceOver(dal).update(premium(), 'r-1', PATCH, undefined);
+
+        expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
+        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+    });
+
+    it.each([
+        ['a draft', { visibility: 'public', status: 'draft' }, PATCH],
+        ['a private recipe', { visibility: 'private', status: 'published' }, PATCH],
+        [
+            'hide, which is not honoured before U6',
+            { visibility: 'public', status: 'published' },
+            { ...PATCH, heldSave: 'hide' },
+        ],
+        [
+            'a write that returns it to a draft',
+            { visibility: 'public', status: 'published' },
+            { ...PATCH, status: 'draft' },
+        ],
+    ] as const)(
+        'answers as if the field were absent for %s: the write carries no visibility',
+        async (_label, facts, patch) => {
+            const { dal, update } = holding(10, facts);
+
+            await expect(serviceOver(dal).update(principal(), 'r-1', patch, undefined)).resolves.toBeDefined();
+
+            expect(update).toHaveBeenCalledOnce();
+            expect(update.mock.calls[0]?.[1]).not.toHaveProperty('visibility');
+        },
+    );
 });
 
 describe('RecipesService.getPrivateSlotUsage - the read the editor shows (ADR-0073)', () => {

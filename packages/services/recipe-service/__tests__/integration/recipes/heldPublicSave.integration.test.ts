@@ -61,7 +61,7 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown) => {
+const update = vi.fn((_id: string, patch: UpdateRecipeInput) => {
     stored = {
         ...stored,
         ...(patch.provenance === undefined ? {} : patch.provenance),
@@ -69,26 +69,30 @@ const update = vi.fn(async (_id: string, patch: UpdateRecipeInput, _tx?: unknown
         currentVersion: stored.currentVersion + 1,
     };
 
-    return aggregateOf(stored);
+    return Promise.resolve(aggregateOf(stored));
 });
 
 /** `listEvidence` feeds the gate the seeded rows; `insertEvidence` exists to prove nothing is appended. */
 let evidence: RecipeSourceEvidenceRow[] = [];
 const insertEvidence = vi.fn();
-const listEvidence = vi.fn(async (recipeId: string, _tx?: unknown) =>
-    evidence.filter((row) => row.recipeId === recipeId),
+const listEvidence = vi.fn((recipeId: string) => Promise.resolve(evidence.filter((row) => row.recipeId === recipeId)));
+
+const setVisibility = vi.fn((_id: string, visibility: RecipeVisibility) =>
+    Promise.resolve(aggregateOf({ ...stored, visibility })),
 );
 
-const setVisibility = vi.fn(async (_id: string, visibility: RecipeVisibility) =>
-    aggregateOf({ ...stored, visibility }),
-);
-
-let food: FoodFake;
-let booted: BootedServiceApp;
+let food: FoodFake | undefined;
+let booted: BootedServiceApp | undefined;
 
 async function call(method: string, path: string, body: unknown): Promise<Response> {
+    if (booted === undefined) {
+        throw new Error('test setup: the app did not boot');
+    }
+
+    const { baseUrl } = booted;
+
     return asPrincipal(COOK, () =>
-        fetch(`${booted.baseUrl}${path}`, {
+        fetch(`${baseUrl}${path}`, {
             method,
             headers: { 'content-type': 'application/json', authorization: bearerFor(COOK) },
             body: JSON.stringify(body),
@@ -114,13 +118,13 @@ beforeAll(async () => {
                 provide: RECIPES_DAL,
                 useValue: {
                     update,
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
-                    privateFoodLines: async () => [],
-                    lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => {
+                    findById: (id: string) => Promise.resolve(id === RECIPE_ID ? aggregateOf(stored) : undefined),
+                    privateFoodLines: () => Promise.resolve([]),
+                    lockAndCountPrivateSlots: () => Promise.resolve(0),
+                    lockSlotFacts: () => {
                         const row = stored;
 
-                        return {
+                        return Promise.resolve({
                             visibility: row.visibility,
                             status: row.status,
                             sourceType: row.sourceType,
@@ -132,10 +136,10 @@ beforeAll(async () => {
                             contentPastedAt: row.contentPastedAt,
                             clonedFromId: row.clonedFromId,
                             sourceAttribution: row.sourceAttribution,
-                        };
+                        });
                     },
                     setVisibility,
-                    clearPublicFoodOwners: async () => undefined,
+                    clearPublicFoodOwners: () => Promise.resolve(undefined),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
                 },
             },
@@ -149,26 +153,29 @@ beforeAll(async () => {
             {
                 provide: VERSIONS_DAL,
                 useValue: {
-                    createSnapshot: vi.fn(async () => ({ id: 'v', snapshot: {}, createdAt: AT })),
-                    findVersionsBeyondRetention: async () => [],
+                    createSnapshot: vi.fn(() => Promise.resolve({ id: 'v', snapshot: {}, createdAt: AT })),
+                    findVersionsBeyondRetention: () => Promise.resolve([]),
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
+            { provide: PendingArchivesDal, useValue: { enqueueMany: () => Promise.resolve(undefined) } },
+            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
+            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
             {
                 provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+                useValue: {
+                    findBandsByKeys: () => Promise.resolve(new Map()),
+                    findExistingKeys: () => Promise.resolve(new Set()),
+                },
             },
             {
                 provide: FoodLookupsDal,
                 useValue: {
-                    findByIds: async (ids: readonly string[]) =>
-                        new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : []),
+                    findByIds: (ids: readonly string[]) =>
+                        Promise.resolve(new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : [])),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
+            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });

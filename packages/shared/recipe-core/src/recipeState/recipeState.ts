@@ -37,7 +37,7 @@ export type { Creation, CreationOrigin } from './creations.js';
 export { canTransition, nextState } from './nextState.js';
 export type { NextState, TransitionFacts } from './nextState.js';
 export { REFUSAL, refusalOf } from './refusalOf.js';
-export type { Refusal, RefusalComputedBy, RefusalFacts, ServerRefusalFacts } from './refusalOf.js';
+export type { Refusal, RefusalComputedBy, RefusalFacts, SaveRefusalCause, ServerRefusalFacts } from './refusalOf.js';
 export { LABELLED_NAMES, labelKeysOf } from './labelledNames.js';
 export type { LabelKey, LabelViewer, LabelledNameKey } from './labelledNames.js';
 export { RETIRED_NAMES } from './retiredNames.js';

@@ -51,11 +51,11 @@ describe('lifecycleDiagram', () => {
     it('merges consecutive edges between the same two states into one labelled "A / B"', () => {
         const text = lifecycleDiagram([
             row('a', 'MAKE_PRIVATE', [{ from: 'PPu', to: 'PPr' }]),
-            row('b', 'FORCE_PRIVATE', [{ from: 'PPu', to: 'PPr' }]),
+            row('b', 'MOVE_AWAY', [{ from: 'PPu', to: 'PPr' }]),
             row('c', 'MAKE_PUBLIC', [{ from: 'PPr', to: 'PPu' }]),
         ]);
 
-        expect(text).toContain('    PPu --> PPr: MAKE_PRIVATE / FORCE_PRIVATE\n');
+        expect(text).toContain('    PPu --> PPr: MAKE_PRIVATE / MOVE_AWAY\n');
         expect(text).toContain('    PPr --> PPu: MAKE_PUBLIC');
     });
 

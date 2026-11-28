@@ -59,3 +59,47 @@ describe('refusalOf: an attested "from another person"', () => {
         expect(refusalOf(facts({ attestedFromPerson: true, statementKind: 'authored' }))).toBe('REFUSAL_NONE');
     });
 });
+
+describe('the save refusal (ADR-0105)', () => {
+    it('retires REFUSAL_DETECTED_NO_PRIVATE_SLOT and adds REFUSAL_SAVE_CANNOT_STAY_PUBLIC', () => {
+        expect(Object.keys(REFUSAL)).not.toContain('REFUSAL_DETECTED_NO_PRIVATE_SLOT');
+        expect(REFUSAL.REFUSAL_SAVE_CANNOT_STAY_PUBLIC).toBe('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
+    });
+
+    it('never answers a MAKE_PUBLIC question with the save reason, over the full fact cross product', () => {
+        const types = Object.values(RecipeSourceType);
+        const kinds = [null, 'public_web', 'book', 'paid_site', 'unrecognised'] as const;
+        const statements = [null, 'authored', 'fromPerson', 'unrecognised'] as const;
+        const flags = [false, true] as const;
+        let checked = 0;
+
+        for (const sourceType of types) {
+            for (const sourceKind of kinds) {
+                for (const statementKind of statements) {
+                    for (const held of flags) {
+                        for (const sourceCorrected of flags) {
+                            for (const statementRequired of flags) {
+                                for (const attestedFromPerson of flags) {
+                                    const answer = refusalOf({
+                                        sourceType,
+                                        sourceKind,
+                                        statementKind,
+                                        held,
+                                        sourceCorrected,
+                                        statementRequired,
+                                        attestedFromPerson,
+                                    });
+
+                                    expect(answer).not.toBe('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
+                                    checked += 1;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        expect(checked).toBeGreaterThan(500);
+    });
+});

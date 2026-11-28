@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-10-26
+- **Superseded in part by:** [ADR-0105](0105-a-held-recipe-is-hidden-never-made-private.md): §11, the bullets "Not approved becomes private, and uses a slot" and "A blocked save with no free slot is refused", and §7's refusal of a create with no free slot.
 - **Amended by:** [ADR-0093](0093-imported-recipes-go-public-only-as-a-commise-written-version.md) (owner ruling,
   2026-11-15). Where this ADR says a book, paid-site or web recipe can never go public, it means the cook's private
   copy. Its public form is a Commise-written version. There are no facts cards. The private copy uses a slot even

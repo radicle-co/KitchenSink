@@ -259,11 +259,11 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
         built: 'pending: 020 (ADR-0074 §3a)',
     },
     {
-        name: 'REFUSAL_DETECTED_NO_PRIVATE_SLOT',
+        name: 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC',
         computedBy: 'server',
-        wire: '403 `SOURCE_DETECTED_NO_PRIVATE_SLOT`',
-        en: 'none as a line. The no-slot box shows (4.8.2)',
-        built: 'pending: 020 (ADR-0074 §3a)',
+        wire: '400 `SOURCE_CONFLICT` for a held source, with `details.cause`; 020 sets the code for its causes',
+        en: 'none as a line. The refused-save sheet shows (4.8.2)',
+        built: 'pending: P10 (held source), 020 (too close, not approved)',
     },
     {
         name: 'REFUSAL_PUBLIC_VERSION_COPY',
@@ -349,13 +349,7 @@ export const LIFECYCLE_ROWS: readonly EdgeDocRow[] = [
     {
         group: 'MAKE_PRIVATE_PUBLISHED',
         from: 'PPu',
-        guard: 'a slot (ADR-0073 allows over-limit only for `FORCE_PRIVATE`)',
-        to: 'PPr',
-    },
-    {
-        group: 'FORCE_PRIVATE',
-        from: 'PPu',
-        guard: 'the origin answer forces private, or a staff correction. A staff correction always makes the recipe private. For a new answer that can open Public, it also sets `HOLD_SOURCE_CORRECTED`',
+        guard: 'a free private slot (ADR-0073). No actor but the cook makes a recipe private (ADR-0105)',
         to: 'PPr',
     },
     {
@@ -431,7 +425,7 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`STAFF_CORRECT` (as in 5.2)',
         actor: 'staff',
         guard: 'the new answer can open Public',
-        to: 'set, with `FORCE_PRIVATE` in the same transaction',
+        to: 'set. The correction writer still makes the recipe private until P8h (ADR-0105). The read rule hides it either way',
         built: 'yes',
     },
     {

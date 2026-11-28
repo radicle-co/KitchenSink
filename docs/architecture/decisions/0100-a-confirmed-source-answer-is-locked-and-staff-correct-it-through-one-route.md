@@ -2,6 +2,7 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-21
+- **Superseded in part by:** [ADR-0105](0105-a-held-recipe-is-hidden-never-made-private.md): §2, "keeps a corrected recipe off Public" and "A CHECK refuses a held recipe that is public", and the last Consequences bullet's "It makes a recipe private and held".
 - **Superseded in part by:** [ADR-0103](0103-the-recipe-state-model-is-code-and-staff-can-clear-the-correction-hold.md): §2, the sentence "It is a ratchet: only a staff correction sets it", and the first Consequences bullet. Staff can clear the hold, with a record.
 - **Relates to:** [ADR-0097](0097-a-recipe-has-one-state-model-and-only-commise-changes-a-confirmed-source.md)
   decision 3. This ADR adds no second supersession. It records how decision 3 is stored and enforced.

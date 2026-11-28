@@ -19,12 +19,16 @@ import { CookingFrame } from './CookingFrame.js';
 import { CookingNav } from './CookingNav.js';
 import { CookingNextPreview } from './CookingNextPreview.js';
 import { CookingStep } from './CookingStep.js';
+import { CookingTimerDock } from './CookingTimerDock.js';
+import { CookingTimerOffer } from './CookingTimerOffer.js';
 import { CookingTopBar } from './CookingTopBar.js';
 import { CookingIngredientsColumn } from './ingredients/CookingIngredientsColumn.js';
 import { CookingIngredientsSheet } from './ingredients/CookingIngredientsSheet.js';
 import { CookingScaleNote } from './ingredients/CookingScaleNote.js';
 import { useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
 import { cookingMessages } from './messages.js';
+import { stepOfferMs } from './timer/stepOfferMs.js';
+import { useCookingTimerDock } from './timer/useCookingTimerDock.js';
 import type { CookingRecipe } from './cookingViewProps.js';
 import { useArrowKeys } from './useArrowKeys.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.js';
@@ -49,6 +53,14 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
         locale: useLocale(),
         wide: useIsTwoColumn(),
     });
+    const stepIndex = model.session.place.position - 1;
+    const timerDock = useCookingTimerDock({
+        recipe,
+        stepIndex,
+        offerMs: stepOfferMs(recipe.steps, stepIndex),
+        locale: useLocale(),
+    });
+    const dock = timerDock.rows.length === 0 ? {} : { dock: <CookingTimerDock rows={timerDock.rows} /> };
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const finished = done !== null;
 
@@ -93,6 +105,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                 busy={false}
                 body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
                 foot={{
+                    ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
                 }}
             />
@@ -118,7 +131,12 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                         {/* The swipe surface: pan-y leaves vertical scrolling to the browser,
                         so a sideways touch is ours. */}
                         <div data-cooking-swipe className="touch-pan-y" {...swipe}>
-                            <CookingStep {...model.step} />
+                            <CookingStep
+                                {...model.step}
+                                {...(timerDock.offer === undefined
+                                    ? {}
+                                    : { offer: <CookingTimerOffer offer={timerDock.offer} /> })}
+                            />
                         </div>
                         {panel.scaleNote === undefined ? null : (
                             <div className="px-4 pb-4">
@@ -132,12 +150,15 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                     </>
                 }
                 foot={{
+                    ...dock,
                     ...(preview === undefined
                         ? {}
                         : { preview: <CookingNextPreview preview={preview} place="foot" /> }),
                     actions: (
                         <CookingNav
                             disabled={false}
+                            forwardFocusRequested={timerDock.forward.requested}
+                            onFocusHandled={timerDock.forward.onHandled}
                             back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
                             forward={{
                                 label: nav.forward.label,

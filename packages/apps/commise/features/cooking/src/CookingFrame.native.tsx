@@ -39,6 +39,7 @@ export const CookingFrame: FC<NativeCookingFrameProps> = ({ topBar, body, foot, 
             </SwipeArea>
             {foot === undefined ? null : (
                 <YStack testID="cooking-foot" gap="$2">
+                    {foot.dock}
                     {foot.preview}
                     {foot.actions}
                 </YStack>

@@ -37,10 +37,9 @@ export interface DockControl {
 }
 
 /** A row and its controls: `primary` is Pause, Resume or Stop; `secondary` is Cancel, and a done row has none. */
-export type TimerDockRow = DockRow & {
-    readonly primary: DockControl;
-    readonly secondary: DockControl | undefined;
-};
+export type TimerDockRow =
+    | (Exclude<DockRow, { readonly kind: 'done' }> & { readonly primary: DockControl; readonly secondary: DockControl })
+    | (Extract<DockRow, { readonly kind: 'done' }> & { readonly primary: DockControl; readonly secondary?: undefined });
 
 /** A request that focus moves to the next control after the dock, for the screen to pass on. */
 export interface ForwardFocus {
@@ -178,7 +177,6 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
                     primary: control(row.stopLabel, own, () => {
                         command({ kind: 'stop', id: row.id, run: row.run });
                     }),
-                    secondary: undefined,
                 };
         }
     });

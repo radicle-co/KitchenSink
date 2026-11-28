@@ -41,6 +41,7 @@ export const CookingFrame: FC<CookingFrameProps> = ({ topBar, body, foot, busy, 
             </div>
             {foot === undefined ? null : (
                 <div data-cooking-foot className="flex flex-col gap-2 pt-3">
+                    {foot.dock}
                     {foot.preview}
                     {foot.actions}
                 </div>

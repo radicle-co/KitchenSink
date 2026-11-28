@@ -18,6 +18,8 @@ import { CookingFrame } from './CookingFrame.native.js';
 import { CookingNav } from './CookingNav.native.js';
 import { CookingNextPreview } from './CookingNextPreview.native.js';
 import { CookingStep } from './CookingStep.native.js';
+import { CookingTimerDock } from './CookingTimerDock.native.js';
+import { CookingTimerOffer } from './CookingTimerOffer.native.js';
 import { CookingTopBar } from './CookingTopBar.native.js';
 import { isTwoColumn } from './cookingLayout.js';
 import type { CookingRecipe } from './cookingViewProps.js';
@@ -26,6 +28,8 @@ import { CookingIngredientsSheet } from './ingredients/CookingIngredientsSheet.j
 import { CookingScaleNote } from './ingredients/CookingScaleNote.native.js';
 import { panelForBand, useCookingIngredientsPanel } from './ingredients/useCookingIngredientsPanel.js';
 import { cookingMessages } from './messages.js';
+import { stepOfferMs } from './timer/stepOfferMs.js';
+import { useCookingTimerDock } from './timer/useCookingTimerDock.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
@@ -61,6 +65,14 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
         useCookingIngredientsPanel({ recipe, copy: useMessages(cookingMessages), locale: useLocale(), wide }),
         wide,
     );
+    const stepIndex = model.session.place.position - 1;
+    const timerDock = useCookingTimerDock({
+        recipe,
+        stepIndex,
+        offerMs: stepOfferMs(recipe.steps, stepIndex),
+        locale: useLocale(),
+    });
+    const dock = timerDock.rows.length === 0 ? {} : { dock: <CookingTimerDock rows={timerDock.rows} /> };
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
     const focus = useCookingFocusRecovery({
         moves: model.moves,
@@ -76,6 +88,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                 busy={false}
                 body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
                 foot={{
+                    ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
                 }}
             />
@@ -104,6 +117,9 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                     <>
                         <CookingStep
                             {...model.step}
+                            {...(timerDock.offer === undefined
+                                ? {}
+                                : { offer: <CookingTimerOffer offer={timerDock.offer} /> })}
                             focusRequested={focus.target === 'focusLine'}
                             onFocusHandled={focus.handled}
                         />
@@ -119,13 +135,17 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                     </>
                 }
                 foot={{
+                    ...dock,
                     ...(previewInBody || previewNode === null ? {} : { preview: previewNode }),
                     actions: (
                         <CookingNav
                             disabled={false}
                             narrow={narrow}
-                            forwardFocusRequested={focus.target === 'forward'}
-                            onFocusHandled={focus.handled}
+                            forwardFocusRequested={focus.target === 'forward' || timerDock.forward.requested}
+                            onFocusHandled={() => {
+                                focus.handled();
+                                timerDock.forward.onHandled();
+                            }}
                             back={{ label: nav.back.label, accessibilityLabel: nav.back.a11yName, onPress: goBack }}
                             forward={{
                                 label: nav.forward.label,

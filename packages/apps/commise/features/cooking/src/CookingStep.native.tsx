@@ -61,6 +61,7 @@ export const CookingStep: FC<NativeCookingStepProps> = ({
     focus,
     then,
     upNext,
+    offer,
     focusRequested = false,
     onFocusHandled,
 }) => (
@@ -101,6 +102,7 @@ export const CookingStep: FC<NativeCookingStepProps> = ({
         {then.map((line) => (
             <CookingLineRow key={line.key} line={line} emphasis="other" />
         ))}
+        {offer}
         {upNext === undefined ? null : (
             <YStack gap="$2" paddingTop="$2">
                 <Text typeRole="label" color="$actionText">

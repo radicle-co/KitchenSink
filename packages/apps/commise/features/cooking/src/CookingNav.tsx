@@ -20,8 +20,20 @@ import type { CookingNavProps } from './cookingViewProps.js';
 /** The id of the pair's `nav`: the forward control is its last button, so focus can be sent to it. */
 export const COOKING_NAV_ID = 'cooking-nav';
 
+/** Props for the web pair: the shared props, and the screen's request that the forward control takes focus. */
+export interface WebCookingNavProps extends CookingNavProps {
+    readonly forwardFocusRequested?: boolean;
+    readonly onFocusHandled?: () => void;
+}
+
 /** The web Back / forward pair. */
-export const CookingNav: FC<CookingNavProps> = ({ back, forward, disabled }) => (
+export const CookingNav: FC<WebCookingNavProps> = ({
+    back,
+    forward,
+    disabled,
+    forwardFocusRequested,
+    onFocusHandled,
+}) => (
     <nav id={COOKING_NAV_ID} className="px-4 pb-4 pt-2">
         <div className={`grid grid-cols-2 gap-3 ${NARROW_ROW.navWebClassName}`}>
             <Button
@@ -43,6 +55,8 @@ export const CookingNav: FC<CookingNavProps> = ({ back, forward, disabled }) => 
                 iconPlacement="end"
                 disabled={disabled}
                 onPress={forward.onPress}
+                {...(forwardFocusRequested === undefined ? {} : { focusRequested: forwardFocusRequested })}
+                {...(onFocusHandled === undefined ? {} : { onFocusRequestHandled: onFocusHandled })}
                 {...nameOf(forward)}
             >
                 {forward.label}

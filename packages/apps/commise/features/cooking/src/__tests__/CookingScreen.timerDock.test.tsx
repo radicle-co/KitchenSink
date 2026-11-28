@@ -38,6 +38,7 @@ function setup() {
 const press = (name: string | RegExp): void => {
     fireEvent.click(screen.getByRole('button', { name }));
 };
+
 const goToRoast = (): void => {
     press(/^Next step, step 2/u);
 };

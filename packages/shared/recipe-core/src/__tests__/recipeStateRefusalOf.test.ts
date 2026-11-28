@@ -71,29 +71,34 @@ describe('the save refusal (ADR-0105)', () => {
         const kinds = [null, 'public_web', 'book', 'paid_site', 'unrecognised'] as const;
         const statements = [null, 'authored', 'fromPerson', 'unrecognised'] as const;
         const flags = [false, true] as const;
-        const combinations: ServerRefusalFacts[] = types.flatMap((sourceType) =>
-            kinds.flatMap((sourceKind) =>
-                statements.flatMap((statementKind) =>
-                    flags.flatMap((held) =>
-                        flags.flatMap((sourceCorrected) =>
-                            flags.flatMap((statementRequired) =>
-                                flags.map((attestedFromPerson) => ({
-                                    sourceType,
-                                    sourceKind,
-                                    statementKind,
-                                    held,
-                                    sourceCorrected,
-                                    statementRequired,
-                                    attestedFromPerson,
-                                })),
-                            ),
-                        ),
-                    ),
-                ),
-            ),
-        );
+        const total = types.length * kinds.length * statements.length * flags.length ** 4;
 
-        expect(combinations).toHaveLength(types.length * kinds.length * statements.length * flags.length ** 4);
+        // Each combination is one number, read as digits in mixed radix: one digit per fact, in the order taken below.
+        const combinationAt = (index: number): ServerRefusalFacts => {
+            let rest = index;
+
+            const digit = <T>(values: readonly T[]): T => {
+                const value = values[rest % values.length];
+
+                rest = Math.floor(rest / values.length);
+
+                return value;
+            };
+
+            return {
+                sourceType: digit(types),
+                sourceKind: digit(kinds),
+                statementKind: digit(statements),
+                held: digit(flags),
+                sourceCorrected: digit(flags),
+                statementRequired: digit(flags),
+                attestedFromPerson: digit(flags),
+            };
+        };
+
+        const combinations = Array.from({ length: total }, (_, index) => combinationAt(index));
+
+        expect(new Set(combinations.map((entry) => JSON.stringify(entry))).size).toBe(total);
         expect(combinations.map(refusalOf)).not.toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
     });
 });

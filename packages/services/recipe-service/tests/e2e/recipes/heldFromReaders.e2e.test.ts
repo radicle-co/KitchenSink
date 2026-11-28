@@ -291,7 +291,7 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
         const expectedFor = (pick: 'ownerReads' | 'otherReads'): string[] =>
             READABILITY_TABLE.filter((row) => row[pick])
                 .map((row) => row.label)
-                .sort();
+                .sort((a, b) => a.localeCompare(b));
 
         expect(await titles(OWNER)).toEqual(expectedFor('ownerReads'));
         expect(await titles(READER)).toEqual(expectedFor('otherReads'));

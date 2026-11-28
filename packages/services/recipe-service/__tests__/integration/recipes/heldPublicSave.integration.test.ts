@@ -20,8 +20,6 @@ import {
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../../src/__fixtures__/index.js';
 import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
@@ -30,14 +28,9 @@ import type {
     RecipeAggregate,
     UpdateRecipeInput,
 } from '../../../src/recipes/dal/recipes.dal.js';
-import {
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
+import {} from '../../../src/recipes/recipes.tokens.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
@@ -160,16 +153,6 @@ beforeAll(async () => {
                     findVersionsBeyondRetention: () => Promise.resolve([]),
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: () => Promise.resolve(undefined) } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: {
-                    findBandsByKeys: () => Promise.resolve(new Map()),
-                    findExistingKeys: () => Promise.resolve(new Set()),
-                },
-            },
             {
                 provide: FoodLookupsDal,
                 useValue: {
@@ -177,8 +160,6 @@ beforeAll(async () => {
                         Promise.resolve(new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : [])),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
-            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });

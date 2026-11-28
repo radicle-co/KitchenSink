@@ -17,7 +17,6 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { ingredientSchema } from '@kitchensink/recipe-core';
 import { ingredientNameProposalsResponseSchema } from '@kitchensink/schema-recipe';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm, UnresolvedArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { admittedRefOf, type FoodAdmission } from '../../../src/ingredients/domain/foodAdmission.js';
@@ -84,7 +83,6 @@ beforeAll(async () => {
                 provide: ResolutionMappingsDal,
                 useValue: { findInForce, findMemo },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

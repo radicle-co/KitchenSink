@@ -14,7 +14,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import { collectionListResponseSchema } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { CollectionsDal, type CollectionMemberSummary } from '../../../src/collections/dal/collections.dal.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
@@ -63,10 +62,7 @@ beforeAll(async () => {
     food = await startFoodFake();
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
-        doubles: [
-            { provide: CollectionsDal, useValue: { listByOwner, memberSummaries } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-        ],
+        doubles: [{ provide: CollectionsDal, useValue: { listByOwner, memberSummaries } }],
     });
 });
 

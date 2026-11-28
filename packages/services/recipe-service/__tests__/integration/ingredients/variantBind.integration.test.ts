@@ -15,7 +15,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { ingredientSchema } from '@kitchensink/recipe-core';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { admittedRefOf, type FoodAdmission } from '../../../src/ingredients/domain/foodAdmission.js';
@@ -68,10 +67,7 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
-        doubles: [
-            { provide: FoodLookupsDal, useValue: { findOrCreateBound } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-        ],
+        doubles: [{ provide: FoodLookupsDal, useValue: { findOrCreateBound } }],
     });
 });
 

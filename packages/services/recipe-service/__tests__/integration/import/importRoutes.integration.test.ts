@@ -33,7 +33,6 @@ import {
 } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { ImportAllowanceDal } from '../../../src/common/dal/importAllowance.dal.js';
 import {
     IMPORT_ID,
@@ -133,7 +132,6 @@ beforeAll(async () => {
             { provide: RECIPE_IMPORT_LINES_DAL, useValue: lines },
             { provide: ImportAllowanceDal, useValue: allowance },
             { provide: PRIVATE_SLOTS, useValue: UNLIMITED_PRIVATE_SLOTS },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

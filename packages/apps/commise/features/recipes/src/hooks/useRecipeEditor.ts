@@ -890,8 +890,8 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
 }
 
 /**
- * Sends the write and records its outcome. Only the send sits in the `try`: a failed send is the `failed` memento, and an
- * error thrown while recording the outcome is not swallowed.
+ * Sends the write and records its outcome. Only the send sits in the `try`: a failed send is the `failed` memento,
+ * and an error thrown while recording the outcome is not swallowed.
  *
  * @sideEffect Submits to the outbox and moves the lane.
  */
@@ -1178,20 +1178,18 @@ async function rereadAfterLockRefusal(ctx: EditorContext): Promise<void> {
         const { id } = server.recipe;
         const { baseVersion } = server;
 
-        let detail: RecipeDetail | undefined;
-
+        // ⛔ Report, never swallow: a failed read or a failed adoption reaches error reporting, and the cook's other
+        // edits still go out below, so a broken read port cannot hold them back.
         try {
-            detail = await ctx.opts.rereadRecipe(id);
+            const detail = await ctx.opts.rereadRecipe(id);
+            const now = ctx.core.get().server;
+            const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion && detail.id === id;
+
+            if (unchanged && detail.currentVersion === baseVersion) {
+                adoptServerFacts(ctx, detail, undefined);
+            }
         } catch (error) {
-            // A failed read changes nothing: the cook's other edits still go out below, and the notice stays. It is reported.
             ctx.opts.reportError(error, { operation: 'recipeSourceReread' });
-        }
-
-        const now = ctx.core.get().server;
-        const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion;
-
-        if (detail?.id === id && unchanged && detail.currentVersion === baseVersion) {
-            adoptServerFacts(ctx, detail, undefined);
         }
     }
 

@@ -4829,6 +4829,23 @@ describe("the Source row's own sheet (ADR-0100)", () => {
             expect(resent[0]).toMatchObject({ payload: { input: { expectedVersion: 3 } } });
         });
 
+        it('⛔ a failure while adopting the read is reported, and the cook’s edits still go', async () => {
+            const view = mount({ recipe: stored });
+            const broken = new Error('adopt failed');
+            view.rereadRecipe.mockResolvedValue(locked);
+            vi.mocked(view.drafts.adopt).mockImplementation(() => {
+                throw broken;
+            });
+
+            typeTitle(view.result, 'Renamed soup');
+            const sentBefore = await refuseAnswer(view);
+            const resent = view.port.submitted.slice(sentBefore);
+
+            expect(view.reportError).toHaveBeenCalledWith(broken, { operation: 'recipeSourceReread' });
+            expect(resent).toHaveLength(1);
+            expect(resent[0]).toMatchObject({ payload: { input: { title: 'Renamed soup' } } });
+        });
+
         it('⛔ a failed read adopts nothing and keeps the notice, and the cook’s edits still go (one write, the title, no statement)', async () => {
             const view = mount({ recipe: stored });
             const offline = new Error('offline');

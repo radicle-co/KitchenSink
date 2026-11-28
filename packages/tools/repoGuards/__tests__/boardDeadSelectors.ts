@@ -8,7 +8,7 @@
  * live one is not.
  *
  * `docs/design/uiRefreshWorkshop5/redesignCanvas/pruneCss.py` is the Python copy of this rule, which the board builders
- * use to emit only the rules a board draws. A change to the rule here changes it there too.
+ * use to emit only the rules a board draws. A change to the rule here must change it there too.
  */
 import { parse as parseCss, walk } from 'css-tree';
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';

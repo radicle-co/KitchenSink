@@ -18,12 +18,12 @@ import subprocess
 import sys
 
 CLASS = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
-STYLE = re.compile(r'(<style[^>]*>)(.*?)(</style\s*>)', flags=re.S | re.I)
+STYLE = re.compile(r'(<style\b[^>]*>)(.*?)(</style\b[^>]*>)', flags=re.S | re.I)
 
 
-def classes_of(selector):
-    """The classes a selector names; a dot inside an attribute selector or a string is not one."""
-    return CLASS.findall(re.sub(r'\[[^\]]*\]|"[^"]*"|\'[^\']*\'', '', selector))
+def unreadable(selector):
+    """A selector with an attribute test or an escape is kept as it is: a regex cannot read it as the guard does."""
+    return '[' in selector or '\\' in selector
 
 
 class _Used(HTMLParser):
@@ -79,7 +79,7 @@ class _Tree(HTMLParser):
 
 def element_tree(html):
     t = _Tree()
-    t.feed(STYLE.sub('', html))
+    t.feed(html)
     return t.nodes
 
 
@@ -96,8 +96,8 @@ def nested_match(sel, nodes):
     last = comps[-1]
     need_anc = set()
     for c in comps[:-1]:
-        need_anc |= set(classes_of(c.group(2)))
-    last_cls = set(classes_of(last.group(2)))
+        need_anc |= set(CLASS.findall(c.group(2)))
+    last_cls = set(CLASS.findall(last.group(2)))
     return any(
         (last.group(1) in (None, tag)) and last_cls <= cls and need_anc <= anc for tag, cls, anc in nodes
     )
@@ -155,7 +155,7 @@ def _prune_css(css, used, keep, nodes=None):
             sels = [
                 s
                 for s in _split_selectors(it[1])
-                if all(c in used or c in keep for c in classes_of(s)) and (nodes is None or nested_match(s, nodes))
+                if unreadable(s) or (all(c in used or c in keep for c in CLASS.findall(s)) and (nodes is None or nested_match(s, nodes)))
             ]
             if not sels:
                 kept.append(None)
@@ -205,7 +205,7 @@ def dead_classes(html):
         while stack:
             for it in _tokens(stack.pop()):
                 if it[0] == 'rule':
-                    dead |= {c for c in classes_of(it[1]) if c not in used}
+                    dead |= {c for s in _split_selectors(it[1]) if not unreadable(s) for c in CLASS.findall(s) if c not in used}
                 elif it[0] == 'at':
                     stack.append(it[2])
     return dead
@@ -225,6 +225,8 @@ def selfcheck():
     attr = '<style>[data-x=".foo"]{color:red}.ghost{color:blue}</style><div class="shown"></div>'
     assert '[data-x' in prune(attr), 'a dot inside an attribute selector read as a class'
     assert '.ghost' not in prune(attr), 'a class nothing uses kept its rule'
+    tricky = '<style>[x="a]b.c"]{color:red}.ghost{color:blue}</style><div class="shown"></div>'
+    assert '[x=' in prune(tricky), 'a selector the pruner cannot read plainly lost its rule'
     assert '.ghost' not in out, 'a class nothing uses kept its rule'
     assert 'byScript' not in dead_classes(board)
     print('selfcheck ok')

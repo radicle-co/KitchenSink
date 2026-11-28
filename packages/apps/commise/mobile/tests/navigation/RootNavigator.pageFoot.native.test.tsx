@@ -5,7 +5,7 @@
  */
 import { renderWithProviders } from '@commise/test-utils';
 import { act, cleanup, fireEvent, screen } from '@testing-library/react';
-import { StackActions } from '@react-navigation/native';
+import { CommonActions, StackActions } from '@react-navigation/native';
 import type { ComponentType, JSX } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -99,6 +99,21 @@ describe('the foot the navigator provides', () => {
         openCooking('a');
 
         expect(foot('cooking a')).toBe(`cooking a foot ${above(10)}`);
+    });
+
+    it('falls back to the home indicator when the focused task reports 0 after a height', () => {
+        dockHeights.set('a', 118);
+        renderWithProviders(<RootNavigator />);
+        openCooking('a');
+        expect(foot('cooking a')).toBe(`cooking a foot ${above(118)}`);
+
+        // The stub reads the map as it renders, so a new param renders it again, now reporting 0.
+        dockHeights.set('a', 0);
+        act(() => {
+            navigationRef.dispatch(CommonActions.setParams({ tick: 1 }));
+        });
+
+        expect(foot('cooking a')).toBe(`cooking a foot ${HOME}`);
     });
 
     it('drops the height while another task is above, and has it back on return without a new report', () => {

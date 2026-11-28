@@ -34,8 +34,8 @@ import { RECIPE_APP_ENV_DEFAULTS } from './recipeAppEnv.js';
 const CLOSED = 'http://127.0.0.1:9';
 
 /**
- * What each defaulted DAL answers when a suite does not stage it: nothing found, and the one write accepted and
- * forgotten (it answers the rows it inserted, none). Each is checked against the real DAL's own member types, so a
+ * What each defaulted DAL answers when a suite does not stage it: nothing found, and every write accepted and
+ * forgotten. Each is checked against the real DAL's own member types, so a
  * signature change fails `tsc` here rather than going quietly stale.
  */
 export const DEFAULT_ANSWERS = {

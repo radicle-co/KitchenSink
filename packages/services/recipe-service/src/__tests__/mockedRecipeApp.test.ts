@@ -44,7 +44,7 @@ describe('withDefaultDoubles', () => {
 });
 
 describe('DEFAULT_ANSWERS', () => {
-    it('answers "nothing" to every read, and accepts the one write and reports no rows inserted', async () => {
+    it('answers "nothing" to every read, and accepts and forgets every write', async () => {
         await expect(DEFAULT_ANSWERS.attestations.insertMany()).resolves.toBeUndefined();
         await expect(DEFAULT_ANSWERS.attestations.hasFromPerson()).resolves.toBe(false);
         await expect(DEFAULT_ANSWERS.attestations.hasWordedAttestation()).resolves.toBe(false);

@@ -188,7 +188,7 @@ export const PLANNED: readonly PlannedTransition[] = [
         from: '`HOLD_SOURCE_CORRECTED` set',
         event: '`REWRITE_EARNS_FACT`',
         actor: 'system',
-        guard: 'the corrected answer or the evidence is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)',
+        guard: 'the corrected answer is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)',
         to: 'unset. The correction record stays. Clears exactly this recipe, and no clone: each clone clears on its own earned rewrite or by staff. Readable again if the audience is public and nothing else hides it',
         pending: 'B10b, PR 5',
     },

@@ -128,7 +128,8 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
 
         expect(row?.from).toContain('HOLD_SOURCE_CORRECTED');
         expect(row?.actor).toBe('system');
-        expect(row?.guard).toContain('third-party');
+        expect(row?.guard).toContain('corrected answer is third-party');
+        expect(row?.guard).not.toContain('evidence');
         expect(row?.guard).toContain('clear record');
         expect(row?.to).toContain('exactly this recipe');
         expect(row?.pending).toContain('PR 5');

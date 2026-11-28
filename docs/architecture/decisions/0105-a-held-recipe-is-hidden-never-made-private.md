@@ -70,7 +70,7 @@ every other hold.
 4. **"Held" means "never publicly readable".** The CHECK `recipes_held_is_not_public` is dropped. A held recipe may be
    public or private. If it is public, the read rule hides it. The clone trigger does not change. No hold is
    permanent: a held recipe has two ways back. One is the staff clear (Decision 7). The other is a rewrite that earns the
-   fact (Decision 5), which also lifts a correction hold when the corrected answer or the evidence is third-party (a
+   fact (Decision 5), which also lifts a correction hold when the corrected answer is third-party (a
    book, a paid site or a web page). The ratchet keeps false to true. PR 5 gives it one guarded true-to-false path, which
    needs a clear record in the same transaction, either a staff clear or a system clear for the earned rewrite. The
    writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits for the
@@ -81,9 +81,9 @@ every other hold.
    private slot is free, and with no free slot only an explicit Save and hide saves it. The cook chooses one of these:
     - change the steps in their own words. A rewrite that earns the fact unblocks the recipe, for every origin, own and
       unstated included (ADR-0097 Decision 3 for the unblock, and the owner ruling recorded as model decision Q21 for
-      own and unstated origins). When the corrected answer or the evidence is third-party, the earned fact also clears a
+      own and unstated origins). When the corrected answer is third-party, the earned fact also clears a
       staff correction hold. This is a system edge on the earned fact (ADR-0097 Decision 3), not a cook declaration, and
-      the correction record stays. A correction to own or "from another person" clears only by staff. The rejection of a cook-side
+      the correction record stays. A correction to own or "from another person" clears only by staff, even when third-party evidence is on the recipe. The rejection of a cook-side
       clear in ADR-0103 stands: this is a system clear, and the cook still cannot declare the hold away (owner ruling
       2026-11-28).
     - discard the edit.

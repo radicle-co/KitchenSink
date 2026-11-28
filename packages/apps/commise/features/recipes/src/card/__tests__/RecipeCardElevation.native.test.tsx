@@ -45,6 +45,7 @@ describe.each(['light', 'dark'] as const)('RecipeCard (native), %s theme: its el
             const shell = filledBoxOf(screen.getByText('Soup'), rgb(rolesFor(scheme).paper), 'the card');
 
             expect(resolvedStyle(shell, 'boxShadow')).toBe(elevationBoxShadow('sm'));
+            expect(resolvedStyle(shell, 'borderTopColor')).toBe(rolesFor(scheme).lineDivider);
         },
     );
 });

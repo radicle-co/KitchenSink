@@ -9,8 +9,9 @@
  *
  * The orchestration layer decides the variant with `cardVariantOf`; this leaf draws the arrangement it is handed. The
  * card is ONE pressable link named by the title. Its surface is a level-1 card — `paper`, a `lineDivider` hairline,
- * the `sm` elevation — and never glass (owner ruling D12). Every colour is read from `useTheme()` at render, so the
- * card follows the system scheme (D15); the stylesheet holds layout only.
+ * the `sm` elevation — and never glass (owner ruling D12). The surface fill and edge are `$paper` and
+ * `$lineDivider` tokens on `Elevated` (ADR-0080), and the text and chip colours are read from `useTheme()` at render,
+ * so the card follows the system scheme (D15); the stylesheet holds layout only.
  *
  * iOS masks a layer's shadow when the same layer clips, so the elevation sits on an outer shell that never clips and the
  * clip on the content view inside it.
@@ -352,13 +353,8 @@ const ARRANGEMENT: Readonly<Record<CardVariant, FC<ArrangementSlots>>> = {
 
 /** The level-1 surface: an elevated shell that never clips, and the clipping content view inside it. */
 const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => {
-    const { colors } = useTheme();
-
     return (
-        <Elevated
-            level="sm"
-            style={{ ...styles.shell, backgroundColor: colors.paper, borderColor: colors.lineDivider }}
-        >
+        <Elevated level="sm" backgroundColor="$paper" borderColor="$lineDivider" style={styles.shell}>
             <View style={styles.clip}>{children}</View>
         </Elevated>
     );

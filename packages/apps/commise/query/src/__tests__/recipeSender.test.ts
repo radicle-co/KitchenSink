@@ -19,6 +19,7 @@ import { SessionSubjectChangedError, TokenMintFailedError } from '@commise/featu
 import {
     BadRequestError,
     ForbiddenError,
+    SourceLockedError,
     InvalidRequestError,
     NotFoundError,
     InvalidVisibilityError,
@@ -484,6 +485,16 @@ describe('recipeSender — a delete that meets a 404', () => {
 
         expect(classifyFailure(failure)).toBe('terminal');
         expect(resendsWhenParked(failure)).toBe(false);
+    });
+
+    it('⛔ an update refused by the typed lock error carries the answer, and is still parked, never dropped', async () => {
+        const updateRecipe = vi.fn().mockRejectedValue(new SourceLockedError());
+        const send = recipeSender(() => ({ updateRecipe }) as never);
+
+        const result = await send(record('update', { id: 'r1', input: { title: 'Soup' } }));
+
+        expect(result).toStrictEqual({ outcome: 'failed', status: 403, answer: { kind: 'recipeSourceLocked' } });
+        expect(result).not.toHaveProperty('drop');
     });
 
     it('⛔ does not turn other refusals of a delete into success', async () => {

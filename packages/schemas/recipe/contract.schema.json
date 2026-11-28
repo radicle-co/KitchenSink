@@ -2705,7 +2705,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementPublicWeb.v1"
+                                                "statementPublicWeb.v1",
+                                                "statementPublicWeb.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -2745,7 +2746,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementBook.v1"
+                                                "statementBook.v1",
+                                                "statementBook.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -2822,7 +2824,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementFromPerson.v1"
+                                                "statementFromPerson.v1",
+                                                "statementFromPerson.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -3013,6 +3016,13 @@
                 "RESOLVED",
                 "NOT_FOUND",
                 "FAILED"
+            ],
+            "type": "string"
+        },
+        "forbiddenReasonSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "SOURCE_LOCKED"
             ],
             "type": "string"
         },
@@ -11303,6 +11313,18 @@
                             "const": "FORBIDDEN",
                             "type": "string"
                         },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "SOURCE_LOCKED"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "type": "object"
+                        },
                         "message": {
                             "type": "string"
                         }
@@ -12708,7 +12730,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementPublicWeb.v1"
+                                        "statementPublicWeb.v1",
+                                        "statementPublicWeb.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -12748,7 +12771,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementBook.v1"
+                                        "statementBook.v1",
+                                        "statementBook.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -12825,7 +12849,8 @@
                                 },
                                 "version": {
                                     "enum": [
-                                        "statementFromPerson.v1"
+                                        "statementFromPerson.v1",
+                                        "statementFromPerson.v2"
                                     ],
                                     "type": "string"
                                 }
@@ -15080,7 +15105,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementPublicWeb.v1"
+                                                "statementPublicWeb.v1",
+                                                "statementPublicWeb.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15120,7 +15146,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementBook.v1"
+                                                "statementBook.v1",
+                                                "statementBook.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15197,7 +15224,8 @@
                                         },
                                         "version": {
                                             "enum": [
-                                                "statementFromPerson.v1"
+                                                "statementFromPerson.v1",
+                                                "statementFromPerson.v2"
                                             ],
                                             "type": "string"
                                         }
@@ -15932,7 +15960,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementPublicWeb.v1"
+                                                        "statementPublicWeb.v1",
+                                                        "statementPublicWeb.v2"
                                                     ],
                                                     "type": "string"
                                                 }
@@ -15972,7 +16001,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementBook.v1"
+                                                        "statementBook.v1",
+                                                        "statementBook.v2"
                                                     ],
                                                     "type": "string"
                                                 }
@@ -16049,7 +16079,8 @@
                                                 },
                                                 "version": {
                                                     "enum": [
-                                                        "statementFromPerson.v1"
+                                                        "statementFromPerson.v1",
+                                                        "statementFromPerson.v2"
                                                     ],
                                                     "type": "string"
                                                 }

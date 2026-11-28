@@ -26,6 +26,7 @@ export const PUBLIC_REFUSALS = [
     'policy.book',
     'policy.paidSite',
     'sourceConflict',
+    'sourceCorrected',
     'none',
 ] as const;
 
@@ -44,6 +45,8 @@ export interface PublicRefusalFacts {
     readonly statementKind: RecipeStatementKindView | null;
     /** Whether a recorded source holds the recipe out of Public (ADR-0095): `publicNeedsCheck`, or a source conflict. */
     readonly held: boolean;
+    /** Whether a staff correction holds the recipe off Public for good (`sourceCorrected` on the wire, ADR-0100). */
+    readonly sourceCorrected: boolean;
 }
 
 /**
@@ -56,6 +59,7 @@ export const REFUSALS_OF_SOURCE = [
     ['REFUSAL_POLICY_PAID_SITE', 'policy.paidSite'],
     ['REFUSAL_FROM_PERSON', 'fromPerson'],
     ['REFUSAL_SOURCE_CONFLICT', 'sourceConflict'],
+    ['REFUSAL_SOURCE_CORRECTED', 'sourceCorrected'],
     ['REFUSAL_UNRECOGNISED', 'unrecognised'],
     ['REFUSAL_NONE', 'none'],
 ] as const satisfies readonly (readonly [Refusal, PublicRefusal])[];
@@ -84,6 +88,7 @@ export function publicRefusalOfStored(
     recipe: Pick<PublicRefusalFacts, 'sourceType'> & {
         readonly sourceKind?: RecipeSourceKindView | null;
         readonly statementKind?: RecipeStatementKindView | null;
+        readonly sourceCorrected?: boolean;
     },
     held: boolean,
 ): PublicRefusal {
@@ -92,6 +97,7 @@ export function publicRefusalOfStored(
         sourceKind: recipe.sourceKind ?? null,
         statementKind: recipe.statementKind ?? null,
         held,
+        sourceCorrected: recipe.sourceCorrected === true,
     });
 }
 
@@ -117,6 +123,8 @@ export function publicRefusalLineOf(reason: PublicRefusal, lines: PublicRefusalM
             return lines.policyPaidSite;
         case 'sourceConflict':
             return lines.sourceConflict;
+        case 'sourceCorrected':
+            return lines.sourceCorrected;
         case 'none':
             return undefined;
     }

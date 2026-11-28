@@ -763,14 +763,14 @@
       "x": 0,
       "y": 33296,
       "w": 1280,
-      "h": 2000,
+      "h": 2120,
       "title": "Recipe detail, make public: a paid website (web, 1280)"
     },
     "RecipeMakePublicStatementPaidSiteWeb390.dc.html": {
       "x": 1360,
       "y": 33296,
       "w": 390,
-      "h": 3237,
+      "h": 3417,
       "title": "Recipe detail, make public: a paid website (web, 390)"
     },
     "RecipeRefusalNoticeWeb1280.dc.html": {
@@ -856,6 +856,20 @@
       "w": 390,
       "h": 1120,
       "title": "Recipe detail, hidden: the owner line per reason (web, 390)"
+    },
+    "RecipeSourceLockDetailWeb1280.dc.html": {
+      "x": 0,
+      "y": 54271,
+      "w": 1280,
+      "h": 2000,
+      "title": "Recipe detail, a locked or corrected source (web, 1280)"
+    },
+    "RecipeSourceLockDetailWeb390.dc.html": {
+      "x": 1360,
+      "y": 54271,
+      "w": 390,
+      "h": 3237,
+      "title": "Recipe detail, a locked or corrected source (web, 390)"
     }
   },
   "order": [
@@ -979,7 +993,9 @@
     "RecipeHeldSaveDetailLargeTextWeb390.dc.html",
     "RecipeDetailHiddenWeb1280.dc.html",
     "RecipeDetailHiddenWeb390.dc.html",
-    "RecipeDetailHiddenLinesWeb390.dc.html"
+    "RecipeDetailHiddenLinesWeb390.dc.html",
+    "RecipeSourceLockDetailWeb1280.dc.html",
+    "RecipeSourceLockDetailWeb390.dc.html"
   ],
   "notes": {
     "row0": {

@@ -16,8 +16,10 @@
 import {
     parseSourceLink,
     sourceLockOf,
+    type SourceLock,
     RecipeSourceType,
     RecipeVisibility,
+    UNRECOGNISED_SOURCE_KIND,
     UNRECOGNISED_STATEMENT_KIND,
     type PrivateRule,
     type RecipeDetail,
@@ -26,6 +28,7 @@ import {
     type SourceLinkRefusal,
 } from '@kitchensink/recipe-core';
 import type { RecipeStatementInput } from '@kitchensink/schema-recipe';
+import type { RowAnswer } from '../editor/statementStore.js';
 
 import { publicRefusalOf, type PublicRefusal, type PublicRefusalFacts } from '../actions/publicRefusal.js';
 import { privateRuleForDraft } from '../actions/recipePrivateGate.js';
@@ -44,6 +47,7 @@ type StoredRecipe = Pick<
     | 'clonedFromId'
     | 'publicNeedsCheck'
     | 'sourceConfirmed'
+    | 'sourceCorrected'
 >;
 
 type PublicWebStatement = Extract<RecipeStatementInput, { kind: 'public_web' }>;
@@ -86,15 +90,17 @@ export function draftSourceOf(values: Pick<RecipeFormValues, 'sourceLink'>): Dra
  *
  * @param recipe - The server's recipe, or `undefined` before the first save.
  */
-const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
-    recipe !== undefined &&
+const sourceLockOfStored = (recipe: StoredRecipe): SourceLock =>
     sourceLockOf({
         sourceType: recipe.sourceType,
         sourceKind: recipe.sourceKind ?? null,
         statementKind: recipe.statementKind ?? null,
         clonedFromId: recipe.clonedFromId,
         sourceConfirmed: recipe.sourceConfirmed === true,
-    }) !== 'open';
+    });
+
+const sourceIsLocked = (recipe: StoredRecipe | undefined): boolean =>
+    recipe !== undefined && sourceLockOfStored(recipe) !== 'open';
 
 const heldAsWebCopy = (recipe: Pick<StoredRecipe, 'sourceKind'> | undefined): boolean =>
     recipe?.sourceKind === 'public_web';
@@ -138,6 +144,7 @@ export function draftPublicFactsOf(
         sourceKind: recipe?.sourceKind ?? null,
         statementKind,
         held,
+        sourceCorrected: recipe?.sourceCorrected === true,
     };
 
     // A locked source is the server's, whatever the field holds: judge the stored facts.
@@ -262,7 +269,9 @@ export type PastedSourceNote =
     | { readonly kind: 'set'; readonly site: string }
     | { readonly kind: 'keptExisting'; readonly site: string }
     | { readonly kind: 'ownSiteLeftOut' }
-    | { readonly kind: 'locked' };
+    | { readonly kind: 'locked' }
+    /** A confirmed "I wrote this": the link was left out, and the cook can still move it to a cookbook or paid website. */
+    | { readonly kind: 'ownLinkLeftOut' };
 
 /** What a paste does to the Source: the link to set, if any, and what to tell the cook. */
 export interface PastedSourcePlan {
@@ -292,6 +301,10 @@ export function pastedSourcePlanOf(input: {
         return extraction.ownSiteLeftOut ? { note: { kind: 'ownSiteLeftOut' } } : {};
     }
 
+    if (recipe !== undefined && sourceLockOfStored(recipe) === 'downgradeOnly') {
+        return { note: { kind: 'ownLinkLeftOut' } };
+    }
+
     if (sourceIsLocked(recipe)) {
         return { note: { kind: 'locked' } };
     }
@@ -316,7 +329,7 @@ export const isLinkOnly = (extraction: SourceLinkExtraction): boolean =>
     extraction.link !== undefined && extraction.remaining.trim() === '';
 
 /** The answers a locked Source row can name. */
-export type LockedAnswer = 'paidSite' | 'fromPerson';
+export type LockedAnswer = 'paidSite' | 'fromPerson' | 'book';
 
 /**
  * The words that name a locked answer: ONE map for both platforms' Source row.
@@ -327,9 +340,11 @@ export type LockedAnswer = 'paidSite' | 'fromPerson';
  */
 export function lockedAnswerLabel(
     answer: LockedAnswer,
-    words: { readonly answerPaidSite: string; readonly answerPerson: string },
+    words: { readonly answerPaidSite: string; readonly answerPerson: string; readonly answerBook: string },
 ): string {
     switch (answer) {
+        case 'book':
+            return words.answerBook;
         case 'paidSite':
             return words.answerPaidSite;
         case 'fromPerson':
@@ -353,10 +368,84 @@ export type SourceRowModel =
           readonly answer?: LockedAnswer;
           readonly citation?: string;
       }
+    /**
+     * A confirmed "I wrote this" (ADR-0100): the one answer the cook may still move, to a cookbook or a paid website. It has
+     * no locked line.
+     */
+    | { readonly kind: 'own' }
+    /**
+     * An answer nobody has confirmed yet (a book an import stored, or an answer the cook just gave that does not lock until
+     * the act confirms): the answer, its citation if it has one, and a way to change it.
+     */
+    | { readonly kind: 'openAnswered'; readonly answer: LockedAnswer; readonly citation?: string }
     | { readonly kind: 'empty'; readonly text: string }
-    | { readonly kind: 'filled'; readonly text: string; readonly site: string; readonly fromPaste: boolean }
+    | {
+          readonly kind: 'filled';
+          readonly text: string;
+          readonly site: string;
+          readonly fromPaste: boolean;
+          /** The recipe's answer is confirmed already, so the next save locks the link (`lockWarningSave`). Absent before. */
+          readonly confirmed?: true;
+      }
     | { readonly kind: 'invalid'; readonly text: string }
     | { readonly kind: 'ownSite'; readonly text: string };
+
+/**
+ * The row of a recipe whose source the cook can no longer change: the answer the server holds, its citation, or the page as a
+ * link. Pure.
+ *
+ * @param recipe - The server's recipe.
+ * @returns The locked row. A source with no answer to name (the curator's text) is `hidden`.
+ */
+function lockedRowOf(recipe: StoredRecipe): SourceRowModel {
+    if (recipe.sourceKind === 'paid_site') {
+        return { kind: 'lockedAnswer', answer: 'paidSite', citation: recipe.sourceAttribution ?? '' };
+    }
+
+    if (recipe.sourceKind === 'book') {
+        return { kind: 'lockedAnswer', answer: 'book', citation: recipe.sourceAttribution ?? '' };
+    }
+
+    if (recipe.statementKind === 'fromPerson') {
+        return { kind: 'lockedAnswer', answer: 'fromPerson' };
+    }
+
+    if (recipe.statementKind === UNRECOGNISED_STATEMENT_KIND || recipe.sourceKind === UNRECOGNISED_SOURCE_KIND) {
+        return { kind: 'lockedAnswer' };
+    }
+
+    const stored = heldAsWebCopy(recipe) ? parseSourceLink(recipe.sourceUrl ?? '') : undefined;
+
+    return stored?.ok === true ? { kind: 'locked', site: stored.link.site, url: stored.link.url } : { kind: 'hidden' };
+}
+
+/**
+ * The row of an answer the cook just gave in the Source row's sheet, before any write has carried it. `locks` is the rule's
+ * answer (`answerLocks`, decided once when the cook confirmed), so the row keeps no list of locking kinds. Pure.
+ */
+function answeredRowOf(statement: RecipeStatementInput, locks: boolean): SourceRowModel {
+    switch (statement.kind) {
+        case 'paid_site':
+            return answeredOf('paidSite', statement.citation, locks);
+        case 'fromPerson':
+            return answeredOf('fromPerson', undefined, locks);
+        case 'book':
+            return answeredOf('book', statement.citation, locks);
+        case 'authored':
+            return { kind: 'own' };
+        case 'public_web':
+            return { kind: 'empty', text: statement.citation };
+    }
+}
+
+/** One answer the row draws as locked or open by `locks`, the rule's answer (`answerLocks`), never a list of kinds. Pure. */
+function answeredOf(answer: LockedAnswer, citation: string | undefined, locks: boolean): SourceRowModel {
+    const withCitation = citation === undefined ? {} : { citation };
+
+    return locks
+        ? { kind: 'lockedAnswer', answer, ...withCitation }
+        : { kind: 'openAnswered', answer, ...withCitation };
+}
 
 /**
  * What the Source row draws.
@@ -374,33 +463,29 @@ export function sourceRowOf(input: {
      * While they type it is plain text, because a half-typed address is not a mistake yet.
      */
     readonly showError: boolean;
-    /** The citation of a paid website the cook has confirmed and no write has yet carried: locked from the confirm. */
-    readonly paidSiteStated?: string;
+    /** What the Source row's own sheet answered and no write has yet carried: the row draws it from the confirm. */
+    readonly rowAnswer?: RowAnswer;
 }): SourceRowModel {
-    const { values, recipe, fromPaste, showError, paidSiteStated } = input;
+    const { values, recipe, fromPaste, showError, rowAnswer } = input;
 
-    if (paidSiteStated !== undefined) {
-        return { kind: 'lockedAnswer', answer: 'paidSite', citation: paidSiteStated };
+    if (rowAnswer?.statement != null) {
+        return answeredRowOf(rowAnswer.statement, rowAnswer.locks);
     }
 
-    if (sourceIsLocked(recipe)) {
-        if (recipe?.sourceKind === 'paid_site') {
-            return { kind: 'lockedAnswer', answer: 'paidSite', citation: recipe.sourceAttribution ?? '' };
-        }
+    // A clear in flight (`null`): the stored answer is gone from the row, whatever it was.
+    const lock = recipe === undefined || rowAnswer !== undefined ? 'open' : sourceLockOfStored(recipe);
 
-        if (recipe?.statementKind === 'fromPerson') {
-            return { kind: 'lockedAnswer', answer: 'fromPerson' };
-        }
+    if (recipe !== undefined && lock === 'downgradeOnly') {
+        return { kind: 'own' };
+    }
 
-        if (recipe?.statementKind === UNRECOGNISED_STATEMENT_KIND) {
-            return { kind: 'lockedAnswer' };
-        }
+    if (recipe !== undefined && lock === 'locked') {
+        return lockedRowOf(recipe);
+    }
 
-        const stored = heldAsWebCopy(recipe) ? parseSourceLink(recipe?.sourceUrl ?? '') : undefined;
-
-        return stored?.ok === true
-            ? { kind: 'locked', site: stored.link.site, url: stored.link.url }
-            : { kind: 'hidden' };
+    // A link the draft holds (a paste set it) replaces the stored book at the next save: the field is the row then.
+    if (rowAnswer === undefined && recipe?.sourceKind === 'book' && draftSourceOf(values).kind === 'none') {
+        return { kind: 'openAnswered', answer: 'book', citation: recipe.sourceAttribution ?? '' };
     }
 
     const text = sourceTextOf(values);
@@ -410,7 +495,13 @@ export function sourceRowOf(input: {
         case 'none':
             return { kind: 'empty', text };
         case 'link':
-            return { kind: 'filled', text, site: source.link.site, fromPaste };
+            return {
+                kind: 'filled',
+                text,
+                site: source.link.site,
+                fromPaste,
+                ...(recipe?.sourceConfirmed === true ? { confirmed: true as const } : {}),
+            };
         case 'refused':
             return showError ? { kind: source.reason, text } : { kind: 'empty', text };
     }

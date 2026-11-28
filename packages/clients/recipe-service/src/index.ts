@@ -61,6 +61,7 @@ export {
     // where retrying the same body cannot work (see the three-way distinction in `errors.ts`).
     ImportQuotaExceededError,
     InvalidVisibilityError,
+    SourceLockedError,
     PrivateSlotsFullError,
     InvalidRequestError,
     NotFoundError,
@@ -78,6 +79,7 @@ export {
     isServiceUnreachableError,
     isSourceUnavailableError,
     isForbiddenError,
+    isSourceLockedError,
     isGoneError,
     isImportCursorMovedError,
     isImportItemAlreadySavedError,

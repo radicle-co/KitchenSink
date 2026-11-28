@@ -1484,21 +1484,21 @@
       "x": 0,
       "y": 16441,
       "w": 390,
-      "h": 3752,
+      "h": 4080,
       "title": "Recipe editor, where it’s from: a paid website (mobile, iPhone 390)"
     },
     "RecipeEditorStatementPaidSiteAndroid384.dc.html": {
       "x": 470,
       "y": 16441,
       "w": 384,
-      "h": 3739,
+      "h": 4127,
       "title": "Recipe editor, where it’s from: a paid website (mobile, Android 384)"
     },
     "RecipeEditorStatementPaidSiteIpad820.dc.html": {
       "x": 934,
       "y": 16441,
       "w": 820,
-      "h": 3564,
+      "h": 3832,
       "title": "Recipe editor, where it’s from: a paid website (mobile, iPad 820)"
     },
     "RecipeEditorRefusalNoticeIphone390.dc.html": {
@@ -1605,6 +1605,48 @@
       "w": 390,
       "h": 1884,
       "title": "Recipe editor, blocked save at the largest text (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceLockIphone390.dc.html": {
+      "x": 0,
+      "y": 35628,
+      "w": 390,
+      "h": 5811,
+      "title": "Recipe editor, the Source row locked (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceLockAndroid384.dc.html": {
+      "x": 470,
+      "y": 35628,
+      "w": 384,
+      "h": 5818,
+      "title": "Recipe editor, the Source row locked (mobile, Android 384)"
+    },
+    "RecipeEditorSourceLockIpad820.dc.html": {
+      "x": 934,
+      "y": 35628,
+      "w": 820,
+      "h": 5194,
+      "title": "Recipe editor, the Source row locked (mobile, iPad 820)"
+    },
+    "RecipeEditorSourceSheetIphone390.dc.html": {
+      "x": 0,
+      "y": 41846,
+      "w": 390,
+      "h": 5015,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceSheetAndroid384.dc.html": {
+      "x": 470,
+      "y": 41846,
+      "w": 384,
+      "h": 5110,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, Android 384)"
+    },
+    "RecipeEditorSourceSheetIpad820.dc.html": {
+      "x": 934,
+      "y": 41846,
+      "w": 820,
+      "h": 4756,
+      "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1835,7 +1877,13 @@
     "RecipeEditorHeldSaveIphone390.dc.html",
     "RecipeEditorHeldSaveAndroid384.dc.html",
     "RecipeEditorHeldSaveIpad820.dc.html",
-    "RecipeEditorHeldSaveLargeTextIphone390.dc.html"
+    "RecipeEditorHeldSaveLargeTextIphone390.dc.html",
+    "RecipeEditorSourceLockIphone390.dc.html",
+    "RecipeEditorSourceLockAndroid384.dc.html",
+    "RecipeEditorSourceLockIpad820.dc.html",
+    "RecipeEditorSourceSheetIphone390.dc.html",
+    "RecipeEditorSourceSheetAndroid384.dc.html",
+    "RecipeEditorSourceSheetIpad820.dc.html"
   ],
   "notes": {
     "row0": {

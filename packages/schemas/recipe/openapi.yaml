@@ -5559,6 +5559,14 @@ components:
                 - FORBIDDEN
             message:
               type: string
+            details:
+              type: object
+              properties:
+                reason:
+                  type: string
+                  enum:
+                    - SOURCE_LOCKED
+              additionalProperties: {}
           required:
             - code
             - message
@@ -6582,6 +6590,7 @@ components:
                       type: string
                       enum:
                         - statementPublicWeb.v1
+                        - statementPublicWeb.v2
                     locale:
                       type: string
                       minLength: 2
@@ -6611,6 +6620,7 @@ components:
                       type: string
                       enum:
                         - statementBook.v1
+                        - statementBook.v2
                     locale:
                       type: string
                       minLength: 2
@@ -6667,6 +6677,7 @@ components:
                       type: string
                       enum:
                         - statementFromPerson.v1
+                        - statementFromPerson.v2
                     locale:
                       type: string
                       minLength: 2
@@ -6942,6 +6953,7 @@ components:
                       type: string
                       enum:
                         - statementPublicWeb.v1
+                        - statementPublicWeb.v2
                     locale:
                       type: string
                       minLength: 2
@@ -6971,6 +6983,7 @@ components:
                       type: string
                       enum:
                         - statementBook.v1
+                        - statementBook.v2
                     locale:
                       type: string
                       minLength: 2
@@ -7027,6 +7040,7 @@ components:
                       type: string
                       enum:
                         - statementFromPerson.v1
+                        - statementFromPerson.v2
                     locale:
                       type: string
                       minLength: 2
@@ -7505,6 +7519,7 @@ components:
                       type: string
                       enum:
                         - statementPublicWeb.v1
+                        - statementPublicWeb.v2
                     locale:
                       type: string
                       minLength: 2
@@ -7534,6 +7549,7 @@ components:
                       type: string
                       enum:
                         - statementBook.v1
+                        - statementBook.v2
                     locale:
                       type: string
                       minLength: 2
@@ -7590,6 +7606,7 @@ components:
                       type: string
                       enum:
                         - statementFromPerson.v1
+                        - statementFromPerson.v2
                     locale:
                       type: string
                       minLength: 2

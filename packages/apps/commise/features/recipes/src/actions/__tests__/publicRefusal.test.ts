@@ -37,8 +37,17 @@ const facts = (over: Partial<PublicRefusalFacts>): PublicRefusalFacts => ({
     sourceKind: null,
     statementKind: null,
     held: false,
+    sourceCorrected: false,
     ...over,
 });
+
+type Combination = Pick<PublicRefusalFacts, 'sourceType' | 'sourceKind' | 'statementKind'>;
+
+/** One of each of the held and corrected states, for a combination of the three enums. */
+const heldAndCorrected = (combination: Combination): PublicRefusalFacts[] =>
+    [false, true].flatMap((held) =>
+        [false, true].map((sourceCorrected) => ({ ...combination, held, sourceCorrected })),
+    );
 
 describe('publicRefusalOf: the decision table', () => {
     const rows: ReadonlyArray<readonly [string, Partial<PublicRefusalFacts>, PublicRefusal]> = [
@@ -51,6 +60,31 @@ describe('publicRefusalOf: the decision table', () => {
         [
             'from another person while held (R3: its line wins)',
             { statementKind: 'fromPerson', held: true },
+            'fromPerson',
+        ],
+        [
+            'a staff correction hold (the state model reads it after the held source)',
+            { sourceCorrected: true },
+            'sourceCorrected',
+        ],
+        [
+            'a staff correction hold on a recipe the cook wrote',
+            { sourceCorrected: true, statementKind: 'authored' },
+            'sourceCorrected',
+        ],
+        [
+            'a staff correction hold, held too: the held source is read first',
+            { sourceCorrected: true, held: true },
+            'sourceConflict',
+        ],
+        [
+            'a staff correction hold on a book: the book rule is read first',
+            { sourceCorrected: true, sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' },
+            'policy.book',
+        ],
+        [
+            'from another person while corrected: its line wins, the model reads it first',
+            { sourceCorrected: true, statementKind: 'fromPerson' },
             'fromPerson',
         ],
         ['an unrecognised statement kind', { statementKind: UNRECOGNISED_STATEMENT_KIND }, 'unrecognised'],
@@ -135,9 +169,7 @@ describe('publicRefusalOf: the decision table', () => {
         ];
         const combinations: PublicRefusalFacts[] = Object.values(RecipeSourceType).flatMap((sourceType) =>
             kinds.flatMap((sourceKind) =>
-                statements.flatMap((statementKind) =>
-                    [false, true].map((held) => ({ sourceType, sourceKind, statementKind, held })),
-                ),
+                statements.flatMap((statementKind) => heldAndCorrected({ sourceType, sourceKind, statementKind })),
             ),
         );
 
@@ -147,6 +179,10 @@ describe('publicRefusalOf: the decision table', () => {
             );
 
             expect(offered).toEqual([]);
+        });
+
+        it('never offers Public for a corrected recipe', () => {
+            expect(combinations.filter((c) => c.sourceCorrected && publicRefusalOf(c) === 'none')).toEqual([]);
         });
 
         it('never offers Public for a held recipe', () => {
@@ -168,11 +204,25 @@ describe('publicRefusalOf: the decision table', () => {
 });
 
 describe('publicRefusalOfStored: a stored recipe whose kind and statement may be absent', () => {
+    it('reads the wire’s sourceCorrected, absent as false', () => {
+        const recipe = { sourceType: RecipeSourceType.USER_CREATED };
+
+        expect(publicRefusalOfStored({ ...recipe, sourceCorrected: true }, false)).toBe('sourceCorrected');
+        expect(publicRefusalOfStored({ ...recipe, sourceCorrected: false }, false)).toBe('none');
+        expect(publicRefusalOfStored(recipe, false)).toBe('none');
+    });
+
     it('reads an absent kind and statement as none, as the explicit nulls do', () => {
         for (const sourceType of Object.values(RecipeSourceType)) {
             for (const held of [false, true]) {
                 expect(publicRefusalOfStored({ sourceType }, held)).toBe(
-                    publicRefusalOf({ sourceType, sourceKind: null, statementKind: null, held }),
+                    publicRefusalOf({
+                        sourceType,
+                        sourceKind: null,
+                        statementKind: null,
+                        held,
+                        sourceCorrected: false,
+                    }),
                 );
             }
         }

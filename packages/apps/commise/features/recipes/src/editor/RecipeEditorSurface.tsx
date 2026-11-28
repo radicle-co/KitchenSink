@@ -21,7 +21,8 @@
  * @pattern Composition — the editor's leaves arranged over one session; the app supplies the one leaf that differs
  */
 import type { PaidFeatureState } from '@commise/features-account';
-import { pluralOf } from '@commise/i18n';
+import { supportLinkOf } from '@commise/features-core/config/supportLink';
+import { fillTemplate, pluralOf } from '@commise/i18n';
 import { useLocale, useMessages } from '@commise/i18n/react';
 import { Button } from '@commise/ui/button';
 import { ConfirmDialog } from '@commise/ui/confirm-dialog';
@@ -43,7 +44,9 @@ import { PastedSourceNotice } from '../form/PastedSourceNotice.js';
 import { RecipeSourceField } from '../form/RecipeSourceField.js';
 import { recipeActionMessages } from '../actions/messages.js';
 import { SourceStatementSheet } from '../actions/SourceStatementSheet.js';
+import { PUBLISH_SHEET_SURFACE } from '../actions/sourceStatement.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
+import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { RecipeVisibilityField } from '../form/RecipeVisibilityField.js';
 import { publicOfferOf } from './publishBlockedCopy.js';
 import { entryFieldIdOf } from '../form/fieldIds.js';
@@ -119,6 +122,8 @@ export interface RecipeEditorSurfaceProps {
     readonly onOpenFood?: (foodId: string) => void;
     /** The app leaves this editor in place when it opens a food (native pushes a screen over it): the refusal then closes first. */
     readonly foodOpensOverEditor?: boolean;
+    /** The configured support page address (`supportLinkOf` adds the recipe): a locked Source row links to it. Absent, no link. */
+    readonly supportAddress?: string;
 }
 
 /** The editor page over its session. */
@@ -137,6 +142,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     leaveAsk,
     onOpenFood,
     foodOpensOverEditor = false,
+    supportAddress,
 }) => {
     const { editor, paste, photos, source } = session;
     const photoCopy = useMessages(photoMessages);
@@ -160,10 +166,57 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const { pending } = session.rowEditor.entry;
     const pendingFieldId = pending === undefined ? undefined : entryFieldIdOf(pending.target);
     const errors = errorsStillHolding(editor.refusedFields, editor.values, session.rowEditor.entry.pendingEntryText);
-    const { ingredients: ingredientsCopy } = useMessages(editorMessages);
+    const {
+        ingredients: ingredientsCopy,
+        source: sourceCopy,
+        visibility: visibilityCopy,
+    } = useMessages(editorMessages);
     const locale = useLocale();
     const { publicConfirm } = useMessages(recipeActionMessages);
-    const statementSheet = useStatementSheet({ locale, onAnswer: editor.answerStatement });
+    const statementSheet = useStatementSheet({
+        locale,
+        surface: PUBLISH_SHEET_SURFACE,
+        recipeConfirmed: editor.storedRecipe?.sourceConfirmed === true,
+        onAnswer: editor.answerStatement,
+    });
+    // ADR-0100: the Source row's own sheet. `rowSheet` is which of its three purposes is open; the sheet is the same one.
+    const [downgraded, setDowngraded] = useState<{ readonly text: string; readonly n: number } | undefined>(undefined);
+    const [rowSheet, setRowSheet] = useState<SourceRowSheet | undefined>(undefined);
+    const rowStatementSheet = useStatementSheet({
+        locale,
+        surface: rowSheet ?? 'firstAnswer',
+        recipeConfirmed: editor.storedRecipe?.sourceConfirmed === true,
+        onAnswer: (write) => {
+            if (rowSheet === undefined) {
+                return;
+            }
+
+            // AE19: a downgrade makes the recipe private, and a cook with every slot used is told here, before anything is sent.
+            if (
+                rowSheet === 'downgrade' &&
+                write.visibility === RecipeVisibility.PRIVATE &&
+                editor.storedRecipe?.visibility !== RecipeVisibility.PRIVATE &&
+                slotStanding.kind === 'full'
+            ) {
+                rowStatementSheet.dispatch({ type: 'failed' });
+
+                return;
+            }
+
+            editor.answerRowStatement(write, rowSheet);
+            setRowSheet(undefined);
+
+            const { statement } = write;
+
+            if (rowSheet === 'downgrade' && statement !== undefined && 'citation' in statement) {
+                setDowngraded((previous) => ({
+                    text: fillTemplate(sourceCopy.announceDowngrade, { answer: statement.citation }),
+                    n: (previous?.n ?? 0) + 1,
+                }));
+            }
+        },
+    });
+    const askHref = editor.recipeId === undefined ? undefined : supportLinkOf(supportAddress, editor.recipeId);
     // Kept while the sheet closes, so its words do not change under its own animation.
     const blocked = useLastDefined(editor.publishBlocked);
     // E1 + plan 2026-10-14-009 D14, amended by ADR-0073: Private within the cook's slots (the count is the server's, shown
@@ -322,6 +375,17 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                             onChange={source.onChange}
                             onTouched={source.onTouched}
                             onRemove={() => source.remove()}
+                            onAsk={(sheet) => {
+                                rowStatementSheet.reset();
+                                setRowSheet(sheet);
+                            }}
+                            askHref={askHref}
+                            focusSignal={downgraded?.n ?? 0}
+                        />
+                        {/* Kept mounted: the first refusal is a change of its signal, so it takes focus and the scroll. */}
+                        <PastedSourceNotice
+                            text={editor.sourceLockRefused ? sourceCopy.lockedRefused : ''}
+                            focusSignal={editor.sourceLockRefusals}
                         />
                         <RecipeVisibilityField
                             values={editor.values}
@@ -341,6 +405,14 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
                 {/* What a paste did to the Source, spoken once per paste (the occurrence changes for a repeat). */}
                 <LiveRegion politeness="polite" visuallyHidden occurrence={source.notice?.n ?? 0}>
                     {source.notice?.text ?? ''}
+                </LiveRegion>
+                {/* A lock refusal, spoken once for each (the occurrence changes for a repeat). */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={editor.sourceLockRefusals}>
+                    {editor.sourceLockRefused ? sourceCopy.lockedRefused : ''}
+                </LiveRegion>
+                {/* Said once after a confirmed "I wrote this" became a cookbook or paid website. */}
+                <LiveRegion politeness="polite" visuallyHidden occurrence={downgraded?.n ?? 0}>
+                    {downgraded?.text ?? ''}
                 </LiveRegion>
             </>
         ),
@@ -446,13 +518,29 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             )}
             <SourceStatementSheet
                 open={editor.statementAsk}
-                surface="editor"
+                surface={PUBLISH_SHEET_SURFACE}
+                recipeConfirmed={editor.storedRecipe?.sourceConfirmed === true}
                 state={statementSheet.state}
                 dispatch={statementSheet.dispatch}
                 onConfirm={statementSheet.confirm}
                 onDismiss={() => {
                     editor.dismissStatement();
                     statementSheet.reset();
+                }}
+            />
+            <SourceStatementSheet
+                open={rowSheet !== undefined}
+                surface={rowSheet ?? 'firstAnswer'}
+                recipeConfirmed={editor.storedRecipe?.sourceConfirmed === true}
+                {...(slotStanding.kind === 'full'
+                    ? { failureText: fillTemplate(visibilityCopy.slotsFull, { total: slotStanding.limit }) }
+                    : {})}
+                state={rowStatementSheet.state}
+                dispatch={rowStatementSheet.dispatch}
+                onConfirm={rowStatementSheet.confirm}
+                onDismiss={() => {
+                    setRowSheet(undefined);
+                    rowStatementSheet.reset();
                 }}
             />
             {blocked === undefined ? null : (

@@ -15,8 +15,13 @@ const SHOWN = {
     'statementAuthored.v1': [m.answerAuthored, m.hintAuthored],
     'statementPublicWeb.v1': [m.answerWeb, m.hintPrivate],
     'statementBook.v1': [m.answerBook, m.hintPrivate],
-    'statementPaidSite.v1': [m.answerPaidSite, m.hintPaidSite],
+    // The paid-site sentence moved out of its hint into `lockNote`, drawn after it in the same block: the shown text is the same.
+    'statementPaidSite.v1': [m.answerPaidSite, `${m.hintPaidSite} ${m.lockNote}`],
     'statementFromPerson.v1': [m.answerPerson, m.hintPerson],
+    // The v2 wordings are v1 plus the lock note, shown where confirming the answer locks it (ADR-0100).
+    'statementPublicWeb.v2': [m.answerWeb, `${m.hintPrivate} ${m.lockNote}`],
+    'statementBook.v2': [m.answerBook, `${m.hintPrivate} ${m.lockNote}`],
+    'statementFromPerson.v2': [m.answerPerson, `${m.hintPerson} ${m.lockNote}`],
 } as const;
 
 describe('the paid-site field copy', () => {
@@ -45,13 +50,25 @@ describe('the statement wordings', () => {
                 'From another person',
                 'A recipe someone gave you, like family or a friend. Stays private to you.',
             ],
+            'statementPublicWeb.v2': [
+                'From a web page',
+                'Stays private to you. Once you confirm, this answer is locked.',
+            ],
+            'statementBook.v2': [
+                'From a cookbook or magazine',
+                'Stays private to you. Once you confirm, this answer is locked.',
+            ],
+            'statementFromPerson.v2': [
+                'From another person',
+                'A recipe someone gave you, like family or a friend. Stays private to you. Once you confirm, this answer is locked.',
+            ],
         });
         expect(publicConfirm.line).toBe(
             'By making this public, you confirm it’s your own recipe in your own words, or that you have the right to share it.',
         );
     });
 
-    it('has a pinned text for every version the registry lists, and the registry lists exactly one per choice today', () => {
+    it('has a pinned text for every version the registry lists, and the registry lists one per choice, plus a v2 for each answer the lock note joined', () => {
         const registry = Object.values(STATEMENT_WORDINGS_BY_CHOICE).flat();
 
         expect(Object.keys(SHOWN).sort()).toEqual([...registry].sort());

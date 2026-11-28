@@ -15,6 +15,7 @@ import type { EditorMessages } from '../editor/messages.js';
 import type { SourceStatementMessages } from './messages.js';
 import {
     answersFor,
+    answerLocks,
     phaseOf,
     visibleFieldErrorOf,
     type StatementAnswer,
@@ -49,6 +50,8 @@ export interface StatementSharedCopy {
 
 /** What the sheet draws. */
 export interface StatementSheetView {
+    /** The words above the answers, or `undefined` for a sheet that has none (the first answer and the change). */
+    readonly body: string | undefined;
     readonly options: readonly RadioListOption<StatementAnswer>[];
     readonly value: StatementAnswer | undefined;
     readonly field: StatementFieldView | undefined;
@@ -61,6 +64,19 @@ export interface StatementSheetView {
     /** The last change failed: the words, above the footer. */
     readonly errorText: string | undefined;
 }
+
+/** The words each purpose says around the answers. The row modes have no body: the title and the answers say it. */
+const WORDS_BY_SURFACE = {
+    editor: (m) => ({ body: m.body, confirm: m.confirmEditor, dismiss: m.dismissEditor }),
+    recipePage: (m) => ({ body: m.body, confirm: m.confirmRecipePage, dismiss: m.dismissRecipePage }),
+    recipePageOwn: (m) => ({ body: m.body, confirm: m.confirmRecipePage, dismiss: m.dismissRecipePage }),
+    firstAnswer: (m) => ({ body: undefined, confirm: m.confirmAnswer, dismiss: m.dismissAnswer }),
+    change: (m) => ({ body: undefined, confirm: m.confirmAnswer, dismiss: m.dismissAnswer }),
+    downgrade: (m) => ({ body: m.bodyDowngrade, confirm: m.confirmDowngrade, dismiss: m.dismissAnswer }),
+} as const satisfies Record<
+    StatementSurface,
+    (m: SourceStatementMessages) => { body: string | undefined; confirm: string; dismiss: string }
+>;
 
 /** The label of each answer. */
 const LABEL_KEY = {
@@ -179,21 +195,26 @@ export function sheetViewOf(input: {
     readonly state: StatementSheetState;
     readonly messages: SourceStatementMessages;
     readonly shared: StatementSharedCopy;
+    /** The recipe's source is confirmed already, so a web page and a book lock when stated too. */
+    readonly recipeConfirmed?: boolean;
 }): StatementSheetView {
-    const { surface, state, messages: m, shared } = input;
+    const { surface, state, messages: m, shared, recipeConfirmed = false } = input;
     const phase = phaseOf(state);
-    const editor = surface === 'editor';
+    const words = WORDS_BY_SURFACE[surface](m);
 
     return {
-        options: answersFor(surface).map((answer) => ({
-            id: answer,
-            label: m[LABEL_KEY[answer]],
-            ...(HINT_KEY[answer] === undefined ? {} : { hint: m[HINT_KEY[answer]] }),
-        })),
+        body: words.body,
+        options: answersFor(surface).map((answer) => {
+            const hint = HINT_KEY[answer] === undefined ? undefined : m[HINT_KEY[answer]];
+            const note = answerLocks({ answer, surface, recipeConfirmed }) ? m.lockNote : undefined;
+            const text = [hint, note].filter((part) => part !== undefined).join(' ');
+
+            return { id: answer, label: m[LABEL_KEY[answer]], ...(text === '' ? {} : { hint: text }) };
+        }),
         value: state.answer,
         field: fieldViewOf(state, m, shared),
-        confirmLabel: editor ? m.confirmEditor : m.confirmRecipePage,
-        dismissLabel: editor ? m.dismissEditor : m.dismissRecipePage,
+        confirmLabel: words.confirm,
+        dismissLabel: words.dismiss,
         confirmRefused: phase === 'choosing',
         busy: phase === 'busy',
         errorText: phase === 'error' ? shared.failure : undefined,

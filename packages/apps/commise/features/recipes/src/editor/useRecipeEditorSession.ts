@@ -228,6 +228,8 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         setVisibility: (id, visibility) => setVisibility.mutateAsync({ id, visibility }),
         // The outbox's cache observer writes each synced recipe write's answer here, so this is usually a cache read.
         readRecipe: (id) => queryClient.ensureQueryData(recipeQueries(client).detail(id)),
+        // Never the cache: a source lock the cook was refused over may be newer than what the cache holds.
+        rereadRecipe: (id) => queryClient.query({ ...recipeQueries(client).detail(id), staleTime: 0 }),
         pasteHold,
         rowEditHold,
         privateRefusal,
@@ -301,9 +303,9 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
     const source = useEditorSource({
         values: editor.values,
         dispatch,
-        recipe: seed.recipe,
+        recipe: editor.storedRecipe ?? seed.recipe,
         refused: editor.refusedFields.has('source'),
-        ...(editor.paidSiteStated === undefined ? {} : { paidSiteStated: editor.paidSiteStated }),
+        ...(editor.rowStated === undefined ? {} : { rowAnswer: editor.rowStated }),
     });
     // ADR-0095: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that
     // content was pasted, and it is set where the paste lands, not where it was offered.

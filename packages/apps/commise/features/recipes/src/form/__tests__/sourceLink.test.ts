@@ -27,7 +27,9 @@ import {
     publicHeldOf,
     sourceRowOf,
     sourceStatementOf,
+    type SourceRowModel,
 } from '../sourceLink.js';
+import type { RowAnswer } from '../../editor/statementStore.js';
 
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
 const withLink = (sourceLink: string, over = {}) => makeRecipeFormValues({ sourceLink, ...over });
@@ -282,6 +284,14 @@ describe('pastedSourcePlanOf: a link line in pasted text', () => {
         ).toEqual({ note: { kind: 'locked' } });
     });
 
+    it('says the recipe is "I wrote this" when a link is left out of a confirmed own recipe (ADR-0100)', () => {
+        expect(
+            plan(`2 eggs\n${ALLRECIPES}`, {
+                recipe: neverPublished({ sourceConfirmed: true, statementKind: 'authored' }),
+            }),
+        ).toEqual({ note: { kind: 'ownLinkLeftOut' } });
+    });
+
     it('leaves a pasted link out of a "from another person" recipe and says it can’t change (AE2)', () => {
         expect(plan(`2 eggs\n${ALLRECIPES}`, { recipe: neverPublished({ statementKind: 'fromPerson' }) })).toEqual({
             note: { kind: 'locked' },
@@ -385,7 +395,7 @@ describe('sourceRowOf: every state of the Source row', () => {
         ).toEqual({ kind: 'hidden' });
     });
 
-    it('hidden: the curator’s text, even on a draft; a book on a draft is correctable (migration 0088), so its row is not hidden', () => {
+    it('hidden: the curator’s text, even on a draft; an unconfirmed book on a draft is correctable, so its row is the open answered row, not hidden', () => {
         const curator = makeRecipeDetail({
             status: RecipeStatus.DRAFT,
             sourceType: RecipeSourceType.IMPORTED_PUBLIC,
@@ -398,7 +408,7 @@ describe('sourceRowOf: every state of the Source row', () => {
         });
 
         expect(row(makeRecipeFormValues(), curator)).toEqual({ kind: 'hidden' });
-        expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'empty', text: '' });
+        expect(row(makeRecipeFormValues(), book)).toEqual({ kind: 'openAnswered', answer: 'book', citation: '' });
     });
 
     it('a stored recipe still edits its source', () => {
@@ -408,8 +418,9 @@ describe('sourceRowOf: every state of the Source row', () => {
 
 describe('lockedAnswerLabel', () => {
     it('names each locked answer from the sheet’s own words', () => {
-        const words = { answerPaidSite: 'paid words', answerPerson: 'person words' };
+        const words = { answerPaidSite: 'paid words', answerPerson: 'person words', answerBook: 'book words' };
 
+        expect(lockedAnswerLabel('book', words)).toBe('book words');
         expect(lockedAnswerLabel('paidSite', words)).toBe('paid words');
         expect(lockedAnswerLabel('fromPerson', words)).toBe('person words');
     });
@@ -429,16 +440,58 @@ describe('sourceRowOf: a paid website is locked, with no link', () => {
         ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
     });
 
-    it('a citation the cook has just confirmed locks the row before any write', () => {
-        expect(
-            sourceRowOf({
-                values: makeRecipeFormValues(),
-                recipe: undefined,
-                fromPaste: false,
-                showError: false,
-                paidSiteStated: 'Sam’s Subscription Kitchen',
-            }),
-        ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
+    describe('an answer the Source row\u2019s sheet gave and no write has carried (ADR-0100)', () => {
+        const base = { values: makeRecipeFormValues(), recipe: undefined, fromPaste: false, showError: false };
+
+        const w = <V extends string>(version: V) => ({ version, locale: 'en' }) as const;
+        const cases: ReadonlyArray<readonly [RowAnswer, SourceRowModel]> = [
+            [
+                { statement: { kind: 'fromPerson', wording: w('statementFromPerson.v2') }, locks: true },
+                { kind: 'lockedAnswer', answer: 'fromPerson' },
+            ],
+            [
+                { statement: { kind: 'paid_site', citation: 'Sam', wording: w('statementPaidSite.v1') }, locks: true },
+                { kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam' },
+            ],
+            [
+                {
+                    statement: { kind: 'book', citation: 'Salt Fat Acid Heat', wording: w('statementBook.v2') },
+                    locks: true,
+                },
+                { kind: 'lockedAnswer', answer: 'book', citation: 'Salt Fat Acid Heat' },
+            ],
+            [
+                {
+                    statement: { kind: 'book', citation: 'Salt Fat Acid Heat', wording: w('statementBook.v2') },
+                    locks: false,
+                },
+                { kind: 'openAnswered', answer: 'book', citation: 'Salt Fat Acid Heat' },
+            ],
+            // The row reads `locks` for EVERY kind (one rule, `answerLocks`); it keeps no list of locking kinds of its own.
+            [
+                { statement: { kind: 'fromPerson', wording: w('statementFromPerson.v2') }, locks: false },
+                { kind: 'openAnswered', answer: 'fromPerson' },
+            ],
+            [
+                { statement: { kind: 'paid_site', citation: 'Sam', wording: w('statementPaidSite.v1') }, locks: false },
+                { kind: 'openAnswered', answer: 'paidSite', citation: 'Sam' },
+            ],
+            [{ statement: { kind: 'authored', wording: w('statementAuthored.v1') }, locks: true }, { kind: 'own' }],
+        ];
+
+        it.each(cases)('%j draws %j', (rowAnswer, expected) => {
+            expect(sourceRowOf({ ...base, rowAnswer })).toEqual(expected);
+        });
+
+        it('a clear in flight hides a stored answer from the row', () => {
+            const stored = makeRecipeDetail({ statementKind: 'fromPerson' });
+
+            expect(sourceRowOf({ ...base, recipe: stored })).toEqual({ kind: 'lockedAnswer', answer: 'fromPerson' });
+            expect(sourceRowOf({ ...base, recipe: stored, rowAnswer: { statement: null, locks: false } })).toEqual({
+                kind: 'empty',
+                text: '',
+            });
+        });
     });
 
     it('a recipe stored as "from another person" shows that answer, locked, with no citation', () => {
@@ -563,6 +616,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'public_web',
             statementKind: null,
             held: false,
+            sourceCorrected: false,
         });
     });
 
@@ -572,6 +626,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: false,
+            sourceCorrected: false,
         });
     });
 
@@ -581,6 +636,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: true,
+            sourceCorrected: false,
         });
     });
 
@@ -590,6 +646,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'paid_site',
             statementKind: 'source',
             held: false,
+            sourceCorrected: false,
         });
     });
 
@@ -599,6 +656,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: 'authored',
             held: false,
+            sourceCorrected: false,
         });
     });
 
@@ -653,12 +711,14 @@ describe('AE7: the editor and the recipe page give one reason and one line over 
             'policy.webPage',
         ],
         ['a held recipe', stored({ publicNeedsCheck: true }), 'sourceConflict'],
+        ['a staff correction hold', stored({ sourceCorrected: true }), 'sourceCorrected'],
     ] as const)('%s', (_name, recipe, reason) => {
         const page = publicRefusalOf({
             sourceType: recipe.sourceType,
             sourceKind: recipe.sourceKind ?? null,
             statementKind: recipe.statementKind ?? null,
             held: recipe.publicNeedsCheck === true,
+            sourceCorrected: recipe.sourceCorrected === true,
         });
         // The draft still holds the stored link (a web copy): taking it off is a different, held reason by design.
         const values =
@@ -754,5 +814,82 @@ describe('derivedVisibility: sends Private whenever Public is refused (P6, DF-3)
         expect(derivedVisibility(publicDraft(), makeRecipeDetail({ statementKind: 'authored' }))).toBe(
             RecipeVisibility.PUBLIC,
         );
+    });
+});
+
+describe('sourceRowOf: the row after the lock (ADR-0100), one state per confirmed fact and stored answer', () => {
+    const row = (
+        recipe: ReturnType<typeof makeRecipeDetail> | undefined,
+        values = makeRecipeFormValues(),
+    ): ReturnType<typeof sourceRowOf> => sourceRowOf({ values, recipe, fromPaste: false, showError: true });
+    const book = (over = {}) =>
+        neverPublished({
+            sourceType: RecipeSourceType.IMPORTED_PHYSICAL,
+            sourceKind: 'book',
+            statementKind: 'source',
+            sourceAttribution: 'The Sunday Roast Book',
+            ...over,
+        });
+    const confirmed = { sourceConfirmed: true } as const;
+
+    it('open, none: the field and no warning, whether the recipe is confirmed or not', () => {
+        expect(row(neverPublished())).toEqual({ kind: 'empty', text: '' });
+        expect(row(neverPublished(confirmed))).toEqual({ kind: 'empty', text: '' });
+    });
+
+    it('open, answered: a stored book nobody confirmed shows its answer and citation', () => {
+        expect(row(book())).toEqual({ kind: 'openAnswered', answer: 'book', citation: 'The Sunday Roast Book' });
+    });
+
+    it('a link the draft holds replaces an unconfirmed stored book: the row is the field, never the stale book', () => {
+        expect(row(book(), withLink(ALLRECIPES))).toMatchObject({ kind: 'filled', site: 'allrecipes.com' });
+        expect(row(book(), withLink('not a link'))).toMatchObject({ kind: 'invalid' });
+    });
+
+    it('a confirmed book is locked, with its citation, whether or not the recipe was ever published', () => {
+        for (const over of [{ firstPublishedAt: null }, { status: RecipeStatus.PUBLISHED, firstPublishedAt: FIRST }]) {
+            expect(row(book({ ...confirmed, ...over }))).toEqual({
+                kind: 'lockedAnswer',
+                answer: 'book',
+                citation: 'The Sunday Roast Book',
+            });
+        }
+    });
+
+    it('a confirmed draft draws the locked row although it was never published (the client does not guess from firstPublishedAt)', () => {
+        const draft = book({ ...confirmed, status: RecipeStatus.DRAFT, firstPublishedAt: null });
+
+        expect(row(draft).kind).toBe('lockedAnswer');
+    });
+
+    it('a book with no title is locked and keeps an empty citation', () => {
+        expect(row(book({ ...confirmed, sourceAttribution: null }))).toEqual({
+            kind: 'lockedAnswer',
+            answer: 'book',
+            citation: '',
+        });
+    });
+
+    it('a confirmed web page is locked as a link; unconfirmed it is the field again', () => {
+        expect(row(webCopy(confirmed))).toMatchObject({ kind: 'locked', site: 'allrecipes.com' });
+        expect(row(webCopy(), withLink(ALLRECIPES))).toMatchObject({ kind: 'filled', site: 'allrecipes.com' });
+    });
+
+    it('a confirmed "I wrote this" is the own row: two moves, no locked line', () => {
+        expect(row(neverPublished({ ...confirmed, statementKind: 'authored' }))).toEqual({ kind: 'own' });
+    });
+
+    it('an unconfirmed "I wrote this" is the open field', () => {
+        expect(row(neverPublished({ statementKind: 'authored' }))).toEqual({ kind: 'empty', text: '' });
+    });
+
+    it('a filled link warns once it is saved: before the confirm it says publish, after it says save', () => {
+        expect(row(neverPublished(), withLink(ALLRECIPES))).toMatchObject({ kind: 'filled' });
+        expect(row(neverPublished(), withLink(ALLRECIPES))).not.toHaveProperty('confirmed');
+        expect(row(neverPublished(confirmed), withLink(ALLRECIPES))).toMatchObject({ kind: 'filled', confirmed: true });
+    });
+
+    it('a locked row never turns into the field because the field holds text', () => {
+        expect(row(book(confirmed), withLink(ALLRECIPES)).kind).toBe('lockedAnswer');
     });
 });

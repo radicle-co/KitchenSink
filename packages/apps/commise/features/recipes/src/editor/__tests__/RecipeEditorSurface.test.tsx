@@ -10,6 +10,7 @@
  * features alone (E1, plan 2026-10-14-009 D14); the app's close and "My recipes" hand-offs are the ones the view calls.
  * Real hooks over the type-checked fake client, as `useRecipeEditorSession.test.tsx` has them.
  */
+import type { SlotStanding } from '../../actions/recipePrivateGate.js';
 import { SnackbarHost } from '@commise/ui/snackbar';
 import { LocaleProvider } from '@commise/i18n/react';
 import { makeQuietFoodClient } from '@commise/test-utils';
@@ -75,6 +76,8 @@ interface HarnessProps {
     readonly photosOver?: (photos: EditorPhotos) => EditorPhotos;
     /** Where the app asks before a leave that would lose photos: in the page (web), or by the navigator (native). */
     readonly leaveAsk?: 'inPage' | 'byNavigator';
+    /** The cook's slot standing, as the container would read it from the server. */
+    readonly slotStandingOver?: SlotStanding;
 }
 
 /** The surface over a real session, as an app's container mounts it. */
@@ -123,7 +126,7 @@ function Harness(props: HarnessProps): ReactElement {
             keep="disk"
             paidFeatures={paidFeatures}
             knownPaidFeatures={knownPaidFeatures}
-            slotStanding={recipePrivate.standing}
+            slotStanding={props.slotStandingOver ?? recipePrivate.standing}
             renderPhotos={renderPhotos}
             onClose={onClose}
             onOpenMyRecipes={onOpenMyRecipes}
@@ -940,7 +943,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         });
 
         expect(within(section()).getByRole('textbox', { name: 'Source' })).toBeTruthy();
-        expect(within(section()).queryByText('The source of this recipe can’t be changed.')).toBeNull();
+        expect(within(section()).queryByText('Only Commise can change this source.')).toBeNull();
     });
 
     it('a published clone that inherited a web copy: the Source is read only, with the site as a link', () => {
@@ -964,7 +967,7 @@ describe('RecipeEditorSurface — the Source (ADR-0089)', () => {
         expect(
             within(section()).getByRole('link', { name: 'allrecipes.com (opens in a new tab)' }).getAttribute('href'),
         ).toBe(LINK);
-        expect(within(section()).getByText('The source of this recipe can’t be changed.')).toBeTruthy();
+        expect(within(section()).getByText('Only Commise can change this source.')).toBeTruthy();
     });
     const stepsSection = () =>
         screen.getByRole('heading', { level: 2, name: 'Steps' }).closest('section') as HTMLElement;
@@ -1067,6 +1070,118 @@ describe('RecipeEditorSurface — the source question (ADR-0095)', () => {
             expect.stringContaining('From another person'),
             expect.stringContaining('Publish privately'),
         ]);
+    });
+
+    it("the Source row's button opens its own sheet, and Confirm hands the editor the answer for that sheet", async () => {
+        const user = userEvent.setup();
+        const answerRowStatement = vi.fn<UseRecipeEditorResult['answerRowStatement']>();
+        mount({ editorOver: { answerRowStatement } });
+
+        await user.click(screen.getByRole('button', { name: 'Not from a web page? Say where it’s from' }));
+        const sheet = await screen.findByRole('dialog');
+        await user.click(within(sheet).getByRole('radio', { name: /From another person/u }));
+        await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
+
+        expect(answerRowStatement).toHaveBeenCalledOnce();
+        const [write, forSheet] = answerRowStatement.mock.calls[0];
+        expect(write.statement?.kind).toBe('fromPerson');
+        expect(forSheet).toBe('firstAnswer');
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    it('Cancel on the row sheet answers nothing', async () => {
+        const user = userEvent.setup();
+        const answerRowStatement = vi.fn();
+        mount({ editorOver: { answerRowStatement } });
+
+        await user.click(screen.getByRole('button', { name: 'Not from a web page? Say where it’s from' }));
+        await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: 'Cancel' }));
+
+        expect(answerRowStatement).not.toHaveBeenCalled();
+        expect(screen.queryByRole('dialog')).toBeNull();
+    });
+
+    describe('the downgrade of a confirmed "I wrote this"', () => {
+        const OWN = makeRecipeDetail({
+            id: 'rec_1',
+            status: RecipeStatus.PUBLISHED,
+            firstPublishedAt: '2026-11-01T00:00:00.000Z',
+            visibility: RecipeVisibility.PUBLIC,
+            statementKind: 'authored',
+            sourceConfirmed: true,
+            cuisine: 'Italian',
+        });
+
+        const downgradeToBook = async (user: ReturnType<typeof userEvent.setup>) => {
+            await user.click(screen.getByRole('button', { name: 'Change where it’s from' }));
+            const sheet = await screen.findByRole('dialog');
+            await user.click(within(sheet).getByRole('radio', { name: /From a cookbook or magazine/u }));
+            await user.type(within(sheet).getByLabelText('Book or magazine title'), 'Joy of Cooking');
+
+            return sheet;
+        };
+
+        it('⛔ with every private slot used it sends nothing, and says so in the sheet (AE19)', async () => {
+            const user = userEvent.setup();
+            const answerRowStatement = vi.fn();
+            mount({
+                seed: { recipe: OWN },
+                editorOver: { answerRowStatement, storedRecipe: OWN },
+                slotStandingOver: { kind: 'full', used: 5, limit: 5 },
+            });
+
+            const sheet = await downgradeToBook(user);
+            await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
+
+            expect(answerRowStatement).not.toHaveBeenCalled();
+            expect(within(sheet).getByText(/5/u)).toBeTruthy();
+            expect(screen.queryByText(/Only Commise can change/u)).toBeNull();
+        });
+
+        it('with a slot free it sends the answer for the downgrade sheet and says so politely', async () => {
+            const user = userEvent.setup();
+            const answerRowStatement = vi.fn();
+            mount({
+                seed: { recipe: OWN },
+                editorOver: { answerRowStatement, storedRecipe: OWN },
+                slotStandingOver: { kind: 'open', used: 1, limit: 5, left: 4 },
+            });
+
+            const sheet = await downgradeToBook(user);
+            await user.click(within(sheet).getByRole('button', { name: 'Confirm' }));
+
+            expect(answerRowStatement).toHaveBeenCalledExactlyOnceWith(
+                expect.objectContaining({ visibility: RecipeVisibility.PRIVATE }),
+                'downgrade',
+            );
+            expect(screen.getByText(/Source set to Joy of Cooking\. This recipe is private now\./u)).toBeTruthy();
+        });
+    });
+
+    it('a refused lock change is told under the row', () => {
+        mount({ editorOver: { sourceLockRefused: true } });
+
+        // The notice under the row, and the polite live region that speaks it once.
+        expect(
+            screen.getAllByText('That source change wasn’t saved. Only Commise can change this source.'),
+        ).toHaveLength(2);
+    });
+
+    it('⛔ after a refusal the Source row is the stored answer, locked, with no Change control (the row re-read)', () => {
+        const locked = makeRecipeDetail({
+            id: 'rec_1',
+            sourceType: 'imported_physical',
+            sourceKind: 'book',
+            sourceAttribution: 'Joy of Cooking',
+            statementKind: 'source',
+            sourceConfirmed: true,
+        });
+        mount({ seed: { recipe: locked }, editorOver: { storedRecipe: locked, sourceLockRefused: true } });
+
+        expect(screen.getByText('From a cookbook or magazine')).toBeTruthy();
+        expect(screen.getByText('Joy of Cooking')).toBeTruthy();
+        expect(screen.queryByRole('button', { name: 'Change where it’s from' })).toBeNull();
+        expect(screen.queryByText('Once you publish, this source can’t be changed.')).toBeNull();
     });
 
     it('Confirm hands the editor the answer, and Close dismisses without answering', async () => {

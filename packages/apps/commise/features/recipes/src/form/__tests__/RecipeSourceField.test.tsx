@@ -23,7 +23,7 @@ const URL = 'https://www.allrecipes.com/recipe/1/soup/';
 afterEach(cleanup);
 
 function renderRow(row: SourceRowModel, over: Partial<Parameters<typeof RecipeSourceField>[0]> = {}) {
-    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn() };
+    const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn(), onAsk: vi.fn() };
 
     render(<RecipeSourceField row={row} {...handlers} {...over} />);
 
@@ -154,9 +154,26 @@ describe('RecipeSourceField (web)', () => {
         expect(screen.queryByRole('button', { name: m.remove })).toBeNull();
     });
 
+    it('after a downgrade the answer takes focus, which the closed sheet left nowhere (SC 2.4.3)', () => {
+        const row: SourceRowModel = { kind: 'lockedAnswer', answer: 'book', citation: 'Joy' };
+        const handlers = { onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn(), onAsk: vi.fn() };
+        const { rerender } = render(<RecipeSourceField row={row} {...handlers} focusSignal={0} />);
+
+        expect(document.activeElement).toBe(document.body);
+        rerender(<RecipeSourceField row={row} {...handlers} focusSignal={1} />);
+
+        expect(document.activeElement?.textContent).toBe(a.answerBook);
+    });
+
     it('hidden: nothing at all', () => {
         const { container } = render(
-            <RecipeSourceField row={{ kind: 'hidden' }} onTouched={vi.fn()} onChange={vi.fn()} onRemove={vi.fn()} />,
+            <RecipeSourceField
+                row={{ kind: 'hidden' }}
+                onAsk={vi.fn()}
+                onTouched={vi.fn()}
+                onChange={vi.fn()}
+                onRemove={vi.fn()}
+            />,
         );
 
         expect(container.textContent).toBe('');
@@ -184,5 +201,111 @@ describe('RecipeSourceField (web)', () => {
         renderRow({ kind: 'empty', text: '' });
 
         expect(document.activeElement).not.toBe(field());
+    });
+});
+
+const HELP = 'https://commise.app/support?recipe=r1';
+
+describe('RecipeSourceField (web): the row after the lock (ADR-0100)', () => {
+    it.each([
+        ['a locked web page', { kind: 'locked', site: 'allrecipes.com', url: URL }],
+        ['a locked book', { kind: 'lockedAnswer', answer: 'book', citation: 'The Sunday Roast Book' }],
+        ['a locked paid site', { kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Kitchen' }],
+        ['another person', { kind: 'lockedAnswer', answer: 'fromPerson' }],
+        ['an answer this app cannot word', { kind: 'lockedAnswer' }],
+    ] as const)('%s: says who can change it and links to ask, in a new tab', (_name, row) => {
+        renderRow(row, { askHref: HELP });
+
+        const link = screen.getByRole('link', { name: m.askChangeWeb });
+
+        expect(link.getAttribute('href')).toBe(HELP);
+        expect(link.getAttribute('target')).toBe('_blank');
+        expect(link.getAttribute('rel')).toContain('noopener');
+        expect(screen.getByText(m.locked)).toBeTruthy();
+    });
+
+    it.each([
+        { kind: 'locked', site: 'allrecipes.com', url: URL },
+        { kind: 'lockedAnswer', answer: 'book', citation: '' },
+    ] as const)(
+        'draws no help link when no support address is set, and the locked line still reads true (%j)',
+        (row) => {
+            renderRow(row);
+
+            expect(screen.queryByRole('link', { name: m.askChangeWeb })).toBeNull();
+            expect(screen.getByText(m.locked)).toBeTruthy();
+        },
+    );
+
+    it('a locked book names the answer and its title; an empty title draws no empty line', () => {
+        renderRow({ kind: 'lockedAnswer', answer: 'book', citation: 'The Sunday Roast Book' });
+        expect(screen.getByText(a.answerBook)).toBeTruthy();
+        expect(screen.getByText('The Sunday Roast Book')).toBeTruthy();
+        cleanup();
+
+        const { container } = render(
+            <RecipeSourceField
+                row={{ kind: 'lockedAnswer', answer: 'book', citation: '' }}
+                {...{ onChange: vi.fn(), onRemove: vi.fn(), onTouched: vi.fn(), onAsk: vi.fn() }}
+            />,
+        );
+
+        expect(container.querySelectorAll('span.text-caption')).toHaveLength(0);
+    });
+
+    it('own: the answer and one button to change it, with no locked line (the downgrade is open)', async () => {
+        const { onAsk } = renderRow({ kind: 'own' }, { askHref: HELP });
+
+        expect(screen.getByText(a.answerAuthored)).toBeTruthy();
+        expect(screen.queryByText(m.locked)).toBeNull();
+        await userEvent.click(screen.getByRole('button', { name: m.changeOwn }));
+        expect(onAsk).toHaveBeenCalledWith('downgrade');
+        expect(screen.getByRole('link', { name: m.askOtherWeb }).getAttribute('href')).toBe(HELP);
+        expect(screen.queryByRole('link', { name: m.askChangeWeb })).toBeNull();
+    });
+
+    it('own with no support address: the button, and no link', () => {
+        renderRow({ kind: 'own' });
+
+        expect(screen.getByRole('button', { name: m.changeOwn })).toBeTruthy();
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('open, answered: the stored book, its title, the warning, and the control that changes the answer', async () => {
+        const { onAsk } = renderRow({ kind: 'openAnswered', answer: 'book', citation: 'The Sunday Roast Book' });
+
+        expect(screen.getByText(a.answerBook)).toBeTruthy();
+        expect(screen.getByText('The Sunday Roast Book')).toBeTruthy();
+        expect(screen.getByText(m.lockWarning)).toBeTruthy();
+        await userEvent.click(screen.getByRole('button', { name: m.changeAnswer }));
+        expect(onAsk).toHaveBeenCalledWith('change');
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('open, none: the field with no warning, and the button that says where it is from', async () => {
+        const { onAsk } = renderRow({ kind: 'empty', text: '' }, { askHref: HELP });
+
+        expect(screen.queryByText(m.lockWarning)).toBeNull();
+        expect(screen.queryByText(m.lockWarningSave)).toBeNull();
+        await userEvent.click(screen.getByRole('button', { name: m.sayWhere }));
+        expect(onAsk).toHaveBeenCalledWith('firstAnswer');
+        // Never a help link on a row nothing has locked.
+        expect(screen.queryByRole('link')).toBeNull();
+    });
+
+    it('a filled link warns that publishing locks it, and the field is described by the warning', () => {
+        renderRow({ kind: 'filled', text: URL, site: 'allrecipes.com', fromPaste: false });
+
+        expect(screen.getByText(m.lockWarning)).toBeTruthy();
+        expect(screen.queryByText(m.lockWarningSave)).toBeNull();
+        expect(describedBy(field())).toContain(m.lockWarning);
+    });
+
+    it('a filled link on a confirmed recipe warns that saving locks it', () => {
+        renderRow({ kind: 'filled', text: URL, site: 'allrecipes.com', fromPaste: false, confirmed: true });
+
+        expect(screen.getByText(m.lockWarningSave)).toBeTruthy();
+        expect(screen.queryByText(m.lockWarning)).toBeNull();
+        expect(describedBy(field())).toContain(m.lockWarningSave);
     });
 });

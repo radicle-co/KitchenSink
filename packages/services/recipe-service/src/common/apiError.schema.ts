@@ -63,6 +63,15 @@ export const INVALID_VISIBILITY_REASONS = [
 export const invalidVisibilityReasonSchema = z.enum(INVALID_VISIBILITY_REASONS);
 
 /**
+ * The `details.reason` values a `FORBIDDEN` answer can carry: the stable keys a client branches on. The server reads this same
+ * constant when it builds the answer, so the published set and the sent set cannot differ.
+ */
+export const FORBIDDEN_REASONS = ['SOURCE_LOCKED'] as const;
+
+/** The same set as a schema, so a sender names a reason as `.enum.SOURCE_LOCKED`. */
+export const forbiddenReasonSchema = z.enum(FORBIDDEN_REASONS);
+
+/**
  * The structured error envelope — the ONLY body a non-2xx response from this service carries.
  *
  * Shared VERBATIM with the food and identity services (ARCH-PS-2), so one client-side handler covers all three.
@@ -381,7 +390,14 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
     bare('IMPORT_STORAGE_FULL'),
     bare('UNAUTHORIZED'),
     bare('IDENTITY_SYNC_PENDING'),
-    bare('FORBIDDEN'),
+    z
+        .object({
+            code: z.literal('FORBIDDEN'),
+            message: z.string(),
+            /** OPTIONAL: a scope or ownership gate names none. A refusal a client can act on names `reason`, one of {@link FORBIDDEN_REASONS}. */
+            details: z.object({ reason: forbiddenReasonSchema.optional() }).loose().optional(),
+        })
+        .loose(),
     bare('TEST_PRINCIPAL_CONTAINED'),
     bare('ACCOUNT_SUSPENDED'),
     bare('ACCOUNT_ALREADY_ERASED'),

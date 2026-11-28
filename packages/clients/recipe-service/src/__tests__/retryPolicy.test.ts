@@ -21,6 +21,7 @@ import {
     BadRequestError,
     FetchUnavailableError,
     ForbiddenError,
+    SourceLockedError,
     GoneError,
     InvalidRequestError,
     ImportCursorMovedError,
@@ -64,6 +65,7 @@ const CLASSIFICATION: Readonly<Record<string, { readonly error: RecipeServiceCli
         // attempts. Flipping this to `false` re-creates the production defect `recipeAuthNotReady.ts` records.
         UnauthorizedError: { error: new UnauthorizedError(), retry: true },
         ForbiddenError: { error: new ForbiddenError(), retry: false },
+        SourceLockedError: { error: new SourceLockedError(), retry: false },
         NotFoundError: { error: new NotFoundError(), retry: false },
         VersionConflictError: { error: new VersionConflictError(3, 2), retry: false },
         PullDriftError: { error: new PullDriftError(NO_DIFF), retry: false },

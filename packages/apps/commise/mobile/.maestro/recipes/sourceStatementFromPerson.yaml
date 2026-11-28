@@ -96,11 +96,11 @@ appId: ${APP_ID}
       env:
           SECTION: 'Photos & publish'
 - scrollUntilVisible:
-      element: 'The source of this recipe can’t be changed.'
+      element: 'Only Commise can change this source.'
       direction: DOWN
       centerElement: true
       timeout: 30000
 - assertVisible: 'From another person'
-- assertVisible: 'The source of this recipe can’t be changed.'
+- assertVisible: 'Only Commise can change this source.'
 - assertNotVisible: 'Remove source'
 - assertNotVisible: 'Copied this recipe from a web page.*'

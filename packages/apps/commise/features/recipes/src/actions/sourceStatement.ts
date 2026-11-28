@@ -10,6 +10,8 @@
  * Pure and platform-agnostic. No React, no platform APIs.
  *
  * @pattern Policy — {@link askForStatement}, {@link answersFor} and {@link statementWriteOf} each decide one thing from facts
+ * @pattern Specification — {@link answerLocks}: the ONE rule for whether confirming an answer locks it; every surface (the note, the
+ *     recorded wording, the Source row's pending answer) asks it and keeps no copy
  * @pattern Statechart — {@link sheetReducer} and {@link phaseOf}: the sheet's phase is DERIVED from the answer, the fields and
  *     what was attempted, never stored beside them
  */
@@ -21,6 +23,7 @@ import {
     RecipeSourceType,
     RecipeVisibility,
     statementRequiredOf,
+    LOCK_NOTE_WORDING_BY_CHOICE,
     STATEMENT_WORDINGS_BY_CHOICE,
     type RecipeDetail,
 } from '@kitchensink/recipe-core';
@@ -28,29 +31,110 @@ import type { PublicConfirmationInput, RecipeStatementInput } from '@kitchensink
 
 import { recipeActionMessages } from './messages.js';
 
-/** The surface that asks: the editor's Publish, or the recipe page's Make public. */
-export type StatementSurface = 'editor' | 'recipePage';
+/**
+ * Why the sheet is asked (ADR-0100): the one purpose decides which answers it offers, what its act confirms, and its words.
+ * `editor` is Publish and `recipePage` is Make public; `recipePageOwn` is Make public on a confirmed "I wrote this" recipe,
+ * which can take no web page and no person. The other three open from the Source row: the first answer of a recipe that has
+ * none, a change of an answer not yet confirmed, and the downgrade of a confirmed "I wrote this".
+ */
+export type StatementSurface = 'editor' | 'recipePage' | 'recipePageOwn' | 'firstAnswer' | 'change' | 'downgrade';
 
 /** What the cook can answer. `publishPrivately` is the editor's own: the recipe page's own way out is Cancel. */
 export type StatementAnswer = 'authored' | 'publicWeb' | 'paidSite' | 'book' | 'fromPerson' | 'publishPrivately';
 
-const RECIPE_PAGE_ANSWERS = [
+const FIVE_ANSWERS = [
     'authored',
     'publicWeb',
     'paidSite',
     'book',
     'fromPerson',
 ] as const satisfies readonly StatementAnswer[];
-const EDITOR_ANSWERS = [...RECIPE_PAGE_ANSWERS, 'publishPrivately'] as const satisfies readonly StatementAnswer[];
+
+const ANSWERS_BY_SURFACE = {
+    editor: [...FIVE_ANSWERS, 'publishPrivately'],
+    recipePage: FIVE_ANSWERS,
+    recipePageOwn: ['authored', 'book', 'paidSite'],
+    firstAnswer: ['book', 'paidSite', 'fromPerson'],
+    change: FIVE_ANSWERS,
+    downgrade: ['book', 'paidSite'],
+} as const satisfies Record<StatementSurface, readonly StatementAnswer[]>;
 
 /**
- * The answers a surface offers, in order.
+ * The answers a purpose offers, in order.
  *
- * @param surface - Where the sheet is.
- * @returns The editor's five, or the recipe page's first four. Pure.
+ * @param surface - Why the sheet is asked.
+ * @returns Its answers. Pure.
  */
 export function answersFor(surface: StatementSurface): readonly StatementAnswer[] {
-    return surface === 'editor' ? EDITOR_ANSWERS : RECIPE_PAGE_ANSWERS;
+    return ANSWERS_BY_SURFACE[surface];
+}
+
+/**
+ * Whether confirming the sheet is itself the act that confirms the recipe's source (ADR-0100): Publish, Make public and the
+ * downgrade. An answer on a never-published draft is stored but does not confirm.
+ *
+ * @param surface - Why the sheet is asked.
+ * @returns `true` when the act confirms. Pure.
+ */
+export function confirmsAt(surface: StatementSurface): boolean {
+    return surface === 'editor' || surface === 'recipePage' || surface === 'recipePageOwn' || surface === 'downgrade';
+}
+
+/** The surface of the sheet that Publish and Make public open: the editor's, whose act confirms. ONE fact for the host and the row. */
+export const PUBLISH_SHEET_SURFACE: StatementSurface = 'editor';
+
+/** The inputs of {@link answerLocks}. */
+export interface AnswerLockInput {
+    readonly answer: StatementAnswer;
+    /** Why the sheet is asked: whether the act confirms is `confirmsAt` of it. */
+    readonly surface: StatementSurface;
+    /** The recipe's source is confirmed already. */
+    readonly recipeConfirmed: boolean;
+}
+
+/**
+ * Whether confirming an answer locks it: the ONE rule. The lock note ("Once you confirm, this answer is locked.") is drawn
+ * under an answer exactly when this is true, the wording version recorded is the one that includes the note, and the Source row
+ * draws the answer locked from the confirm. A paid website and another person lock when stated; a web page and a book lock
+ * only when the act confirms or the recipe is confirmed already; "I wrote this" never locks (it can still become a cookbook or
+ * a paid website).
+ *
+ * @param input - The answer, why the sheet is asked, and whether the recipe's source is confirmed.
+ * @returns `true` when confirming the answer locks it. Pure.
+ */
+export function answerLocks(input: AnswerLockInput): boolean {
+    switch (input.answer) {
+        case 'authored':
+        case 'publishPrivately':
+            return false;
+        case 'paidSite':
+        case 'fromPerson':
+            return true;
+        case 'publicWeb':
+        case 'book':
+            return input.recipeConfirmed || confirmsAt(input.surface);
+    }
+}
+
+/**
+ * The sheet answer a statement kind on the wire came from. Pure.
+ *
+ * @param kind - The statement's kind.
+ * @returns The answer that writes this kind. Pure.
+ */
+export function statementAnswerOf(kind: RecipeStatementInput['kind']): StatementAnswer {
+    switch (kind) {
+        case 'authored':
+            return 'authored';
+        case 'public_web':
+            return 'publicWeb';
+        case 'paid_site':
+            return 'paidSite';
+        case 'book':
+            return 'book';
+        case 'fromPerson':
+            return 'fromPerson';
+    }
 }
 
 /** What the ask reads of the stored recipe: only what the server's own rule reads. */
@@ -129,9 +213,15 @@ export function publicWordingOf(locale: string): PublicConfirmationInput {
  * @param answer - What the cook chose.
  * @param fields - The revealed fields, valid for the answer ({@link statementFieldErrorOf} is `undefined`).
  * @param asked - The locale the screen asked for; the wording records the locale of the catalog that served it.
+ * @param lockNoteWasShown - The lock note was drawn under the answer: the wording recorded is the one that includes it.
  * @returns The statement and visibility. Pure.
  */
-export function statementWriteOf(answer: StatementAnswer, fields: StatementFields, asked: string): StatementWrite {
+export function statementWriteOf(
+    answer: StatementAnswer,
+    fields: StatementFields,
+    asked: string,
+    lockNoteWasShown: boolean,
+): StatementWrite {
     const locale = servedLocaleOf(recipeActionMessages, asked);
 
     switch (answer) {
@@ -145,7 +235,12 @@ export function statementWriteOf(answer: StatementAnswer, fields: StatementField
                 statement: {
                     kind: 'public_web',
                     citation: fields.link.trim(),
-                    wording: { version: STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0], locale },
+                    wording: {
+                        version: lockNoteWasShown
+                            ? LOCK_NOTE_WORDING_BY_CHOICE.publicWeb
+                            : STATEMENT_WORDINGS_BY_CHOICE.publicWeb[0],
+                        locale,
+                    },
                 },
                 visibility: RecipeVisibility.PRIVATE,
             };
@@ -163,7 +258,12 @@ export function statementWriteOf(answer: StatementAnswer, fields: StatementField
                 statement: {
                     kind: 'book',
                     citation: fields.bookTitle.trim(),
-                    wording: { version: STATEMENT_WORDINGS_BY_CHOICE.book[0], locale },
+                    wording: {
+                        version: lockNoteWasShown
+                            ? LOCK_NOTE_WORDING_BY_CHOICE.book
+                            : STATEMENT_WORDINGS_BY_CHOICE.book[0],
+                        locale,
+                    },
                 },
                 visibility: RecipeVisibility.PRIVATE,
             };
@@ -171,7 +271,12 @@ export function statementWriteOf(answer: StatementAnswer, fields: StatementField
             return {
                 statement: {
                     kind: 'fromPerson',
-                    wording: { version: STATEMENT_WORDINGS_BY_CHOICE.fromPerson[0], locale },
+                    wording: {
+                        version: lockNoteWasShown
+                            ? LOCK_NOTE_WORDING_BY_CHOICE.fromPerson
+                            : STATEMENT_WORDINGS_BY_CHOICE.fromPerson[0],
+                        locale,
+                    },
                 },
                 visibility: RecipeVisibility.PRIVATE,
             };

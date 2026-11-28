@@ -112,6 +112,7 @@ function twoEditors(held: boolean) {
                     throw new Error('setVisibility: not expected in this suite');
                 }),
                 readRecipe: (id) => service.client.getRecipeById(id),
+                rereadRecipe: (id) => service.client.getRecipeById(id),
             }),
         );
 

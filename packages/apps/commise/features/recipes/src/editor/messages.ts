@@ -313,7 +313,32 @@ export interface EditorMessages {
         readonly remove: string;
         /** Said politely when a source the server holds is taken off (ADR-0095). */
         readonly removed: string;
+        /** The locked line under every locked answer: who can still change it (ADR-0100). */
         readonly locked: string;
+        /** Under an open answer, before it locks at Publish. */
+        readonly lockWarning: string;
+        /** Under a link on a recipe whose answer is already confirmed: the next save locks it. */
+        readonly lockWarningSave: string;
+        /** The button on an open row that opens the sheet to say where the recipe is from. */
+        readonly sayWhere: string;
+        /** The button on an open row that already has an answer (a stored book). */
+        readonly changeAnswer: string;
+        /** The button on a confirmed "I wrote this" row: the downgrade. */
+        readonly changeOwn: string;
+        /** The help link on a locked row, on the web. */
+        readonly askChangeWeb: string;
+        /** The help link on a locked row, on a phone. */
+        readonly askChangeNative: string;
+        /** The help link under a confirmed "I wrote this", on the web: the recipe came from somewhere else. */
+        readonly askOtherWeb: string;
+        /** The help link under a confirmed "I wrote this", on a phone. */
+        readonly askOtherNative: string;
+        /** The paste note when a link was left out of a confirmed "I wrote this" recipe. */
+        readonly ownLinkLeftOut: string;
+        /** After the server refused a change to a confirmed source: what happened to the cook's change. */
+        readonly lockedRefused: string;
+        /** Said politely after "I wrote this" became a cookbook or paid website. `{answer}`. */
+        readonly announceDowngrade: string;
         /** The paste note when the source is locked and a pasted link was left out. */
         readonly lockedLeftOut: string;
         /** Under a paste field when the paste is only a link: Add stays off, and this says what to do. */
@@ -623,7 +648,20 @@ export const editorMessages: LocalizedMessages<EditorMessages> = {
             keptExisting: 'Kept {site} as the source. The other link was left out.',
             remove: 'Remove source',
             removed: 'Source removed.',
-            locked: 'The source of this recipe can’t be changed.',
+            locked: 'Only Commise can change this source.',
+            lockWarning: 'Once you publish, this source can’t be changed.',
+            lockWarningSave: 'Once you save, this source can’t be changed.',
+            sayWhere: 'Not from a web page? Say where it’s from',
+            changeAnswer: 'Change where it’s from',
+            changeOwn: 'Change where it’s from',
+            askChangeWeb: 'Ask us to change it (opens in a new tab)',
+            askChangeNative: 'Ask us to change it, opens in your browser',
+            askOtherWeb: 'From somewhere else? Ask us to change it (opens in a new tab)',
+            askOtherNative: 'From somewhere else? Ask us to change it, opens in your browser',
+            ownLinkLeftOut:
+                'Left out the link, because this recipe says you wrote it. If it came from that page, use the link under Source to ask us.',
+            lockedRefused: 'That source change wasn’t saved. Only Commise can change this source.',
+            announceDowngrade: 'Source set to {answer}. This recipe is private now.',
             lockedLeftOut: 'Left out the link. This recipe’s source can’t be added or changed.',
             linkOnly:
                 'That’s only a link. Paste the recipe’s text too. You can put the link in Source, under Photos & publish.',

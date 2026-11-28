@@ -6,6 +6,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { makeFilledRecipeFormValues } from '../../__fixtures__/index.js';
+import type { RowAnswer } from '../statementStore.js';
 import {
     EMPTY_LANE,
     createLaneStore,
@@ -27,6 +28,54 @@ describe('laneReducer', () => {
         expect(state).toStrictEqual({
             outstanding: { seq: 2, kind: 'update', sent: newer, finishing: false, parked: false },
         });
+    });
+
+    const rowAnswer: RowAnswer = {
+        statement: { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } },
+        locks: true,
+    };
+
+    it('records the Source-row answer a queued write carried, and none when it carried none', () => {
+        const carried = laneReducer(EMPTY_LANE, {
+            type: 'queued',
+            seq: 1,
+            kind: 'update',
+            sent,
+            finishing: false,
+            row: rowAnswer,
+        });
+
+        expect(carried.outstanding?.row).toBe(rowAnswer);
+        expect(queued(1).outstanding).not.toHaveProperty('row');
+    });
+
+    it('a replacing record that carries no row answer does not inherit the replaced one\u2019s', () => {
+        const withRow = laneReducer(EMPTY_LANE, {
+            type: 'queued',
+            seq: 1,
+            kind: 'update',
+            sent,
+            finishing: false,
+            row: rowAnswer,
+        });
+        const replaced = laneReducer(withRow, { type: 'queued', seq: 2, kind: 'update', sent, finishing: false });
+
+        expect(replaced.outstanding).not.toHaveProperty('row');
+    });
+
+    it('a write another editor queued (tracked) carries no row answer, and never replaces the lane\u2019s own', () => {
+        const tracked = laneReducer(EMPTY_LANE, { type: 'tracked', seq: 9, kind: 'update' });
+        const own = laneReducer(EMPTY_LANE, {
+            type: 'queued',
+            seq: 1,
+            kind: 'update',
+            sent,
+            finishing: false,
+            row: rowAnswer,
+        });
+
+        expect(tracked.outstanding).not.toHaveProperty('row');
+        expect(laneReducer(own, { type: 'tracked', seq: 9, kind: 'update' })).toBe(own);
     });
 
     it('a Publish that coalesces into a pending checkpoint still finishes', () => {

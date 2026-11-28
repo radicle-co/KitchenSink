@@ -18,6 +18,7 @@
  */
 import type { RecipeFormValues } from '../form/values.js';
 import type { CheckpointTrigger } from './checkpointPolicy.js';
+import type { RowAnswer } from './statementStore.js';
 
 /** The write the editor is waiting on. */
 export interface OutstandingWrite {
@@ -34,6 +35,11 @@ export interface OutstandingWrite {
      * recipe. A checkpoint does not.
      */
     readonly finishing: boolean;
+    /**
+     * The Source-row answer this write carried, if any: its landing clears the row only when the row still holds THIS answer,
+     * so a later answer the write did not carry survives it.
+     */
+    readonly row?: RowAnswer;
     /** Whether the outbox parked it: it waits for the cook (a conflict, a refusal, an unknown outcome). */
     readonly parked: boolean;
 }
@@ -86,6 +92,8 @@ export type LaneEvent =
           readonly kind: OutstandingWrite['kind'];
           readonly sent: RecipeFormValues;
           readonly finishing: boolean;
+          /** The Source-row answer the record carries, if any. */
+          readonly row?: RowAnswer;
       }
     /**
      * The outbox reported a record of this recipe on the wire that the lane does not hold: another editor of the same
@@ -174,7 +182,14 @@ export function laneReducer(state: LaneState, event: LaneEvent): LaneState {
 
             return {
                 ...state,
-                outstanding: { seq: event.seq, kind: event.kind, sent: event.sent, finishing, parked: false },
+                outstanding: {
+                    seq: event.seq,
+                    kind: event.kind,
+                    sent: event.sent,
+                    finishing,
+                    ...(event.row === undefined ? {} : { row: event.row }),
+                    parked: false,
+                },
             };
         }
 

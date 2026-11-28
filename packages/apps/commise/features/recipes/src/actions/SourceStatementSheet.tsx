@@ -34,12 +34,20 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
     surface,
     state,
     dispatch,
+    recipeConfirmed = false,
+    failureText,
     onConfirm,
     onDismiss,
 }) => {
     const { sourceStatement: m, visibility } = useMessages(recipeActionMessages);
     const { source } = useMessages(editorMessages);
-    const view = sheetViewOf({ surface, state, messages: m, shared: { source, failure: visibility.error } });
+    const view = sheetViewOf({
+        surface,
+        state,
+        messages: m,
+        shared: { source, failure: failureText ?? visibility.error },
+        recipeConfirmed,
+    });
     const ids = useId();
     const bodyId = `${ids}-body`;
     const effectId = `${ids}-effect`;
@@ -56,7 +64,7 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
                 }
             }}
             title={m.title}
-            describedBy={[bodyId, effectId]}
+            describedBy={view.body === undefined ? [effectId] : [bodyId, effectId]}
             closeLabel={m.close}
             size="content"
             presentation="dialog"
@@ -85,9 +93,11 @@ export const SourceStatementSheet: FC<SourceStatementSheetProps> = ({
             }
         >
             <div className="flex flex-col gap-4">
-                <p id={bodyId} className="text-body text-ink">
-                    {m.body}
-                </p>
+                {view.body === undefined ? null : (
+                    <p id={bodyId} className="text-body text-ink">
+                        {view.body}
+                    </p>
+                )}
                 <RadioList
                     label={m.title}
                     options={view.options}

@@ -37,7 +37,7 @@
  * enforces the literal mapping at the type level, which is precisely the discipline whose absence caused
  * the original defect — so the repetition below is load-bearing, not boilerplate to "clean up".
  */
-import { endpointUrl, envValidationError } from '@commise/features-core/config/envScaffolding';
+import { endpointUrl, envValidationError, optionalHttpsUrl } from '@commise/features-core/config/envScaffolding';
 import { findStageIncoherence } from '@commise/features-core/config/stageCoherence';
 import { createEnv } from '@t3-oss/env-nextjs';
 import { z } from 'zod';
@@ -51,6 +51,8 @@ export const env = createEnv({
         NEXT_PUBLIC_RECIPE_API_URL: endpointUrl,
         NEXT_PUBLIC_IDENTITY_API_URL: endpointUrl,
         NEXT_PUBLIC_FOOD_API_URL: endpointUrl,
+        /** The support page a locked source's "Ask us to change it" opens (ADR-0100). Optional: a launch item. */
+        NEXT_PUBLIC_SUPPORT_URL: optionalHttpsUrl,
         /**
          * Declared here after the 2026-08-07 outage, in which Vercel's Production environment held a
          * SANDBOX key (`pk_test_…` → `nice-fowl-6.clerk.accounts.dev`) while the endpoints above pointed at
@@ -71,6 +73,7 @@ export const env = createEnv({
         NEXT_PUBLIC_RECIPE_API_URL: process.env.NEXT_PUBLIC_RECIPE_API_URL,
         NEXT_PUBLIC_IDENTITY_API_URL: process.env.NEXT_PUBLIC_IDENTITY_API_URL,
         NEXT_PUBLIC_FOOD_API_URL: process.env.NEXT_PUBLIC_FOOD_API_URL,
+        NEXT_PUBLIC_SUPPORT_URL: process.env.NEXT_PUBLIC_SUPPORT_URL,
         NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
     },
 

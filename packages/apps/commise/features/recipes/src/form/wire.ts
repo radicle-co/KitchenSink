@@ -54,6 +54,12 @@ export interface ShownWordings {
      * is a paid site, which rides any write until the server holds it.
      */
     readonly statement?: RecipeStatementInput;
+    /**
+     * What the Source row's own sheet answered (ADR-0100): a statement, or `null` to clear the stored answer. Unlike
+     * {@link ShownWordings.statement} it rides ANY write, a draft's included, until a write carries it: the answer is stored
+     * at once and confirmed only by the act that publishes. It beats the Source field's own link.
+     */
+    readonly rowStatement?: RecipeStatementInput | null;
 }
 
 /**
@@ -131,11 +137,17 @@ export const toCreateRecipeInput = (
     ...(values.pasted === true ? { contentPasted: true as const } : {}),
     // The sheet's answer when it rides this write, else (ADR-0089) the link the cook pasted, when it parses. Never the raw
     // text, and never the curator's `source`.
-    ...(sheetStatementOf(shown, status) ?? createStatementOf(values, shown.statementWording)),
+    ...(sheetStatementOf(shown, status) ??
+        createRowStatementOf(shown) ??
+        createStatementOf(values, shown.statementWording)),
 });
 
+/** The Source row's statement as a create body key: a clear has nothing stored to clear, so it sends none. Pure. */
+const createRowStatementOf = (shown: ShownWordings): { readonly statement: RecipeStatementInput } | undefined =>
+    shown.rowStatement === undefined || shown.rowStatement === null ? undefined : { statement: shown.rowStatement };
+
 /** The sheet's statement as a body key, when it rides this write: only one that publishes. Pure. */
-const sheetStatementOf = (
+export const sheetStatementOf = (
     shown: ShownWordings,
     status: RecipeStatus | undefined,
     recipe?: { readonly sourceKind?: string | null },
@@ -242,6 +254,7 @@ export const toUpdateRecipeInput = (
         // ⛔ A change of source, never the create's statement (ADR-0089): only before the first publish, `null` to remove one
         // the server holds, and nothing at all when the caller does not say which recipe this updates.
         ...(sheetStatementOf(shown, status, recipe) ??
+            (shown.rowStatement === undefined ? undefined : { statement: shown.rowStatement }) ??
             (recipe === undefined ? {} : updateStatementOf(values, recipe, shown.statementWording))),
         // ⛔ A pasted line's source is CREATE-ONLY (ADR-0023's shape, blueprint A5): a PATCH that re-asserted it could
         // steer the cross-user memo, and the strict update contract refuses the keys outright, so every save after a

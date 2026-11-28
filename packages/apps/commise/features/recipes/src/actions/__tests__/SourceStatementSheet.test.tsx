@@ -167,13 +167,18 @@ describe('SourceStatementSheet (web) — answered', () => {
                     'It’s my own recipe, in my own words, and any photos are mine. It isn’t copied from a website, book or another person. Goes public.',
             }),
         ).toBeTruthy();
+        // Publish confirms the source, so every third-party answer says it locks (ADR-0100): the note follows the hint.
         expect(
-            screen.getByRole('radio', { name: 'From a web page', description: 'Stays private to you.' }),
+            screen.getByRole('radio', {
+                name: 'From a web page',
+                description: 'Stays private to you. Once you confirm, this answer is locked.',
+            }),
         ).toBeTruthy();
         expect(
             screen.getByRole('radio', {
                 name: 'From another person',
-                description: 'A recipe someone gave you, like family or a friend. Stays private to you.',
+                description:
+                    'A recipe someone gave you, like family or a friend. Stays private to you. Once you confirm, this answer is locked.',
             }),
         ).toBeTruthy();
         // The editor's own fifth answer says what it is in its label alone.
@@ -314,7 +319,7 @@ describe('SourceStatementSheet (web) — dismiss', () => {
 describe('SourceStatementSheet (web) — focus on a failed Confirm', () => {
     /** The sheet wired to its real state, as a host wires it. */
     function Hosted() {
-        const sheet = useStatementSheet({ locale: 'en', onAnswer: vi.fn() });
+        const sheet = useStatementSheet({ locale: 'en', surface: 'editor', recipeConfirmed: false, onAnswer: vi.fn() });
 
         return (
             <SourceStatementSheet
@@ -352,7 +357,8 @@ describe('SourceStatementSheet — paid website', () => {
         expect(screen.queryByLabelText('Book or magazine title')).toBeNull();
         await userEvent.type(screen.getByLabelText('Website name or address'), 'S');
         expect(dispatch).toHaveBeenCalledWith({ type: 'paidSite', text: 'S' });
-        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+        // Paid website and person lock when stated, and Publish confirms web and book too: every third-party answer says it.
+        expect(screen.getAllByText(/Once you confirm, this answer is locked\./u)).toHaveLength(4);
     });
 
     it('caps the citation field at the length the server takes', () => {
@@ -374,7 +380,7 @@ describe('SourceStatementSheet — paid website', () => {
     it('says the lock on the recipe page too', () => {
         renderSheet({ surface: 'recipePage' });
 
-        expect(screen.getByText(/Once you confirm, this answer is locked\./u)).toBeTruthy();
+        expect(screen.getAllByText(/Once you confirm, this answer is locked\./u)).toHaveLength(4);
     });
 });
 

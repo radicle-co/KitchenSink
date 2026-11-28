@@ -225,6 +225,7 @@ export { fromPersonOf } from './fromPerson.js';
 export { statementRequiredOf } from './statementRequired.js';
 export type { StatementRequiredInput } from './statementRequired.js';
 export {
+    LOCK_NOTE_WORDING_BY_CHOICE,
     PUBLIC_CONFIRM_WORDINGS,
     PUBLIC_CONFIRMATION_FOR_API_WRITERS,
     STATEMENT_WORDINGS,

@@ -8,4 +8,6 @@ export interface PastedSourceNoticeProps {
     readonly text: string;
     /** Take the source off, in place. ABSENT for a note with nothing to undo (a link kept, left out or locked). */
     readonly onRemove?: () => void;
+    /** A counter the host advances when the cook must be taken to this notice (a refusal): it takes focus. Inert on mount. */
+    readonly focusSignal?: number;
 }

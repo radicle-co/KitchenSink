@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
     PUBLIC_CONFIRM_WORDINGS,
     PUBLIC_CONFIRMATION_FOR_API_WRITERS,
+    LOCK_NOTE_WORDING_BY_CHOICE,
     STATEMENT_WORDINGS,
     STATEMENT_WORDINGS_BY_CHOICE,
     WORDING_LOCALE_MAX_LENGTH,
@@ -13,13 +14,16 @@ import {
 const WORDING_FORMAT = /^[a-z][A-Za-z0-9]*\.v[0-9]+$/;
 
 describe('the closed wording lists (the copy a cook saw)', () => {
-    it('names exactly the five statement wordings and the one confirmation, as the blueprint fixes them', () => {
+    it('names exactly the eight statement wordings and the one confirmation, as the blueprint fixes them', () => {
         expect([...STATEMENT_WORDINGS].sort()).toEqual([
             'statementAuthored.v1',
             'statementBook.v1',
+            'statementBook.v2',
             'statementFromPerson.v1',
+            'statementFromPerson.v2',
             'statementPaidSite.v1',
             'statementPublicWeb.v1',
+            'statementPublicWeb.v2',
         ]);
         expect([...PUBLIC_CONFIRM_WORDINGS]).toEqual(['publicConfirm.v1']);
     });
@@ -41,10 +45,38 @@ describe('the closed wording lists (the copy a cook saw)', () => {
 
     it('keeps each wording under its own choice: the book wording is not the authored one', () => {
         expect(STATEMENT_WORDINGS_BY_CHOICE.authored).toEqual(['statementAuthored.v1']);
-        expect(STATEMENT_WORDINGS_BY_CHOICE.publicWeb).toEqual(['statementPublicWeb.v1']);
-        expect(STATEMENT_WORDINGS_BY_CHOICE.book).toEqual(['statementBook.v1']);
-        expect(STATEMENT_WORDINGS_BY_CHOICE.fromPerson).toEqual(['statementFromPerson.v1']);
+        expect(STATEMENT_WORDINGS_BY_CHOICE.publicWeb).toEqual(['statementPublicWeb.v1', 'statementPublicWeb.v2']);
+        expect(STATEMENT_WORDINGS_BY_CHOICE.book).toEqual(['statementBook.v1', 'statementBook.v2']);
+        expect(STATEMENT_WORDINGS_BY_CHOICE.fromPerson).toEqual(['statementFromPerson.v1', 'statementFromPerson.v2']);
         expect(STATEMENT_WORDINGS_BY_CHOICE.paidSite).toEqual(['statementPaidSite.v1']);
+    });
+});
+
+describe('LOCK_NOTE_WORDING_BY_CHOICE', () => {
+    it.each(Object.entries(LOCK_NOTE_WORDING_BY_CHOICE))(
+        '%s names a wording its own choice lists',
+        (choice, wording) => {
+            const listed: readonly string[] =
+                STATEMENT_WORDINGS_BY_CHOICE[choice as keyof typeof LOCK_NOTE_WORDING_BY_CHOICE];
+
+            expect(listed).toContain(wording);
+        },
+    );
+
+    it('is a different wording from the first one of its choice, so the note changes the recorded text', () => {
+        for (const [choice, wording] of Object.entries(LOCK_NOTE_WORDING_BY_CHOICE)) {
+            expect(wording).not.toBe(
+                STATEMENT_WORDINGS_BY_CHOICE[choice as keyof typeof LOCK_NOTE_WORDING_BY_CHOICE][0],
+            );
+        }
+    });
+
+    it('has no entry for a paid website or "I wrote this": their one wording is the text they always showed', () => {
+        expect(Object.keys(LOCK_NOTE_WORDING_BY_CHOICE).sort((a, b) => a.localeCompare(b))).toEqual([
+            'book',
+            'fromPerson',
+            'publicWeb',
+        ]);
     });
 });
 

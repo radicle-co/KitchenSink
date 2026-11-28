@@ -62,7 +62,7 @@ function countsOf(sites: readonly VisibilitySite[]): FileCounts {
  * approval baseline. Pure.
  */
 function baselineDifferences(actual: FileCounts, recorded: FileCounts): string[] {
-    return [...over(actual, recorded), ...stale(actual, recorded)].sort();
+    return [...over(actual, recorded), ...stale(actual, recorded)].sort((a, b) => a.localeCompare(b));
 }
 
 /** The file part of a `file#function` site key. */

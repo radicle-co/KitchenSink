@@ -67,26 +67,32 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
-                    findById: async (id: string) => stored.get(id),
-                    findRowById: async (id: string) => stored.get(id)?.recipe,
-                    privateFoodLines: async () => [],
+                    findById: (id: string) => Promise.resolve(stored.get(id)),
+                    findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
+                    privateFoodLines: () => Promise.resolve([]),
                 },
             },
-            { provide: RecipeSourceEvidenceDal, useValue: { insert: async () => undefined, list: async () => [] } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
+            {
+                provide: RecipeSourceEvidenceDal,
+                useValue: { insert: () => Promise.resolve(undefined), list: () => Promise.resolve([]) },
+            },
+            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
+            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
             {
                 provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
+                useValue: {
+                    findBandsByKeys: () => Promise.resolve(new Map()),
+                    findExistingKeys: () => Promise.resolve(new Set()),
+                },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
+            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
+            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });
 
 afterAll(async () => {
-    await booted?.close();
+    await booted.close();
 });
 
 describe('detail read of a held public recipe', () => {

@@ -79,13 +79,17 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
         }
     }
 
+    /** The default headers, overridden by the caller's own (a `Headers` merge, never a spread of a `HeadersInit`). */
+    function headersOf(as: string, init: RequestInit): Headers {
+        const headers = new Headers({ 'content-type': 'application/json', authorization: bearerFor(as) });
+
+        new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+
+        return headers;
+    }
+
     function api(path: string, as: string, init: RequestInit = {}): Promise<Response> {
-        return asPrincipal(as, () =>
-            fetch(`${booted.baseUrl}${path}`, {
-                ...init,
-                headers: { 'content-type': 'application/json', authorization: bearerFor(as), ...init.headers },
-            }),
-        );
+        return asPrincipal(as, () => fetch(`${booted.baseUrl}${path}`, { ...init, headers: headersOf(as, init) }));
     }
 
     beforeAll(async () => {
@@ -103,8 +107,8 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
 
     afterAll(async () => {
         await pool.end();
-        await booted?.close();
-        await food?.close();
+        await booted.close();
+        await food.close();
     });
 
     async function seedTrio(): Promise<void> {
@@ -115,7 +119,7 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
 
     /** The response of a path, replaced so only differences the reader can see remain. */
     async function shape(response: Response, id: string): Promise<string> {
-        return `${response.status} ${(await response.text()).replaceAll(id, 'ID')}`;
+        return `${String(response.status)} ${(await response.text()).replaceAll(id, 'ID')}`;
     }
 
     it.each([
@@ -217,6 +221,7 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
 
     it('nutrition batch: a held id is absent for B, present for the clean id and for the owner', async () => {
         await seedTrio();
+
         const batch = async (as: string): Promise<string[]> => {
             const res = await api('/api/v1/recipes/nutrition-batch', as, {
                 method: 'POST',
@@ -224,11 +229,11 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             });
             const body = (await res.json()) as { nutrition: Record<string, unknown> };
 
-            return Object.keys(body.nutrition).sort();
+            return Object.keys(body.nutrition).sort((a, b) => a.localeCompare(b));
         };
 
         expect(await batch(READER)).toEqual([CLEAN]);
-        expect(await batch(OWNER)).toEqual([CLEAN, HELD].sort());
+        expect(await batch(OWNER)).toEqual([CLEAN, HELD].sort((a, b) => a.localeCompare(b)));
     });
 
     it('collections: B cannot add a held recipe, and a held member is absent from the list', async () => {
@@ -278,8 +283,11 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
             const res = await api(`/api/v1/search/recipes?${params.toString()}`, as);
             const body = (await res.json()) as { results: { recipe: { title: string } }[] };
 
-            return body.results.map((hit) => hit.recipe.title.replace(`${TOKEN} `, '')).sort();
+            return body.results
+                .map((hit) => hit.recipe.title.replace(`${TOKEN} `, ''))
+                .sort((a, b) => a.localeCompare(b));
         };
+
         const expectedFor = (pick: 'ownerReads' | 'otherReads'): string[] =>
             READABILITY_TABLE.filter((row) => row[pick])
                 .map((row) => row.label)

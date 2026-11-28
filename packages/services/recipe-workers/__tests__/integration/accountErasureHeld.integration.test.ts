@@ -17,7 +17,8 @@ const ELECTED_HELD = '00000000-0000-4000-8000-00000000d001';
 
 function recordingPool(): { pool: Pool; statements: { text: string; values: unknown[] }[] } {
     const statements: { text: string; values: unknown[] }[] = [];
-    const query = async (
+
+    const query = (
         text: string | { text: string; values?: unknown[] },
         values?: unknown[],
     ): Promise<{ rows: unknown[]; rowCount: number; fields: unknown[] }> => {
@@ -28,13 +29,14 @@ function recordingPool(): { pool: Pool; statements: { text: string; values: unkn
             values: values ?? (typeof text === 'string' ? [] : (text.values ?? [])),
         });
 
-        return { rows: [], rowCount: 0, fields: [] };
+        return Promise.resolve({ rows: [], rowCount: 0, fields: [] });
     };
+
     const client = { query, release: (): void => undefined };
 
     // The one cast: drizzle's `NodePgClient` is a class union, and this double implements `query` and `connect`, which is everything
     // drizzle's session calls. No `pg` value is imported, so no socket can open (DD12).
-    return { pool: { query, connect: async () => client } as unknown as Pool, statements };
+    return { pool: { query, connect: () => Promise.resolve(client) } as unknown as Pool, statements };
 }
 
 describe('erasure statement order with the read rule', () => {

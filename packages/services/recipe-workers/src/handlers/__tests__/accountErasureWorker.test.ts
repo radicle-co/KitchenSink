@@ -209,7 +209,7 @@ const OWNER_2 = '01JQ8N2X4RBV6WK3ZT5Y7A9C1Q';
 
 /** The kept-set negation as rendered: a held recipe is not "truly public" (ADR-0105). Exact text, no regex. */
 const OWNER_ONLY_TEXT = (first: number, second: number): string =>
-    `owner_id = $${first} AND NOT (visibility = 'public' AND status = 'published' AND NOT recipe_held_from_readers(recipes, $${second}::jsonb))`;
+    `owner_id = $${String(first)} AND NOT (visibility = 'public' AND status = 'published' AND NOT recipe_held_from_readers(recipes, $${String(second)}::jsonb))`;
 /** The donate-flip as rendered: ONE held term replaces the private-only, evidence and correction-hold terms. */
 const FLIP_TEXT =
     "UPDATE recipes SET visibility = 'public', status = 'published', updated_at = now() WHERE id IN (SELECT jsonb_array_elements_text($1::jsonb)::uuid) AND owner_id = $2 AND NOT recipe_holds_private_food(id) AND NOT recipe_held_from_readers(recipes, $3::jsonb) AND NOT recipe_needs_statement(id) AND NOT recipe_is_from_person(id)";

@@ -35,8 +35,9 @@ const DRIZZLE_COMPARISONS = new Set(['eq', 'ne', 'inArray', 'notInArray']);
 const VISIBILITY_VALUE = /^(?:public|private)$/iu;
 const CONSTANT_NAMED_FOR_VALUE = /(?:^|_)(?:PUBLIC|PRIVATE)$|^(?:PUBLIC|PRIVATE)(?:_|$)/u;
 /** `visibility`, an optional closing quote (`"visibility"`, `r."visibility"`), an optional cast (`::text`), then a comparison. */
-const SQL_COMPARISON =
-    /\bvisibility\b"?\s*(?:::\s*[\w.]+\s*)?(?:<>|!=|=|\bnot\s+in\b|\bin\s*\(|\bis\s+(?:not\s+)?distinct\s+from\b)/iu;
+const SQL_COLUMN = /\bvisibility\b"?\s*(?:::\s*[\w.]+\s*)?/u.source;
+const SQL_OPERATOR = /(?:<>|!=|=|\bnot\s+in\b|\bin\s*\(|\bis\s+(?:not\s+)?distinct\s+from\b)/u.source;
+const SQL_COMPARISON = new RegExp(SQL_COLUMN + SQL_OPERATOR, 'iu');
 const SQL_WORD = /\b(?:select|update|delete|where|from|set)\b/iu;
 
 /** The form name of a `heldFromReaders` filled from anything but the SQL selection. */
@@ -93,28 +94,31 @@ function isVisibilityValue(node: ts.Node): boolean {
     return ts.isIdentifier(node) && CONSTANT_NAMED_FOR_VALUE.test(node.text);
 }
 
+/** The name a node contributes to its enclosing scope path: a named function, method or class, or a function-valued binding. Pure. */
+function scopeNameOf(node: ts.Node): string | undefined {
+    if (ts.isFunctionDeclaration(node) || ts.isMethodDeclaration(node) || ts.isClassDeclaration(node)) {
+        return node.name?.getText();
+    }
+
+    if (ts.isVariableDeclaration(node) || ts.isPropertyAssignment(node)) {
+        const init = node.initializer;
+        const isFunction = init !== undefined && (ts.isArrowFunction(init) || ts.isFunctionExpression(init));
+
+        return ts.isIdentifier(node.name) && isFunction ? node.name.text : undefined;
+    }
+
+    return undefined;
+}
+
 /** The name of the function, method or class member a node sits in, `<top>` at module level. Pure. */
 function enclosingName(node: ts.Node): string {
     const parts: string[] = [];
 
-    for (let current: ts.Node | undefined = node.parent; current !== undefined; current = current.parent) {
-        if (
-            (ts.isFunctionDeclaration(current) || ts.isMethodDeclaration(current) || ts.isClassDeclaration(current)) &&
-            current.name !== undefined
-        ) {
-            parts.unshift(current.name.getText());
-        } else if (ts.isVariableDeclaration(current) && ts.isIdentifier(current.name)) {
-            const init = current.initializer;
+    for (let current = node.parent; !ts.isSourceFile(current); current = current.parent) {
+        const name = scopeNameOf(current);
 
-            if (init !== undefined && (ts.isArrowFunction(init) || ts.isFunctionExpression(init))) {
-                parts.unshift(current.name.text);
-            }
-        } else if (ts.isPropertyAssignment(current) && ts.isIdentifier(current.name)) {
-            const init = current.initializer;
-
-            if (ts.isArrowFunction(init) || ts.isFunctionExpression(init)) {
-                parts.unshift(current.name.text);
-            }
+        if (name !== undefined) {
+            parts.unshift(name);
         }
     }
 
@@ -144,6 +148,7 @@ function sqlTextOf(node: ts.Node): string | undefined {
  */
 export function visibilitySitesOf(file: string, contents: string): readonly VisibilitySite[] {
     const sites: VisibilitySite[] = [];
+
     const add = (node: ts.Node, form: string): void => {
         sites.push({ site: `${file}#${enclosingName(node)}`, form });
     };
@@ -174,7 +179,7 @@ export function visibilitySitesOf(file: string, contents: string): readonly Visi
             ts.isCallExpression(node) &&
             ts.isIdentifier(node.expression) &&
             DRIZZLE_COMPARISONS.has(node.expression.text) &&
-            node.arguments[0] !== undefined &&
+            node.arguments.length > 0 &&
             isVisibilityName(node.arguments[0])
         ) {
             add(node, `drizzle ${node.expression.text}`);

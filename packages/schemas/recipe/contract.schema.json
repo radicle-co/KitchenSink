@@ -3057,6 +3057,14 @@
             ],
             "type": "object"
         },
+        "heldSaveSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "enum": [
+                "private",
+                "hide"
+            ],
+            "type": "string"
+        },
         "importCursorRequestSchema": {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "additionalProperties": false,
@@ -15666,6 +15674,13 @@
                     "exclusiveMinimum": 0,
                     "maximum": 2147483647,
                     "type": "integer"
+                },
+                "heldSave": {
+                    "enum": [
+                        "private",
+                        "hide"
+                    ],
+                    "type": "string"
                 },
                 "ingredients": {
                     "items": {

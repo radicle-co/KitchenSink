@@ -540,6 +540,12 @@ export const createRecipeRequestSchema = createRecipeRequestBaseSchema
 /** Request body for creating a recipe. */
 export type CreateRecipeRequest = z.infer<typeof createRecipeRequestSchema>;
 
+/** What the cook chose for a save of a held published public recipe (heldPublicSave KTD-9). */
+export const heldSaveSchema = z.enum(['private', 'hide']);
+
+/** One value of {@link heldSaveSchema}. */
+export type HeldSave = z.infer<typeof heldSaveSchema>;
+
 /**
  * Body of `PATCH /api/v1/recipes/{id}` — a partial update carrying the optimistic-concurrency token.
  *
@@ -569,6 +575,10 @@ export const updateRecipeRequestSchema = createRecipeRequestBaseSchema.omit({ vi
     // the link, so the link has to be settable on a draft. The first publish does not lock it. A source the cook did not state, a clone
     // inherited, or "From another person" (stored, or attested with no statement left) is locked, and the service answers `403 FORBIDDEN` (`details.reason: 'SOURCE_LOCKED'`). `source` is still never accepted here.
     statement: recipeOwnStatementSchema.nullable().optional(),
+    // The cook's own choice for a save of a published public recipe that is held (heldPublicSave, KTD-8 and KTD-9). `'private'`
+    // saves the edit AND makes the recipe private in this one write, using a slot like set-visibility does. `'hide'` is declared
+    // so the contract is whole, and is answered as absent until the hide change set lands. ABSENT leaves today's behaviour.
+    heldSave: heldSaveSchema.optional(),
     contentPasted: contentPastedSchema,
     publicConfirmation: publicConfirmationSchema.optional(),
 });

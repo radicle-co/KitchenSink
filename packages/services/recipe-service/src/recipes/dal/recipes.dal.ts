@@ -163,8 +163,8 @@ export interface UpdateRecipeInput {
      */
     contentPasted?: true;
     /**
-     * Set the visibility in this same write, for a statement that makes a public draft private (ADR-0089). ABSENT leaves it
-     * alone; every other visibility change goes through {@link RecipesDal.setVisibility}.
+     * Set the visibility in this same write: Private, for a statement that makes a public draft private (ADR-0089) or the cook's
+     * `heldSave: 'private'`. ABSENT leaves it alone; every other visibility change goes through {@link RecipesDal.setVisibility}.
      */
     visibility?: RecipeVisibility;
     tags?: string[];

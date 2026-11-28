@@ -5,8 +5,7 @@
  * Precedence: Draft, then Hidden, then Public or Private. Hidden is the owner's public recipe that the read rule hides from
  * readers; the wire says so with `hiddenReason`, and its PRESENCE is the whole fact (an unknown reason, and `other`, are
  * Hidden too: the chip tells the truth and the line, if any, is a separate question). A private recipe is Private whatever
- * a stale reason says, because nothing holds a private recipe from readers. In review and Checking are not built: nothing
- * writes them until spec 020.
+ * a stale reason says, because nothing holds a private recipe from readers.
  *
  * Pure.
  *

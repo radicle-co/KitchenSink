@@ -247,7 +247,7 @@ The clear is planned until PR 5 builds it. This section describes the design, an
   `EXISTS (SELECT 1 FROM recipe_source_hold_clears c WHERE c.recipe_id = NEW.id AND c.xact_id = pg_current_xact_id())`.
   Any other UPDATE that clears the hold still raises. False to true is unchanged. The clear record is either a staff clear or a system clear for an earned rewrite on a third-party answer (ADR-0105). The service inserts the record before
   it updates `recipes`.
-- **The clear record.** A new append-only table, `recipe_source_hold_clears`: recipe, staff actor, reason and time, and
+- **The clear record.** A new append-only table, `recipe_source_hold_clears`: recipe, actor (staff, or the system for an earned rewrite), reason and time, and
   `xact_id xid8 NOT NULL DEFAULT pg_current_xact_id()`. A BEFORE INSERT trigger sets `xact_id`, so no writer supplies
   it. It is append-only by trigger, has a no-truncate trigger as `recipe_source_corrections` does, and is deleted with
   its recipe. It is not a row in `recipe_source_corrections`, because that table's shape is an answer change (old and
@@ -265,7 +265,7 @@ The clear is planned until PR 5 builds it. This section describes the design, an
   recipe, found by the same walk as `holdOwnersClones`. It skips a descendant that has a `recipe_source_corrections`
   row of its own, because that hold has its own cause. It writes one clear record for each recipe it releases.
   Other cooks' clones keep their hold, and each is cleared on its own. Each released recipe keeps its audience, and is readable if nothing else hides it.
-- **The column COMMENT changes.** "Never cleared" becomes "cleared only by a staff clear, with a record".
+- **The column COMMENT changes.** "Never cleared" becomes "cleared only with a clear record: a staff clear, or a system clear for an earned rewrite".
 - **Nothing else changes.** The clear does not touch `origin`, `source_confirmed_at`, the evidence or the
   correction records.
 - **The route.** `POST /api/v1/recipes/:id/source-correction/hold-clear`, behind the grant `recipes:source:correct`.

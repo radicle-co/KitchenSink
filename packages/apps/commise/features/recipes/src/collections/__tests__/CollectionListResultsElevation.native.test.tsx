@@ -3,10 +3,10 @@
  * `Elevated`, on the box that carries the paper fill (Android draws elevation only on a filled view). Written before
  * the move off `nativeTokens.elevation`.
  */
-import { LocaleProvider } from '@commise/i18n/react';
 import { cleanup, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { LocaleProvider } from '@commise/i18n/react';
 import { elevationBoxShadow } from '@commise/ui/testing/elevation-shadow';
 import { filledBoxOf } from '@commise/ui/testing/filled-box';
 import { rgb, rolesFor, systemScheme } from '@commise/ui/testing/system-color-scheme';

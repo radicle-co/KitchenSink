@@ -10,22 +10,19 @@
 import type { FC } from 'react';
 import { Pressable, StyleSheet, useWindowDimensions } from 'react-native';
 
-import { Elevated } from '../elevation/Elevated.native.js';
 import { Icon } from '../icon/Icon.native.js';
 import type { IconName, IconProps } from '../icon/props.js';
 import { nativeTokens } from '../tokens/native.js';
 import type { SegmentedControlProps } from './props.js';
+import { SegmentFace } from './SegmentFace.native.js';
 import { touchFloor } from '../layout/touchFloor.native.js';
 import { Surface } from '../surfaceTone/Surface.native.js';
 import { Text } from '../text/Text.native.js';
 import {
-    SEGMENT_EDGE,
     SEGMENT_GAP,
     SEGMENT_ICON,
-    SEGMENT_ICON_GAP,
     SEGMENT_CHROME_CAP,
     SEGMENT_LABEL_ROLE,
-    SEGMENT_PADDING_X,
     TRACK_INSET,
 } from './nativeSegmentGeometry.js';
 
@@ -39,7 +36,7 @@ const CONTENT_SEGMENT_MIN = 136;
 const SEGMENT_HIT_SLOP = { top: TRACK_INSET, bottom: TRACK_INSET } as const;
 
 /** One segment, with the roles its control's form gives it. */
-interface SegmentFace {
+interface SegmentEntry {
     readonly id: string;
     readonly label: string;
     readonly icon?: IconName;
@@ -60,7 +57,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     // Only a ROUTE control chooses its width (a view switch is sized by its glyphs on web and fills a row here).
     const routeWidth = props.form === 'route' ? (props.width ?? 'share') : 'share';
     const compactTrack = routeWidth === 'content' || (routeWidth === 'adaptive' && windowWidth >= ADAPTIVE_FROM);
-    const faces: readonly SegmentFace[] =
+    const faces: readonly SegmentEntry[] =
         props.form === 'route'
             ? props.segments.map((segment) => ({
                   id: segment.id,
@@ -102,14 +99,11 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     hitSlop={SEGMENT_HIT_SLOP}
                     style={[styles.slot, compactTrack ? styles.slotContent : null]}
                 >
-                    <Elevated
+                    <SegmentFace
                         // The press owner is the Pressable above: a Tamagui press handler adds a second responder view.
                         // Only the selected segment is lifted: the unselected one carries no shadow field at all.
+                        selected={face.selected}
                         {...(face.selected ? { level: 'sm' as const } : {})}
-                        {...segmentFace}
-                        {...(face.selected
-                            ? { backgroundColor: '$paper', borderColor: '$lineControl' }
-                            : { borderColor: 'transparent' })}
                     >
                         {face.icon === undefined ? null : (
                             <Icon
@@ -128,28 +122,12 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                                 {face.label}
                             </Text>
                         )}
-                    </Elevated>
+                    </SegmentFace>
                 </Pressable>
             ))}
         </Surface>
     );
 };
-
-/**
- * The segment's face as Tamagui props, so the `Elevated` carries the fill and the count of React Native `style`
- * uses does not grow. A transparent 1 pt edge sits on every segment; the selected one colours it `lineControl`
- * (`componentFixes.md` §8), so selecting moves nothing and paper on the muted track keeps a 3:1 boundary.
- */
-const segmentFace = {
-    flexGrow: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: SEGMENT_ICON_GAP,
-    borderRadius: nativeTokens.radius.full,
-    borderWidth: SEGMENT_EDGE,
-    paddingHorizontal: SEGMENT_PADDING_X,
-} as const;
 
 const styles = StyleSheet.create({
     track: {

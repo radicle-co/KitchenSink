@@ -5,18 +5,22 @@
  * The table (`nativeTokens.elevation`) is the ONE source of every native shadow's numbers, and `Elevated`
  * (`ui/src/elevation`) is the one view that turns it into a shadow, with the shadow colour taken from the theme. A
  * component that spreads a level into its own style draws a shadow the theme cannot recolour and that Android draws
- * only when that view carries the fill. So the table is read only inside the modules that own it.
+ * only when that view carries the fill. So the table is read only inside the four folders that own it (see
+ * `ELEVATION_TABLE_OWNERS`).
  *
  * Known limit: an aliased import (`import { nativeTokens as t }`) is not followed. Nobody writes one today; widen the
  * reader if one appears.
  *
- * @pattern Specification — a pure predicate over a parsed module, with the owning modules named in one place
+ * @pattern Specification — a pure predicate over a parsed module, with the owning folders named in one place
  */
 import ts from 'typescript';
 
 import { lineOf, parseModule } from './appSources.js';
 
-/** The modules that own the table: the table, the theme that derives colours from it, `Elevated`, the tests' reader. */
+/**
+ * The folders under `ui/src` that own the table, every file in them: `tokens` (the table), `theme` (derives the shadow
+ * colours from it), `elevation` (`Elevated`) and `testing` (the tests' reader).
+ */
 const ELEVATION_TABLE_OWNERS = /^packages\/apps\/commise\/ui\/src\/(?:tokens|theme|elevation|testing)\//u;
 
 /** `nativeTokens.elevation`, `nativeTokens['elevation']`, or `const { elevation } = nativeTokens`. */

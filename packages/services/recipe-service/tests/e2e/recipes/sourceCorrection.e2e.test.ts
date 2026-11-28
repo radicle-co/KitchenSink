@@ -326,6 +326,7 @@ describe('a staff source correction (e2e, ADR-0100)', () => {
             visibility: 'private',
             answer: { kind: 'webPage', citation: LINK },
             sourceCorrected: false,
+            latestCorrectionId: null,
         });
         await expect(service.preview(staff(), id, OTHER_COOK)).rejects.toMatchObject({ code: 'RECIPE_NOT_FOUND' });
         await expect(service.preview(staff([]), id, COOK)).rejects.toMatchObject({ status: 403 });

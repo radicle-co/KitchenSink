@@ -16,7 +16,7 @@
  *
  * @sideEffect Every method reads or writes Postgres through the transaction it is given.
  */
-import { and, eq, sql } from 'drizzle-orm';
+import { and, eq, sql, type SQL } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import { recipes } from '../../database/schema/index.js';
@@ -57,6 +57,14 @@ type ChainRowRaw = {
     readonly new_source_kind: string | null;
     readonly new_statement_kind: string | null;
 };
+
+/** A uuid array of a NON-EMPTY id list: one bound value per id, because drizzle expands a JS array into a record, not an array. Pure. */
+function uuidArray(ids: readonly string[]): SQL {
+    return sql`ARRAY[${sql.join(
+        ids.map((id) => sql`${id}::uuid`),
+        sql`, `,
+    )}]`;
+}
 
 export class SourceHoldClearsDal {
     public constructor(private readonly db: RecipeDrizzle) {}
@@ -178,7 +186,7 @@ export class SourceHoldClearsDal {
 
         await tx.execute(sql`
             INSERT INTO recipe_source_hold_clears (recipe_id, cause, actor_account_id, reason)
-            SELECT unnest(${[...record.recipeIds]}::uuid[]), ${record.cause}, ${record.actorAccountId}, ${record.reason}
+            SELECT unnest(${uuidArray(record.recipeIds)}), ${record.cause}, ${record.actorAccountId}, ${record.reason}
         `);
     }
 
@@ -195,7 +203,7 @@ export class SourceHoldClearsDal {
         }
 
         await tx.execute(
-            sql`UPDATE recipes SET source_correction_hold = false, updated_at = now() WHERE id = ANY(${[...recipeIds]}::uuid[])`,
+            sql`UPDATE recipes SET source_correction_hold = false, updated_at = now() WHERE id = ANY(${uuidArray(recipeIds)})`,
         );
     }
 }

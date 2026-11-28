@@ -10,6 +10,7 @@ CLI: python3 -I pruneCss.py <worktree> <base> -- prunes every staged .dc.html th
 
 from html.parser import HTMLParser
 import re
+from pathlib import Path
 import subprocess
 import sys
 
@@ -190,14 +191,16 @@ def dead_classes(html):
 
 if __name__ == '__main__':
     wt, base = sys.argv[1:3]
-    git = lambda *a: subprocess.run(['git', '-C', wt, *a], capture_output=True, text=True)
+    def git(*a):
+        return subprocess.run(['git', '-C', wt, *a], capture_output=True, text=True)
+
     files = [f for f in git('diff', '--cached', '--name-only', base).stdout.split() if f.endswith('.dc.html')]
     for f in files:
         b = git('show', f'{base}:{f}')
         keep = frozenset(dead_classes(b.stdout)) if b.returncode == 0 else frozenset()
         path = f'{wt}/{f}'
-        t = open(path).read()
+        t = Path(path).read_text(encoding='utf-8')
         t2 = prune(t, keep)
         if t2 != t:
-            open(path, 'w').write(t2)
+            Path(path).write_text(t2, encoding='utf-8')
             print('pruned', f, len(t) - len(t2), 'chars')

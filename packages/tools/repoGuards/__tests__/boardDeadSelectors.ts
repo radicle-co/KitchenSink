@@ -19,8 +19,20 @@ interface Reading {
 
 const TOKEN = /[\w-]+/gu;
 
+/** The child nodes of a node: a `<template>`'s content is a fragment of its own, not part of `childNodes`. Pure. */
+function childrenOf(node: Node): readonly Node[] {
+    if ('content' in node) {
+        return [node.content];
+    }
+
+    return 'childNodes' in node ? node.childNodes : [];
+}
+
 /**
- * Walks the board once: the text of each `<style>`, and every token a `class` attribute or a `<script>` holds. Pure.
+ * Walks the board once, adding to `into`: the text of each `<style>`, and every token a `class` attribute or a
+ * `<script>` holds.
+ *
+ * @sideEffect Mutates `into`.
  */
 function read(node: Node, into: Reading): Reading {
     if (defaultTreeAdapter.isElementNode(node)) {
@@ -42,8 +54,7 @@ function read(node: Node, into: Reading): Reading {
             .forEach((token) => into.used.add(token));
     }
 
-    const children = 'content' in node ? [node.content] : 'childNodes' in node ? node.childNodes : [];
-    children.forEach((child) => read(child, into));
+    childrenOf(node).forEach((child) => read(child, into));
 
     return into;
 }
@@ -71,5 +82,5 @@ export function deadClassSelectors(html: string): readonly string[] {
         });
     });
 
-    return [...selected].filter((name) => !used.has(name)).sort();
+    return [...selected].filter((name) => !used.has(name)).sort((a, b) => a.localeCompare(b));
 }

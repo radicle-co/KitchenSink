@@ -41,8 +41,3 @@
     grid-auto-flow: column;
     grid-auto-columns: 1fr;
 }
-.rd .tabbar {
-    grid-template-columns: none;
-    grid-auto-flow: column;
-    grid-auto-columns: 1fr;
-}

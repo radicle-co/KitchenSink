@@ -8,7 +8,6 @@
  * ✅ THE FIX FOR A FAILURE: delete the rule from the board's `<style>` (in the build script that emits it, not by
  * hand in the board), then lower the board's count in the baseline, or remove its entry at zero.
  */
-import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 
@@ -16,7 +15,7 @@ import { describe, expect, it } from 'vitest';
 
 import { deadClassSelectors } from './boardDeadSelectors.js';
 import { over, raisedAgainst, baselineHistory, stale, type FileCounts } from './ratchetBaseline.js';
-import { repoRoot } from './serviceSources.js';
+import { repoRoot, trackedFiles } from './serviceSources.js';
 
 const BASELINE_PATH = 'packages/tools/repoGuards/__tests__/boardDeadSelectorsBaseline.json';
 
@@ -70,19 +69,19 @@ describe('deadClassSelectors', () => {
         expect(deadClassSelectors(board('.word{}', '<p>word</p>'))).toEqual(['word']);
     });
 
+    it('counts a class used only inside a <template> as used', () => {
+        expect(
+            deadClassSelectors(board('.inTemplate{} .ghost{}', '<template><i class="inTemplate"></i></template>')),
+        ).toEqual(['ghost']);
+    });
+
     it('reads every <style> block', () => {
         const html = '<style>.one{}</style><div class="x"></div><style>.two{}</style>';
         expect(deadClassSelectors(html)).toEqual(['one', 'two']);
     });
 });
 
-const boardFiles = execFileSync('git', ['ls-files', 'docs/design/canvases/**/*.dc.html'], {
-    cwd: repoRoot,
-    encoding: 'utf8',
-    maxBuffer: 1 << 26,
-})
-    .split('\n')
-    .filter((file) => file !== '');
+const boardFiles = trackedFiles('docs/design/canvases').filter((file) => file.endsWith('.dc.html'));
 
 const countOf = (_file: string, html: string): number => deadClassSelectors(html).length;
 

@@ -79,30 +79,45 @@ function wholeLine(cut: Cut, html: string, ceiling: number): Cut {
     return alone ? { start: lineStart, end: lineEnd } : cut;
 }
 
-/** The cuts that delete the items at `gone` from a list that keeps the rest, leaving the kept items' separators alone. */
+/** The cut that deletes one run of removed items, leaving the kept items' separators alone. Pure. */
+function runCut(
+    run: readonly Selector[],
+    before: Selector | undefined,
+    after: Selector | undefined,
+    base: number,
+): Cut[] {
+    const [first] = run;
+    const last = run.at(-1);
+
+    if (first === undefined || last === undefined) {
+        return [];
+    }
+
+    // At the list start the run goes up to the next kept item; otherwise from the previous kept item's end.
+    if (before === undefined) {
+        return after === undefined ? [] : [{ start: span(first, base).start, end: span(after, base).start }];
+    }
+
+    return [{ start: span(before, base).end, end: span(last, base).end }];
+}
+
+/** The cuts that delete the items at `gone` from a list that keeps the rest. Pure. */
 function listCuts(items: readonly Selector[], gone: readonly boolean[], base: number): Cut[] {
     const cuts: Cut[] = [];
+    let before: Selector | undefined;
+    let run: Selector[] = [];
 
-    for (let first = 0; first < items.length; first += 1) {
-        if (!gone[first] || gone[first - 1]) {
-            continue;
-        }
-
-        let last = first;
-
-        while (gone[last + 1]) {
-            last += 1;
-        }
-
-        const next = items[last + 1];
-        const previous = items[first - 1];
-
-        if (first === 0 && next) {
-            cuts.push({ start: span(items[first]!, base).start, end: span(next, base).start });
-        } else if (previous) {
-            cuts.push({ start: span(previous, base).end, end: span(items[last]!, base).end });
+    for (const [index, item] of items.entries()) {
+        if (gone[index]) {
+            run.push(item);
+        } else {
+            cuts.push(...runCut(run, before, item, base));
+            run = [];
+            before = item;
         }
     }
+
+    cuts.push(...runCut(run, before, undefined, base));
 
     return cuts;
 }

@@ -26,6 +26,29 @@ const files = execFileSync('git', ['ls-files', 'docs/design/canvases'], {
 const boards = files.map((file) => ({ file, before: readFileSync(resolve(root, file), 'utf8') }));
 const pruned = boards.map(({ file, before }) => ({ file, before, after: pruneDeadClassRules(before) }));
 
+/** The source text of a located node. @throws Error when the node has no location (the sheet is parsed with positions). */
+function sliceOf(text: string, node: CssNode): string {
+    if (!node.loc) {
+        throw new Error('A node has no source location; parse with positions: true.');
+    }
+
+    return text.slice(node.loc.start.offset, node.loc.end.offset);
+}
+
+/** The classes a selector names, anywhere inside it. */
+function classNamesIn(item: Selector): string[] {
+    const names: string[] = [];
+
+    walk(item, {
+        visit: 'ClassSelector',
+        enter(name) {
+            names.push(classNameOf(name));
+        },
+    });
+
+    return names;
+}
+
 /** Each rule's selector items paired with their rule block, as text, for every `<style>` of the board. */
 function selectorsWithBlocks(html: string): { readonly text: string; readonly names: readonly string[] }[] {
     return readBoard(html).styles.flatMap(({ text }) => {
@@ -34,20 +57,16 @@ function selectorsWithBlocks(html: string): { readonly text: string; readonly na
         walk(parseCss(text, { positions: true }), {
             visit: 'Rule',
             enter(rule) {
-                const block = text.slice(rule.block.loc?.start.offset, rule.block.loc?.end.offset);
+                if (rule.prelude.type !== 'SelectorList') {
+                    return;
+                }
 
-                if (rule.prelude.type === 'SelectorList') {
-                    rule.prelude.children.forEach((item) => {
-                        if (item.type === 'Selector') {
-                            const names: string[] = [];
+                const block = sliceOf(text, rule.block);
 
-                            walk(item, { visit: 'ClassSelector', enter: (name) => void names.push(classNameOf(name)) });
-                            found.push({
-                                text: `${text.slice(item.loc?.start.offset, item.loc?.end.offset)}${block}`,
-                                names,
-                            });
-                        }
-                    });
+                for (const item of rule.prelude.children) {
+                    if (item.type === 'Selector') {
+                        found.push({ text: `${sliceOf(text, item)}${block}`, names: classNamesIn(item) });
+                    }
                 }
             },
         });
@@ -66,7 +85,7 @@ function outsideStyles(html: string): string {
     return [...pieces, html.slice(cuts.at(-1)?.[1] ?? 0)].join('');
 }
 
-const usedOf = (html: string): string => [...readBoard(html).used].sort().join(' ');
+const usedOf = (html: string): string => [...readBoard(html).used].sort((a, b) => a.localeCompare(b)).join(' ');
 
 /**
  * Whether a selector can only match through a dead class: a dead class in its own chain, or a `:is()`/`:where()`/`:has()`

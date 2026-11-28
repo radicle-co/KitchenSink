@@ -24,9 +24,9 @@ const check = flags.includes('--check');
 const unknown = flags.filter((flag) => flag !== '--check');
 
 if (unknown.length > 0 || paths.length === 0) {
-    process.stderr.write(
-        `usage: prune [--check] <board.dc.html>...${unknown.length > 0 ? ` (unknown: ${unknown.join(' ')})` : ''}\n`,
-    );
+    const suffix = unknown.length > 0 ? ` (unknown: ${unknown.join(' ')})` : '';
+
+    process.stderr.write(`usage: prune [--check] <board.dc.html>...${suffix}\n`);
     process.exit(2);
 }
 
@@ -44,11 +44,11 @@ const results = paths.map((path, index) => {
 
 results.forEach(({ path, changed, removed, kept }) => {
     if (changed) {
-        process.stdout.write(`${path}: removed ${removed} selectors\n`);
+        process.stdout.write(`${path}: removed ${String(removed)} selectors\n`);
     }
 
     if (kept.length > 0) {
-        process.stdout.write(`${path}: ${kept.length} dead classes kept: ${kept.join(', ')}\n`);
+        process.stdout.write(`${path}: ${String(kept.length)} dead classes kept: ${kept.join(', ')}\n`);
     }
 });
 

@@ -78,16 +78,23 @@ function read(html: string, node: Node, styles: StyleBlock[], used: Set<string>)
         if (node.tagName === 'script') {
             const script = textOf(node.childNodes);
 
-            TOKENS.flatMap((token) => script.match(token) ?? []).forEach((token) => used.add(token));
+            for (const token of TOKENS) {
+                for (const [word] of script.matchAll(token)) {
+                    used.add(word);
+                }
+            }
         }
 
-        node.attrs
-            .filter((attr) => attr.name === 'class')
-            .flatMap((attr) => attr.value.split(/\s+/u))
-            .forEach((token) => used.add(token));
+        for (const attr of node.attrs.filter(({ name }) => name === 'class')) {
+            for (const token of attr.value.split(/\s+/u)) {
+                used.add(token);
+            }
+        }
     }
 
-    childrenOf(node).forEach((child) => read(html, child, styles, used));
+    for (const child of childrenOf(node)) {
+        read(html, child, styles, used);
+    }
 }
 
 /**

@@ -233,6 +233,8 @@ const PACKAGE_INTERNALS_PATTERN = {
         // corpus, and the state model is not a wire shape. `recipe-state/planned` is read only by the doc generator.
         '!@kitchensink/*/recipe-state',
         '!@kitchensink/*/recipe-state/planned',
+        // `deadClassSelectors` (board-css): the dead-selector detector the repo guards read.
+        '!@kitchensink/*/deadClassSelectors',
         '!@kitchensink/*/scaling',
         '!@kitchensink/*/external-url',
         '!@kitchensink/*/food-name',
@@ -407,7 +409,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/repo-guards/*',
     ],
     message:
-        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, recipe-state, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
+        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, recipe-state, deadClassSelectors, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
 };
 
 /**

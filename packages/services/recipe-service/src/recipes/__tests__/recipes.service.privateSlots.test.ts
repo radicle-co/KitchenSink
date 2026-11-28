@@ -804,7 +804,7 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
         expect(update).not.toHaveBeenCalled();
     });
 
-    it('pre-lock read private, locked read public: the locked read decides, so it is written private and the slot is counted', async () => {
+    it('pre-lock read private, locked read public: the locked read decides, so the slot is counted, and at 50 the save is refused and nothing is written', async () => {
         const { dal, update, lockAndCountPrivateSlots } = holding(
             50,
             { visibility: 'public', status: 'published' },

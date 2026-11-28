@@ -6,19 +6,34 @@ import { RecipeVisibility } from '@kitchensink/recipe-core';
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
-import { phaseOf } from '../sourceStatement.js';
+import { phaseOf, type StatementSurface } from '../sourceStatement.js';
 import { useStatementSheet } from '../useStatementSheet.js';
 
-function mount() {
+function mount(options: { readonly surface?: StatementSurface; readonly recipeConfirmed?: boolean } = {}) {
+    const { surface = 'editor', recipeConfirmed = false } = options;
     const onAnswer = vi.fn();
-    const { result } = renderHook(() =>
-        useStatementSheet({ locale: 'fr', surface: 'editor', recipeConfirmed: false, onAnswer }),
-    );
+    const { result } = renderHook(() => useStatementSheet({ locale: 'fr', surface, recipeConfirmed, onAnswer }));
 
     return { result, onAnswer };
 }
 
 describe('useStatementSheet', () => {
+    it.each([
+        ['a book answered on a draft (the act does not confirm)', 'firstAnswer', false, 'statementBook.v1'],
+        ['the same with the recipe already confirmed', 'firstAnswer', true, 'statementBook.v2'],
+        ['a book on the downgrade (the act confirms)', 'downgrade', false, 'statementBook.v2'],
+    ] as const)('records the wording the cook saw: %s', (_name, surface, recipeConfirmed, version) => {
+        const { result, onAnswer } = mount({ surface, recipeConfirmed });
+
+        act(() => result.current.dispatch({ type: 'choose', answer: 'book' }));
+        act(() => result.current.dispatch({ type: 'bookTitle', text: 'Joy of Cooking' }));
+        act(() => result.current.confirm());
+
+        expect(onAnswer).toHaveBeenCalledWith(
+            expect.objectContaining({ statement: expect.objectContaining({ wording: { version, locale: 'en' } }) }),
+        );
+    });
+
     it('sends nothing for a Confirm with no answer, and stays choosing', () => {
         const { result, onAnswer } = mount();
 

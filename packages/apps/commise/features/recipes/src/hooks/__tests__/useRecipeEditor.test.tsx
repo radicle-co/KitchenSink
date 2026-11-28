@@ -5016,6 +5016,18 @@ describe("the Source row's own sheet (ADR-0100)", () => {
 
             expect(result.current.rowStated?.locks).toBe(locks);
         });
+
+        it('a book from the change sheet over a recipe whose source is already confirmed locks (the recipe\u2019s own fact is read)', () => {
+            const { result } = mount({
+                recipe: makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, sourceConfirmed: true }),
+            });
+
+            act(() => {
+                result.current.answerRowStatement({ statement: book, visibility: RecipeVisibility.PRIVATE }, 'change');
+            });
+
+            expect(result.current.rowStated?.locks).toBe(true);
+        });
     });
 
     it('⛔ a refused answer is dropped, the refusal is told, and the rest of the draft goes again', async () => {
@@ -5246,14 +5258,14 @@ describe('the source question on Publish (ADR-0095)', () => {
             result.current.publish('');
         });
 
-        expect(result.current.paidSiteStated).toBeUndefined();
+        expect(result.current.rowStated).toBeUndefined();
 
         act(() => {
             result.current.answerStatement(paid);
         });
         await settle();
 
-        expect(result.current.paidSiteStated).toBe('Sam’s Subscription Kitchen');
+        expect(result.current.rowStated).toEqual({ statement: paid.statement, locks: true });
         expect(port.submitted[0]).toMatchObject({
             payload: {
                 input: {

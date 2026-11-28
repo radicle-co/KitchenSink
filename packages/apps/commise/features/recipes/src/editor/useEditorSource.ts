@@ -84,8 +84,6 @@ export interface UseEditorSourceOptions {
     readonly recipe: RecipeDetail | undefined;
     /** A Publish was refused for the Source: its error shows at once. */
     readonly refused: boolean;
-    /** The paid website the cook has just confirmed, before any write carries it: the row is locked from the confirm. */
-    readonly paidSiteStated?: string;
     /** What the Source row's own sheet answered and no write has yet carried. */
     readonly rowAnswer?: RowAnswer;
 }
@@ -118,7 +116,7 @@ function noticeTextOf(note: PastedSourceNote, messages: EditorMessages['source']
  * @returns The row's model, the paste's notice, the draft's rule and the commands.
  */
 export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
-    const { values, dispatch, recipe, refused, paidSiteStated, rowAnswer } = options;
+    const { values, dispatch, recipe, refused, rowAnswer } = options;
     const { source: messages } = useMessages(editorMessages);
     const [fromPaste, setFromPaste] = useState(false);
     const [removed, setRemoved] = useState<string | undefined>(undefined);
@@ -153,7 +151,6 @@ export function useEditorSource(options: UseEditorSourceOptions): EditorSource {
             recipe,
             fromPaste,
             showError: touched || refused,
-            ...(paidSiteStated === undefined ? {} : { paidSiteStated }),
             ...(rowAnswer === undefined ? {} : { rowAnswer }),
         }),
         notice,

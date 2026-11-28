@@ -305,7 +305,6 @@ export function useRecipeEditorSession(options: UseRecipeEditorSessionOptions): 
         dispatch,
         recipe: editor.storedRecipe ?? seed.recipe,
         refused: editor.refusedFields.has('source'),
-        ...(editor.paidSiteStated === undefined ? {} : { paidSiteStated: editor.paidSiteStated }),
         ...(editor.rowStated === undefined ? {} : { rowAnswer: editor.rowStated }),
     });
     // ADR-0095: a paste joined the draft, so Publish must ask where the recipe is from. The mark is the client's word that

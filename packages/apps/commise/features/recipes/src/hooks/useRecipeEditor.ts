@@ -360,7 +360,6 @@ export interface UseRecipeEditorResult {
      * The citation of a paid website the cook confirmed in the sheet this session: the Source row shows it locked from the
      * confirm, before any write has carried it. `undefined` until then.
      */
-    readonly paidSiteStated: string | undefined;
     /**
      * What the Source row's own sheet answered this session and no write has carried yet: the row draws it from the confirm.
      * `undefined` until the cook answers, and again once a write carried it.
@@ -790,9 +789,26 @@ function statementPlanNow(ctx: EditorContext): StatementPlan {
     });
 }
 
-/** The citation of a confirmed paid-site answer, else `undefined`. Pure. */
-function paidSiteCitationOf(answer: StatementWrite | undefined): string | undefined {
-    return answer?.statement?.kind === 'paid_site' ? answer.statement.citation : undefined;
+/**
+ * What the Publish sheet's confirmed paid-site answer makes of the Source row before any write carries it: a row answer whose
+ * `locks` is the rule's (`answerLocks`), never a line of its own. Any other answer shows through the stored recipe. Pure.
+ */
+function publishAnswerRowOf(
+    answer: StatementWrite | undefined,
+    stored: RecipeDetail | undefined,
+): RowAnswer | undefined {
+    if (answer?.statement?.kind !== 'paid_site') {
+        return undefined;
+    }
+
+    return {
+        statement: answer.statement,
+        locks: answerLocks({
+            answer: 'paidSite',
+            surface: 'editor',
+            recipeConfirmed: stored?.sourceConfirmed === true,
+        }),
+    };
 }
 
 /**
@@ -2325,8 +2341,7 @@ export function useRecipeEditor(seed: EditorSeed, opts: UseRecipeEditorOptions):
         publishAttempted: gate.attempted,
         publishBlocked,
         statementAsk: statementState.asking,
-        paidSiteStated: paidSiteCitationOf(statementState.answer),
-        rowStated: statementState.row,
+        rowStated: publishAnswerRowOf(statementState.answer, storedRecipeOf(core.server)) ?? statementState.row,
         storedRecipe: storedRecipeOf(core.server),
         sourceLockRefused,
         sourceLockRefusals,

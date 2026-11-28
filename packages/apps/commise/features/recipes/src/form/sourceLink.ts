@@ -463,16 +463,10 @@ export function sourceRowOf(input: {
      * While they type it is plain text, because a half-typed address is not a mistake yet.
      */
     readonly showError: boolean;
-    /** The citation of a paid website the cook has confirmed and no write has yet carried: locked from the confirm. */
-    readonly paidSiteStated?: string;
     /** What the Source row's own sheet answered and no write has yet carried: the row draws it from the confirm. */
     readonly rowAnswer?: RowAnswer;
 }): SourceRowModel {
-    const { values, recipe, fromPaste, showError, paidSiteStated, rowAnswer } = input;
-
-    if (paidSiteStated !== undefined) {
-        return { kind: 'lockedAnswer', answer: 'paidSite', citation: paidSiteStated };
-    }
+    const { values, recipe, fromPaste, showError, rowAnswer } = input;
 
     if (rowAnswer?.statement != null) {
         return answeredRowOf(rowAnswer.statement, rowAnswer.locks);

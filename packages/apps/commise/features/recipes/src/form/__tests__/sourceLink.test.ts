@@ -440,18 +440,6 @@ describe('sourceRowOf: a paid website is locked, with no link', () => {
         ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
     });
 
-    it('a citation the cook has just confirmed locks the row before any write', () => {
-        expect(
-            sourceRowOf({
-                values: makeRecipeFormValues(),
-                recipe: undefined,
-                fromPaste: false,
-                showError: false,
-                paidSiteStated: 'Sam’s Subscription Kitchen',
-            }),
-        ).toEqual({ kind: 'lockedAnswer', answer: 'paidSite', citation: 'Sam’s Subscription Kitchen' });
-    });
-
     describe('an answer the Source row\u2019s sheet gave and no write has carried (ADR-0100)', () => {
         const base = { values: makeRecipeFormValues(), recipe: undefined, fromPaste: false, showError: false };
 

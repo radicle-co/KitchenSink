@@ -10,6 +10,8 @@
  * Pure and platform-agnostic. No React, no platform APIs.
  *
  * @pattern Policy — {@link askForStatement}, {@link answersFor} and {@link statementWriteOf} each decide one thing from facts
+ * @pattern Specification — {@link answerLocks}: the ONE rule for whether confirming an answer locks it; every surface (the note, the
+ *     recorded wording, the Source row's pending answer) asks it and keeps no copy
  * @pattern Statechart — {@link sheetReducer} and {@link phaseOf}: the sheet's phase is DERIVED from the answer, the fields and
  *     what was attempted, never stored beside them
  */
@@ -115,6 +117,7 @@ export function answerLocks(input: AnswerLockInput): boolean {
  * The sheet answer a statement kind on the wire came from. Pure.
  *
  * @param kind - The statement's kind.
+ * @returns The answer that writes this kind. Pure.
  */
 export function statementAnswerOf(kind: RecipeStatementInput['kind']): StatementAnswer {
     switch (kind) {

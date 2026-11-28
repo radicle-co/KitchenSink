@@ -107,6 +107,15 @@ describe('answerLocks: the one rule for whether confirming an answer locks it (d
     });
 });
 
+describe('statementAnswerOf and statementWriteOf pair every answer with one statement kind', () => {
+    it.each(['authored', 'publicWeb', 'paidSite', 'book', 'fromPerson'] as const)('%s round-trips', (answer) => {
+        const statement = statementWriteOf(answer, FIELDS, 'en', false).statement;
+
+        expect(statement).toBeDefined();
+        expect(statement && statementAnswerOf(statement.kind)).toBe(answer);
+    });
+});
+
 describe('statementAnswerOf: the sheet answer a stored statement kind came from', () => {
     it.each([
         ['authored', 'authored'],

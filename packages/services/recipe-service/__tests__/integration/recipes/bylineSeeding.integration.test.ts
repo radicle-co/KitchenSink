@@ -19,7 +19,6 @@ import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js'
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -28,6 +27,8 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 import type { RecipeStatus } from '@kitchensink/recipe-core';
 
@@ -58,7 +59,7 @@ const createSnapshot = vi.fn(async (input: { readonly recipeId: string; readonly
     createdAt: NOW,
 }));
 const findByline = vi.fn();
-const transactionHandle = { __tx: true };
+const transactionHandle = FAKE_TX;
 
 let food: FoodFake;
 let booted: BootedServiceApp;
@@ -68,13 +69,10 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work(transactionHandle),
-                },
-            },
+            recipesDalDouble({
+                create,
+                transaction: (work) => work(transactionHandle),
+            }),
             { provide: VERSIONS_DAL, useValue: { createSnapshot, findVersionsBeyondRetention: async () => [] } },
             { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },

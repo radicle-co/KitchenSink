@@ -22,13 +22,13 @@ import type { ReadableRecipeAggregate } from '../../../src/recipes/dal/recipes.d
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor } from '../../../tests/support/foodFake.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const OWNER = '01JREADRULEOWNER0000000001';
@@ -64,14 +64,11 @@ function get(id: string, as: string): Promise<Response> {
 beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById: (id: string) => Promise.resolve(stored.get(id)),
-                    findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
-                    privateFoodLines: () => Promise.resolve([]),
-                },
-            },
+            recipesDalDouble({
+                findById: (id: string) => Promise.resolve(stored.get(id)),
+                findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
+                privateFoodLines: () => Promise.resolve([]),
+            }),
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: { insert: () => Promise.resolve(undefined), list: () => Promise.resolve([]) },

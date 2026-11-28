@@ -19,9 +19,10 @@ import { SourceCorrectionsDal } from '../../../src/recipes/dal/sourceCorrections
 import { SourceHoldClearsDal } from '../../../src/recipes/dal/sourceHoldClears.dal.js';
 import type { CorrectableRecipe } from '../../../src/recipes/domain/sourceCorrectionScopePolicy.js';
 import { SOURCE_CORRECT_SCOPE } from '../../../src/recipes/recipes.schema.js';
-import { RECIPES_DAL } from '../../../src/recipes/recipes.tokens.js';
+import type { RecipeTx } from '../../../src/database/unitOfWork.js';
 import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const AZP = 'https://recipes.example.com';
@@ -99,21 +100,19 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    transaction: async (fn: (tx: unknown) => Promise<unknown>) => {
-                        calls.push('begin');
+            recipesDalDouble({
+                // Own member: the call-order log records when the transaction opens, and an assertion reads that order.
+                transaction: async <T>(fn: (tx: RecipeTx) => Promise<T>) => {
+                    calls.push('begin');
 
-                        return fn(FAKE_TX);
-                    },
-                    lockAndCountPrivateSlots: () => {
-                        calls.push('lockOwner');
-
-                        return Promise.resolve(0);
-                    },
+                    return fn(FAKE_TX);
                 },
-            },
+                lockAndCountPrivateSlots: () => {
+                    calls.push('lockOwner');
+
+                    return Promise.resolve(0);
+                },
+            }),
             {
                 provide: SourceCorrectionsDal,
                 useValue: {

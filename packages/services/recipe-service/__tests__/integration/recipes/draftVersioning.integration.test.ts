@@ -16,7 +16,7 @@ import 'reflect-metadata';
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
-import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
+import type { RecipeStatus } from '@kitchensink/recipe-core';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import {
@@ -33,7 +33,6 @@ import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.j
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -42,6 +41,9 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JDRAFTVERSIONINGCOOK00001';
@@ -143,33 +145,19 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    update,
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
-                    // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this cook
-                    // holds none, so a slot is free.
-                    lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility as RecipeVisibility,
-                        status: stored.status as RecipeStatus,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        contentPastedAt: stored.contentPastedAt,
-                        sourceAttribution: stored.sourceAttribution,
-                        clonedFromId: stored.clonedFromId,
-                        statementKind: stored.statementKind,
-                        sourceUrl: stored.sourceUrl,
-                        sourceConfirmedAt: stored.sourceConfirmedAt,
-                        sourceCorrectionHold: stored.sourceCorrectionHold,
-                    }),
-                    // ADR-0029 section 4: the database holds no private food in these suites.
-                    privateFoodLines: async () => [],
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                },
-            },
+            recipesDalDouble({
+                create,
+                update,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
+                // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this
+                // cook holds none, so a slot is free.
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                // ADR-0029 section 4: the database holds no private food in these suites.
+                privateFoodLines: () => Promise.resolve([]),
+                transaction: (work) => work(FAKE_TX),
+            }),
             { provide: VERSIONS_DAL, useValue: { createSnapshot, findVersionsBeyondRetention } },
             { provide: PendingArchivesDal, useValue: { enqueueMany } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
@@ -236,7 +224,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
         expect(createSnapshot).toHaveBeenCalledTimes(1);
         expect(createSnapshot).toHaveBeenCalledWith(
             expect.objectContaining({ recipeId: RECIPE_ID, versionNumber: 3 }),
-            { __tx: true },
+            FAKE_TX,
         );
         expect(findVersionsBeyondRetention).toHaveBeenCalledTimes(1);
 
@@ -258,7 +246,7 @@ describe('a never-published draft records no version (ADR-0058, integration)', (
 
         expect(created.status).toBe(201);
         expect(createSnapshot).toHaveBeenCalledTimes(1);
-        expect(createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ versionNumber: 1 }), { __tx: true });
+        expect(createSnapshot).toHaveBeenCalledWith(expect.objectContaining({ versionNumber: 1 }), FAKE_TX);
     });
 
     /**

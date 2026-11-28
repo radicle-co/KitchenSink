@@ -39,10 +39,9 @@ import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.j
 import type { RecipeVersionRow } from '../../../src/database/schema/index.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { IngredientLineInput } from '../../../src/recipes/dal/ingredientLines.dal.js';
-import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
+import type { ReadableRecipeAggregate, RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { recipeRowToDomain } from '../../../src/recipes/mappers/recipeRowToDomain.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -57,6 +56,9 @@ import { createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.j
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf, readableRowOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const OWNER = '01JSOURCELINEOWNER0000001';
@@ -150,6 +152,16 @@ const createSnapshot = vi.fn(
  * asked to write. The returned row is clone-shaped either way.
  */
 let cloned: RecipeAggregate | undefined;
+
+/** What `findById` answers: the stored recipe, the clone once one exists, else nothing. */
+function readableById(id: string): ReadableRecipeAggregate | undefined {
+    if (id === RECIPE_ID) {
+        return readableAggregateOf(aggregateOf());
+    }
+
+    return id === CLONE_ID && cloned !== undefined ? readableAggregateOf(cloned) : undefined;
+}
+
 const create = vi.fn(
     async (input: { readonly ownerId: string; readonly ingredients: readonly IngredientLineInput[] }) => {
         const recipe = makeRecipeRow({
@@ -205,41 +217,26 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById: async (id: string) =>
-                        id === RECIPE_ID ? aggregateOf() : id === CLONE_ID ? cloned : undefined,
-                    create,
-                    findRowById: async (id: string) => (id === RECIPE_ID ? stored : undefined),
-                    // The list row is poisoned with the lines: a mapper that ever projected them would leak here.
-                    findAll: async () => ({
+            recipesDalDouble({
+                findById: (id: string) => Promise.resolve(readableById(id)),
+                create,
+                findRowById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableRowOf(stored) : undefined),
+                // The list row is poisoned with the lines: a mapper that ever projected them would leak here.
+                findAll: () =>
+                    Promise.resolve({
                         rows: [{ recipe: stored, ingredients: aggregateOf().ingredients }],
                         total: 1,
                     }),
-                    update,
-                    setVisibility,
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                    lockAndCountPrivateSlots: async () => 0,
-                    countPrivateSlots: async () => 0,
-                    // The row lock reads the slot AND source facts (#212): the same stored row findRowById holds.
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility,
-                        status: stored.status,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        contentPastedAt: stored.contentPastedAt,
-                        sourceAttribution: stored.sourceAttribution,
-                        clonedFromId: stored.clonedFromId,
-                        statementKind: stored.statementKind,
-                        sourceUrl: stored.sourceUrl,
-                        sourceConfirmedAt: stored.sourceConfirmedAt,
-                        sourceCorrectionHold: stored.sourceCorrectionHold,
-                    }),
-                    clearPublicFoodOwners: async () => undefined,
-                    privateFoodLines: async () => [],
-                },
-            },
+                update,
+                setVisibility,
+                transaction: (work) => work(FAKE_TX),
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                countPrivateSlots: () => Promise.resolve(0),
+                // The row lock reads the slot AND source facts (#212): the same stored row findRowById holds.
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                privateFoodLines: () => Promise.resolve([]),
+            }),
             {
                 provide: VERSIONS_DAL,
                 useValue: {

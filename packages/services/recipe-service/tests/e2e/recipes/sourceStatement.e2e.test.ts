@@ -628,4 +628,55 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             ]);
         });
     });
+
+    /**
+     * P10a (heldPublicSave U1), the characterization of today: a HELD row is published, public, cook-written on its face,
+     * source confirmed at the first publish, with one web evidence row. It is seeded by SQL because no route makes it
+     * (that is the state the feature exists to answer), and read back through the service as the precondition.
+     */
+    describe('a held published public recipe: today an edit is refused and writes nothing', () => {
+        async function heldRecipe(): Promise<{ id: string; version: number }> {
+            const { id } = await create({ status: 'published', visibility: 'private' });
+
+            await roleDb.asOwner(async (client) => {
+                await client.query(
+                    `INSERT INTO recipe_source_evidence (recipe_id, capture, source_url, source_key, source_domain, source_kind)
+                     VALUES ($1, 'editorLink', $2, $2, 'allrecipes.com', 'public_web')`,
+                    [id, LINK],
+                );
+                await client.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [id]);
+            });
+
+            const read = await send('GET', `/api/v1/recipes/${id}`);
+
+            expect(read.status).toBe(200);
+            expect(read.json).toMatchObject({ status: 'published', visibility: 'public' });
+
+            return { id, version: read.json['currentVersion'] as number };
+        }
+
+        it('PATCH a title edit is 400 INVALID_VISIBILITY / SOURCE_CONFLICT; content, visibility and version are unchanged', async () => {
+            const { id, version } = await heldRecipe();
+            const before = await readRow(id);
+
+            const edit = await send('PATCH', `/api/v1/recipes/${id}`, {
+                expectedVersion: version,
+                title: 'A different title',
+                publicConfirmation: PUBLIC_CONFIRMATION_AS_SHOWN,
+            });
+
+            expect(edit.status).toBe(400);
+            expect(edit.json['code']).toBe('INVALID_VISIBILITY');
+            expect((edit.json['details'] as { reason?: string } | undefined)?.reason).toBe('SOURCE_CONFLICT');
+
+            const after = await readRow(id);
+
+            expect(after).toMatchObject({
+                title: before.title,
+                visibility: 'public',
+                status: 'published',
+                currentVersion: version,
+            });
+        });
+    });
 });

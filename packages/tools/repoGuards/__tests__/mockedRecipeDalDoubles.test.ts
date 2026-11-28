@@ -19,8 +19,9 @@
  *     suffix match is for the alias `sharedFakeRecipesDal`. A member given to such a call is still read, so a literal
  *     there is reported.
  *
- * Known limit: an object held in a `const` and returned by reference is not seen; the guard reads the answer's own
- * text.
+ * Known limits, none present in recipe-service today: the guard reads the answer's own text, so it does not see an
+ * object held in a `const` and returned by reference, an assignment `dal.lockSlotFacts = ...`, a class field, a spy held
+ * in a variable, or a computed key `['lockSlotFacts']`.
  *
  * ✅ THE FIX FOR A FAILURE: `lockSlotFacts: () => Promise.resolve(lockedFactsOf(makeRecipeRow({ ... })))`, and
  * `recipesDalDouble({ ... })` in place of `{ provide: RECIPES_DAL, useValue: { ... } }`.

@@ -50,6 +50,17 @@ const held = makeRecipeRow({
 const READER = '01JHIDDENREASONREADER0001';
 const stored = new Map<string, ReadableRecipeAggregate>();
 const heldFacts = new Map<string, boolean>();
+/** Public, no correction hold: held by the DATABASE's evidence term alone (the `heldSource` path), and its no-evidence twin (`other`). */
+const evidenceHeld = makeRecipeRow({
+    id: '00000000-0000-4000-8000-00000000d103',
+    ownerId: OWNER,
+    visibility: 'public',
+});
+const unmappedHeld = makeRecipeRow({
+    id: '00000000-0000-4000-8000-00000000d104',
+    ownerId: OWNER,
+    visibility: 'public',
+});
 const clean = makeRecipeRow({ id: '00000000-0000-4000-8000-00000000d102', ownerId: OWNER, visibility: 'public' });
 
 const aggregateOf = (recipe: ReturnType<typeof makeRecipeRow>, heldFromReaders: boolean): ReadableRecipeAggregate => ({
@@ -123,6 +134,8 @@ beforeAll(async () => {
                     findAll: vi.fn(async () => ({
                         rows: [
                             { recipe: held, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                            { recipe: evidenceHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: true },
+                            { recipe: unmappedHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
                             { recipe: clean, ownerHeldFromReaders: false, hasCookSourceEvidence: false },
                         ],
                         total: 2,
@@ -136,6 +149,18 @@ beforeAll(async () => {
                     sourceOwnerUsernames: async () => new Map(),
                     listRecipes: async () => [
                         { ...held, addedVia: 'manual', ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                        {
+                            ...evidenceHeld,
+                            addedVia: 'manual',
+                            ownerHeldFromReaders: true,
+                            hasCookSourceEvidence: true,
+                        },
+                        {
+                            ...unmappedHeld,
+                            addedVia: 'manual',
+                            ownerHeldFromReaders: true,
+                            hasCookSourceEvidence: false,
+                        },
                         { ...clean, addedVia: 'manual', ownerHeldFromReaders: false, hasCookSourceEvidence: false },
                     ],
                 },
@@ -165,6 +190,9 @@ describe('GET /api/v1/recipes (the owner list)', () => {
         const byId = Object.fromEntries(body.data.map((item) => [item.id, item]));
 
         expect(byId[held.id]).toMatchObject({ hiddenReason: 'sourceCorrected' });
+        // The evidence term and its absence, through the list service: the pair pins both inputs.
+        expect(byId[evidenceHeld.id]).toMatchObject({ hiddenReason: 'heldSource' });
+        expect(byId[unmappedHeld.id]).toMatchObject({ hiddenReason: 'other' });
         expect(byId[clean.id]).not.toHaveProperty('hiddenReason');
     });
 });
@@ -177,6 +205,10 @@ describe('GET /api/v1/collections/:id (members)', () => {
         };
 
         expect(asRecipeOwner.recipes.find((r) => r.id === held.id)).toMatchObject({ hiddenReason: 'sourceCorrected' });
+        expect(asRecipeOwner.recipes.find((r) => r.id === evidenceHeld.id)).toMatchObject({
+            hiddenReason: 'heldSource',
+        });
+        expect(asRecipeOwner.recipes.find((r) => r.id === unmappedHeld.id)).toMatchObject({ hiddenReason: 'other' });
         expect(asRecipeOwner.recipes.find((r) => r.id === clean.id)).not.toHaveProperty('hiddenReason');
 
         collectionOwner = COLLECTOR;
@@ -184,8 +216,11 @@ describe('GET /api/v1/collections/:id (members)', () => {
             recipes: Array<{ id: string }>;
         };
 
-        expect(asCollector.recipes).toHaveLength(2);
-        expect(asCollector.recipes.find((r) => r.id === held.id)).not.toHaveProperty('hiddenReason');
+        expect(asCollector.recipes).toHaveLength(4);
+
+        for (const member of asCollector.recipes) {
+            expect(member).not.toHaveProperty('hiddenReason');
+        }
     });
 });
 

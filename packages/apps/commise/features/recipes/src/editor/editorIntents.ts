@@ -54,7 +54,7 @@ export interface RecipeWriteInput {
  */
 export function recipeWriteIntent(input: RecipeWriteInput): Intent {
     const { server, draft, ref } = input;
-    const status = input.publish ? RecipeStatus.PUBLISHED : undefined;
+    const status = writeStatusOf(input);
 
     if (server.kind !== 'stored') {
         const create = toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT, input.shown);
@@ -97,10 +97,22 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
     };
 }
 
+/** The status a write names: Published to publish, else a create's Draft and an update's none. The one rule both builders read. Pure. */
+function writeStatusOf(input: RecipeWriteInput): RecipeStatus | undefined {
+    if (input.publish) {
+        return RecipeStatus.PUBLISHED;
+    }
+
+    return input.server.kind === 'stored' ? undefined : RecipeStatus.DRAFT;
+}
+
 /**
  * Whether the Source row's own answer is what the write's body says about the source. The Publish sheet's answer outranks the
  * row's on the wire (see `wire.ts`), so a write that carried it carried no row answer, and its landing must not clear the
  * row. Every other write carries the row's answer, or has nothing stored to clear. Pure.
+ *
+ * Only the pure rule is pinned, on purpose: a hook-level case is unreachable today, because a stated paid-site answer locks
+ * (the row sheet cannot change it while it is pending) and a Publish-sheet answer on a publish ends the editor on landing.
  */
 export function rowAnswerRidesWrite(input: RecipeWriteInput): boolean {
     const { server, shown } = input;
@@ -109,11 +121,9 @@ export function rowAnswerRidesWrite(input: RecipeWriteInput): boolean {
         return true;
     }
 
-    if (server.kind === 'stored') {
-        return sheetStatementOf(shown, input.publish ? RecipeStatus.PUBLISHED : undefined, server.recipe) === undefined;
-    }
+    const recipe = server.kind === 'stored' ? server.recipe : undefined;
 
-    return sheetStatementOf(shown, input.publish ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT) === undefined;
+    return sheetStatementOf(shown, writeStatusOf(input), recipe) === undefined;
 }
 
 /** What {@link discardPlanOf} decides from. */

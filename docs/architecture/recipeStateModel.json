@@ -450,7 +450,7 @@
             "reason": "saveCannotStayPublic",
             "name": "REFUSAL_SAVE_CANNOT_STAY_PUBLIC",
             "computedBy": "server",
-            "wire": "400 `SOURCE_CONFLICT` for a held source, with `details.cause`; 020 sets the code for its causes",
+            "wire": "400 `INVALID_VISIBILITY`, `details.reason` 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC', `details.cause`: a `SaveRefusalCause` string (P10 wraps it as `{kind}` at its seam)",
             "built": "pending: P10 (held source), 020 (too close, not approved)",
             "known": true
         },
@@ -896,6 +896,17 @@
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
+            "eventId": "CREATE_PRIVATE_NO_SLOT",
+            "from": "none (create)",
+            "event": "`CREATE` private",
+            "actor": "cook",
+            "guard": "no free private slot",
+            "to": "DPr, saved as a draft. The draft door",
+            "pending": "P10"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
             "eventId": "PUBLISH_DRAFT_NO_SLOT",
             "from": "DPr",
             "event": "`PUBLISH`",
@@ -925,6 +936,17 @@
             "guard": "ADR-0097 D3, in order: the P4a check passes, the source re-run passes, 020 allows. Any origin, own and unstated included (G1)",
             "to": "the evidence rule no longer holds it. Readable if nothing else hides it",
             "pending": "P10 (seam, stubbed), P4b, 020"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
+            "eventId": "MAKE_PUBLIC_TOO_CLOSE_PRIVATE",
+            "from": "PPr (third-party origin, `ORIGIN_COMMISE_WRITTEN` included)",
+            "event": "`MAKE_PUBLIC`",
+            "actor": "cook",
+            "guard": "too close",
+            "to": "PPr, refused. Nothing changes",
+            "pending": "020"
         },
         {
             "axis": "lifecycleAudience",

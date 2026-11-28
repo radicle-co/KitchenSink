@@ -65,27 +65,27 @@ every other hold.
     - ADR-0074's own condition (`SOURCE_CHECK_ALLOWS_SQL`) sits beside this one in the same predicates when 020
       ships. It is not copied into this function.
     - There is no new visibility value and no new column.
-      The writers stop setting `private` (Decision 1) in the change that drops the CHECK below, and that change waits
-      for the function to be deployed (the schema deploys first).
 4. **"Held" means "never publicly readable".** The CHECK `recipes_held_is_not_public` is dropped. A held recipe may be
    public or private. If it is public, the read rule hides it. The ratchet and the clone trigger of the hold do not
-   change.
+   change. The writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits
+   for the function to be deployed (the schema deploys first).
 5. **An edit that cannot stay public.** When a cook edits a recipe that readers can see, and the new content cannot
    stay public (a recorded source holds it, its wording is too close, or it was not approved), the save is refused and
-   the edit stays on the device. The cook chooses one of these:
-    - change the steps in their own words. A rewrite that earns the fact unblocks the recipe through ADR-0097
-      Decision 3, for every origin, own and unstated included.
+   the edit stays on the device. The same sheet opens for a recipe that is already hidden: it is refused while a
+   private slot is free, and with no free slot only an explicit Save and hide saves it. The cook chooses one of these:
+    - change the steps in their own words. A rewrite that earns the fact unblocks the recipe, for every origin, own and
+      unstated included (ADR-0097 Decision 3 for the unblock, and the owner ruling recorded as model decision Q21 for
+      own and unstated origins).
     - discard the edit.
     - with a free slot, make it private and save.
     - with no free slot, save it and hide it. The recipe stays public and hidden, and the cook chose that.
-      An edit to a recipe that is already hidden opens the same sheet and is refused while a private slot is free. With no
-      free slot only an explicit Save and hide saves it, and the recipe stays hidden.
 6. **A create or a publish that cannot go public** saves a draft. A draft uses no slot (ADR-0073 §12). With a free slot
    the cook may publish it as private. A create of a private recipe with no free slot saves a draft too. Nothing is
    refused for want of a slot.
 7. **Clearing the correction hold** lifts the hold only. A recipe whose audience is private stays private. A recipe
    whose audience is public is readable again when no other term of the read rule hides it (a recorded source or a
-   private-only label still does). The release of the owner's clones
+   private-only label still does). A cleared correction never makes a "from another person" recipe readable: PR 5
+   adds that term with its clear route (ADR-0097 Decision 2). The release of the owner's clones
    follows the same rule. Each released clone keeps its own audience.
 8. **Erasure removes a held public recipe.** It is not kept and it is not donated. The kept set is "public, published
    and not held from readers". A donation is refused for a recipe held from readers.

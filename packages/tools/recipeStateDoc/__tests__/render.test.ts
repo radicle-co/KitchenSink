@@ -2,8 +2,6 @@
  * The pure renderers of the recipe state doc. The golden comparison against the committed document is the integration
  * test; here each rule is pinned on small inputs, so a broken rule fails with a small diff.
  */
-import { readFileSync } from 'node:fs';
-
 import { recipeStateMessages } from '@commise/features-recipes/recipe-state-messages';
 import { CREATIONS, Hold, REFUSAL, TRANSITIONS, type TransitionRow } from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
@@ -254,22 +252,5 @@ describe('labelsIn', () => {
 
     it('throws on a key the messages do not have, so a drifted cell fails the generator', () => {
         expect(() => labelsIn('{label:publicPage.hiddenOwner}')).toThrow(/publicPage\.hiddenOwner/u);
-    });
-});
-
-describe('the committed model document (ADR-0105)', () => {
-    const doc = readFileSync(new URL('../../../../docs/architecture/recipeStateModel.md', import.meta.url), 'utf8');
-
-    it('names no FORCE_PRIVATE and no forcesPrivate', () => {
-        expect(doc).not.toMatch(/FORCE_PRIVATE|forcesPrivate/);
-    });
-
-    it('lists the six chips in precedence order, in the sentence and in the table', () => {
-        expect(doc).toContain('Draft, Hidden, In review, Checking, Public or Private');
-
-        const table = doc.slice(doc.indexOf('| Chip '), doc.indexOf('Until 020 ships'));
-        const names = [...table.matchAll(/^\| (\w[\w ]*?)\s+\|/gm)].map((m) => m[1]).slice(1);
-
-        expect(names).toEqual(['Draft', 'Hidden', 'In review', 'Checking', 'Public', 'Private']);
     });
 });

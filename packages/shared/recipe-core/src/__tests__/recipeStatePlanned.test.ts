@@ -40,9 +40,11 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         'SAVE_AND_HIDE',
         'SAVE_WHILE_HIDDEN',
         'CREATE_CANNOT_GO_PUBLIC',
+        'CREATE_PRIVATE_NO_SLOT',
         'PUBLISH_DRAFT_NO_SLOT',
         'HIDE_AFTER_CHECK',
         'SOURCE_HOLD_LIFTED_BY_REWRITE',
+        'MAKE_PUBLIC_TOO_CLOSE_PRIVATE',
     ];
     const DELETED_IDS = [
         'SAVE_TOO_CLOSE',
@@ -57,7 +59,7 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
     ];
     const ids = PLANNED.map((row) => row.eventId);
 
-    it('holds the eight new rows, in order, and none of the deleted ones', () => {
+    it('holds the ten new rows, in order, and none of the deleted ones', () => {
         expect(ids.filter((id) => NEW_IDS.includes(id))).toEqual(NEW_IDS);
         expect(ids.filter((id) => DELETED_IDS.includes(id))).toEqual([]);
     });

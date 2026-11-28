@@ -6,6 +6,7 @@
  *
  * Edit a cell here and regenerate (`npm run recipeState:generate`); never edit a generated table in the document.
  */
+import { PLANNED } from '@kitchensink/recipe-core/recipe-state/planned';
 
 /** One row of table 4.2: a stored type, with its values written from the module when `object` names a value object. */
 export type StoredValueRow =
@@ -261,7 +262,7 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
     {
         name: 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC',
         computedBy: 'server',
-        wire: '400 `SOURCE_CONFLICT` for a held source, with `details.cause`; 020 sets the code for its causes',
+        wire: "400 `INVALID_VISIBILITY`, `details.reason` 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC', `details.cause`: a `SaveRefusalCause` string (P10 wraps it as `{kind}` at its seam)",
         en: 'none as a line. The refused-save sheet shows (4.8.2)',
         built: 'pending: P10 (held source), 020 (too close, not approved)',
     },
@@ -366,7 +367,7 @@ export const LIFECYCLE_ROWS: readonly EdgeDocRow[] = [
     },
     {
         group: 'ERASE_DONATE',
-        from: 'DPr, DPu, PPr (PPu stays PPu)',
+        from: 'DPr, DPu, PPr (a PPu that is not held from readers stays PPu. A held PPu is deleted, ADR-0105)',
         guard: 'the cook elected it, no statement owed, not `ORIGIN_PERSON`, no hold. Sets `SOURCE_CONFIRMED`. Never from Del',
         to: 'PPu',
     },
@@ -417,6 +418,17 @@ export const CONFIRMATION_ROWS: readonly EdgeDocRow[] = [
     },
 ];
 
+/** The `to` cell of a PLANNED row, so a cell the model states once is not kept twice. */
+function plannedTo(eventId: string): string {
+    const found = PLANNED.find((row) => row.eventId === eventId);
+
+    if (found === undefined) {
+        throw new Error(`No PLANNED row ${eventId}`);
+    }
+
+    return found.to;
+}
+
 /** Table 5.4. */
 export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
     {
@@ -434,7 +446,7 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`CLEAR_SOURCE_HOLD`',
         actor: 'staff',
         guard: 'grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1)',
-        to: 'unset. Readable again if the audience is public and nothing else hides it (ADR-0105)',
+        to: plannedTo('CLEAR_SOURCE_HOLD'),
         built: 'PLANNED until PR 5',
     },
 ];

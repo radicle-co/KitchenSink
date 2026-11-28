@@ -856,6 +856,20 @@
       "w": 390,
       "h": 844,
       "title": "Recipe detail, written by Commise, signed-out report (web, 390)"
+    },
+    "RecipeHeldSaveDetailWeb1280.dc.html": {
+      "x": 0,
+      "y": 48207,
+      "w": 1280,
+      "h": 942,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (web, 1280)"
+    },
+    "RecipeHeldSaveDetailWeb390.dc.html": {
+      "x": 1360,
+      "y": 48207,
+      "w": 390,
+      "h": 1070,
+      "title": "Recipe detail, a held public recipe’s refused save and Save and hide (web, 390)"
     }
   },
   "order": [
@@ -979,7 +993,9 @@
     "RecipeDetailTooCloseAfterReviewWeb390.dc.html",
     "RecipeDetailSourceHoldAfterCheckWeb390.dc.html",
     "RecipeDetailSourceWeb390.dc.html",
-    "RecipePublicVersionReportSignInWeb390.dc.html"
+    "RecipePublicVersionReportSignInWeb390.dc.html",
+    "RecipeHeldSaveDetailWeb1280.dc.html",
+    "RecipeHeldSaveDetailWeb390.dc.html"
   ],
   "notes": {
     "row0": {

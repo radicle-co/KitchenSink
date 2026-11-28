@@ -24,7 +24,7 @@ CREATE FUNCTION recipe_has_cook_source_evidence(p_recipe_id uuid) RETURNS boolea
            AND e.capture <> 'staffCorrection'
            AND (e.source_domain IS NOT NULL OR e.source_kind IN ('book', 'paid_site'))
     );
-$$ LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp;
+$$ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = pg_catalog, public, pg_temp;
 
 CREATE FUNCTION recipe_held_from_readers(r recipes, private_only_keys jsonb) RETURNS boolean AS $$
     SELECT coalesce(r.source_correction_hold, false)
@@ -32,4 +32,4 @@ CREATE FUNCTION recipe_held_from_readers(r recipes, private_only_keys jsonb) RET
         OR coalesce(
                (r.source_type || ':' || coalesce(r.source_kind, '')) IN (SELECT jsonb_array_elements_text(private_only_keys)),
                false);
-$$ LANGUAGE sql STABLE SET search_path = pg_catalog, public, pg_temp;
+$$ LANGUAGE sql STABLE PARALLEL SAFE SET search_path = pg_catalog, public, pg_temp;

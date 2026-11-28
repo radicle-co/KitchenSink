@@ -7,7 +7,16 @@
 import { describe, it, expect } from 'vitest';
 import { PgDialect } from 'drizzle-orm/pg-core';
 
-import { activeRecipe, publishedOrOwnedBy, readableBy, viewableBy } from '../recipePredicates.js';
+import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
+
+import {
+    activeRecipe,
+    communityOf,
+    heldFromReadersSql,
+    publishedOrOwnedBy,
+    readableBy,
+    viewableBy,
+} from '../recipePredicates.js';
 
 const dialect = new PgDialect();
 
@@ -60,6 +69,44 @@ describe('recipe read predicates (S-R3)', () => {
         const { params } = compile(viewableBy('01HVIEWER0000000000000000'));
 
         // Drizzle parameterizes both the 'public' constant and the viewer id — nothing is string-spliced.
-        expect(params).toEqual(['public', '01HVIEWER0000000000000000']);
+        expect(params).toEqual(['public', JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS), '01HVIEWER0000000000000000']);
+    });
+});
+
+/** The bound private-only keys, exactly as every caller of `recipe_held_from_readers` binds them (ADR-0105). */
+const KEYS_PARAM = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
+const HELD_CALL = 'recipe_held_from_readers("recipes", $';
+const VIEWER = '01HVIEWER0000000000000000';
+
+describe('the held-from-readers term (ADR-0105)', () => {
+    it('heldFromReadersSql() is the ONE function call, with the whole recipes row and the bound keys', () => {
+        const { sql, params } = compile(heldFromReadersSql());
+
+        expect(sql).toBe('recipe_held_from_readers("recipes", $1::jsonb)');
+        expect(params).toEqual([KEYS_PARAM]);
+    });
+
+    it('viewableBy() hides a held recipe in the PUBLIC branch only: (public AND NOT held) OR owner', () => {
+        const { sql, params } = compile(viewableBy(VIEWER));
+
+        expect(sql).toBe(
+            '(("recipes"."visibility" = $1 and not recipe_held_from_readers("recipes", $2::jsonb)) or "recipes"."owner_id" = $3)',
+        );
+        expect(params).toEqual(['public', KEYS_PARAM, VIEWER]);
+    });
+
+    it('communityOf() adds NOT held to the public published non-owner scope', () => {
+        const { sql, params } = compile(communityOf(VIEWER));
+
+        expect(sql).toContain(`and not ${HELD_CALL}`);
+        expect(sql).toContain('"recipes"."owner_id" <> $');
+        expect(params).toContain(KEYS_PARAM);
+    });
+
+    it('readableBy() carries the held term exactly once, through viewableBy', () => {
+        const { sql } = compile(readableBy(VIEWER));
+
+        expect(sql.split('recipe_held_from_readers(').length - 1).toBe(1);
+        expect(sql).toContain(`and not ${HELD_CALL}`);
     });
 });

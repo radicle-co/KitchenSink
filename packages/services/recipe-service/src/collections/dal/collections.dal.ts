@@ -32,7 +32,12 @@ import {
 import { authorHandles } from '../../database/schema/authorHandles.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
-import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
+import {
+    activeRecipe,
+    readableBy,
+    readableRecipeColumns,
+    type ReadableRecipeRow,
+} from '../../recipes/dal/recipePredicates.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { COLLECTION_COVER_LIMIT } from '../collections.schema.js';
@@ -339,9 +344,9 @@ export class CollectionsDal {
     }
 
     /** Fetch an active (non-tombstoned) recipe by id, for validating a membership add. */
-    public async findActiveRecipe(recipeId: string): Promise<RecipeRow | undefined> {
+    public async findActiveRecipe(recipeId: string): Promise<ReadableRecipeRow | undefined> {
         const rows = await this.db
-            .select()
+            .select(readableRecipeColumns())
             .from(recipes)
             .where(and(eq(recipes.id, recipeId), activeRecipe()))
             .limit(1);

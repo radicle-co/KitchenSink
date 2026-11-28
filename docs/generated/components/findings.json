@@ -3,7 +3,7 @@
     "counts": {
         "ambiguous-layer-signal": 9,
         "boolean-prop-selects-subtree": 10,
-        "cross-platform-props-diverge": 33,
+        "cross-platform-props-diverge": 34,
         "missing-component-doc": 167,
         "missing-module-doc": 24,
         "platform-singleton": 114,
@@ -5601,6 +5601,17 @@
             "message": "props carry no JSDoc description",
             "evidence": [
                 "onPress"
+            ]
+        },
+        {
+            "rule": "cross-platform-props-diverge",
+            "severity": "review",
+            "component": "featuresCooking/CookingDone",
+            "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.tsx",
+            "message": "the web and native leaves declare different prop names",
+            "evidence": [
+                "web: enjoy screenNote title",
+                "native: enjoy screenNote title titleSignal"
             ]
         },
         {

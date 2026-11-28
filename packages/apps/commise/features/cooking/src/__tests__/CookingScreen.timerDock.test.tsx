@@ -5,6 +5,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.js';
 import { CookingScreen } from '../CookingScreen.js';
+import { DONE_SETTLE_MS } from '../doneSettle.js';
 
 /**
  * The timer dock on the web cooking screen: the offer under a step that has a length, the row it starts, the controls
@@ -115,5 +116,55 @@ describe('CookingScreen: the timer dock', () => {
 
         expect(store.getSnapshot().timers).toEqual([]);
         disconnect();
+    });
+});
+
+describe('CookingScreen: focus on Done', () => {
+    /** Starts the Roast timer and finishes the recipe, so Done shows with the timer's row in the dock. */
+    const timeThenFinish = (): void => {
+        goToRoast();
+        press('Time 20 min');
+        press(/^Next step, step 3/u);
+        press(/^Finish/u);
+    };
+
+    const title = () => screen.getByRole('heading', { name: /steps? done/iu });
+
+    it('puts focus on the title when Cancel takes the last row away on Done', () => {
+        setup();
+        timeThenFinish();
+        screen.getByRole('button', { name: /^Cancel / }).focus();
+
+        press(/^Cancel /);
+
+        expect(document.activeElement).toBe(title());
+    });
+
+    it('puts focus on the title when Stop takes the last row away on Done', () => {
+        const { store } = setup();
+        const disconnect = store.connect();
+        timeThenFinish();
+        act(() => {
+            vi.advanceTimersByTime(21 * MINUTE);
+        });
+        screen.getByRole('button', { name: /^Stop / }).focus();
+
+        press(/^Stop /);
+
+        expect(document.activeElement).toBe(title());
+        disconnect();
+    });
+
+    it('leaves no request behind: Cook again opens step 1 with no title to take focus', () => {
+        setup();
+        timeThenFinish();
+        press(/^Cancel /);
+        act(() => {
+            vi.advanceTimersByTime(DONE_SETTLE_MS);
+        });
+        press(/^Cook it again/u);
+
+        expect(screen.queryByRole('heading', { name: /steps? done/iu })).toBeNull();
+        expect(document.activeElement).not.toBe(document.body.querySelector('h1'));
     });
 });

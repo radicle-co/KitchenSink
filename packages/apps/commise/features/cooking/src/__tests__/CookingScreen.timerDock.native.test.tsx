@@ -159,3 +159,56 @@ describe('CookingScreen (native): the timer dock', () => {
         vi.useRealTimers();
     });
 });
+
+describe('CookingScreen (native): the cursor on Done', () => {
+    const toDone = async () => {
+        await press(/^Next step, step 2/u);
+        await press('Time 20 min');
+        await press(/^Next step, step 3/u);
+        await press(/^Finish/u);
+    };
+
+    // The title remounts, so each move goes to a new node: count the moves, then read where the last one went.
+    const moves = () => vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.length;
+
+    const titleIsLast = () => {
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenLastCalledWith(
+            screen.getByRole('heading', { name: /steps? done/iu }),
+            'focus',
+        );
+    };
+
+    it('moves the cursor to the title again when Cancel takes the last row away on Done', async () => {
+        setup();
+        await toDone();
+        const opened = moves();
+
+        await press(/^Cancel /);
+
+        expect(moves()).toBe(opened + 1);
+        titleIsLast();
+    });
+
+    it('moves the cursor to the title when Stop takes the ringing row away on Done', async () => {
+        vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
+        const { store } = setup();
+        const disconnect = store.connect();
+        const click = (name: RegExp) => fireEvent.click(button(name));
+
+        click(/^Next step, step 2/u);
+        click(/^Time 20 min/u);
+        click(/^Next step, step 3/u);
+        click(/^Finish/u);
+        act(() => {
+            vi.advanceTimersByTime(21 * MINUTE);
+        });
+        const opened = moves();
+
+        click(/^Stop /);
+
+        expect(moves()).toBe(opened + 1);
+        titleIsLast();
+        disconnect();
+        vi.useRealTimers();
+    });
+});

@@ -6,11 +6,11 @@
     "coverage": {
         "components": 22,
         "implementations": 40,
-        "props": 142,
+        "props": 143,
         "documentedComponents": 22,
         "implementationsWithModuleDoc": 40,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 125,
+        "documentedProps": 126,
         "classifiedComponents": 22,
         "componentsWithPatternTag": 11,
         "crossPlatformComponents": 19
@@ -32,7 +32,7 @@
                 "native"
             ],
             "crossPlatform": true,
-            "propsDiverge": false,
+            "propsDiverge": true,
             "documented": true,
             "implementations": [
                 {
@@ -92,7 +92,7 @@
                     "platform": "native",
                     "sourcePath": "packages/apps/commise/features/cooking/src/CookingDone.native.tsx",
                     "dir": "packages/apps/commise/features/cooking/src",
-                    "moduleDoc": "CookingDone — the native Done body: the title as the screen's heading in the large-title role, the\nrecipe line, and \"The screen can turn off again\" only where the screen was kept on. Its two actions are not here: they\nare pinned in the foot by `CookingDoneActions`, where Back and Next sit on a step. When it opens, screen-reader focus\nmoves to the title, once per mount, never on a re-render.\n\nPresentational: props → JSX, apart from that one focus move.",
+                    "moduleDoc": "CookingDone — the native Done body: the title as the screen's heading in the large-title role, the\nrecipe line, and \"The screen can turn off again\" only where the screen was kept on. Its two actions are not here: they\nare pinned in the foot by `CookingDoneActions`, where Back and Next sit on a step. When it opens, screen-reader focus\nmoves to the title, once per mount, never on a re-render; a Cancel or Stop on Done remounts the title (`titleSignal`), so it\nlands there again after the button it was on is gone.\n\nPresentational: props → JSX, apart from that one focus move.",
                     "moduleTags": [
                         {
                             "name": "module",
@@ -134,6 +134,15 @@
                             "defaultValue": null,
                             "description": "\"All 6 steps done\": the page's h1, in the largeTitle role.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "titleSignal",
+                            "type": "number",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": "0",
+                            "description": "Advances when a Cancel or Stop takes a row off Done; the title remounts, so the cursor lands on it again.",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

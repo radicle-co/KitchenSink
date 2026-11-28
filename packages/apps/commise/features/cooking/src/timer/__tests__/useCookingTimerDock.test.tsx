@@ -345,3 +345,45 @@ describe('useCookingTimerDock: a screen', () => {
         expect(screen.getByText('Time 20 min')).toBeTruthy();
     });
 });
+
+describe('useCookingTimerDock: the Done title signal', () => {
+    const started = (finished: boolean) => {
+        const made = setup({ finished });
+
+        press(made.dock().offer ?? { onPress: vi.fn() });
+
+        return made;
+    };
+
+    it('advances when Cancel is pressed on Done, and not before', () => {
+        const { dock } = started(true);
+
+        expect(dock().doneTitleSignal).toBe(0);
+
+        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+
+        expect(dock().doneTitleSignal).toBe(1);
+    });
+
+    it('advances when Stop is pressed on a ringing row on Done', () => {
+        const { dock, real } = started(true);
+
+        act(() => {
+            vi.advanceTimersByTime(21 * MINUTE);
+        });
+
+        expect(real.getSnapshot().timers[0]?.kind).toBe('ringing');
+
+        press(dock().rows[0]?.primary ?? { onPress: vi.fn() });
+
+        expect(dock().doneTitleSignal).toBe(1);
+    });
+
+    it('stays 0 for a Cancel on a step, where Next takes focus', () => {
+        const { dock } = started(false);
+
+        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+
+        expect(dock().doneTitleSignal).toBe(0);
+    });
+});

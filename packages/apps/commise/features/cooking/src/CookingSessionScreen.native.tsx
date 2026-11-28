@@ -91,7 +91,14 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
                 topBar={<CookingTopBar exit={model.exit} narrow={narrow} />}
                 busy={false}
                 onFootLayout={onFootLayout}
-                body={<CookingDone title={done.title} enjoy={done.enjoy} screenNote={done.screenNote} />}
+                body={
+                    <CookingDone
+                        title={done.title}
+                        enjoy={done.enjoy}
+                        screenNote={done.screenNote}
+                        titleSignal={timerDock.doneTitleSignal}
+                    />
+                }
                 foot={{
                     ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,

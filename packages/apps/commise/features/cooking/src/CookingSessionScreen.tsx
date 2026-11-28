@@ -69,11 +69,12 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
 
     // Focus has no declarative form, so Done's title takes it in an effect, found by its id: a ref would need an entry
     // in the ref register for one focus call.
+    // It also takes the focus a Cancel or Stop lost when it took the last row off Done (`doneTitleSignal`).
     useEffect(() => {
         if (finished) {
             document.getElementById(COOKING_DONE_TITLE_ID)?.focus();
         }
-    }, [finished]);
+    }, [finished, timerDock.doneTitleSignal]);
 
     useCookingFocusRecovery({
         moves: model.moves,

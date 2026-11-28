@@ -140,11 +140,10 @@ function withoutHiddenReason<T extends { hiddenReason?: string }>(value: T): Omi
  * optional and OMITTED when unset, whereas the canonical `Recipe.description` is required and defaults to `''`.
  */
 function toRecipeBase(recipe: RecipeAggregate['recipe'], extras: RecipeResponseExtras): RecipeSummaryResponse {
-    const { description: _canonicalDescription, sourceKind: _domainKind, ...domain } = recipeRowToDomain(recipe);
-    const base = withoutHiddenReason(domain);
+    const { description: _canonicalDescription, sourceKind: _domainKind, ...base } = recipeRowToDomain(recipe);
 
     return {
-        ...base,
+        ...withoutHiddenReason(base),
         // The kind straight from the row: the server writes only kinds it knows (the domain type admits a client's
         // `unrecognised` read, which the server never sends).
         ...(recipe.sourceKind !== null ? { sourceKind: recipe.sourceKind } : {}),

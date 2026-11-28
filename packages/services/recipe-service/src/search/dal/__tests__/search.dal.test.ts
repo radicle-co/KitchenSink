@@ -481,7 +481,7 @@ describe('SearchDal.search', () => {
         const result = await dal.search(filters({ query: 'pasta' }));
 
         expect(result.results.map((r) => r.recipe.id)).toEqual(['a', 'b']);
-        expect(result.results[0].rank).toBe(0.9);
+        expect(result.results[0]!.rank).toBe(0.9);
         expect(result.total).toBe(7);
         expect(result.facets.dietaryFlags).toEqual([{ value: 'vegetarian', count: 2 }]);
         expect(result.facets.tags).toEqual([

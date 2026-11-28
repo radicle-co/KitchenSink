@@ -160,7 +160,7 @@
         "expo-linear-gradient": "~57.0.1"
     },
     "peerDependencies": {
-        "expo-glass-effect": "~57.0.4",
+        "expo-glass-effect": "~58.0.5",
         "expo-image": "~57.0.1",
         "expo-keep-awake": "~57.0.2",
         "lucide-react-native": "1.53.0",
@@ -222,7 +222,7 @@
         "@types/react": "^19.0.0",
         "culori": "^4.0.2",
         "eslint": "^10.0.3",
-        "expo-glass-effect": "~57.0.4",
+        "expo-glass-effect": "~58.0.5",
         "expo-image": "~57.0.1",
         "expo-keep-awake": "~57.0.2",
         "jest-axe": "^11.0.0",

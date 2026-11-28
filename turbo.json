@@ -241,6 +241,12 @@
             ],
             "outputs": []
         },
+        "@kitchensink/recipe-state-doc#test:integration": {
+            // `recipeStateDoc.integration.test.ts` regenerates the recipe state model document and JSON and compares them.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/architecture/recipeStateModel.*"],
+            "outputs": []
+        },
         "@kitchensink/recipe-import-core#test:integration": {
             // `corpusPipeline.integration.test.ts` reads every app's manifest.
             "dependsOn": ["^build"],

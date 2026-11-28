@@ -229,6 +229,10 @@ const PACKAGE_INTERNALS_PATTERN = {
         // fix must not move a wire fingerprint. (`ingredient-quantity` was a
         // fourth until U8 promoted it TO the barrel in the same commit that put
         // it on the wire, which is when moving the hash was already the point.)
+        // `recipe-state` (ADR-0103): the recipe state model. A subpath for the same reason: the barrel is inside the contract
+        // corpus, and the state model is not a wire shape. `recipe-state/planned` is read only by the doc generator.
+        '!@kitchensink/*/recipe-state',
+        '!@kitchensink/*/recipe-state/planned',
         '!@kitchensink/*/scaling',
         '!@kitchensink/*/external-url',
         '!@kitchensink/*/food-name',
@@ -403,7 +407,7 @@ const PACKAGE_INTERNALS_PATTERN = {
         '!@kitchensink/repo-guards/*',
     ],
     message:
-        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
+        "Import a package's barrel '@kitchensink/<package>' or one of its declared subpath exports (database/*, database-name, recipe-state, scaling, external-url, food-name, infra, types/*, hooks, testing, users/handle-sync-publisher, denylist, core, logAttributes, or any subpath of the shared tooling packages) — don't reach into other internals.",
 };
 
 /**

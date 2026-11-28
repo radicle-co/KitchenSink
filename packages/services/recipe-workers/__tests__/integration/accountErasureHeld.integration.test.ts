@@ -5,8 +5,8 @@
  * rule of its own. What the database answers for a row is the LOCAL e2e tier's (`heldErasure.e2e.test.ts`).
  */
 import { drizzle } from 'drizzle-orm/node-postgres';
-import { Client, Pool, type QueryResult } from 'pg';
-import { describe, expect, it, vi } from 'vitest';
+import type { Pool } from 'pg';
+import { describe, expect, it } from 'vitest';
 
 import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
 
@@ -15,16 +15,12 @@ import { eraseRecipeRows } from '../../src/handlers/accountErasureWorker.js';
 const OWNER = '01JHELDINTEGRATIONOWNER001';
 const ELECTED_HELD = '00000000-0000-4000-8000-00000000d001';
 
-/**
- * A real `pg.Pool` and a real `pg.PoolClient`, with `query` replaced on each by a spy that records the statement. No socket opens:
- * the spies answer, and `connect` hands back the client whose `query` records the same way.
- */
 function recordingPool(): { pool: Pool; statements: { text: string; values: unknown[] }[] } {
     const statements: { text: string; values: unknown[] }[] = [];
-    const answer = async (
+    const query = async (
         text: string | { text: string; values?: unknown[] },
         values?: unknown[],
-    ): Promise<QueryResult> => {
+    ): Promise<{ rows: unknown[]; rowCount: number; fields: unknown[] }> => {
         const sql = typeof text === 'string' ? text : text.text;
 
         statements.push({
@@ -32,16 +28,13 @@ function recordingPool(): { pool: Pool; statements: { text: string; values: unkn
             values: values ?? (typeof text === 'string' ? [] : (text.values ?? [])),
         });
 
-        return { rows: [], rowCount: 0, fields: [], command: '', oid: 0 };
+        return { rows: [], rowCount: 0, fields: [] };
     };
-    const pool = new Pool();
-    const client = new Client();
+    const client = { query, release: (): void => undefined };
 
-    vi.spyOn(client, 'query').mockImplementation(answer);
-    vi.spyOn(pool, 'query').mockImplementation(answer);
-    vi.spyOn(pool, 'connect').mockImplementation(async () => Object.assign(client, { release: vi.fn() }));
-
-    return { pool, statements };
+    // The one cast: drizzle's `NodePgClient` is a class union, and this double implements `query` and `connect`, which is everything
+    // drizzle's session calls. No `pg` value is imported, so no socket can open (DD12).
+    return { pool: { query, connect: async () => client } as unknown as Pool, statements };
 }
 
 describe('erasure statement order with the read rule', () => {

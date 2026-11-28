@@ -192,7 +192,7 @@ describe('CookingScreen (native): the cursor on Done', () => {
         titleIsLast();
     });
 
-    it('moves the cursor to the title when Stop takes the ringing row away on Done', async () => {
+    it('moves the cursor to the title when Stop takes the ringing row away on Done', () => {
         vi.useFakeTimers({ toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] });
         const { store } = setup();
         const disconnect = store.connect();

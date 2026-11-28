@@ -101,6 +101,7 @@ P10_CSS = """
 .p10-dialog .p10-close { align-items: flex-end; }
 .p10-snack { align-self: center; margin-top: 16px; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--canvas); font: 500 16px/24px var(--font-body); }
 .p10-lt .p10-ttl { font: 600 24px/32px var(--font-display); }
+.p10-lt .p10-x { width: 64px; height: 64px; }
 .p10-lt .p10-why, .p10-lt .p10-way p { font: 400 32px/40px var(--font-body); }
 .p10-lt .p10-meta { font: 400 28px/36px var(--font-body); }
 .p10-lt .p10-h { font: 600 28px/36px var(--font-body); }
@@ -340,8 +341,8 @@ def editor_content(size: str, host: str) -> str:
 
 
 def large_content(size: str) -> str:
-    """The save-door sheet at the largest text, drawn by hand at true size."""
-    ways = [(M["wayDiscard"], M["discard"]), (M["wayPrivateSave"], M["savePrivate"])]
+    """The longest save-door sheet (every way and the Pro line) at the largest text, drawn by hand at true size."""
+    ways = [(M["wayRewrite"], M["rewrite"]), (M["wayDiscard"], M["discard"]), (M["wayPrivateSave"], M["savePrivate"])]
     items = "".join(
         f'<li class="p10-way"><p>{line}</p><span class="p10-btn">{label}</span></li>' for line, label in ways
     )
@@ -352,13 +353,16 @@ def large_content(size: str) -> str:
         f'<div class="p10-close"><span class="p10-btn">{M["back"]}</span></div></div>'
     )
     words = "Largest text: 2x, titles 1.5x (ADR-0080 §8)" if size != "Web390" else "200 percent browser text"
+    icon = "Commise.Icon" if size.startswith("Web") else "Commise.Native.Icon"
     caption = (
-        f"{words}, scrolled to the end. Every button is full width and stacked, each at least 44 pt, in the same "
-        "order. The sheet scrolls; nothing is cut or truncated"
+        f"{words}, the longest sheet (rewrite way, Discard, Make private and save, the Pro line), drawn whole as one "
+        "strip at true size. On a device it scrolls under its title row and close button. Every button is full "
+        "width and stacked, each at least 44 pt, in the same order; nothing is cut or truncated"
     )
     panel = (
         '<div class="p10-stage p10-lt"><div class="p10-scrim"></div><div class="p10-panel" role="dialog" '
-        f'aria-label="{M["titleSave"]}"><div class="p10-trow"><h2 class="p10-ttl">{M["titleSave"]}</h2></div>'
+        f'aria-label="{M["titleSave"]}"><div class="p10-trow"><h2 class="p10-ttl">{M["titleSave"]}</h2>'
+        f'<span class="p10-x" aria-label="{M["closeLabel"]}"><x-import component-from-global-scope="{icon}" name="x" size="40"></x-import></span></div>'
         f'<div class="p10-sbody">{body}</div></div></div>'
     )
     return figure(caption, panel)

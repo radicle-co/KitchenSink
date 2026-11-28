@@ -30,8 +30,11 @@ interface Outcome {
 const MATCH_ANY = new Set(['is', 'where', 'matches', '-webkit-any', '-moz-any', 'has']);
 const CONDITIONAL = new Set(['media', 'container', 'supports']);
 
-/** Whether any simple selector of the complex selector needs a dead class. Pure. */
-function requiresDead(node: CssNode, dead: ReadonlySet<string>): boolean {
+/**
+ * Whether a selector can never match, because it needs a dead class: in its own compound chain, or in a
+ * `:is()`/`:where()`/`:has()` list where every item needs one. Never through `:not()`. Pure.
+ */
+function requiresDeadClass(node: CssNode, dead: ReadonlySet<string>): boolean {
     switch (node.type) {
         case 'ClassSelector':
             return dead.has(node.name);
@@ -41,7 +44,7 @@ function requiresDead(node: CssNode, dead: ReadonlySet<string>): boolean {
                 (node.children?.toArray().some((c) => listRequires(c, dead)) ?? false)
             );
         case 'Selector':
-            return node.children.toArray().some((child) => requiresDead(child, dead));
+            return node.children.toArray().some((child) => requiresDeadClass(child, dead));
         default:
             return false;
     }
@@ -52,19 +55,8 @@ function listRequires(node: CssNode, dead: ReadonlySet<string>): boolean {
     return (
         node.type === 'SelectorList' &&
         node.children.size > 0 &&
-        node.children.toArray().every((item) => requiresDead(item, dead))
+        node.children.toArray().every((item) => requiresDeadClass(item, dead))
     );
-}
-
-/**
- * Whether a selector can never match, because it needs a dead class: in its own compound chain, or in a
- * `:is()`/`:where()`/`:has()` list where every item needs one. Never through `:not()`. Pure.
- *
- * @param selector - One complex selector of a rule's prelude.
- * @param dead - The classes the board's `<style>` selects and no element carries.
- */
-export function requiresDeadClass(selector: Selector, dead: ReadonlySet<string>): boolean {
-    return requiresDead(selector, dead);
 }
 
 /** The offsets of a located node. */
@@ -143,7 +135,7 @@ function pruneNode(node: CssNode, context: Context): Outcome {
 
     if (node.type === 'Rule' && node.prelude.type === 'SelectorList') {
         const items = node.prelude.children.toArray().filter((item): item is Selector => item.type === 'Selector');
-        const gone = items.map((item) => requiresDead(item, dead));
+        const gone = items.map((item) => requiresDeadClass(item, dead));
         const count = gone.filter(Boolean).length;
 
         if (count === 0) {

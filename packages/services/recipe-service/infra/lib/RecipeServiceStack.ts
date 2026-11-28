@@ -45,7 +45,12 @@ import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { RECIPE_QUEUE_KINDS, recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
 import { DATABASE_ROLES } from '@kitchensink/db-schema-guard';
 import { stageDimensions } from '@kitchensink/metric-dimensions';
-import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
+import {
+    SOURCE_CORRECTED_METRIC,
+    SOURCE_EVENT_NAMESPACE,
+    SOURCE_HOLD_CLEARED_DAILY_THRESHOLD,
+    SOURCE_HOLD_CLEARED_METRIC,
+} from '@kitchensink/recipe-core/source-event-names';
 import { importAlarmRelayArn, relayAlarmTransitions } from './alarmRelaySubscription.js';
 
 /**
@@ -674,6 +679,24 @@ export class RecipeServiceStack extends Stack {
                     period: Duration.days(1),
                 }),
                 threshold: SOURCE_CORRECTED_DAILY_THRESHOLD,
+                evaluationPeriods: 1,
+                comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
+                treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,
+            }).addAlarmAction(new cloudwatchActions.SnsAction(alarmTopic));
+
+            // The hold-clear sibling (ADR-0106). Its metric VALUE is the number of holds a clear released, so one clear of a
+            // recipe with two clones counts three. The same topic, relay and Stage dimension as the alarm above.
+            new cloudwatch.Alarm(this, 'SourceHoldClearVolumeAlarm', {
+                alarmName: `kitchensink-recipe-source-hold-cleared-${stage}`,
+                alarmDescription: `More than ${String(SOURCE_HOLD_CLEARED_DAILY_THRESHOLD)} correction holds cleared in a day: a leaked recipes:source:correct grant or a runaway script (docs/runbooks/sourceCorrection.md).`,
+                metric: new cloudwatch.Metric({
+                    namespace: SOURCE_EVENT_NAMESPACE,
+                    metricName: SOURCE_HOLD_CLEARED_METRIC,
+                    dimensionsMap: stageDimensions(stage),
+                    statistic: 'Sum',
+                    period: Duration.days(1),
+                }),
+                threshold: SOURCE_HOLD_CLEARED_DAILY_THRESHOLD,
                 evaluationPeriods: 1,
                 comparisonOperator: cloudwatch.ComparisonOperator.GREATER_THAN_THRESHOLD,
                 treatMissingData: cloudwatch.TreatMissingData.NOT_BREACHING,

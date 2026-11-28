@@ -390,6 +390,7 @@ Construct `RecipeServiceStack` — `packages/services/recipe-service/infra/lib/R
 | kind | logical id | handler / name template | only when |
 | --- | --- | --- | --- |
 | alarm | `SourceCorrectionVolumeAlarm` | `kitchensink-recipe-source-corrected-{stage}` | `props.alarmsEnabled` |
+| alarm | `SourceHoldClearVolumeAlarm` | `kitchensink-recipe-source-hold-cleared-{stage}` | `props.alarmsEnabled` |
 | ecsService | `RecipeApiService` | `—` | — |
 | topic | `RecipeServiceAlarmTopic` | `—` | — |
 

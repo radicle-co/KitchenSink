@@ -16,7 +16,12 @@ import {
 } from '@radicle-co/infra-shared/alb';
 import { recipeDatabaseNameParameter } from '@radicle-co/infra-shared/database';
 import { recipeQueueArn, recipeQueueUrl } from '@kitchensink/recipe-core/queue-names';
-import { SOURCE_CORRECTED_METRIC, SOURCE_EVENT_NAMESPACE } from '@kitchensink/recipe-core/source-event-names';
+import {
+    SOURCE_CORRECTED_METRIC,
+    SOURCE_EVENT_NAMESPACE,
+    SOURCE_HOLD_CLEARED_DAILY_THRESHOLD,
+    SOURCE_HOLD_CLEARED_METRIC,
+} from '@kitchensink/recipe-core/source-event-names';
 import { METRIC_STAGE_DIMENSION } from '@kitchensink/metric-dimensions';
 import { recipeDatabaseNameForStage } from '@kitchensink/recipe-core/database-name';
 
@@ -1424,9 +1429,10 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
             Properties: { Protocol: 'email', Endpoint: 'ops@example.com' },
         });
 
-        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(1);
+        // The correction alarm and the hold-clear alarm (ADR-0106) share the one topic.
+        expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(2);
         expect(topics).toHaveLength(1);
-        expect(Object.keys(notifying)).toHaveLength(1);
+        expect(Object.keys(notifying)).toHaveLength(2);
         expect(Object.keys(policies)).toHaveLength(1);
         expect(Object.keys(subscriptions)).toHaveLength(1);
     });
@@ -1437,7 +1443,7 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
             Properties: { Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'pr-73' }] },
         });
 
-        expect(Object.keys(matching)).toHaveLength(1);
+        expect(Object.keys(matching)).toHaveLength(2);
     });
 
     it('creates NO alarm while the stage switch is off, and the topic stays (a topic nothing publishes to costs nothing)', () => {
@@ -1445,5 +1451,52 @@ describe('the source-correction volume alarm (ADR-0100)', () => {
 
         expect(Object.keys(template.findResources('AWS::CloudWatch::Alarm'))).toHaveLength(0);
         expect(Object.keys(template.findResources('AWS::SNS::Topic'))).toHaveLength(1);
+    });
+});
+
+/**
+ * The hold-clear volume alarm (ADR-0106): an alarm directly on the EMF metric `source.holdCleared`, whose value is the number of
+ * holds a clear released. A clear is rare and manual, so more than the threshold in a day is a leaked grant or a runaway script.
+ */
+describe('the hold-clear volume alarm (ADR-0106)', () => {
+    const ENABLED = { alarmsEnabled: true, alertEmail: 'ops@example.com' } as const;
+
+    it('watches Commise/RecipeSource source.holdCleared on the Stage dimension: Sum over 86400 s, above the threshold, missing data not breaching', () => {
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: {
+                AlarmName: 'kitchensink-recipe-source-hold-cleared-prod',
+                Namespace: SOURCE_EVENT_NAMESPACE,
+                MetricName: SOURCE_HOLD_CLEARED_METRIC,
+                Dimensions: [{ Name: METRIC_STAGE_DIMENSION, Value: 'prod' }],
+                Statistic: 'Sum',
+                Period: 86400,
+                EvaluationPeriods: 1,
+                Threshold: SOURCE_HOLD_CLEARED_DAILY_THRESHOLD,
+                ComparisonOperator: 'GreaterThanThreshold',
+                TreatMissingData: 'notBreaching',
+            },
+        });
+
+        expect(Object.keys(matching)).toHaveLength(1);
+    });
+
+    it('notifies the same alarm topic as the correction alarm, which the relay already subscribes to', () => {
+        const template = synthTemplate('prod', 'prod', undefined, ENABLED);
+        const topics = Object.keys(template.findResources('AWS::SNS::Topic'));
+        const notifying = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { MetricName: SOURCE_HOLD_CLEARED_METRIC, AlarmActions: [{ Ref: topics[0] }] },
+        });
+
+        expect(Object.keys(notifying)).toHaveLength(1);
+    });
+
+    it('creates no hold-clear alarm while the stage switch is off', () => {
+        const template = synthTemplate('prod', 'prod');
+        const matching = template.findResources('AWS::CloudWatch::Alarm', {
+            Properties: { MetricName: SOURCE_HOLD_CLEARED_METRIC },
+        });
+
+        expect(Object.keys(matching)).toHaveLength(0);
     });
 });

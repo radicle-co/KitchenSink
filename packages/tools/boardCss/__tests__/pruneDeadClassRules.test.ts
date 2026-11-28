@@ -152,6 +152,12 @@ describe('the rest of the board', () => {
         );
     });
 
+    it('keeps an escaped class that a script sets by its full name', () => {
+        const parts = { css: '.md\\:flex{a:b}\n.ghost{c:d}\n', body: '<i></i>', script: "el.classList.add('md:flex')" };
+
+        expect(pruneDeadClassRules(makeBoard(parts))).toBe(makeBoard({ ...parts, css: '.md\\:flex{a:b}\n' }));
+    });
+
     it('leaves a <style> whose source differs from its text, and still reports its dead class', () => {
         const html = '<svg><style>.ghost{content:"&amp;"}</style></svg><i class="used"></i>';
 

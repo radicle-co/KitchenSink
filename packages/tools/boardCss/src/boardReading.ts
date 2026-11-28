@@ -26,7 +26,8 @@ export interface BoardReading {
     readonly used: ReadonlySet<string>;
 }
 
-const TOKEN = /[\w-]+/gu;
+/** Word tokens, and the wider runs a class like `md:flex` or `w-1/2` is written as in a script. Both are counted used. */
+const TOKENS = [/[\w-]+/gu, /[^\s'"`,;()[\]{}<>=+]+/gu];
 
 /** A class selector's name as the `class` attribute spells it: css-tree keeps the escapes (`md\:flex`), the DOM does not. Pure. */
 export function classNameOf(selector: ClassSelector): string {
@@ -75,7 +76,9 @@ function read(html: string, node: Node, styles: StyleBlock[], used: Set<string>)
         }
 
         if (node.tagName === 'script') {
-            (textOf(node.childNodes).match(TOKEN) ?? []).forEach((token) => used.add(token));
+            const script = textOf(node.childNodes);
+
+            TOKENS.flatMap((token) => script.match(token) ?? []).forEach((token) => used.add(token));
         }
 
         node.attrs

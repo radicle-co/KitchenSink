@@ -63,6 +63,8 @@ export interface TimerDockInput {
     /** The length the step's text offers, or `undefined` when it offers none. */
     readonly offerMs: number | undefined;
     readonly locale: string;
+    /** Whether the session is on Done: no Next and no offer draw there, so Cancel asks for no focus. */
+    readonly finished: boolean;
 }
 
 /** A held Undo: the snackbar that offers it, and the timer it brings back. */
@@ -74,13 +76,13 @@ interface HeldUndo {
 /**
  * The timer dock for the step now open.
  *
- * @param input - The recipe, the step, the length it offers and the locale.
+ * @param input - The recipe, the step, the length it offers, the locale and whether the session is finished.
  * @returns The rows, the offer and the forward focus request.
  * @throws {Error} When no `TimerProvider` or no `SnackbarHost` is above.
  * @sideEffect Sends timer commands, primes the alarm sound inside the press, shows and withdraws a snackbar, and on
  *   unmount withdraws it and lets the held Undo go.
  */
-export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: TimerDockInput): TimerDock {
+export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finished }: TimerDockInput): TimerDock {
     const copy = useMessages(cookingMessages);
     const common = useMessages(commonMessages);
     const store = useTimerStore();
@@ -100,9 +102,9 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
 
         return () => {
             snackbar.withdraw(held.handle);
-            store.command({ kind: 'discardUndo', id: held.id });
+            command({ kind: 'discardUndo', id: held.id });
         };
-    }, [held, snackbar, store]);
+    }, [held, snackbar, command]);
 
     const handled = (): void => {
         setFocus(undefined);
@@ -143,7 +145,16 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale }: Time
         });
 
         setHeld({ handle, id: undo.id });
-        setFocus(offerMs === undefined ? { kind: 'forward' } : { kind: 'offer' });
+
+        // The offer draws only while no timer is live, and Done has neither offer nor Next: a request nothing can take
+        // would stay pending and fire later, on another step.
+        if (finished) {
+            return;
+        }
+
+        const offerReturns = offerMs !== undefined && store.getSnapshot().timers.length === 0;
+
+        setFocus(offerReturns ? { kind: 'offer' } : { kind: 'forward' });
     };
 
     const rows = view.rows.map((row): TimerDockRow => {

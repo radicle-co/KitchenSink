@@ -19,14 +19,12 @@ import type { CookingDoneProps } from './cookingViewProps.js';
 export const COOKING_DONE_TITLE_ID = 'cooking-done-title';
 
 /** The web Done body. */
-export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenOff, screenOnTimer }) => (
+export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenNote }) => (
     <section aria-labelledby={COOKING_DONE_TITLE_ID} className="flex flex-col items-start gap-3 px-4 py-12 text-start">
         <h1 id={COOKING_DONE_TITLE_ID} tabIndex={-1} className={`${LARGE_TITLE_CLASS} focus:outline-none`}>
             {title}
         </h1>
         <p className="text-body text-ink">{enjoy}</p>
-        {(screenOnTimer ?? screenOff) === undefined ? null : (
-            <p className="text-meta text-ink-muted">{screenOnTimer ?? screenOff}</p>
-        )}
+        {screenNote === undefined ? null : <p className="text-meta text-ink-muted">{screenNote}</p>}
     </section>
 );

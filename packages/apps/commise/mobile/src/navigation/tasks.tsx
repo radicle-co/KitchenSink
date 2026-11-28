@@ -182,6 +182,7 @@ function CookingModeRoute({ navigation, route }: TaskProps<'CookingMode'>): JSX.
     return (
         <CookingModeScreen
             recipeId={recipeId}
+            routeKey={route.key}
             onLeave={() => navigation.goBack()}
             onEdit={() => navigation.replace('RecipeEdit', { recipeId })}
             onHome={() => navigation.popTo('Tabs', { screen: 'home', params: { screen: 'HomeRoot', pop: true } })}

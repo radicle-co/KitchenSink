@@ -21,7 +21,6 @@ import { ReportPageFootContext } from '@commise/ui/popup-insets';
 import { QueryBoundary } from '@commise/query/boundary';
 import { isNotFoundError, recipeQueries } from '@kitchensink/recipe-service-client';
 import { useRecipeServiceClient } from '@kitchensink/recipe-service-client/hooks';
-import { useRoute } from '@react-navigation/native';
 import { onlineManager, useQueryClient, useSuspenseQuery } from '@tanstack/react-query';
 import { useCallback, useContext, type FC } from 'react';
 
@@ -33,6 +32,8 @@ import { useScreenTrace } from '../screenTrace/useScreenTrace.js';
 export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeave' | 'onEdit' | 'onHome'> {
     /** The recipe being cooked. */
     readonly recipeId: string;
+    /** The route's own key, from the route adapter: the foot's reports travel under it, so the screen is not routed. */
+    readonly routeKey: string;
 }
 
 /**
@@ -41,7 +42,7 @@ export interface CookingModeScreenProps extends Pick<CookingScreenProps, 'onLeav
  * @param props - The recipe id and where each way out goes.
  * @returns The cooking screen in the read's state.
  */
-export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeave, onEdit, onHome }) => {
+export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, routeKey, onLeave, onEdit, onHome }) => {
     useScreenTrace('CookingModeScreen');
     const client = useRecipeServiceClient();
     const queryClient = useQueryClient();
@@ -54,9 +55,8 @@ export const CookingModeScreen: FC<CookingModeScreenProps> = ({ recipeId, onLeav
     const viewer = { id: viewerId, known: viewerKnown(viewerId, profile.isLoading) };
     const detail = recipeQueries(client).detail(recipeId);
 
-    // The navigator draws the one snackbar host above the dock: this screen's reports carry its own route's key.
+    // The navigator draws the one snackbar host above the dock: this screen's reports carry the route's key it is given.
     const reportFoot = useContext(ReportPageFootContext);
-    const { key: routeKey } = useRoute();
     const reportDock = useCallback(
         (height: number) => {
             reportFoot({ routeKey, height });

@@ -181,12 +181,12 @@ function screenLineOf(
     holding: ActiveTimer | undefined,
     recipe: CookingRecipe,
     copy: CookingMessages,
-): Pick<CookingDoneProps, 'screenOff' | 'screenOnTimer'> {
+): Pick<CookingDoneProps, 'screenNote'> {
     if (holding === undefined) {
-        return { screenOff: copy.done.screenOff };
+        return { screenNote: copy.done.screenOff };
     }
 
     const label = timerNameOf(holding, timerStepOf(holding, recipe), copy.timer).text;
 
-    return { screenOnTimer: fillTemplate(copy.done.screenOnTimer, { label }) };
+    return { screenNote: fillTemplate(copy.done.screenOnTimer, { label }) };
 }

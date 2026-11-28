@@ -76,11 +76,11 @@ export function RootNavigator(): JSX.Element {
         });
     }, []);
 
-    // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, or of the
-    // task's own bottom bar (the cooking dock) while the route that reported it is the focused one. The dock's number
-    // already includes the home indicator it pads for, so the larger of the two is the foot.
+    // The snackbar keeps clear of the tab bar on the tabs. On a task it keeps clear of the home indicator, and of the
+    // task's own bottom bar (the cooking foot) while the route that reported it is the focused one. The task's layout
+    // pads the home indicator OUTSIDE the screen, so the foot's reported height is measured above it: the two add.
     const dockHeight = (focused.key === undefined ? undefined : dockHeights.get(focused.key)) ?? 0;
-    const footHeight = onTabs ? tabBarHeight : Math.max(insets.bottom, dockHeight);
+    const footHeight = onTabs ? tabBarHeight : insets.bottom + dockHeight;
 
     // Transparent scenes, so the root `AppCanvas` wash shows through (issue #145); the rest from the theme's roles.
     const theme = useMemo<NavigationTheme>(

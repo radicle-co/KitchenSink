@@ -14,6 +14,7 @@ import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
+import { DockHeightContext } from '../dockHeightContext.js';
 import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.native.js';
 import { CookingScreen } from '../CookingScreen.native.js';
 
@@ -34,7 +35,7 @@ const STEPS = [
 ];
 const user = userEvent.setup({ delay: null });
 
-function setup() {
+function setup(reportFoot: (height: number) => void = vi.fn()) {
     const { Wrapper, store } = makeCookingWrapper();
     const read = {
         kind: 'ready' as const,
@@ -42,9 +43,12 @@ function setup() {
         viewerIsOwner: true,
     };
 
-    render(<CookingScreen read={read} recipeId="r1" onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />, {
-        wrapper: Wrapper,
-    });
+    render(
+        <DockHeightContext value={reportFoot}>
+            <CookingScreen read={read} recipeId="r1" onLeave={vi.fn()} onEdit={vi.fn()} onHome={vi.fn()} />
+        </DockHeightContext>,
+        { wrapper: Wrapper },
+    );
 
     return { store };
 }
@@ -52,6 +56,22 @@ function setup() {
 const button = (name: string | RegExp) => screen.getByRole('button', { name });
 const undo = () => screen.findByRole('button', { name: 'Undo' });
 const press = (name: string | RegExp) => user.click(button(name));
+
+/** Fires the foot's layout the way the native host does: react-native-web keeps the handler on the foot's View. */
+function layOutFoot(height: number): void {
+    const foot = screen.getByTestId('cooking-foot').parentElement;
+
+    if (foot === null || !('__reactLayoutHandler' in foot) || typeof foot.__reactLayoutHandler !== 'function') {
+        throw new Error('The foot carries no layout handler.');
+    }
+
+    const handler = foot.__reactLayoutHandler;
+
+    act(() => {
+        handler({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } });
+    });
+}
+
 const cursor = () => vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mock.calls.at(-1)?.[0];
 
 beforeEach(() => {
@@ -96,6 +116,19 @@ describe('CookingScreen (native): the timer dock', () => {
         await user.click(await undo());
 
         expect(cursor()).toBe(button(/^Pause /));
+    });
+
+    it('keeps the foot reported, and not reported as 0, after the only timer is cancelled and Undo shows', async () => {
+        const report = vi.fn();
+        setup(report);
+        await press(/^Next step, step 2/u);
+        await press('Time 20 min');
+        layOutFoot(150);
+        await press(/^Cancel /);
+        await undo();
+        layOutFoot(96);
+
+        expect(report.mock.calls).toEqual([[150], [96]]);
     });
 
     it('a ring shows Done with Stop, and Stop takes the row away', () => {

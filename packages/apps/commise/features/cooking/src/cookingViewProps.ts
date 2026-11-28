@@ -173,10 +173,11 @@ export interface CookingDoneProps {
     readonly title: string;
     /** "{recipe}. Enjoy it." */
     readonly enjoy: string;
-    /** "The screen can turn off again.", only where the screen was kept on. */
-    readonly screenOff?: string;
-    /** "The screen stays on until your {label} timer ends.", instead of `screenOff`, while a timer holds it on. */
-    readonly screenOnTimer?: string;
+    /**
+     * The line about the screen, only where it was kept on: "The screen can turn off again.", or "The screen stays on
+     * until your {label} timer ends." while a timer holds it on.
+     */
+    readonly screenNote?: string;
 }
 
 /** Props for `CookingDoneActions`: Done's two actions, pinned in the foot, each full width. */

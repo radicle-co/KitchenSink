@@ -34,6 +34,7 @@ import { useHoldingTimer } from './timer/useHoldingTimer.js';
 import { stepSwipeResponderOf } from './stepSwipeResponder.native.js';
 import { useCookingFocusRecovery } from './useCookingFocusRecovery.native.js';
 import { useCookingSessionScreen } from './useCookingSessionScreen.js';
+import { useReportDockHeight } from './useReportDockHeight.native.js';
 
 /** Props for {@link CookingSessionScreen}. */
 export interface CookingSessionScreenProps {
@@ -61,6 +62,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
     width,
 }) => {
     const model = useCookingSessionScreen({ recipe, onLeave, holding: useHoldingTimer() });
+    const onFootLayout = useReportDockHeight();
     const wide = isTwoColumn(width);
     const panel = panelForBand(
         useCookingIngredientsPanel({ recipe, copy: useMessages(cookingMessages), locale: useLocale(), wide }),
@@ -72,6 +74,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
         stepIndex,
         offerMs: stepOfferMs(recipe.steps, stepIndex),
         locale: useLocale(),
+        finished: model.done !== null,
     });
     const dock = timerDock.rows.length === 0 ? {} : { dock: <CookingTimerDock rows={timerDock.rows} /> };
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
@@ -87,14 +90,8 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
             <CookingFrame
                 topBar={<CookingTopBar exit={model.exit} narrow={narrow} />}
                 busy={false}
-                body={
-                    <CookingDone
-                        title={done.title}
-                        enjoy={done.enjoy}
-                        screenOff={done.screenOff}
-                        screenOnTimer={done.screenOnTimer}
-                    />
-                }
+                onFootLayout={onFootLayout}
+                body={<CookingDone title={done.title} enjoy={done.enjoy} screenNote={done.screenNote} />}
                 foot={{
                     ...dock,
                     actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
@@ -111,6 +108,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({
         <>
             <CookingFrame
                 busy={false}
+                onFootLayout={onFootLayout}
                 {...(panel.column === undefined ? {} : { column: <CookingIngredientsColumn {...panel.column} /> })}
                 topBar={
                     <CookingTopBar

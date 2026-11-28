@@ -24,8 +24,6 @@ const { useUserProfileMock } = vi.hoisted(() => ({ useUserProfileMock: vi.fn() }
 
 vi.mock('../../src/hooks/useUserProfile.js', () => ({ useUserProfile: useUserProfileMock }));
 vi.mock('../../src/hooks/useSessionClaims.js', () => ({ useSessionClaims: vi.fn() }));
-// The route's key, which the dock's foot reports travel under; a navigator is not under test here.
-vi.mock('@react-navigation/native', () => ({ useRoute: () => ({ key: 'cook-route' }) }));
 
 const OWNER_ID = 'usr_1';
 const FOUR = [
@@ -45,11 +43,11 @@ const nextStep = () => screen.getByRole('button', { name: /^(Next step|Start ste
 const onLeave = vi.fn();
 const onEdit = vi.fn();
 const onHome = vi.fn();
-const { Wrapper: CookingProviders, store } = makeCookingWrapper();
+const { Wrapper: CookingProviders } = makeCookingWrapper();
 /** The screen under the providers the app root mounts: ticks, timer, snackbar host and hardware Back. */
 const screenOf = () => (
     <CookingProviders>
-        <CookingModeScreen recipeId="rec_1" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
+        <CookingModeScreen recipeId="rec_1" routeKey="cook-route" onLeave={onLeave} onEdit={onEdit} onHome={onHome} />
     </CookingProviders>
 );
 
@@ -275,8 +273,23 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
     });
 });
 
-describe('CookingModeScreen: the dock foot', () => {
-    it('reports under its own route key, and clears the report when the screen goes', async () => {
+/** Fires the foot's layout the way the native host does: react-native-web keeps the handler on the foot's View. */
+function layOutFoot(height: number): void {
+    const foot = screen.getByTestId('cooking-foot').parentElement;
+
+    if (foot === null || !('__reactLayoutHandler' in foot) || typeof foot.__reactLayoutHandler !== 'function') {
+        throw new Error('The foot carries no layout handler.');
+    }
+
+    const handler = foot.__reactLayoutHandler;
+
+    act(() => {
+        handler({ nativeEvent: { layout: { x: 0, y: 0, width: 390, height } } });
+    });
+}
+
+describe('CookingModeScreen: the foot', () => {
+    it('reports its height under the route key it is given, and clears the report when the screen goes', async () => {
         const report = vi.fn();
         const client = createFakeRecipeServiceClient();
         vi.spyOn(client, 'getRecipeById').mockResolvedValue(published());
@@ -285,17 +298,10 @@ describe('CookingModeScreen: the dock foot', () => {
             client,
         );
         await screen.findByText(stepOf(1, 4));
+        layOutFoot(118);
 
-        act(() => {
-            store.start({
-                recipeId: 'rec_1',
-                stepIndex: 0,
-                stepDigest: 'digest-of-step-1',
-                label: undefined,
-                origin: { kind: 'added' },
-                durationMs: 60_000,
-            });
-        });
+        expect(report).toHaveBeenCalledWith({ routeKey: 'cook-route', height: 118 });
+
         view.unmount();
 
         expect(report).toHaveBeenCalledWith({ routeKey: 'cook-route', height: 0 });

@@ -61,6 +61,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
         stepIndex,
         offerMs: stepOfferMs(recipe.steps, stepIndex),
         locale: useLocale(),
+        finished: model.done !== null,
     });
     const dock = timerDock.rows.length === 0 ? {} : { dock: <CookingTimerDock rows={timerDock.rows} /> };
     const { done, hasPrevious, hasNext, goForward, goBack } = model;
@@ -106,14 +107,7 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                 <CookingFrame
                     topBar={<CookingTopBar exit={model.exit} />}
                     busy={false}
-                    body={
-                        <CookingDone
-                            title={done.title}
-                            enjoy={done.enjoy}
-                            screenOff={done.screenOff}
-                            screenOnTimer={done.screenOnTimer}
-                        />
-                    }
+                    body={<CookingDone title={done.title} enjoy={done.enjoy} screenNote={done.screenNote} />}
                     foot={{
                         ...dock,
                         actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,

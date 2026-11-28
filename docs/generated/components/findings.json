@@ -5621,7 +5621,7 @@
             "message": "the web and native leaves declare different prop names",
             "evidence": [
                 "web: body busy column foot topBar",
-                "native: body bodySwipe busy column foot topBar"
+                "native: body bodySwipe busy column foot onFootLayout topBar"
             ]
         },
         {

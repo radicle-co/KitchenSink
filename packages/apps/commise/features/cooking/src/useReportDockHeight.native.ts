@@ -1,5 +1,5 @@
 /**
- * @module useReportDockHeight — reports the height of the foot that carries the timer dock, and 0 when the dock goes.
+ * @module useReportDockHeight — reports the height of the cooking foot, and 0 when the screen goes.
  *
  * @pattern Observer — see `dockHeightContext`
  */
@@ -13,32 +13,26 @@ interface FootLayout {
 }
 
 /**
- * The foot's `onLayout` handler for a screen with a dock.
+ * The foot's `onLayout` handler for a screen whose foot draws throughout, so the snackbar host stays above Back and Next
+ * after the last timer goes.
  *
- * @param present - Whether a dock draws in the foot now.
- * @returns The handler: while `present`, it reports the foot's height. The report is 0 once the dock goes or the screen
- *   unmounts.
+ * @returns The handler: it reports the foot's height on each layout. The report is 0 once the screen unmounts.
  * @sideEffect Calls the reporter the route adapter provided.
  */
-export function useReportDockHeight(present: boolean): (event: FootLayout) => void {
+export function useReportDockHeight(): (event: FootLayout) => void {
     const report = useContext(DockHeightContext);
 
-    useEffect(() => {
-        if (!present) {
-            return undefined;
-        }
-
-        return () => {
+    useEffect(
+        () => () => {
             report(0);
-        };
-    }, [present, report]);
+        },
+        [report],
+    );
 
     return useCallback(
         (event) => {
-            if (present) {
-                report(event.nativeEvent.layout.height);
-            }
+            report(event.nativeEvent.layout.height);
         },
-        [present, report],
+        [report],
     );
 }

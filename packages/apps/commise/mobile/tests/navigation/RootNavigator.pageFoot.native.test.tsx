@@ -58,6 +58,8 @@ afterEach(() => {
 const press = (name: string) => fireEvent.click(screen.getByRole('button', { name }));
 const foot = (name: string) => screen.getByRole('heading', { name: new RegExp(`^${name} foot`) }).textContent;
 const HOME = String(HOME_INDICATOR);
+/** The foot a reported dock height makes: the screen pads the home indicator OUTSIDE, so the two add. */
+const above = (dock: number): string => String(HOME_INDICATOR + dock);
 
 /** Pushes, so a second cooking screen sits on top of the first instead of replacing its params. */
 function openCooking(recipeId: string): void {
@@ -83,20 +85,20 @@ describe('the foot the navigator provides', () => {
         expect(foot('cooking a')).toBe(`cooking a foot ${HOME}`);
     });
 
-    it('lifts to the height a task reports as it is shown', () => {
+    it('lifts by the height a task reports, on top of the home indicator the screen pads outside it', () => {
         dockHeights.set('a', 90);
         renderWithProviders(<RootNavigator />);
         openCooking('a');
 
-        expect(foot('cooking a')).toBe('cooking a foot 90');
+        expect(foot('cooking a')).toBe(`cooking a foot ${above(90)}`);
     });
 
-    it('never goes below the home indicator for a dock height smaller than it', () => {
+    it('adds a dock height smaller than the home indicator to it, never takes the larger of the two', () => {
         dockHeights.set('a', 10);
         renderWithProviders(<RootNavigator />);
         openCooking('a');
 
-        expect(foot('cooking a')).toBe(`cooking a foot ${HOME}`);
+        expect(foot('cooking a')).toBe(`cooking a foot ${above(10)}`);
     });
 
     it('drops the height while another task is above, and has it back on return without a new report', () => {
@@ -112,7 +114,7 @@ describe('the foot the navigator provides', () => {
         act(() => {
             navigationRef.goBack();
         });
-        expect(foot('cooking a')).toBe('cooking a foot 90');
+        expect(foot('cooking a')).toBe(`cooking a foot ${above(90)}`);
     });
 
     it('tells two screens of the same name apart by route key, each keeping its own height', () => {
@@ -121,11 +123,11 @@ describe('the foot the navigator provides', () => {
         renderWithProviders(<RootNavigator />);
         openCooking('a');
         openCooking('b');
-        expect(foot('cooking b')).toBe('cooking b foot 60');
+        expect(foot('cooking b')).toBe(`cooking b foot ${above(60)}`);
 
         act(() => {
             navigationRef.goBack();
         });
-        expect(foot('cooking a')).toBe('cooking a foot 90');
+        expect(foot('cooking a')).toBe(`cooking a foot ${above(90)}`);
     });
 });

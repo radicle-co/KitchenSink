@@ -102,7 +102,7 @@ describe('useCookingSessionScreen over the real session, copy and wake lock', ()
 
         expect(result.current.done?.title).toBe('All 3 steps done');
         expect(result.current.done?.enjoy).toBe('Weeknight roast. Enjoy it.');
-        expect(result.current.done?.screenOff).toBe('The screen can turn off again.');
+        expect(result.current.done?.screenNote).toBe('The screen can turn off again.');
         expect(release).toHaveBeenCalledTimes(1);
 
         act(() => result.current.done?.cookAgain.onPress());

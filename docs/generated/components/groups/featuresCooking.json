@@ -6,11 +6,11 @@
     "coverage": {
         "components": 22,
         "implementations": 40,
-        "props": 143,
+        "props": 142,
         "documentedComponents": 22,
         "implementationsWithModuleDoc": 40,
         "implementationsWithComponentDoc": 40,
-        "documentedProps": 126,
+        "documentedProps": 125,
         "classifiedComponents": 22,
         "componentsWithPatternTag": 11,
         "crossPlatformComponents": 19
@@ -62,21 +62,12 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
-                            "name": "screenOff",
+                            "name": "screenNote",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "\"The screen can turn off again.\", only where the screen was kept on.",
-                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
-                        },
-                        {
-                            "name": "screenOnTimer",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "\"The screen stays on until your {label} timer ends.\", instead of `screenOff`, while a timer holds it on.",
+                            "description": "The line about the screen, only where it was kept on: \"The screen can turn off again.\", or \"The screen stays on\nuntil your {label} timer ends.\" while a timer holds it on.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -127,21 +118,12 @@
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
-                            "name": "screenOff",
+                            "name": "screenNote",
                             "type": "string",
                             "typeDetail": null,
                             "required": false,
                             "defaultValue": null,
-                            "description": "\"The screen can turn off again.\", only where the screen was kept on.",
-                            "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
-                        },
-                        {
-                            "name": "screenOnTimer",
-                            "type": "string",
-                            "typeDetail": null,
-                            "required": false,
-                            "defaultValue": null,
-                            "description": "\"The screen stays on until your {label} timer ends.\", instead of `screenOff`, while a timer holds it on.",
+                            "description": "The line about the screen, only where it was kept on: \"The screen can turn off again.\", or \"The screen stays on\nuntil your {label} timer ends.\" while a timer holds it on.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
                         },
                         {
@@ -464,6 +446,15 @@
                             "defaultValue": null,
                             "description": "Pinned at the foot of the column: the actions (Back and Next, or Done's two), with the Next preview above them while\nthere is one. The frame owns the spacing between the two. Absent for a full-screen notice.",
                             "declaredIn": "packages/apps/commise/features/cooking/src/cookingViewProps.ts"
+                        },
+                        {
+                            "name": "onFootLayout",
+                            "type": "((event: LayoutChangeEvent) => void)",
+                            "typeDetail": null,
+                            "required": false,
+                            "defaultValue": null,
+                            "description": "The foot's layout, which the screen reports to the navigator so the one snackbar host draws above it.",
+                            "declaredIn": null
                         },
                         {
                             "name": "topBar",

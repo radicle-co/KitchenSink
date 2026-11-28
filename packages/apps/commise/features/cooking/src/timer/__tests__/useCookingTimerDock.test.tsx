@@ -63,7 +63,14 @@ function setup(overrides: Partial<TimerDockInput> = {}) {
         play: () => log.push('play'),
         stop: () => log.push('stop'),
     };
-    const input: TimerDockInput = { recipe, stepIndex: 1, offerMs: 20 * MINUTE, locale: 'en', ...overrides };
+    const input: TimerDockInput = {
+        recipe,
+        stepIndex: 1,
+        offerMs: 20 * MINUTE,
+        locale: 'en',
+        finished: false,
+        ...overrides,
+    };
     const wrapper = ({ children }: { readonly children: ReactNode }) => (
         <TimerStoreContext value={store}>
             <AlarmSoundContext value={sound}>
@@ -253,6 +260,26 @@ describe('useCookingTimerDock: Cancel and Undo', () => {
         expect(dock().offer?.focusRequested).toBe(false);
     });
 
+    it('leaves no focus request pending when the session is finished (Done has no Next and no offer)', () => {
+        const { dock, real, hook } = setup({ finished: true });
+
+        act(() => {
+            real.start({
+                recipeId: 'r1',
+                stepIndex: 1,
+                stepDigest: stepDigestsOf(recipe.steps)[1] ?? '',
+                label: undefined,
+                origin: { kind: 'added' },
+                durationMs: 5 * MINUTE,
+            });
+        });
+        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        hook.rerender();
+
+        expect(dock().forward.requested).toBe(false);
+        expect(dock().offer?.focusRequested ?? false).toBe(false);
+    });
+
     it('sends focus to the next forward control when there is no offer to return to', () => {
         const { dock, real } = setup({ offerMs: undefined });
 
@@ -294,7 +321,13 @@ describe('useCookingTimerDock: leaving', () => {
 describe('useCookingTimerDock: a screen', () => {
     it('renders from the hook’s rows', () => {
         function Probe(): ReactNode {
-            const dock = useCookingTimerDock({ recipe, stepIndex: 1, offerMs: 20 * MINUTE, locale: 'en' });
+            const dock = useCookingTimerDock({
+                recipe,
+                stepIndex: 1,
+                offerMs: 20 * MINUTE,
+                locale: 'en',
+                finished: false,
+            });
 
             return <p>{dock.offer?.label ?? 'no offer'}</p>;
         }

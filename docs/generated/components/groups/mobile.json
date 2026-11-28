@@ -6,11 +6,11 @@
     "coverage": {
         "components": 56,
         "implementations": 56,
-        "props": 159,
+        "props": 160,
         "documentedComponents": 55,
         "implementationsWithModuleDoc": 54,
         "implementationsWithComponentDoc": 42,
-        "documentedProps": 150,
+        "documentedProps": 151,
         "classifiedComponents": 41,
         "componentsWithPatternTag": 27,
         "crossPlatformComponents": 0
@@ -3479,6 +3479,15 @@
                             "required": true,
                             "defaultValue": null,
                             "description": "The recipe being cooked.",
+                            "declaredIn": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx"
+                        },
+                        {
+                            "name": "routeKey",
+                            "type": "string",
+                            "typeDetail": null,
+                            "required": true,
+                            "defaultValue": null,
+                            "description": "The route's own key, from the route adapter: the foot's reports travel under it, so the screen is not routed.",
                             "declaredIn": "packages/apps/commise/mobile/src/screens/CookingModeScreen.tsx"
                         }
                     ],

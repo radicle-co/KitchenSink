@@ -27,7 +27,7 @@ function doneProps(overrides: Partial<CookingDoneProps> = {}): CookingDoneProps 
     return {
         title: 'All 6 steps done',
         enjoy: 'Roast chicken. Enjoy it.',
-        screenOff: 'The screen can turn off again.',
+        screenNote: 'The screen can turn off again.',
         ...overrides,
     };
 }
@@ -64,12 +64,12 @@ describe('CookingDone (native)', () => {
         expect(screen.getByText('The screen can turn off again.')).toBeTruthy();
         unmount();
 
-        render(<CookingDone {...doneProps({ screenOff: undefined })} />);
+        render(<CookingDone {...doneProps({ screenNote: undefined })} />);
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();
     });
 
     it('says a timer holds the screen on, instead of the line that it can turn off', () => {
-        render(<CookingDone {...doneProps({ screenOnTimer: 'The screen stays on until your Roast timer ends.' })} />);
+        render(<CookingDone {...doneProps({ screenNote: 'The screen stays on until your Roast timer ends.' })} />);
 
         expect(screen.getByText('The screen stays on until your Roast timer ends.')).toBeTruthy();
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();

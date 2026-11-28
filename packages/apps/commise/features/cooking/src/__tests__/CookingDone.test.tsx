@@ -13,7 +13,7 @@ function props(over: Partial<CookingDoneProps> = {}): CookingDoneProps {
     return {
         title: 'All 6 steps done',
         enjoy: 'Roast chicken. Enjoy it.',
-        screenOff: 'The screen can turn off again.',
+        screenNote: 'The screen can turn off again.',
         ...over,
     };
 }
@@ -62,7 +62,7 @@ describe('CookingDone', () => {
         const { rerender } = render(<CookingDone {...props()} />);
         expect(screen.getByText('The screen can turn off again.')).toBeTruthy();
 
-        rerender(<CookingDone {...props({ screenOff: undefined })} />);
+        rerender(<CookingDone {...props({ screenNote: undefined })} />);
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();
         // No empty slot is left where the line was: only the enjoy line remains as body text.
         expect([...document.querySelectorAll('section p')].map((p) => p.textContent)).toEqual([
@@ -71,7 +71,7 @@ describe('CookingDone', () => {
     });
 
     it('says a timer holds the screen on, instead of the line that it can turn off', () => {
-        render(<CookingDone {...props({ screenOnTimer: 'The screen stays on until your Roast timer ends.' })} />);
+        render(<CookingDone {...props({ screenNote: 'The screen stays on until your Roast timer ends.' })} />);
 
         expect(screen.getByText('The screen stays on until your Roast timer ends.')).toBeTruthy();
         expect(screen.queryByText('The screen can turn off again.')).toBeNull();

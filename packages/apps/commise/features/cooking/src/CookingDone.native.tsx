@@ -18,7 +18,7 @@ import { YStack } from 'tamagui';
 import type { CookingDoneProps } from './cookingViewProps.js';
 
 /** The native Done body. */
-export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenOff, screenOnTimer }) => {
+export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenNote }) => {
     const heading = useScreenReaderFocusOnMount<View>();
 
     return (
@@ -33,9 +33,9 @@ export const CookingDone: FC<CookingDoneProps> = ({ title, enjoy, screenOff, scr
             <Text typeRole="body" color="$ink">
                 {enjoy}
             </Text>
-            {(screenOnTimer ?? screenOff) === undefined ? null : (
+            {screenNote === undefined ? null : (
                 <Text typeRole="meta" color="$inkMuted">
-                    {screenOnTimer ?? screenOff}
+                    {screenNote}
                 </Text>
             )}
         </YStack>

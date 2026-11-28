@@ -109,6 +109,11 @@ describe('the Pro line', () => {
         expect(waysOutOf(facts({ door, plan: 'pro', subscriptionEntryPointsOn: true })).lines).not.toContain('pro');
     });
 
+    it.each(doors)('shows on a FREE-slot row for a free cook, exactly, %s door', (door) => {
+        const { lines } = waysOutOf(facts({ door, slots: 'free', plan: 'free', subscriptionEntryPointsOn: true }));
+        expect(lines).toEqual(['pro']);
+    });
+
     it('is never counted as a way', () => {
         const { ways } = waysOutOf(facts({ plan: 'free', subscriptionEntryPointsOn: true }));
         expect(ways).toEqual([{ kind: 'discard' }, { kind: 'makePrivate' }]);
@@ -116,16 +121,16 @@ describe('the Pro line', () => {
 });
 
 describe('the rewrite way', () => {
-    it('carries the answer line key and host through', () => {
+    it('carries the answer line key and link through', () => {
         const rewrite: RewriteWayAnswer = {
             kind: 'available',
             wayLineKey: 'keepPublicInOwnWords',
-            host: 'example.com',
+            link: { href: 'https://example.com/', host: 'example.com' },
         };
         expect(waysOutOf(facts({ rewrite })).ways[0]).toEqual({
             kind: 'rewrite',
             wayLineKey: 'keepPublicInOwnWords',
-            host: 'example.com',
+            link: { href: 'https://example.com/', host: 'example.com' },
         });
     });
 

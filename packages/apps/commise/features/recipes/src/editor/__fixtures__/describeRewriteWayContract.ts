@@ -6,7 +6,13 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { REWRITE_WAY_LINE_KEYS, type BlockCause, type RewriteWay, type RewriteWayInput } from '../rewriteWay.js';
+import {
+    parseRewriteWayAnswer,
+    rewriteWayRawSchema,
+    type BlockCause,
+    type RewriteWayInput,
+    type RewriteWayPort,
+} from '../rewriteWay.js';
 
 /** The I/O an adapter may read through; every write method records its call. */
 export interface RewriteWayIo {
@@ -72,14 +78,14 @@ export const BLOCKED_INPUTS: readonly RewriteWayInput[] = CAUSES.flatMap((cause)
 export function describeRewriteWayContract(
     name: string,
     expected: 'unavailable' | 'available',
-    makeAdapter: (io: RewriteWayIo) => RewriteWay,
+    makeAdapter: (io: RewriteWayIo) => RewriteWayPort,
 ): void {
     describe(`rewrite way contract: ${name}`, () => {
         it.each(BLOCKED_INPUTS.map((input) => [`${input.door}/${input.cause.kind}`, input] as const))(
             'answers %s as %s expects',
             async (_label, input) => {
                 const answer = await makeAdapter(makeRecordingIo().io).answer(input, new AbortController().signal);
-                expect(answer.kind).toBe(expected);
+                expect(parseRewriteWayAnswer(answer).kind).toBe(expected);
             },
         );
 
@@ -104,15 +110,12 @@ export function describeRewriteWayContract(
             }
         });
 
-        it('rule 3: an offered way names a line key from the closed set', async () => {
+        it('rule 3: an answer is inside the closed raw shape, line key from the closed set', async () => {
             const adapter = makeAdapter(makeRecordingIo().io);
 
             for (const input of BLOCKED_INPUTS) {
                 const answer = await adapter.answer(input, new AbortController().signal);
-
-                if (answer.kind === 'available') {
-                    expect(REWRITE_WAY_LINE_KEYS).toContain(answer.wayLineKey);
-                }
+                expect(rewriteWayRawSchema.safeParse(answer).success).toBe(true);
             }
         });
     });

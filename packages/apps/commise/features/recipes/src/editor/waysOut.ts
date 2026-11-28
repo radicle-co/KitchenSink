@@ -3,17 +3,17 @@
  *
  * One pure policy returns the ways, in the fixed order DH24 and DH25 set, and the lines that are not ways. It is
  * flag-agnostic: the toggle, the slot standing, the plan, `SUBSCRIPTION_ENTRY_POINTS_ON` and the rewrite answer all
- * come in as data. The sheet renders through an exhaustive switch over `WayOut`, so a new way is one union member, one
- * clause here and one render case. The Save and hide way (U6) is not built yet.
+ * come in as data. A new way is one union member and one clause here, plus a render case where the sheet switches over `WayOut`. The Save and hide way (U6) is not built yet.
  *
  * @pattern Policy — `waysOutOf` is the one rule for what the cook may pick
- * @pattern Visitor — a discriminated union and an exhaustive switch render each way
  */
+import type { SafeHttpUrl } from '@kitchensink/recipe-core/external-url';
+
 import type { BlockCause, RewriteWayAnswer, RewriteWayLineKey } from './rewriteWay.js';
 
 /** A way out the cook can pick. */
 export type WayOut =
-    | { readonly kind: 'rewrite'; readonly wayLineKey: RewriteWayLineKey; readonly host?: string }
+    | { readonly kind: 'rewrite'; readonly wayLineKey: RewriteWayLineKey; readonly link?: SafeHttpUrl }
     | { readonly kind: 'discard' }
     | { readonly kind: 'makePrivate' }
     | { readonly kind: 'publishPrivate' };
@@ -48,7 +48,7 @@ export function waysOutOf(facts: WaysOutFacts): WaysOut {
         ways.push({
             kind: 'rewrite',
             wayLineKey: rewrite.wayLineKey,
-            ...(rewrite.host === undefined ? {} : { host: rewrite.host }),
+            ...(rewrite.link === undefined ? {} : { link: rewrite.link }),
         });
     }
 

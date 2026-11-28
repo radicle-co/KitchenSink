@@ -759,7 +759,8 @@ describe('Free-tier private slots (ADR-0073)', () => {
                         .from(recipes)
                         .where(sql`${recipes.id} = ${id}`);
 
-                    expect(row).toMatchObject({ visibility: 'public', title: expect.not.stringContaining('Edited') });
+                    expect(row?.visibility).toBe('public');
+                    expect(row?.title).not.toContain('Edited');
                 }
             },
         );

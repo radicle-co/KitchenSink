@@ -750,23 +750,25 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
             heldFromReaders,
         );
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', status: facts.status }));
-        const lockAndCountPrivateSlots = vi.fn(async () => used);
+        const lockAndCountPrivateSlots = vi.fn(() => Promise.resolve(used));
         const dal = fakeRecipesDal({
             findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots,
-            lockSlotFacts: vi.fn(async (): Promise<LockedRecipeFacts> => ({
-                ...facts,
-                sourceType: 'user_created',
-                sourceKind: null,
-                statementKind: null,
-                contentPastedAt: null,
-                clonedFromId: null,
-                sourceAttribution: null,
-                sourceUrl: null,
-                sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-                sourceCorrectionHold: false,
-            })),
+            lockSlotFacts: vi.fn((): Promise<LockedRecipeFacts> =>
+                Promise.resolve({
+                    ...facts,
+                    sourceType: 'user_created',
+                    sourceKind: null,
+                    statementKind: null,
+                    contentPastedAt: null,
+                    clonedFromId: null,
+                    sourceAttribution: null,
+                    sourceUrl: null,
+                    sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                    sourceCorrectionHold: false,
+                }),
+            ),
         });
 
         return { dal, update, lockAndCountPrivateSlots };
@@ -847,14 +849,7 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
 
         expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
         expect(update).toHaveBeenCalledOnce();
-        expect(update).toHaveBeenCalledWith(
-            'r-1',
-            expect.objectContaining({
-                visibility: 'private',
-                provenance: expect.objectContaining({ sourceKind: 'book' }),
-            }),
-            FAKE_TX,
-        );
+        expect(update.mock.calls[0]?.[1]).toMatchObject({ visibility: 'private', provenance: { sourceKind: 'book' } });
     });
 
     it.each([

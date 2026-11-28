@@ -747,14 +747,7 @@ describe('a pasted web link as the recipe source (e2e)', () => {
             ).toBe(200);
 
             const stateOf = async (id: string) => {
-                const {
-                    id: _id,
-                    createdAt: _c,
-                    updatedAt: _u,
-                    firstPublishedAt,
-                    sourceConfirmedAt,
-                    ...columns
-                } = await readRow(id);
+                const row = await readRow(id);
                 const { rows: evidence } = await pool.query(
                     `SELECT capture, source_kind, source_domain FROM recipe_source_evidence WHERE recipe_id = $1 ORDER BY recorded_at`,
                     [id],
@@ -770,16 +763,25 @@ describe('a pasted web link as the recipe source (e2e)', () => {
 
                 // The two timestamps differ by nature; both must be SET on both routes.
                 return {
-                    columns,
-                    confirmed: [firstPublishedAt !== null, sourceConfirmedAt !== null],
+                    columns: {
+                        ...row,
+                        id: null,
+                        createdAt: null,
+                        updatedAt: null,
+                        firstPublishedAt: null,
+                        sourceConfirmedAt: null,
+                    },
+                    confirmed: [row.firstPublishedAt !== null, row.sourceConfirmedAt !== null],
                     evidence,
                     attestations,
                     versions,
                 };
             };
 
-            expect((await stateOf(viaChoice.id)).confirmed).toEqual([true, true]);
-            expect(await stateOf(viaChoice.id)).toEqual(await stateOf(viaTwoCalls.id));
+            const chosen = await stateOf(viaChoice.id);
+
+            expect(chosen.confirmed).toEqual([true, true]);
+            expect(chosen).toEqual(await stateOf(viaTwoCalls.id));
         });
     });
 });

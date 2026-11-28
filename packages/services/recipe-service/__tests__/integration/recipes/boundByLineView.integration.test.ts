@@ -21,18 +21,19 @@ import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
+import { readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
-import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const VIEWER = '01JBOUNDBYLINEVIEWER000001';
@@ -86,13 +87,11 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregate() : undefined),
-                    findOwnerHiddenFacts: noOwnerHiddenFacts,
-                },
-            },
+            recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregate()) : undefined),
+            }),
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
             {

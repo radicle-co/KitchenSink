@@ -30,7 +30,6 @@ import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.j
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -45,8 +44,11 @@ import { resolveStatementProvenance } from '../../../src/recipes/domain/provenan
 import { createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
-import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JSTATEMENTRULECOOK00001';
@@ -218,38 +220,20 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findOwnerHiddenFacts: noOwnerHiddenFacts,
-                    create,
-                    update,
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
-                    privateFoodLines: async () => [],
-                    lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => {
-                        const row = underLock ?? stored;
-
-                        return {
-                            visibility: row.visibility,
-                            status: row.status,
-                            sourceType: row.sourceType,
-                            sourceKind: row.sourceKind,
-                            sourceUrl: row.sourceUrl,
-                            sourceConfirmedAt: row.sourceConfirmedAt,
-                            sourceCorrectionHold: row.sourceCorrectionHold,
-                            statementKind: row.statementKind,
-                            contentPastedAt: row.contentPastedAt,
-                            firstPublishedAt: row.firstPublishedAt,
-                            clonedFromId: row.clonedFromId,
-                        };
-                    },
-                    setVisibility,
-                    clearPublicFoodOwners: async () => undefined,
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                    findNutritionInputs: async () => [],
-                },
-            },
+            recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
+                create,
+                update,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(underLock ?? stored)),
+                setVisibility,
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                transaction: (work) => work(FAKE_TX),
+                findNutritionInputs: () => Promise.resolve([]),
+            }),
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

@@ -10,7 +10,7 @@ import 'reflect-metadata';
 
 import { is, SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
-import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
@@ -27,13 +27,13 @@ import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { RATINGS_DAL } from '../../../src/ratings/ratings.service.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor } from '../../../tests/support/foodFake.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const OWNER = '01JHIDDENREASONOWNER00001';
@@ -120,28 +120,25 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById: async (id: string) => stored.get(id),
-                    findRowById: async (id: string) => stored.get(id)?.recipe,
-                    privateFoodLines: async () => [],
-                    // The database's answer for the OWNER's read, supplied by the suite for each recipe it stores.
-                    findOwnerHiddenFacts: async (id: string) => ({
-                        ownerHeldFromReaders: heldFacts.get(id) ?? false,
-                        hasCookSourceEvidence: false,
-                    }),
-                    findAll: vi.fn(async () => ({
-                        rows: [
-                            { recipe: held, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
-                            { recipe: evidenceHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: true },
-                            { recipe: unmappedHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
-                            { recipe: clean, ownerHeldFromReaders: false, hasCookSourceEvidence: false },
-                        ],
-                        total: 2,
-                    })),
-                },
-            },
+            recipesDalDouble({
+                findById: async (id: string) => stored.get(id),
+                findRowById: async (id: string) => stored.get(id)?.recipe,
+                privateFoodLines: async () => [],
+                // The database's answer for the OWNER's read, supplied by the suite for each recipe it stores.
+                findOwnerHiddenFacts: async (id: string) => ({
+                    ownerHeldFromReaders: heldFacts.get(id) ?? false,
+                    hasCookSourceEvidence: false,
+                }),
+                findAll: async () => ({
+                    rows: [
+                        { recipe: held, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                        { recipe: evidenceHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: true },
+                        { recipe: unmappedHeld, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                        { recipe: clean, ownerHeldFromReaders: false, hasCookSourceEvidence: false },
+                    ],
+                    total: 2,
+                }),
+            }),
             {
                 provide: CollectionsDal,
                 useValue: {

@@ -38,6 +38,7 @@ import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import type { RecipeIngredientInputDto } from '../dto/createRecipe.dto.js';
 import type { UpdateRecipeDto } from '../dto/updateRecipe.dto.js';
 import type { Principal } from '../../auth/principal.js';
+import { lockedFactsOf } from '../__fixtures__/lockedRecipeFacts.fixture.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
 import { permissiveFoodIdOf } from '../__fixtures__/recipeDetailAssembler.fixture.js';
@@ -2092,12 +2093,16 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
-            lockSlotFacts: vi.fn().mockResolvedValue({
-                visibility: 'public',
-                status: 'published',
-                sourceType: 'user_created',
-                sourceKind: null,
-            }),
+            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>().mockResolvedValue(
+                lockedFactsOf(
+                    makeRecipeRow({
+                        visibility: 'public',
+                        status: 'published',
+                        sourceType: 'user_created',
+                        sourceKind: null,
+                    }),
+                ),
+            ),
             lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });
@@ -2129,12 +2134,16 @@ describe('RecipesService.setVisibility — C-004 policy gate (Tier-2)', () => {
         const setVisibility = vi.fn();
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(publishable({ sourceType: 'user_created' })),
-            lockSlotFacts: vi.fn().mockResolvedValue({
-                visibility: 'public',
-                status: 'published',
-                sourceType: 'user_created',
-                sourceKind: null,
-            }),
+            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>().mockResolvedValue(
+                lockedFactsOf(
+                    makeRecipeRow({
+                        visibility: 'public',
+                        status: 'published',
+                        sourceType: 'user_created',
+                        sourceKind: null,
+                    }),
+                ),
+            ),
             lockAndCountPrivateSlots: vi.fn().mockResolvedValue(50),
             setVisibility,
         });

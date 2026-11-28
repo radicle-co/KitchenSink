@@ -31,15 +31,16 @@ import { makeRootArm } from '../../../src/ingredients/__fixtures__/foodLookups.f
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
+import { readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
-import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JREBINDNOOPCOOK000000001';
@@ -78,7 +79,9 @@ function aggregateAt(version: number): RecipeAggregate {
     };
 }
 
-const findById = vi.fn(async (id: string) => (id === RECIPE_ID ? aggregateAt(storedVersion) : undefined));
+const findById = vi.fn((id: string) =>
+    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateAt(storedVersion)) : undefined),
+);
 const readConflict = vi.fn(async (_id: string, expectedVersion: number) => ({
     current: aggregateAt(storedVersion),
     baseVersion: makeVersionRow({
@@ -134,15 +137,12 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById,
-                    readConflict,
-                    transaction,
-                    findOwnerHiddenFacts: noOwnerHiddenFacts,
-                },
-            },
+            recipesDalDouble({
+                findOwnerHiddenFacts: noOwnerHiddenFacts,
+                findById,
+                readConflict,
+                transaction,
+            }),
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
             {

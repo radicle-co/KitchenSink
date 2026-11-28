@@ -1,5 +1,5 @@
-import type { RecipeRow } from '../../src/database/schema/index.js';
-import type { LockedRecipeFacts } from '../../src/recipes/dal/recipes.dal.js';
+import type { RecipeRow } from '../../database/schema/index.js';
+import type { LockedRecipeFacts } from '../dal/recipes.dal.js';
 
 /**
  * The facts `RecipesDal.lockSlotFacts` returns for a stored row, for a mocked-DAL double. Typed against

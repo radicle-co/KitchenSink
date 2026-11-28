@@ -1130,6 +1130,9 @@ jobs:
             - name: Recipe state model generator (integration)
               if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-state-doc') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-state-doc
+            - name: Board CSS pruner (integration)
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/board-css') }}
+              run: npm run test:integration --workspace=@kitchensink/board-css
 
     test:
         name: Test (${{ matrix.group }})

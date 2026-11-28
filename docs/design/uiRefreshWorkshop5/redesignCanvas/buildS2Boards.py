@@ -5,6 +5,9 @@ Run: python3 -I buildS2Boards.py
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))  # python -I leaves the script folder off the path
+from boardPrune import prune  # noqa: E402
+
 HERE = Path(__file__).parent
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()  # the folder the boards are written to
 THEMES = (HERE / 'themes.css').read_text()
@@ -505,3 +508,7 @@ def add_web():
 print('written')
 (OUT / 'CookingModeAddTimerS3aMobile.dc.html').write_text(add_mobile())
 (OUT / 'CookingModeAddTimerS3aWeb.dc.html').write_text(add_web())
+prune(
+    OUT / f'{name}.dc.html'
+    for name in ('CookingModeIngredientsS2Mobile', 'CookingModeIngredientsS2Web', 'CookingModeAddTimerS3aMobile', 'CookingModeAddTimerS3aWeb')
+)

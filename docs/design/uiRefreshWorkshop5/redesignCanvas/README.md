@@ -19,9 +19,13 @@ review fixes. Those two scripts are lost: they were in a scratch folder that was
 boards. Do not recreate them.
 
 A board must carry only the CSS rules it draws. `boardDeadSelectors.test.ts` in `packages/tools/repoGuards` holds each
-board's count of unused class selectors to a baseline that only falls, and refuses a new board that has any,
-so a new or rebuilt board must enter with zero unused selectors. These builders copy a shared stylesheet whole, so a board they draw fails that guard until the unused rules are removed.
+board's count of unused class selectors to a baseline that only falls, and refuses a new board that has any, so a new or
+rebuilt board must enter with zero unused selectors. These builders copy a shared stylesheet whole, so each builder
+prunes its boards through the board-css CLI (`boardPrune.py`), and exits non-zero if a board keeps residue. The pruner
+never removes `@layer`, and it keeps a rule whose dead class sits only inside `:not()`; a builder whose board keeps one
+writes the board, then exits 1. `buildPrivateFoodsBoards.py` also imports `mockupBoards`, which is not in the repo, so
+it cannot run here.
 
 These scripts sit outside the repo's Python checks (which cover `packages/`). Run the bug rules by hand after an edit:
 
-    ruff check --select F,E9,B buildS2Boards.py buildDockRowBoards.py buildS3bBoards.py buildS4aBoards.py doneRowCss.py
+    ruff check --select F,E9,B build*Boards.py boardPrune.py doneRowCss.py

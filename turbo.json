@@ -247,6 +247,12 @@
             "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/architecture/recipeStateModel.*"],
             "outputs": []
         },
+        "@kitchensink/board-css#test:integration": {
+            // `corpus.integration.test.ts` prunes every tracked screen board in memory.
+            "dependsOn": ["^build"],
+            "inputs": ["$TURBO_DEFAULT$", "$TURBO_ROOT$/docs/design/canvases/**/*.dc.html"],
+            "outputs": []
+        },
         "@kitchensink/recipe-import-core#test:integration": {
             // `corpusPipeline.integration.test.ts` reads every app's manifest.
             "dependsOn": ["^build"],

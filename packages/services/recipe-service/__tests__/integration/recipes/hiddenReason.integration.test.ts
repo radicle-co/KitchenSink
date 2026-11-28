@@ -8,6 +8,7 @@
  */
 import 'reflect-metadata';
 
+import { is, SQL } from 'drizzle-orm';
 import { PgDialect } from 'drizzle-orm/pg-core';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
@@ -21,6 +22,7 @@ import type { ReadableRecipeAggregate } from '../../../src/recipes/dal/recipes.d
 import { makeRawRecipeSearchRow } from '../../../src/search/__fixtures__/search.fixtures.js';
 import { SearchDal } from '../../../src/search/dal/search.dal.js';
 import { SEARCH_DAL } from '../../../src/search/search.service.js';
+import { makeFakeDrizzle } from '../../../src/__testing__/makeFakeDrizzle.js';
 import type { RecipeDrizzle } from '../../../src/database/client.js';
 import { RATINGS_DAL } from '../../../src/ratings/ratings.service.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
@@ -62,14 +64,21 @@ const aggregateOf = (recipe: ReturnType<typeof makeRecipeRow>, heldFromReaders: 
  * the response schema shows up as a key on the wire.
  */
 let searchedRow: Record<string, unknown> = {};
-const executed: unknown[] = [];
-const fakeSearchDb = {
-    execute: async (statement: unknown): Promise<{ rows: Array<Record<string, unknown>> }> => {
-        executed.push(statement);
+const fakeSearch = makeFakeDrizzle<RecipeDrizzle>({ executeRows: () => [searchedRow] });
 
-        return { rows: [searchedRow] };
-    },
-} as unknown as RecipeDrizzle;
+/** The first statement the fake received since `mark`, as Postgres text. */
+let mark = 0;
+
+const pageSqlSinceMark = (): string => {
+    const call = fakeSearch.calls.slice(mark).find((recorded) => recorded.method === 'execute');
+    const statement = call?.args[0];
+
+    if (!is(statement, SQL)) {
+        throw new Error('the search DAL ran no SQL');
+    }
+
+    return new PgDialect().sqlToQuery(statement).sql;
+};
 
 let booted: BootedServiceApp;
 
@@ -131,7 +140,7 @@ beforeAll(async () => {
                     ],
                 },
             },
-            { provide: SEARCH_DAL, useValue: new SearchDal(fakeSearchDb) },
+            { provide: SEARCH_DAL, useValue: new SearchDal(fakeSearch.db) },
             { provide: RATINGS_DAL, useValue: { upsert: async () => ({}), delete: async () => undefined } },
             { provide: RecipeSourceEvidenceDal, useValue: { list: async () => [] } },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
@@ -240,7 +249,7 @@ describe('the read paths that must never carry the key (qse rows a, b, c)', () =
     });
 
     it('(c) community search by the owner: the page read selects false for both facts, and no item carries the key', async () => {
-        executed.length = 0;
+        mark = fakeSearch.calls.length;
         // What the database answers to a statement that selects `false`: the owner's own row is never in this scope.
         searchedRow = makeRawRecipeSearchRow({
             id: held.id,
@@ -251,7 +260,7 @@ describe('the read paths that must never carry the key (qse rows a, b, c)', () =
 
         const response = await get(OWNER, '/api/v1/search/recipes?query=pasta&scope=community');
         const body = (await response.json()) as { results: Array<{ recipe: Record<string, unknown> }> };
-        const pageSql = new PgDialect().sqlToQuery(executed[0] as Parameters<PgDialect['sqlToQuery']>[0]).sql;
+        const pageSql = pageSqlSinceMark();
 
         expect(response.status).toBe(200);
         expect(pageSql).toContain('false AS owner_held_from_readers');

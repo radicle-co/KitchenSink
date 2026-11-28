@@ -1,4 +1,4 @@
-"""Builds the S3b boards (plan 0111; UI Designer decisions/0078): the alarm opened outside cooking mode with
+"""Builds the S3b boards: the alarm opened outside cooking mode with
 "Stop and go to step {n}", and the exit-from-cooking-mode snackbars on the page the cook lands on (the recipe page).
 
 Writes CookingModeAlarmGoToStepS3bMobile/Web.dc.html and RecipeDetailExitSnackbarS3bMobile/Web.dc.html next to this
@@ -47,7 +47,7 @@ figcaption { font-size: 14px; line-height: 20px; color: #5c646e; max-width: 420p
 figcaption b { color: #171b20; font-weight: 600; }
 .scr { background: var(--canvas); color: var(--ink); position: relative; overflow: hidden; border-radius: 16px;
   box-shadow: 0 0 0 1px rgba(0,0,0,.08), 0 12px 32px rgba(0,0,0,.14); display: flex; flex-direction: column; }
-/* The alarm (S17), opened outside cooking mode: the inverse surface. */
+/* The alarm, opened outside cooking mode: the inverse surface. */
 .alarm { background: var(--inverse); color: var(--inverse-ink); flex: 1; display: flex; flex-direction: column;
   justify-content: safe center; padding: 32px 20px; gap: 16px; overflow: auto; }
 .alarmCol { width: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
@@ -89,7 +89,7 @@ figcaption b { color: #171b20; font-weight: 600; }
   border-radius: 14px; background: var(--inverse); color: var(--inverse-ink); font-size: 16px; line-height: 24px; }
 .xb-wide .xb-snack { align-self: center; width: 440px; margin: 0 0 24px; }
 /* Desktop (sidebar at >= 840): the house sidebar, copied from RecipeDetailWeb1024. The snackbar is centred over the
-   main column, never over the sidebar, 16 px above the bottom, at most 576 wide (D21). */
+   main column, never over the sidebar, 16 px above the bottom, at most 576 wide. */
 .xb-desk { display: grid; grid-template-columns: 232px 1fr; flex: 1; min-height: 0; }
 .xb-main { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .xb-desk .xb-page { padding: 28px 32px; }
@@ -159,7 +159,7 @@ SIDE = (
 
 
 def desk_page(theme, width, height, message):
-    """Web with the sidebar (>= 840): the snackbar on the one app-wide host, over the main column (D21)."""
+    """Web with the sidebar (>= 840): the snackbar on the one app-wide host, over the main column."""
     content = (
         '<div class="xb-page">'
         '<h1 class="xb-title" tabindex="-1">Lemon and thyme roast chicken</h1>'
@@ -216,7 +216,7 @@ def board(title, note, sections, width, height, links=()):
         <script src="./support.js"></script>
 {link_html}    </head>
     <body>
-        <!-- S3b board, built by buildS3bBoards.py (squad Stellar designer, plan 0111). Design artifact, not app code. -->
+        <!-- S3b board, built by buildS3bBoards.py. Design artifact, not app code. -->
         <x-dc><helmet><style>
 {THEMES}
 {CSS}
@@ -235,26 +235,26 @@ def board(title, note, sections, width, height, links=()):
 
 
 ALARM_NOTE = (
-    'Plan 0111 (S3b), R16. The alarm opened OUTSIDE that recipe\'s cooking mode adds one quiet text action under '
+    'The alarm opened OUTSIDE that recipe\'s cooking mode adds one quiet text action under '
     '"+ 10 min": "Stop and go to step N" (cooking.alarm.goToStep). It does what Stop alarm does, then opens that '
     'recipe\'s cooking mode at step N, pushed, so Back returns to where the cook was; focus lands on the step\'s focus '
     'line. Stop alarm keeps the one fill and first focus; tab order Stop alarm, + 5 min, + 10 min, Stop and go to step. '
     'The dialog is labelled by the headline and described by the step text (native: the container accessibility label). '
     'Escape is Stop alarm. Hidden when the recipe is known to be gone. Inside the '
-    'recipe\'s own cooking mode the action is not shown (the S17 board). '
-    'Sign-out (D8, any cause: this tab, another tab or an expired session) closes the alarm, stops the sound and the '
+    'recipe\'s own cooking mode the action is not shown (the alarm board). '
+    'Sign-out (any cause: this tab, another tab or an expired session) closes the alarm, stops the sound and the '
     'vibration, and drops any Undo; nothing carries over to the next person.'
 )
 
 EXIT_NOTE = (
-    'Plan 0111 (S3b), R12; UI Designer decisions/0078. Exiting cooking mode with a timer lands on the recipe page and '
+    'Exiting cooking mode with a timer lands on the recipe page and '
     'shows the house snackbar, no action, 8,000 ms, placed by the CURRENT page\'s rule: 8 px (FAB_SNACKBAR_GAP) above the house tab bar on '
-    'phone and tablet. Web (owner decisions/0015): it is raised on the ONE app-wide snackbar host (U7a), so it outlives '
+    'phone and tablet. Web: it is raised on the ONE app-wide snackbar host, so it outlives '
     'the page change; with the sidebar (>= 840) it is centred over the main column, never over the sidebar, 16 px above '
-    'the bottom, at most 576 wide (Luna D21). The message wraps to as many lines as it needs and is never clamped '
-    '(D21). The snackbar never takes '
+    'the bottom, at most 576 wide. The message wraps to as many lines as it needs and is never clamped. '
+    'The snackbar never takes '
     'focus: focus goes to the page\'s h1. Its message is announced once, when raised. The running-timer dock drawn on '
-    'RecipeDetailScrolled is S4 (decisions/0111), not built in S3; until then the snackbar sits above the tab bar.'
+    'RecipeDetailScrolled is S4, not built in S3; until then the snackbar sits above the tab bar.'
 )
 
 RUN_WEB = 'Your Roast timer keeps running. It rings only while this tab is open.'
@@ -269,7 +269,7 @@ def alarm_mobile():
             fig('<b>Dark</b>.', alarm_screen('dark', 390, 844)),
         ]),
         ('iPad 820', [fig('<b>Light</b>. The alarm column stays at most 640 wide.', alarm_screen('light', 820, 1180))]),
-        ('Phone 320 x 568 · largest text (plan 0111 U6 fit mark)', [
+        ('Phone 320 x 568 · largest text', [
             fig('<b>Light, largest text</b>. The content scrolls from the top; Stop alarm is pinned at the foot, so it is visible without scrolling and has focus; +5, +10 and "Stop '
                 'and go to step 4" are reached by vertical scroll inside the alarm. No sideways scroll, no truncation.',
                 alarm_screen('light', 320, 568, 'big')),
@@ -282,7 +282,7 @@ def alarm_web():
         ('Web 1024', [
             fig('<b>Light</b>. Modal alertdialog over the page; Escape = Stop alarm. Over an open dialog (for example '
                 'ConfirmDialog) the alarm mounts on top: one Escape closes only the alarm, and focus returns to the '
-                'control that had it inside that dialog, which stays open (Luna D20).', alarm_screen('light', 1024, 700)),
+                'control that had it inside that dialog, which stays open.', alarm_screen('light', 1024, 700)),
             fig('<b>Dark</b>.', alarm_screen('dark', 1024, 700)),
         ]),
         ('Web 320 · 200% text', [fig('<b>Light, 200%</b>. Same fit mark as mobile.', alarm_screen('light', 320, 568, 'big'))]),
@@ -307,7 +307,7 @@ def exit_mobile():
 def exit_web():
     return board('Recipe detail, S3b exit-from-cooking-mode snackbar (web)', EXIT_NOTE, [
         ('Web 1024 (sidebar)', [
-            fig('<b>Running</b> · light. On the app-wide host (U7a), centred over the main column, never over the '
+            fig('<b>Running</b> · light. On the app-wide host, centred over the main column, never over the '
                 'sidebar; 16 px above the bottom; focus is on the h1, and the message is announced once.',
                 desk_page('light', 1024, 700, RUN_WEB)),
             fig('<b>Paused</b> · dark.', desk_page('dark', 1024, 700, PAUSED)),
@@ -321,7 +321,7 @@ def exit_web():
             fig('<b>Running</b> · dark.', recipe_page('dark', 390, 844, RUN_WEB, 'web')),
         ]),
         ('Web 320 · 200% text', [
-            fig('<b>Running</b> · light, 200%. The message wraps to as many lines as it needs, never clamped (D21); '
+            fig('<b>Running</b> · light, 200%. The message wraps to as many lines as it needs, never clamped; '
                 'the snackbar stays 8 px above the tab bar, and the page scrolls under it. The tab bar shows the four tabs the '
                 'app ships today.',
                 recipe_page('light', 320, 568, RUN_WEB, 'web', extra='big')),

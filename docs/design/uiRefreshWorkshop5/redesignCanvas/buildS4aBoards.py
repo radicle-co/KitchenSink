@@ -1,4 +1,4 @@
-"""Builds the S4a composite boards (Luna plan 0003; designer decisions D16 to D24 and D37): the entry meta lines, the Resume
+"""Builds the S4a composite boards: the entry meta lines, the Resume
 lines in order and their worst case, ResumeEarlier with an edited recipe and an ended timer, and the cooking-mode Done
 row with "+ 10 min" and "Clear".
 
@@ -58,7 +58,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .w500 { font-weight: 500; }
 .muted { color: var(--ink-muted); }
 .col { width: 100%; max-width: 600px; margin: 0 auto; }
-/* The Resume region (under 4 h): the lines in order, then S31's offline notice, then the two text actions. */
+/* The Resume region (under 4 h): the lines in order, then the offline notice, then the two text actions. */
 .center { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
 .resumeNote { display: flex; flex-direction: column; gap: 8px; padding-bottom: 12px; border-bottom: 1px solid var(--line-divider); }
 .offNote { display: flex; gap: 8px; align-items: flex-start; color: var(--ink-muted); }
@@ -74,7 +74,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .quietBtn { min-height: 52px; border-radius: 999px; background: var(--surface-muted); font-weight: 600;
   display: flex; align-items: center; justify-content: center; padding: 8px 16px; text-align: center; }
 .askLink { color: var(--action-text); font-weight: 500; min-height: 44px; display: inline-flex; align-items: center; }
-/* The cooking-mode Done row (R8, D24, D37): two sibling text buttons on one line when they fit, else stacked, right-aligned. */
+/* The cooking-mode Done row: two sibling text buttons on one line when they fit, else stacked, right-aligned. */
 .dock { flex: none; margin: 0 16px; border-top: 1px solid var(--line-divider); }
 .dockRow { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 6px 0; min-height: 52px; }
 .dockRow > .glyph { color: var(--attention); flex: none; }
@@ -101,7 +101,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 /* The whole content, unclipped, beside the screen: the dashed band is what the 320 x 568 screen shows. */
 .strip { width: 320px; position: relative; }
 .band { position: absolute; left: 2px; right: 2px; border: 2px dashed var(--attention); border-radius: 6px; pointer-events: none; }
-/* Recipe detail entry (R2, R2a). */
+/* Recipe detail entry. */
 .entry { padding: 20px; display: flex; flex-direction: column; gap: 10px; }
 .entry .fill { align-self: stretch; }
 .entryMeta { color: var(--ink-muted); }
@@ -125,7 +125,7 @@ def fig(caption, body):
     return f'<figure>{body}<figcaption>{caption}</figcaption></figure>'
 
 
-# ---- copy (D16 to D24, D37; S4 brainstorm R2a, R3, R4, R7, R8; SPECIFY S31, S33) ----
+# ---- copy ----
 WELCOME = '<span class="w500">Welcome back.</span> You left at step 4, 25 min ago.'
 WELCOME_NOW = '<span class="w500">Welcome back.</span> You left at step 4 just now.'
 WELCOME_CHANGED = (
@@ -141,7 +141,7 @@ STEP3 = 'Toss the potatoes in 2 tbsp oil and tip them round the chicken.'
 
 
 def resume_region(lines, offline=False, step=STEP4):
-    """Under 4 h: the lines above the step. One paragraph per line, in the order the build must assert (D22, plan 0003 T4)."""
+    """Under 4 h: the lines above the step. One paragraph per line, in the order the build must assert."""
     paras = ''.join(f'<p class="t16">{line}</p>' for line in lines)
     off = f'<p class="offNote t14" role="status">{svg("wifiOff", 16)}<span>{OFFLINE}</span></p>' if offline else ''
     return (
@@ -208,8 +208,8 @@ def strip(theme, band_top, band_h):
     )
 
 
-# ---- recipe detail entry (R2, R2a) ----
-# S4b R7 (po P16): the dock carries the timer, so the entry meta names only the step.
+# ---- recipe detail entry ----
+# The dock carries the timer, so the entry meta names only the step.
 META_STEP = f'Step{NB}4 of 6'
 
 
@@ -238,7 +238,7 @@ def board(title, note, sections, width, height):
         <script src="./support.js"></script>
     </head>
     <body>
-        <!-- S4a board (squad Luna designer, plan 0003). Design artifact, not app code. -->
+        <!-- S4a board. Design artifact, not app code. -->
         <x-dc><helmet><style>
 {THEMES}
 {CSS}
@@ -256,9 +256,9 @@ def board(title, note, sections, width, height):
 
 
 NOTE = (
-    'Luna plan 0003 (S4a), designer decisions D16 to D24 and D37. Under 4 hours, Resume goes straight to the step with its '
-    'lines above it, in this order, which the build must assert (plan 0003, T4): 1, the welcome line (welcomeBack, welcomeBackJustNow '
-    'or welcomeBackChanged); 2, recipeChanged; 3, the timer line (timerKept, timerEnded, timerEndedJustNow); 4, S31\'s '
+    'Under 4 hours, Resume goes straight to the step with its '
+    'lines above it, in this order, which the build must assert: 1, the welcome line (welcomeBack, welcomeBackJustNow '
+    'or welcomeBackChanged); 2, recipeChanged; 3, the timer line (timerKept, timerEnded, timerEndedJustNow); 4, the '
     'offline notice. welcomeBackChanged (the step moved) and recipeChanged (the step stayed, the recipe changed) never '
     'show together. The step heading takes focus; the line region mounts empty and gets its text after the focus move, '
     'so it is announced once. At 4 hours or more, "Carry on from earlier?" comes first and takes focus, and the lines '
@@ -266,16 +266,16 @@ NOTE = (
 )
 
 DONE_NOTE = (
-    'Timer ended while away and restored from storage (R8, AE9): no alarm, no sound. The Done row carries "+ 10 min" '
+    'Timer ended while away and restored from storage: no alarm, no sound. The Done row carries "+ 10 min" '
     'and "Clear" as sibling buttons, named "Add 10 minutes to the Roast timer" (cooking.dock.addTenA11y) and "Clear the '
     'Roast timer" (cooking.dock.clearA11y). Each is 48 tall: at least 44 pt on iOS and 48 dp on Android. The pair sits '
     'on one line when it fits; at the largest text on a narrow screen it stacks, right-aligned, and nothing is cut. The '
-    'meta reads cooking.dock.metaEnded "ended {ago} ago", or metaEndedJustNow "ended just now" under 1 minute (D37). The step body has no "Add 10 min" of its own (D24).'
+    'meta reads cooking.dock.metaEnded "ended {ago} ago", or metaEndedJustNow "ended just now" under 1 minute. The step body has no "Add 10 min" of its own.'
 )
 
 ENTRY_NOTE = (
-    'Recipe detail entry (R2, R2a). "Continue cooking" replaces "Start cooking"; the meta line names only the step. The '
-    'dock carries the timer, running, paused or ended, so the line has no timer clause (S4b R7, po P16). Before '
+    'Recipe detail entry. "Continue cooking" replaces "Start cooking"; the meta line names only the step. The '
+    'dock carries the timer, running, paused or ended, so the line has no timer clause. Before '
     'the device store is read, the slot keeps the button\'s size, empty and hidden from assistive tech, with no spinner.'
 )
 
@@ -287,8 +287,8 @@ def worst_caption(theme):
 def mobile(m):
     return board('Cooking mode, S4a leave and come back (mobile)', NOTE, [
         ('iPhone 390 · the Resume lines', [
-            fig('<b>Just now</b> · light. Under 1 minute: welcomeBackJustNow, timerEndedJustNow (D22) and the Done row\'s '
-                'cooking.dock.metaEndedJustNow "ended just now" (D37).',
+            fig('<b>Just now</b> · light. Under 1 minute: welcomeBackJustNow, timerEndedJustNow and the Done row\'s '
+                'cooking.dock.metaEndedJustNow "ended just now".',
                 frag('light', 390, resume_region([WELCOME_NOW, ENDED_NOW]), dock=True, ago='ended just now')),
             fig('<b>Recipe edited, step moved</b> · light. welcomeBackChanged names the new step; the timer kept going.',
                 frag('light', 390, resume_region([WELCOME_CHANGED, KEPT], step=STEP3))),
@@ -314,7 +314,7 @@ def mobile(m):
             fig(f'<b>The whole step body</b>, unclipped. {m["strip"]}', strip('light', m['bandTop'], m['bandH'])),
             fig('<b>Opened</b> · dark.', screen320('dark')),
         ]),
-        ('The cooking-mode Done row (R8, AE9, D24)', [
+        ('The cooking-mode Done row', [
             fig(f'<b>iPhone 390</b> · light. {DONE_NOTE}', frag('light', 390, '', dock=True)),
             fig('<b>Android 384</b> · dark. Dashed: each button\'s 48 dp touch area.',
                 f'<div class="frag" data-theme="dark" style="width:384px"><div class="dock">{done_row(True)}</div></div>'),

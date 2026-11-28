@@ -1,4 +1,4 @@
-"""Builds the two "S3 dock row" boards (plan 0110; UI Designer clearances decisions/0072 and 0073, squad Stellar).
+"""Builds the two "S3 dock row" boards.
 
 Writes CookingModeDockRowS3Mobile.dc.html and CookingModeDockRowS3Web.dc.html next to this script. Run:
 python3 -I buildDockRowBoards.py
@@ -12,7 +12,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()  # the folder the b
 THEMES = (HERE / 'themes.css').read_text()
 
 GLYPH = {
-    # Lucide shapes: `timer` and `x` are registered meanings; `pause` and `play` are requested (decisions/0075 fix 1).
+    # Lucide shapes: `timer` and `x` are registered meanings; `pause` and `play` are requested.
     'timer': '<line x1="10" x2="14" y1="2" y2="2"></line><line x1="12" x2="15" y1="14" y2="11"></line><circle cx="12" cy="14" r="8"></circle>',
     'pause': '<rect x="14" y="4" width="4" height="16" rx="1"></rect><rect x="6" y="4" width="4" height="16" rx="1"></rect>',
     'play': '<polygon points="6 3 20 12 6 21 6 3"></polygon>',
@@ -52,7 +52,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .dockRow { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0; }
 .dockRow > .glyph { color: var(--action-text); flex: none; }
 .lab { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-/* figureLarge (decisions/0073): Inter 28/32, 600, tabular and lining digits. Never wraps, never truncates. */
+/* figureLarge: Inter 28/32, 600, tabular and lining digits. Never wraps, never truncates. */
 .figureLarge { font: 600 28px/32px Inter, system-ui, sans-serif; font-variant-numeric: tabular-nums lining-nums;
   white-space: nowrap; }
 .t16 { font-size: 16px; line-height: 24px; }
@@ -85,7 +85,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .big .dockRow > .glyph, .big .bodyBtn > .glyph { display: none; }
 .big .ib svg, .big .btn svg { width: 28px; height: 28px; }
 .big .btn { height: auto; min-height: 52px; padding: 8px 12px; }
-/* Fix 4 (decisions/0075): the whole dock at 320 at the largest text, on a 320 x 568 screen. */
+/* Fix 4: the whole dock at 320 at the largest text, on a 320 x 568 screen. */
 .screen320 { width: 320px; height: 568px; }
 .topBar { flex: none; display: flex; align-items: center; gap: 12px; padding: 24px 16px 6px; }
 .exitBtn { width: 48px; height: 48px; border-radius: 24px; background: var(--surface-muted); display: flex; align-items: center; justify-content: center; flex: none; }
@@ -143,7 +143,7 @@ def frag(theme, width, rows, cls='', tail=True, snack=None, offer=False):
         else ''
     )
     dock = f'<div class="dock">{"".join(rows)}</div>' if rows else ''
-    nav_html = '' if 'big' in cls else nav()  # the largest-text figures show the row only; Back/Next at that size is S1's board
+    nav_html = '' if 'big' in cls else nav()  # the largest-text figures show the row only; Back/Next at that size have their own boards
     return (
         f'<div class="frag {cls}" data-theme="{theme}" style="width:{width}px">{tail_html}{snack_html}{dock}{nav_html}</div>'
     )
@@ -175,7 +175,7 @@ def nav_always():
 
 BUDGET = ('Scroll budget, measured in Chromium on 320 x 568: the step text keeps 78 px (one line of the 56/64 focus line) '
           'while the snackbar shows, and 134 px (two lines) after it closes. The dock is 220, Back/Next 124, the top bar 78. '
-          'The dashed line is the bottom of the visible step text. This is the worst case; it is raised with the UI Designer.')
+          'The dashed line is the bottom of the visible step text. This is the worst case; it is flagged for design review.')
 
 
 def fig(caption, body):
@@ -188,11 +188,11 @@ def states(theme, width, cls=''):
             frag(theme, width, [row('running', '1:09:50', 'Roast · step\u00a04')], cls)),
         fig(f'<b>Paused</b> · {theme}. "Paused" in text, the time does not move. Pause becomes Resume ("Resume Roast").',
             frag(theme, width, [row('paused', '1:09:50', 'Roast · step\u00a04')], cls)),
-        fig(f'<b>Done</b> · {theme} (R9a). "Done" where the time was. One action, `close`: "Stop Roast timer", the same act as Stop alarm.',
+        fig(f'<b>Done</b> · {theme}. "Done" where the time was. One action, `close`: "Stop Roast timer", the same act as Stop alarm.',
             frag(theme, width, [row('done', '', 'Roast · step\u00a04')], cls)),
-        fig(f'<b>Another recipe\'s timer</b> · {theme} (R13). The row body opens Roast chicken; Pause and Cancel are sibling buttons, never nested. No offer shows.',
+        fig(f'<b>Another recipe\'s timer</b> · {theme}. The row body opens Roast chicken; Pause and Cancel are sibling buttons, never nested. No offer shows.',
             frag(theme, width, [row('running', '43:12', 'roast · step\u00a04', other='Roast chicken')], cls)),
-        fig(f'<b>After Cancel</b> · {theme} (R9, R10). The snackbar sits above the dock, never over it or Back/Next. Focus is on Undo. The offer is back.',
+        fig(f'<b>After Cancel</b> · {theme}. The snackbar sits above the dock, never over it or Back/Next. Focus is on Undo. The offer is back.',
             frag(theme, width, [], cls, snack='Roast timer cancelled', offer=True)),
     ]
 
@@ -209,7 +209,7 @@ def board(title, note, sections, width, height):
         <script src="./support.js"></script>
     </head>
     <body>
-        <!-- S3 dock row board, built by buildDockRowBoards.py (squad Stellar designer, plan 0110). Design artifact, not app code. -->
+        <!-- S3 dock row board, built by buildDockRowBoards.py. Design artifact, not app code. -->
         <x-dc><helmet><style>
 {THEMES}
 {CSS}
@@ -227,7 +227,7 @@ def board(title, note, sections, width, height):
 
 
 NOTE = (
-    'Plan 0110 (S3a/S3b). CookingTimerRow, cleared as option A (decisions/0072) with figureLarge (decisions/0073). '
+    'CookingTimerRow, cleared as option A with figureLarge. '
     'One timer in the whole app in S3. The countdown is never a live region; a screen reader hears the row as '
     '"Roast, 1 hour 9 minutes 50 seconds left, step 4". Each icon is drawn 44 with an 8 gap. The time never wraps or '
     'truncates; at the largest text the label and meta wrap instead.'
@@ -235,7 +235,7 @@ NOTE = (
 
 FIT_NOTE = (
     'Largest text at 320: body roles x2, figureLarge x1.5 (42/48), the timer glyph hidden above 1.3x by the shared cap. '
-    'Hours case "1:09:50" stays on one line; label and meta wrap. Back and Next are left out here (S1 boards).'
+    'Hours case "1:09:50" stays on one line; label and meta wrap. Back and Next are left out here (their own boards).'
 )
 
 
@@ -262,7 +262,7 @@ def mobile():
         ]),
         ('Phone 320 x 568 · largest text · the whole dock (fix 4)', [
             fig(f'<b>Whole dock</b> · light. {BUDGET}', full_dock('light', BUDGET)),
-            fig(f'<b>Whole dock</b> · dark. Same budget.', full_dock('dark', BUDGET)),
+            fig('<b>Whole dock</b> · dark. Same budget.', full_dock('dark', BUDGET)),
         ]),
     ]
     return board('Cooking mode, S3 dock row (mobile)', NOTE, sections, 2400, 3110)

@@ -22,5 +22,9 @@ boards. Do not recreate them.
 A board must carry only the CSS rules it draws. `boardDeadSelectors.test.ts` in `packages/tools/repoGuards` holds each
 board's count of unused class selectors to a baseline that only falls.
 
-These scripts do not pass the root `ruff` rules (annotations and docstrings), as the other scripts in this folder do
-not.
+The root `ruff` rules for annotations, docstrings and line length (`ANN`, `D`, `E501`) are waived for these builders,
+as for the other scripts in this folder. The bug rules are not. This command passes on the files added here:
+
+    ruff check --select F,E9,B buildS2Boards.py buildDockRowBoards.py buildS3bBoards.py buildS4aBoards.py doneRowCss.py pruneCss.py
+
+Result: `All checks passed!`

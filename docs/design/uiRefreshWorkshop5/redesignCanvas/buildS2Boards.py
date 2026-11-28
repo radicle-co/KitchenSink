@@ -1,4 +1,4 @@
-"""Builds the two S2 boards (Luna plan 0001 U5; Stellar plan 0100 design part; Luna designer D16-D18).
+"""Builds the two S2 boards.
 Writes CookingModeIngredientsS2Mobile.dc.html and CookingModeIngredientsS2Web.dc.html next to this script.
 Run: python3 -I buildS2Boards.py
 """
@@ -10,7 +10,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path.cwd()  # the folder the b
 THEMES = (HERE / 'themes.css').read_text()
 NB = ' '
 
-GLYPH = {  # Lucide shapes, registered meanings (listChecks: decisions/0068 in Stellar)
+GLYPH = {  # Lucide shapes, registered meanings
     'close': '<path d="M18 6 6 18"></path><path d="m6 6 12 12"></path>',
     'chevronDown': '<path d="m6 9 6 6 6-6"></path>',
     'listChecks': '<path d="m3 17 2 2 4-4"></path><path d="m3 7 2 2 4-4"></path><path d="M13 6h8"></path>'
@@ -54,7 +54,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .t28 { font-size: 28px; line-height: 36px; }
 .w6 { font-weight: 600; }
 .muted { color: var(--ink-muted); }
-/* Top bar (D-1): Exit, the place, Ingredients. Wraps by whole controls; a label never wraps inside its button. */
+/* Top bar: Exit, the place, Ingredients. Wraps by whole controls; a label never wraps inside its button. */
 .top { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; padding: 8px 8px 4px; }
 .qbtn { min-height: 44px; padding: 0 12px; border-radius: 22px; display: inline-flex; align-items: center; gap: 6px;
   font-weight: 600; color: var(--ink); flex: none; }
@@ -64,7 +64,7 @@ figcaption b { color: #171b20; font-weight: 600; }
 .track { display: flex; gap: 4px; padding: 4px 16px 8px; }
 .track i { flex: 1; height: 4px; border-radius: 2px; background: var(--line-divider); }
 .track i.done { background: var(--ink-muted); } .track i.now { background: var(--here-bar); }
-/* The scale note (D-6, D17): Notice neutral, role note, alert glyph; then "Open ingredients" at L1 only. */
+/* The scale note: Notice neutral, role note, alert glyph; then "Open ingredients" at L1 only. */
 .note { margin: 4px 16px 0; display: flex; gap: 8px; align-items: flex-start; color: var(--ink-muted); }
 .note .g { flex: none; margin-top: 2px; }
 .openIng { margin: 0 16px 0 40px; min-height: 44px; display: inline-flex; align-items: center; color: var(--action-text);
@@ -239,7 +239,7 @@ def phone(theme, w, h, n=4, items=INGREDIENTS, ticked=(), lo=False, hi=False, sn
 
 
 def step_screen(theme, w, h, note=True, ingredients=True, cls=''):
-    """D-6 (scale note) or D-9 (no ingredients) at L1."""
+    """The step screen with the scale note, or with no ingredients, at L1."""
     return (
         f'<div class="scr {cls}" data-theme="{theme}" style="width:{w}px;height:{h}px">{top_bar(ingredients=ingredients)}{track()}'
         f'{scale_note() if note else ""}{step_body()}{nav()}</div>'
@@ -277,7 +277,7 @@ def board(title, note, sections, width, height):
         <link rel="stylesheet" href="ds/commise/tokens.css" />
     </head>
     <body>
-        <!-- S2 board, built by buildS2Boards.py (Luna designer, D16-D18; Stellar plan 0100 design part). Design artifact, not app code. -->
+        <!-- S2 board, built by buildS2Boards.py. Design artifact, not app code. -->
         <x-dc><helmet><style>
 {THEMES}
 {CSS}
@@ -297,8 +297,7 @@ def board(title, note, sections, width, height):
 
 NOTE = (
     'S2: the ingredient list and servings inside cooking mode, the shape that is built (one list in recipe order, no '
-    'groups; owner 0049 dropped the grouped list on the older Ingredients boards). States D-1 to D-9 of Stellar plan '
-    '0100 §3; copy keys in Luna decisions/0001-designer.md D16 to D18. The rows, the checkbox and the Servings stepper '
+    'groups; the older boards with a grouped list are replaced). The rows, the checkbox and the Servings stepper '
     'are the recipe page\'s own components. Ticks are one record with the recipe page. Expert opinion, untested with users.'
 )
 
@@ -308,26 +307,26 @@ def phone_sections(device, w, h, slop=False):
     out = []
     for theme in ('light', 'dark'):
         out.append((f'{device}, {theme}', [
-            fig(f'<b>D-2 · List open, nothing ticked</b>. Title "Ingredients for 4 · 9 items" (PluralText). Done closes; '
+            fig('<b>List open, nothing ticked</b>. Title "Ingredients for 4 · 9 items" (PluralText). Done closes; '
                 'its name is "Close ingredients". No Clear ticks while nothing is ticked.',
                 phone(theme, w, h, cls=cls)),
-            fig('<b>D-3 · Ticks, and Clear ticks</b>. A ticked row looks as on the recipe page. Clear ticks is a quiet '
+            fig('<b>Ticks, and Clear ticks</b>. A ticked row looks as on the recipe page. Clear ticks is a quiet '
                 'Button md at the foot of the list.',
                 phone(theme, w, h, ticked=(0, 1, 2), cls=cls)),
-            fig(f'<b>D-4 · Cleared, with Undo</b>. "{CLEARED_MSG}" (D18 amended: short, for the dock budget). The snackbar sits above the sheet and its scrim, '
+            fig(f'<b>Cleared, with Undo</b>. "{CLEARED_MSG}" (short, for the dock budget). The snackbar sits above the sheet and its scrim, '
                 'and Undo is in the sheet\'s focus order. Focus stays on the list title. No confirm.',
                 phone(theme, w, h, snack=True, cls=cls)),
-            fig('<b>D-5 · Servings changed to 8</b>. Count, title and every amount change together; a number and its '
+            fig('<b>Servings changed to 8</b>. Count, title and every amount change together; a number and its '
                 'unit never split. The stepper\'s own value is announced; the title is not a live region.',
                 phone(theme, w, h, n=8, items=DOUBLED, cls=cls)),
-            fig('<b>D-7 · At a limit</b>. At 1 serving, "Fewer servings" is disabled. At 100 (the recipe page\'s top '
+            fig('<b>At a limit</b>. At 1 serving, "Fewer servings" is disabled. At 100 (the recipe page\'s top '
                 'limit), "More servings" is disabled the same way.',
                 phone(theme, w, h, n=1, lo=True, cls=cls)),
-            fig('<b>D-1 and D-6 · Step, servings changed</b>. Top bar: Exit, the place, Ingredients (listChecks). The '
-                'note is a Notice, role note, not dismissible. "Open ingredients" opens the sheet (D17); its name is '
+            fig('<b>Step, servings changed</b>. Top bar: Exit, the place, Ingredients (listChecks). The '
+                'note is a Notice, role note, not dismissible. "Open ingredients" opens the sheet; its name is '
                 'its label.',
                 step_screen(theme, w, h, cls=cls)),
-            fig('<b>D-9 · No ingredients</b>. No Ingredients button, no note, no way to open an empty list.',
+            fig('<b>No ingredients</b>. No Ingredients button, no note, no way to open an empty list.',
                 step_screen(theme, w, h, note=False, ingredients=False, cls=cls)),
         ]))
     return out
@@ -351,14 +350,14 @@ def big_section(w=320, h=568):
 def mobile():
     sections = phone_sections('iPhone 390', 390, 844) + phone_sections('Android 384 (48 dp touch areas dashed)', 384, 832, slop=True)[:1]
     sections.append(('iPad 820, light and dark (L2: the column, no sheet, no Done, no Ingredients button)', [
-        fig('<b>D-3 and D-6 at L2, light</b>. The column is 300 on the left; the step column is centred in the rest. '
+        fig('<b>L2, light</b>. The column is 300 on the left; the step column is centred in the rest. '
             'The note has no Open ingredients, because the list is in view.', wide('light', 820, 1180, ticked=(0, 1))),
-        fig(f'<b>D-4 at L2, dark</b>. The snackbar sits at the foot of the step column.',
+        fig('<b>L2, dark</b>. The snackbar sits at the foot of the step column.',
             wide('dark', 820, 1180, ticked=(), snack=True)),
     ]))
     sections.append(('iPad 1194 (L3: L2\'s structure; the step column max 680; the 360 right column is owed to S3/S9)', [
-        fig('<b>D-3 at L3, light</b>.', wide('light', 1194, 834, ticked=(0, 1))),
-        fig('<b>D-3 at L3, dark</b>.', wide('dark', 1194, 834, ticked=(0, 1))),
+        fig('<b>L3, light</b>.', wide('light', 1194, 834, ticked=(0, 1))),
+        fig('<b>L3, dark</b>.', wide('dark', 1194, 834, ticked=(0, 1))),
     ]))
     sections.append(big_section())
     return board('Cooking mode, S2 ingredients and servings (mobile)', NOTE, sections, 2400, 10224)
@@ -368,21 +367,21 @@ def web():
     sections = []
     for theme in ('light', 'dark'):
         sections.append((f'Web 390 (L1), {theme}', [
-            fig('<b>D-2</b>. The sheet. Escape closes it; focus returns to the control that opened it.', phone(theme, 390, 844)),
-            fig('<b>D-3</b>.', phone(theme, 390, 844, ticked=(0, 1, 2))),
-            fig(f'<b>D-4</b>. Tab from the last control in the sheet reaches Undo.', phone(theme, 390, 844, snack=True)),
-            fig('<b>D-7</b>, at 1.', phone(theme, 390, 844, n=1, lo=True)),
-            fig('<b>D-1 and D-6</b>. "Open ingredients" carries aria-haspopup="dialog".', step_screen(theme, 390, 844)),
-            fig('<b>D-9</b>.', step_screen(theme, 390, 844, note=False, ingredients=False)),
+            fig('<b>The sheet</b>. Escape closes it; focus returns to the control that opened it.', phone(theme, 390, 844)),
+            fig('<b>Ticked</b>.', phone(theme, 390, 844, ticked=(0, 1, 2))),
+            fig('<b>Cleared</b>. Tab from the last control in the sheet reaches Undo.', phone(theme, 390, 844, snack=True)),
+            fig('<b>At the limit</b>, at 1.', phone(theme, 390, 844, n=1, lo=True)),
+            fig('<b>The step</b>. "Open ingredients" carries aria-haspopup="dialog".', step_screen(theme, 390, 844)),
+            fig('<b>No ingredients</b>.', step_screen(theme, 390, 844, note=False, ingredients=False)),
         ]))
     sections.append(('Web 768 (L1w: the sheet inset 84)', [
-        fig('<b>D-3, light</b>.', phone('light', 768, 1024, ticked=(0, 1), inset=True)),
-        fig('<b>D-5, dark</b>.', phone('dark', 768, 1024, n=8, items=DOUBLED, inset=True)),
+        fig('<b>Ticked, light</b>.', phone('light', 768, 1024, ticked=(0, 1), inset=True)),
+        fig('<b>Servings changed, dark</b>.', phone('dark', 768, 1024, n=8, items=DOUBLED, inset=True)),
     ]))
     sections.append(('Web 1024 (L2) and 1280 (L3)', [
-        fig('<b>D-3 and D-6 at 1024, light</b>.', wide('light', 1024, 768, ticked=(0, 1))),
-        fig('<b>D-4 at 1280, light</b>. The snackbar at the foot of the step column, max 440.', wide('light', 1280, 800, snack=True)),
-        fig('<b>D-3 at 1280, dark</b>.', wide('dark', 1280, 800, ticked=(0, 1))),
+        fig('<b>1024, light</b>.', wide('light', 1024, 768, ticked=(0, 1))),
+        fig('<b>1280, light</b>. The snackbar at the foot of the step column, max 440.', wide('light', 1280, 800, snack=True)),
+        fig('<b>1280, dark</b>.', wide('dark', 1280, 800, ticked=(0, 1))),
     ]))
     sections.append(big_section())
     return board('Cooking mode, S2 ingredients and servings (web)', NOTE.replace('Expert', 'Web 320 at 200% is the largest-text case. Expert'), sections, 2400, 8638)
@@ -419,7 +418,7 @@ def add_form(state='empty', big=False):
     err = {'short': 'Set at least 5 seconds.', 'long': 'Timers can run for up to 24 hours.'}.get(state)
     boxes = ''.join(
         f'<span class="unitBox t16"><span class="dbox" role="textbox" aria-label="{a}">{v}</span><span aria-hidden="true">{u}</span></span>'
-        for v, a, u in zip(vals, ('Hours', 'Minutes', 'Seconds'), ('h', 'min', 'sec'))
+        for v, a, u in zip(vals, ('Hours', 'Minutes', 'Seconds'), ('h', 'min', 'sec'), strict=True)
     )
     err_html = f'<div class="errLine t14">{svg("alert", 18)}<span>{err}</span></div>' if err else ''
     return (
@@ -454,11 +453,11 @@ def add_wide(theme, w, h, state='empty'):
 
 
 ADD_NOTE = (
-    'S3a "Add a timer" (SPECIFY S36; plan 0110 U4, KTD16). L1: a sheet that rides above the keyboard, Start timer always '
+    'S3a "Add a timer". L1: a sheet that rides above the keyboard, Start timer always '
     'in view. L2 and L3: a popover anchored to "Add a timer". Duration is one labelled group of three boxes sized to '
-    'two digits (hours, minutes, seconds), DurationField\'s own parts; the seconds box is KTD16\'s. Start timer stays '
+    'two digits (hours, minutes, seconds), DurationField\'s own parts; the seconds box is the timer\'s own. Start timer stays '
     'enabled; an out-of-range press shows the error under the group and starts nothing. Focus opens on the hours box and '
-    'returns to "Add a timer" on Cancel; after Start it goes to the new row\'s Pause. Keys: Luna designer D16. Expert '
+    'returns to "Add a timer" on Cancel; after Start it goes to the new row\'s Pause. Expert '
     'opinion, untested with users.'
 )
 

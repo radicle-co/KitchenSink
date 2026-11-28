@@ -1,4 +1,4 @@
-"""Drops CSS rules whose class selectors match nothing in a board's markup (staff's boardSelectorAudit rule).
+"""Drops CSS rules whose class selectors match nothing in a board's markup .
 
 prune(html, keep=frozenset()) -> html. A rule is a selector list; each selector survives when every class it names is
 used in the markup outside <style>, or the class is in `keep` (classes already dead on the base, which this

@@ -13,7 +13,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { SourceCorrectionsDal } from '../../../src/recipes/dal/sourceCorrections.dal.js';
 import { SourceHoldClearsDal, type CorrectionChainRow } from '../../../src/recipes/dal/sourceHoldClears.dal.js';
 import { SOURCE_CORRECT_SCOPE } from '../../../src/recipes/recipes.schema.js';
@@ -108,7 +107,6 @@ beforeAll(async () => {
                     releaseHolds,
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
         ],
     });
 });

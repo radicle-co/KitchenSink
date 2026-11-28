@@ -16,7 +16,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { PARSE_JOBS_DAL, type ParseJobRecord } from '../../../src/recipes/parseJobs.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor } from '../../../tests/support/foodFake.js';
@@ -81,7 +80,6 @@ beforeAll(async () => {
                         ownerId === COOK && jobId === JOB_ID ? JOB : undefined,
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

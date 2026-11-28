@@ -1,8 +1,8 @@
 /**
  * `POST /api/v1/ingredients/by-food-variant` (curated plan U9; R20, R22) over the REAL HTTP pipeline, its dependencies
- * MOCKED (`docs/CODING_STANDARDS.md` §7.1a): the real `AppModule` with the bindings repository and the erasure jobs
- * doubled, and food faked at the network (`tests/support/foodFake.ts`), so the real food client serializes, forwards
- * the bearer and parses food's published refs answer.
+ * MOCKED (`docs/CODING_STANDARDS.md` §7.1a): the real `AppModule` with the bindings repository doubled, the erasure
+ * jobs left to the helper's default (none in progress), and food faked at the network (`tests/support/foodFake.ts`),
+ * so the real food client serializes, forwards the bearer and parses food's published refs answer.
  *
  * It proves what the unit tier cannot: that the door is routed, validated strictly, authenticated, rate-limited as a
  * write, that the caller's own credential reaches food, and that a bind is never made on no answer. The real SQL of
@@ -15,7 +15,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { ingredientSchema } from '@kitchensink/recipe-core';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import { admittedRefOf, type FoodAdmission } from '../../../src/ingredients/domain/foodAdmission.js';
@@ -68,10 +67,7 @@ beforeAll(async () => {
 
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
-        doubles: [
-            { provide: FoodLookupsDal, useValue: { findOrCreateBound } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-        ],
+        doubles: [{ provide: FoodLookupsDal, useValue: { findOrCreateBound } }],
     });
 });
 

@@ -13,7 +13,6 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { SourceCorrectionsDal } from '../../../src/recipes/dal/sourceCorrections.dal.js';
 import { SourceHoldClearsDal } from '../../../src/recipes/dal/sourceHoldClears.dal.js';
@@ -135,8 +134,6 @@ beforeAll(async () => {
                     readCorrectionChain: () => Promise.resolve([]),
                 },
             },
-            // The erasure lock reads the CALLER's job on every write; no job here.
-            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
         ],
     });

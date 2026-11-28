@@ -123,6 +123,12 @@ export const PRIVATE_ONLY_SOURCE_KEYS: readonly string[] = Object.values(RecipeS
 /** {@link PRIVATE_ONLY_SOURCE_KEYS} as the ONE jsonb parameter every query that binds them takes (ADR-0105). */
 export const PRIVATE_ONLY_SOURCE_KEYS_JSON: string = JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS);
 
+/** Why a correction hold was cleared: by staff, or by the cook's earned rewrite (ADR-0106). The value set of `recipe_source_hold_clears.cause`. */
+export const HOLD_CLEAR_CAUSES = ['staff', 'earnedRewrite'] as const;
+
+/** One cause of a hold clear. */
+export type HoldClearCause = (typeof HOLD_CLEAR_CAUSES)[number];
+
 /**
  * The grounds a staff correction may name (ADR-0100). One value now: staff confirmed the owner's request through a challenge to
  * the account's verified email, which is a staff assertion and not something code can check. Spec 016 adds third-party grounds.

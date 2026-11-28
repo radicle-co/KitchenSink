@@ -1,11 +1,14 @@
-"""Drops CSS rules whose class selectors match nothing in a board's markup .
+"""Drops CSS rules whose class selectors match nothing in a board's markup.
+
+The rule for "used" is the one in packages/tools/repoGuards/__tests__/boardDeadSelectors.ts: a class in a class attribute,
+or any token in a <script>.
 
 prune(html, keep=frozenset()) -> html. A rule is a selector list; each selector survives when every class it names is
 used in the markup outside <style>, or the class is in `keep` (classes already dead on the base, which this
 change must leave alone). A rule with no surviving selector is removed, and a comment goes with the rule right
 after it. @media blocks are pruned inside, and dropped when empty.
 
-CLI: python3 -I pruneCss.py <worktree> <base> -- prunes every staged .dc.html that differs from <base>.
+CLI: python3 -I pruneCss.py --selfcheck, or python3 -I pruneCss.py <worktree> <base> -- prunes every staged .dc.html that differs from <base>.
 """
 
 from html.parser import HTMLParser
@@ -22,7 +25,9 @@ def used_classes(html):
     used = set()
     for c in re.findall(r'class(?:Name)?=["\']([^"\']*)["\']', body):
         used |= set(c.split())
-    used |= set(re.findall(r'classList\.\w+\(["\']([\w-]+)', body))
+    # boardDeadSelectors.ts is the authority: any token in a <script> counts as use (the safe mistake is to keep a rule).
+    for script in re.findall(r'<script[^>]*>(.*?)</script>', body, flags=re.S):
+        used |= set(re.findall(r'[\w-]+', script))
     return used
 
 
@@ -189,7 +194,23 @@ def dead_classes(html):
     return dead
 
 
+def selfcheck():
+    """A class named only inside a <script> (className:'x') keeps its rule; a class nothing names loses it."""
+    board = (
+        '<style>.byScript{color:red}.ghost{color:blue}</style><div class="shown"></div>'
+        "<script>h('div',{className:'byScript'})</script>"
+    )
+    out = prune(board)
+    assert '.byScript' in out, 'a class set by script lost its rule'
+    assert '.ghost' not in out, 'a class nothing uses kept its rule'
+    assert 'byScript' not in dead_classes(board)
+    print('selfcheck ok')
+
+
 if __name__ == '__main__':
+    if sys.argv[1:] == ['--selfcheck']:
+        selfcheck()
+        sys.exit(0)
     wt, base = sys.argv[1:3]
     def git(*a):
         return subprocess.run(['git', '-C', wt, *a], capture_output=True, text=True)

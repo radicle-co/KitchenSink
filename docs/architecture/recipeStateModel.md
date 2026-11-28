@@ -306,9 +306,9 @@ review. A held private recipe shows Private, with no line.
 | Chip      | Shown when                                                            | Key                                                      |
 | --------- | --------------------------------------------------------------------- | -------------------------------------------------------- |
 | Draft     | `LIFECYCLE_DRAFT`, whatever the audience                              | `LIFECYCLE_DRAFT`                                        |
+| Hidden    | published, public, and held from readers (4.6). Owner only            | `VIEW_HIDDEN`                                            |
 | In review | published, and in review by `IN_REVIEW_SQL` or its TS twin            | `VIEW_IN_REVIEW` (also replaces `publicExists.inReview`) |
 | Checking  | published, public, current content not yet allowed, and not in review | `VIEW_CHECKING`                                          |
-| Hidden    | published, public, and held from readers (4.6). Owner only            | `VIEW_HIDDEN`                                            |
 | Public    | published, public, current content allowed by `sourceCheckAllows`     | `AUDIENCE_PUBLIC`                                        |
 | Private   | published, private                                                    | `AUDIENCE_PRIVATE`                                       |
 
@@ -594,7 +594,7 @@ touch it.
 | Hold                    | From  | Event                       | Actor | Guard                                                                                    | To                                                                                                                | Built              |
 | ----------------------- | ----- | --------------------------- | ----- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- | ------------------ |
 | `HOLD_SOURCE_CORRECTED` | unset | `STAFF_CORRECT` (as in 5.2) | staff | the new answer can open Public                                                           | set. The correction writer still makes the recipe private until P8h (ADR-0105). The read rule hides it either way | yes                |
-| `HOLD_SOURCE_CORRECTED` | set   | `CLEAR_SOURCE_HOLD`         | staff | grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1) | unset. Audience unchanged (private)                                                                               | PLANNED until PR 5 |
+| `HOLD_SOURCE_CORRECTED` | set   | `CLEAR_SOURCE_HOLD`         | staff | grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1) | unset. Readable again if the audience is public and nothing else hides it (ADR-0105)                              | PLANNED until PR 5 |
 
 <!-- recipeState:end 5.4-1 -->
 

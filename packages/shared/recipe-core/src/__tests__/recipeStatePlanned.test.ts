@@ -4,6 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
+import { LABELLED_NAMES } from '../recipeState/labelledNames.js';
 import { PLANNED } from '../recipeState/plannedTransitions.js';
 import { TRANSITIONS } from '../recipeState/transitions.js';
 
@@ -62,9 +63,10 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
     });
 
     it('has no row that moves a recipe to a private state with an actor other than the cook', () => {
-        const offenders = PLANNED.filter((row) => /^(PPr|DPr)\b/.test(row.to) && row.actor !== 'cook').map(
-            (row) => row.eventId,
-        );
+        const actorsOf = (actor: string): string[] => actor.split(',').map((name) => name.trim());
+        const offenders = PLANNED.filter(
+            (row) => /\b(PPr|DPr)\b/.test(row.to) && !actorsOf(row.actor).every((name) => name === 'cook'),
+        ).map((row) => row.eventId);
 
         expect(offenders).toEqual([]);
     });
@@ -92,5 +94,18 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
 
     it('keeps the clear of the correction hold readable-again for a public recipe', () => {
         expect(PLANNED.find((row) => row.eventId === 'CLEAR_SOURCE_HOLD')?.to).toContain('Readable again');
+    });
+
+    it('answers a not-approved publish of a public draft with the draft door, never with REFUSAL_CONTENT_NOT_APPROVED', () => {
+        const publish = PLANNED.find((row) => row.eventId === 'CREATE_CANNOT_GO_PUBLIC');
+        const makePublic = PLANNED.find((row) => row.eventId === 'MAKE_PUBLIC_NOT_APPROVED');
+
+        expect(publish?.from).toContain('DPu');
+        expect(publish?.to).toContain('draft door');
+        expect(publish?.to).not.toContain('REFUSAL_CONTENT_NOT_APPROVED');
+        expect(makePublic?.from).toBe('PPr');
+        expect(makePublic?.guard).toContain('REFUSAL_CONTENT_NOT_APPROVED');
+        expect(LABELLED_NAMES.VIEW_DRAFT_DOOR.shapes).toContain('.title');
+        expect(LABELLED_NAMES.VIEW_SAVE_REFUSED.shapes).toContain('.why.notApproved');
     });
 });

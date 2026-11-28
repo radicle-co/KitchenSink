@@ -58,8 +58,7 @@ export const LABELLED_NAMES = {
         shapes: ['.heldSource', '.tooClose', '.afterCheck', '.notApproved', '.sourceCorrected'],
         viewer: 'owner',
     },
-    // The refused-save sheet. Its other lines reuse shipped keys by name (`changesKept`, `waysHeading`, `wayPrivateSave`,
-    // `savePrivate`, Discard, `publishBlocked.noSlot.upsell`, `publishBlocked.seePremium`), so none is a shape here.
+    // The refused-save sheet. It reuses shipped keys by name and never copies them, so none is a shape here.
     VIEW_SAVE_REFUSED: {
         shapes: [
             '.title',

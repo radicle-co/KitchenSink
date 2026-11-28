@@ -87,8 +87,11 @@ describe('LABELLED_NAMES: held means hidden (ADR-0105, AE10)', () => {
         ).toEqual([]);
     });
 
-    it('keeps the cause a plain string union', () => {
+    it('keeps the cause a plain string union, equal to the why shapes of the refused-save sheet', () => {
+        type CauseOf<K> = K extends `VIEW_SAVE_REFUSED.why.${infer C}` ? C : never;
+
         expectTypeOf<SaveRefusalCause>().toEqualTypeOf<'heldSource' | 'tooClose' | 'notApproved'>();
+        expectTypeOf<CauseOf<LabelKey>>().toEqualTypeOf<SaveRefusalCause>();
     });
 
     it('drops the names that said a recipe was made private, and lists each as retired with a replacement', () => {

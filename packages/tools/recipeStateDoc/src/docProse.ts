@@ -434,7 +434,7 @@ export const HOLD_EDGE_ROWS: readonly HoldEdgeDocRow[] = [
         event: '`CLEAR_SOURCE_HOLD`',
         actor: 'staff',
         guard: 'grant `recipes:source:correct`, a reason, a clear record in the same transaction (4.6.1)',
-        to: 'unset. Audience unchanged (private)',
+        to: 'unset. Readable again if the audience is public and nothing else hides it (ADR-0105)',
         built: 'PLANNED until PR 5',
     },
 ];

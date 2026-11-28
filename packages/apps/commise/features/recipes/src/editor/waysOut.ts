@@ -3,7 +3,8 @@
  *
  * One pure policy returns the ways, in the fixed order DH24 and DH25 set, and the lines that are not ways. It is
  * flag-agnostic: the toggle, the slot standing, the plan, `SUBSCRIPTION_ENTRY_POINTS_ON` and the rewrite answer all
- * come in as data. A new way is one union member and one clause here, plus a render case where the sheet switches over `WayOut`. The Save and hide way (U6) is not built yet.
+ * come in as data. A new way is one union member and one clause here, plus a render case where the sheet switches
+ * over `WayOut`. The Save and hide way (U6) is not built yet.
  *
  * @pattern Policy — `waysOutOf` is the one rule for what the cook may pick
  */

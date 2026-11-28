@@ -58,6 +58,8 @@ export interface StageCountMetric {
     readonly metricName: string;
     /** The deploy-stage dimension value. */
     readonly stage: string;
+    /** The metric's value when one occurrence stands for several (a clear that releases clones). Defaults to 1. */
+    readonly count?: number;
     /**
      * Unbilled context fields written beside the metric, never as dimensions.
      *
@@ -79,7 +81,7 @@ export interface StageCountMetric {
  * @returns One line of JSON, with no embedded newline.
  */
 export function buildStageCountMetricLine(metric: StageCountMetric): string {
-    const reserved: ReservedFields = { [METRIC_STAGE_DIMENSION]: metric.stage, [metric.metricName]: 1 };
+    const reserved: ReservedFields = { [METRIC_STAGE_DIMENSION]: metric.stage, [metric.metricName]: metric.count ?? 1 };
 
     return JSON.stringify({
         _aws: {

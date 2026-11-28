@@ -9,6 +9,7 @@
 import { HttpException } from '@nestjs/common';
 import {
     RecipeErrorCode,
+    type HoldClearConflictReason,
     type ImportLockedStage,
     type PrivateFoodLine,
     type PublishRequirement,
@@ -518,4 +519,18 @@ export function sourceCorrectionInvalidTarget(): HttpException {
     const message = 'This recipe holds no source answer that can be corrected to that.';
 
     return apiError('VALIDATION_FAILED', message, { fields: [`answer: ${message}`] });
+}
+
+/**
+ * `HOLD_CLEAR_CONFLICT` (→ 409) — a staff clear of a correction hold met the state it did not expect (ADR-0106). NOTHING was
+ * written. `reason` says which: the recipe is not held, the correction staff saw is no longer the newest, or a row lock deadlocked
+ * with a writer outside the owner's slot lock.
+ *
+ * @param reason - The conflict.
+ * @returns The error.
+ */
+export function holdClearConflict(reason: HoldClearConflictReason): RecipeDomainError {
+    return new RecipeDomainError(RecipeErrorCode.HOLD_CLEAR_CONFLICT, 'The hold could not be cleared as asked.', {
+        reason,
+    });
 }

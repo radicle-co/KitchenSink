@@ -82,6 +82,8 @@ export const RECIPE_ERROR_STATUS: Readonly<Record<RecipeErrorCode, number>> = {
     IMPORT_ITEM_LOCKED: HttpStatus.CONFLICT,
     IMPORT_ID_IN_USE: HttpStatus.CONFLICT,
     IMPORT_STORAGE_FULL: HttpStatus.CONFLICT,
+    // ── A staff hold clear met the state it did not expect (ADR-0106) ──
+    HOLD_CLEAR_CONFLICT: HttpStatus.CONFLICT,
 
     // ── Auth and account lifecycle ──
     UNAUTHORIZED: HttpStatus.UNAUTHORIZED,

@@ -25,6 +25,8 @@ export type EvidenceToWrite = Omit<NewRecipeSourceEvidenceRow, 'recipeId'>;
 
 /** What the rule reads of an evidence row, as a stored row or a row about to be written carries it. */
 export interface EvidenceFacts {
+    /** How the row was captured. Absent counts as a cook's row: the rule fails closed (ADR-0106). */
+    readonly capture?: string;
     readonly sourceDomain?: string | null;
     readonly sourceKind?: RecipeSourceKind | null;
 }
@@ -113,7 +115,11 @@ export function evidenceListOf(provenance: ResolvedProvenance, path: EvidenceCap
 
 /** What `sourceConflictOf` and `statementRequiredOf` read of each evidence row: the ONE mapping, so the two cannot differ. */
 function evidenceFactsOf(evidence: readonly EvidenceFacts[]): SourceEvidenceFacts[] {
-    return evidence.map((row) => ({ sourceDomain: row.sourceDomain ?? null, sourceKind: row.sourceKind ?? null }));
+    return evidence.map((row) => ({
+        capture: row.capture === 'staffCorrection' ? 'staffCorrection' : 'other',
+        sourceDomain: row.sourceDomain ?? null,
+        sourceKind: row.sourceKind ?? null,
+    }));
 }
 
 /**

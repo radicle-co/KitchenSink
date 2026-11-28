@@ -228,4 +228,82 @@ describe('recipe_held_from_readers (migration 0098)', () => {
         expect(rows[0]?.w).toBe(true);
         expect(await evidenceOf(staffOnly)).toBe(false);
     });
+
+    // Migration 0100: the fourth term. A from-person recipe stays hidden after a clear, until a family source type ships (ADR-0106).
+    describe('the from-person term (migration 0100)', () => {
+        type Statement = 'fromPerson' | 'authored' | null;
+
+        async function seedPerson(
+            n: number,
+            over: { statement: Statement; attested: boolean; hold: boolean; visibility: 'public' | 'private' },
+        ): Promise<string> {
+            const id = rid(n);
+
+            await pool.query(
+                `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
+                                      total_time_minutes, servings, visibility, status, source_type, statement_kind,
+                                      source_correction_hold)
+                 VALUES ($1, $2, 'From person', '', 1, 1, 2, 4, $3, 'draft', 'user_created', $4, $5)`,
+                [id, OWNER_ID, over.visibility, over.statement, over.hold],
+            );
+
+            if (over.attested) {
+                await pool.query(
+                    `INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version,
+                                                                locale, action)
+                     VALUES ($1, $1, $2, 'explicit', 'fromPerson', 'fromPerson.v1', 'en', 'update')`,
+                    [id, OWNER_ID],
+                );
+            }
+
+            return id;
+        }
+
+        // [statement, attested, from person?]: the stored statement wins; a past attestation counts only when there is none.
+        const SHAPES = [
+            ['a plain recipe (no statement, no attestation)', null, false, false],
+            ['a stored fromPerson statement', 'fromPerson', false, true],
+            ['a NULL statement with a past fromPerson attestation', null, true, true],
+            ['an authored statement that replaced a past attestation', 'authored', true, false],
+        ] as const;
+
+        it.each(
+            SHAPES.flatMap((shape) =>
+                [true, false].flatMap((hold) =>
+                    (['public', 'private'] as const).map((visibility) => [...shape, hold, visibility] as const),
+                ),
+            ),
+        )(
+            '%s, hold %s, %s: held from readers is hold OR from-person',
+            async (_name, statement, attested, person, hold, visibility) => {
+                const id = await seedPerson(40, { statement, attested, hold, visibility });
+
+                expect(await heldOf(id)).toBe(hold || person);
+            },
+        );
+
+        it('stays hidden after a clear: hold true to false leaves a from-person recipe held', async () => {
+            const id = await seedPerson(41, {
+                statement: 'fromPerson',
+                attested: false,
+                hold: true,
+                visibility: 'public',
+            });
+            const client = await pool.connect();
+
+            try {
+                await client.query('BEGIN');
+                await client.query(
+                    `INSERT INTO recipe_source_hold_clears (recipe_id, cause, actor_account_id, reason) VALUES ($1, 'staff', 'staff01', 'mistake')`,
+                    [id],
+                );
+                await client.query(`UPDATE recipes SET source_correction_hold = false WHERE id = $1`, [id]);
+                await client.query('COMMIT');
+            } finally {
+                client.release();
+            }
+
+            expect(await heldOf(id)).toBe(true);
+        });
+    });
 });

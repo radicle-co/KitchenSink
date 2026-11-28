@@ -1734,7 +1734,19 @@ export const RecipeErrorCode = {
      * size of a FILE is never capped; the bytes a cook may hold waiting to be paid for are.
      */
     IMPORT_STORAGE_FULL: 'IMPORT_STORAGE_FULL',
+    /**
+     * ADR-0106 - a staff clear of a correction hold was refused because of the state it found: the recipe is not held, the
+     * correction staff saw is no longer the newest, or a row lock deadlocked. A 409 on a staff-only route; no cook client calls it.
+     * `details.reason` is one of {@link HOLD_CLEAR_CONFLICT_REASONS}.
+     */
+    HOLD_CLEAR_CONFLICT: 'HOLD_CLEAR_CONFLICT',
 } as const;
+
+/** The `details.reason` of a `HOLD_CLEAR_CONFLICT` (ADR-0106). */
+export const HOLD_CLEAR_CONFLICT_REASONS = ['HOLD_NOT_SET', 'CORRECTION_NOT_LATEST', 'LOCK_CONFLICT'] as const;
+
+/** One reason a staff hold clear conflicts with the state it found. */
+export type HoldClearConflictReason = (typeof HOLD_CLEAR_CONFLICT_REASONS)[number];
 
 /**
  * Error code emitted by recipe-domain operations.
@@ -1784,6 +1796,7 @@ export const recipeErrorCodeSchema = z.enum([
     RecipeErrorCode.IMPORT_ITEM_LOCKED,
     RecipeErrorCode.IMPORT_ID_IN_USE,
     RecipeErrorCode.IMPORT_STORAGE_FULL,
+    RecipeErrorCode.HOLD_CLEAR_CONFLICT,
 ]);
 
 /**

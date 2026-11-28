@@ -37,6 +37,7 @@ They target the performance requirements of Feature 001:
 | `pullFromSource.load.js`     | W8-a.8 / FR-011       | collection pull `previewPull` / `commitPull` p95 ≤ 500ms (read + write)                                                               |
 | `versionArchiveRead.load.js` | W8-a.7                | version GET served via the S3 archive fallback p95 < 1s                                                                               |
 | `serviceErasure.load.js`     | CR-002 / U4a          | internal EdDSA-guarded erasure POST p95 ≤ 500ms (202) + expired → 401 under load                                                      |
+| `holdClear.load.js`          | ADR-0106              | staff hold-clear POST p95 ≤ 800ms (200 `cleared`, one per held recipe) + a stale correction id → 409 `HOLD_CLEAR_CONFLICT` under load |
 | `nutritionBatch.load.js`     | REQ-IF-008 / ADR-0021 | deferred nutrition batch p95 ≤ 1.5s at BOTH ends of the ingredient-overlap spectrum, + a food outage degrades rather than fails       |
 | `parseJobMatches.load.js`    | ADR-0071              | paste-job match command: first call p95 < 6s (bounded fan-out), repeat call p95 ≤ 500ms, never a 5xx under load                       |
 | `importAdvance.load.js`      | ADR-0072              | bulk import advance command: p95 < 9s (inside the client's 10s), always `200` (a spent allowance is state, not an error), never a 5xx |
@@ -111,6 +112,13 @@ per-user-tracking follow-up in the service's throttle notes.)
 | `RECIPE_ERASURE_TOKENS_FILE`            | `tests/load/erasure-tokens.json` | pool file `serviceErasure.load.js` opens                 |
 | `ERASURE_TOKEN_POOL_SIZE`               | `200`                            | distinct single-target tokens minted by the prepare step |
 | `ERASURE_TOKEN_TTL_SECONDS`             | `120`                            | minted-token TTL (capped at the 120s contract max)       |
+| `RECIPE_HOLD_CLEAR_P95_MS`              | `800`                            | p95 budget (ms) for the staff hold-clear POST            |
+| `RECIPE_HOLD_CLEAR_POOL_FILE`           | `./holdClearPool.json`           | pool file `holdClear.load.js` opens                      |
+| `RECIPE_HOLD_CLEAR_STALE_ITERATIONS`    | `200`                            | stale-correction-id requests in the 409 scenario         |
+| `HOLD_CLEAR_POOL_SIZE`                  | `500`                            | held recipes the prepare step builds (one clear each)    |
+| `HOLD_CLEAR_STALE_POOL_SIZE`            | `20`                             | held recipes reserved for the 409 scenario               |
+| `HOLD_CLEAR_TOKEN_TTL_SECONDS`          | `1800`                           | staff and owner token lifetime                           |
+| `HOLD_CLEAR_AZP`                        | `http://localhost:3000`          | `azp` the tokens carry (must be in the service's list)   |
 | `RECIPE_NUTRITION_BATCH_P95_MS`         | `1500`                           | p95 budget (ms) for the deferred nutrition batch         |
 | `RECIPE_MAX_NUTRITION_IDS`              | `500`                            | the published recipe-id cap the scenario asserts         |
 | `RECIPE_NUTRITION_FIXTURE_FILE`         | `./perf-fixture.json`            | fixture the nutrition scenario `open()`s                 |
@@ -144,6 +152,15 @@ k6 run tests/load/versionArchiveRead.load.js
 npx tsx tests/load/prepareErasureTokens.ts
 #   boot recipe-service with:  RECIPE_SERVICE_PRINCIPAL_JWT_KEY="$(cat tests/load/erasure-public-key.pem)"
 k6 run tests/load/serviceErasure.load.js
+
+# holdClear.load.js hits the staff hold-clear route (ADR-0106). The grant is a signed Clerk claim, so the prepare step
+# generates a throwaway RSA keypair, mints the staff token, and builds the held recipes over the service's own API (it
+# needs a service already trusting the key). The FIRST prepare run only writes the keypair and stops; boot the service
+# with CLERK_JWT_KEY="$(cat tests/load/holdClearPublicKey.pem)" CLERK_AUTHORIZED_PARTIES=http://localhost:3000, then run
+# prepare AGAIN to build the pool. A recipe can be cleared once, so the pool size is the run size. Raise RATE_LIMIT_WRITE:
+# every clear shares one staff identity. Delete the two key files to rotate.
+npx tsx tests/load/prepareHoldClearFixture.ts
+k6 run tests/load/holdClear.load.js
 
 # nutritionBatch.load.js needs its fixture seeded AND a food origin that answers (see the fan-out note
 # above). Against a service booted with the dev-auth bypass and FOOD_SERVICE_URL=http://localhost:3002:

@@ -12,3 +12,12 @@ export const SOURCE_EVENT_NAMESPACE = 'Commise/RecipeSource';
 
 /** The metric the correction volume alarm watches: more than 10 in a day is a leaked scope or a runaway script. */
 export const SOURCE_CORRECTED_METRIC = 'source.corrected';
+
+/**
+ * The metric the hold-clear volume alarm watches (ADR-0106). Its VALUE is the number of holds cleared, so a clear that releases
+ * two clones counts three. More than `SOURCE_HOLD_CLEARED_DAILY_THRESHOLD` in a day is a leaked scope or a runaway script.
+ */
+export const SOURCE_HOLD_CLEARED_METRIC = 'source.holdCleared';
+
+/** An alarm fires when MORE than this many holds are cleared in a day (owner-approved, 2026-11-28). */
+export const SOURCE_HOLD_CLEARED_DAILY_THRESHOLD = 10;

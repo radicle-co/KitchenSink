@@ -12,7 +12,9 @@
  *     (`deleted_at`) keeps them.
  *  4. A clone inherits its parent's rows, written by the database itself (laundering by cloning is the bypass).
  *  5. A recipe that states a source with no matching evidence row cannot COMMIT; one that has it can.
- *  6. The SQL twin answers exactly what `sourceConflictOf` answers, over the label cross product and every evidence shape.
+ *  6. The SQL twin answers exactly what `sourceConflictOf` answers, over the label cross product and every evidence shape
+ *     WITH NO `staffCorrection` ROW. A `staffCorrection` row is the one deliberate divergence (ADR-0106): the TypeScript rule
+ *     ignores it and the legacy twin still counts it, and one row below pins that.
  *     The twin is what account erasure composes: the bound private-only keys AND the database function
  *     `recipe_holds_third_party_source` (no SQL text crosses a package boundary, so recipe-core exports no SQL string).
  */
@@ -392,7 +394,7 @@ describe('recipe_source_evidence (migration 0086)', () => {
         });
     });
 
-    describe('the SQL twin (bound private-only keys + recipe_holds_third_party_source) parity with sourceConflictOf (the label cross product × every evidence shape)', () => {
+    describe('the SQL twin (bound private-only keys + recipe_holds_third_party_source) parity with sourceConflictOf (the label cross product × every evidence shape with no staffCorrection row)', () => {
         const SHAPES: ReadonlyArray<{ readonly name: string; readonly rows: readonly EvidenceInput[] }> = [
             { name: 'none', rows: [] },
             { name: 'web', rows: [WEB] },
@@ -424,7 +426,7 @@ describe('recipe_source_evidence (migration 0086)', () => {
 
         /** The evidence facts a row gives the TypeScript rule. */
         function factsOf(row: EvidenceInput): SourceEvidenceFacts {
-            return { sourceDomain: row.sourceDomain ?? null, sourceKind: row.sourceKind ?? null };
+            return { capture: 'other', sourceDomain: row.sourceDomain ?? null, sourceKind: row.sourceKind ?? null };
         }
 
         /** The evidence row that backs the recipe's own stated kind (the backstop demands one). */
@@ -482,6 +484,37 @@ describe('recipe_source_evidence (migration 0086)', () => {
             }
 
             expect(seen).toEqual(new Set([true, false]));
+        });
+
+        it('pins the one divergence: a staffCorrection row makes the legacy twin answer true while sourceConflictOf ignores it', async () => {
+            const id = `${PARITY_PREFIX}99999`;
+            const staffRow = { capture: 'staffCorrection', sourceKind: 'book', citation: 'A cookbook' } as const;
+
+            await pool.query(
+                `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
+                                      total_time_minutes, servings, visibility, status, source_type)
+                 VALUES ($1, $2, 'Staff row', '', 1, 1, 2, 4, 'private', 'draft', 'user_created')`,
+                [id, OWNER_ID],
+            );
+            await pool.query(
+                `INSERT INTO recipe_source_evidence (recipe_id, capture, source_kind, citation)
+                 VALUES ($1, $2, $3, $4)`,
+                [id, staffRow.capture, staffRow.sourceKind, staffRow.citation],
+            );
+
+            const { rows } = await pool.query<{ twin: boolean }>(`SELECT recipe_holds_third_party_source($1) AS twin`, [
+                id,
+            ]);
+
+            expect(rows[0]?.twin).toBe(true);
+            expect(
+                sourceConflictOf({
+                    evidence: [{ capture: 'staffCorrection', sourceDomain: null, sourceKind: 'book' }],
+                    sourceType: RecipeSourceType.USER_CREATED,
+                    sourceKind: null,
+                    verifiedSiteClaims: [],
+                }),
+            ).toBe(false);
         });
     });
 });

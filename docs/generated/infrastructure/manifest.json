@@ -1175,6 +1175,14 @@
                             "handler": null,
                             "condition": "props.alarmsEnabled",
                             "notes": []
+                        },
+                        {
+                            "kind": "alarm",
+                            "logicalId": "SourceHoldClearVolumeAlarm",
+                            "nameTemplate": "kitchensink-recipe-source-hold-cleared-{stage}",
+                            "handler": null,
+                            "condition": "props.alarmsEnabled",
+                            "notes": []
                         }
                     ],
                     "importedExports": [

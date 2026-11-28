@@ -10877,6 +10877,41 @@
                     "additionalProperties": {},
                     "properties": {
                         "code": {
+                            "const": "HOLD_CLEAR_CONFLICT",
+                            "type": "string"
+                        },
+                        "details": {
+                            "additionalProperties": {},
+                            "properties": {
+                                "reason": {
+                                    "enum": [
+                                        "HOLD_NOT_SET",
+                                        "CORRECTION_NOT_LATEST",
+                                        "LOCK_CONFLICT"
+                                    ],
+                                    "type": "string"
+                                }
+                            },
+                            "required": [
+                                "reason"
+                            ],
+                            "type": "object"
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "required": [
+                        "code",
+                        "message",
+                        "details"
+                    ],
+                    "type": "object"
+                },
+                {
+                    "additionalProperties": {},
+                    "properties": {
+                        "code": {
                             "const": "IMPORT_ITEM_LOCKED",
                             "type": "string"
                         },
@@ -12106,6 +12141,7 @@
                 "IMPORT_ITEM_LOCKED",
                 "IMPORT_ID_IN_USE",
                 "IMPORT_STORAGE_FULL",
+                "HOLD_CLEAR_CONFLICT",
                 "UNAUTHORIZED",
                 "IDENTITY_SYNC_PENDING",
                 "FORBIDDEN",
@@ -15388,6 +15424,18 @@
                         }
                     ]
                 },
+                "latestCorrectionId": {
+                    "anyOf": [
+                        {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
                 "ownerAccountId": {
                     "type": "string"
                 },
@@ -15410,7 +15458,8 @@
                 "ownerAccountId",
                 "visibility",
                 "answer",
-                "sourceCorrected"
+                "sourceCorrected",
+                "latestCorrectionId"
             ],
             "type": "object"
         },
@@ -15544,6 +15593,60 @@
             },
             "required": [
                 "result"
+            ],
+            "type": "object"
+        },
+        "sourceHoldClearRequestSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "correctionId": {
+                    "anyOf": [
+                        {
+                            "format": "uuid",
+                            "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$",
+                            "type": "string"
+                        },
+                        {
+                            "type": "null"
+                        }
+                    ]
+                },
+                "ownerAccountId": {
+                    "maxLength": 255,
+                    "minLength": 1,
+                    "type": "string"
+                },
+                "reason": {
+                    "maxLength": 1000,
+                    "minLength": 1,
+                    "type": "string"
+                }
+            },
+            "required": [
+                "ownerAccountId",
+                "correctionId",
+                "reason"
+            ],
+            "type": "object"
+        },
+        "sourceHoldClearResponseSchema": {
+            "$schema": "https://json-schema.org/draft/2020-12/schema",
+            "additionalProperties": false,
+            "properties": {
+                "released": {
+                    "exclusiveMinimum": 0,
+                    "maximum": 9007199254740991,
+                    "type": "integer"
+                },
+                "result": {
+                    "const": "cleared",
+                    "type": "string"
+                }
+            },
+            "required": [
+                "result",
+                "released"
             ],
             "type": "object"
         },

@@ -64,6 +64,7 @@ const DETAILS_BY_CODE: Readonly<Record<string, Record<string, unknown>>> = {
     IMPORT_CURSOR_MOVED: { cursorOrdinal: 4 },
     IMPORT_ITEM_ALREADY_SAVED: { ordinal: 4 },
     PRIVATE_SLOTS_FULL: { used: 50, limit: 50 },
+    HOLD_CLEAR_CONFLICT: { reason: 'HOLD_NOT_SET' },
     PRIVATE_FOODS_ON_PUBLIC_RECIPE: { lines: [{ sortOrder: 1, foodId: 'f-1' }] },
     IMPORT_ITEM_LOCKED: { ordinal: 4, stage: 'parsing' },
 };

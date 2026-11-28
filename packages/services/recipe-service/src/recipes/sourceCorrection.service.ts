@@ -21,6 +21,7 @@ import type { Principal } from '../auth/principal.js';
 import { RecipeSourceEvidenceDal } from './dal/recipeSourceEvidence.dal.js';
 import type { RecipesDal } from './dal/recipes.dal.js';
 import { SourceCorrectionsDal } from './dal/sourceCorrections.dal.js';
+import { SourceHoldClearsDal } from './dal/sourceHoldClears.dal.js';
 import {
     evaluateSourceCorrectionPreview,
     evaluateSourceCorrectionScope,
@@ -66,6 +67,7 @@ export class SourceCorrectionService {
             'lockRecipe' | 'rewriteSource' | 'recordCorrection' | 'holdOwnersClones' | 'readPreview'
         >,
         @Inject(RecipeSourceEvidenceDal) private readonly evidence: Pick<RecipeSourceEvidenceDal, 'insert'>,
+        @Inject(SourceHoldClearsDal) private readonly holdClears: Pick<SourceHoldClearsDal, 'readLatestCorrectionId'>,
     ) {}
 
     /**
@@ -171,6 +173,9 @@ export class SourceCorrectionService {
             return this.refuse(principal, verdict.kind === 'forbidden' ? 'forbidden' : 'notFound', recipeId);
         }
 
+        // Display only: the clear re-reads the chain under the lock.
+        const latestCorrectionId = await this.holdClears.readLatestCorrectionId(recipeId);
+
         return {
             title: recipe.title,
             ownerAccountId: recipe.ownerId,
@@ -180,6 +185,7 @@ export class SourceCorrectionService {
                     ? null
                     : { kind: verdict.answer, citation: citationOf(verdict.answer, recipe) },
             sourceCorrected: recipe.sourceCorrectionHold,
+            latestCorrectionId,
         };
     }
 

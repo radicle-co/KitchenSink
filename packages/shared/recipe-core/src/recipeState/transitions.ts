@@ -30,6 +30,8 @@ export const GUARD_NAMES = [
     'downgradeAllowed',
     'staffCorrection',
     'staffCorrectionSetsHold',
+    'staffHoldClear',
+    'earnedRewriteClearsHold',
 ] as const;
 
 /** One guard. */
@@ -242,5 +244,21 @@ export const TRANSITIONS: readonly TransitionRow[] = [
         actors: ['staff'],
         guard: 'staffCorrectionSetsHold',
         moves: [{ from: 'unset', to: 'set' }],
+    }),
+    row({
+        id: 'CLEAR_SOURCE_HOLD',
+        axis: 'holdSourceCorrected',
+        event: 'CLEAR_SOURCE_HOLD',
+        actors: ['staff'],
+        guard: 'staffHoldClear',
+        moves: [{ from: 'set', to: 'unset' }],
+    }),
+    row({
+        id: 'EARNED_REWRITE_CLEARS_HOLD',
+        axis: 'holdSourceCorrected',
+        event: 'REWRITE_EARNS_FACT',
+        actors: ['system'],
+        guard: 'earnedRewriteClearsHold',
+        moves: [{ from: 'set', to: 'unset' }],
     }),
 ];

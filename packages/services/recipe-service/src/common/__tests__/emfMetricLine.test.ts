@@ -45,6 +45,11 @@ describe('buildStageCountMetricLine', () => {
         expect(line['a-thing-happened']).toBe(1);
     });
 
+    it('publishes a stated count as the metric value, and one when none is stated', () => {
+        expect(emit({ namespace: 'Commise/Test', metricName: 'm', stage: 'prod', count: 3 })['m']).toBe(3);
+        expect(emit({ namespace: 'Commise/Test', metricName: 'm', stage: 'prod' })['m']).toBe(1);
+    });
+
     it('⛔ dimensions by Stage ALONE, and carries the stage value the directive names', () => {
         const line = emit({ namespace: 'Commise/Test', metricName: 'a-thing-happened', stage: 'sandbox' });
 

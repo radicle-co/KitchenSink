@@ -123,6 +123,8 @@ import {
     sourceCorrectionPreviewQuerySchema,
     sourceCorrectionPreviewSchema,
     sourceCorrectionRequestSchema,
+    sourceHoldClearRequestSchema,
+    sourceHoldClearResponseSchema,
     sourceCorrectionResponseSchema,
     updateRecipeRequestSchema,
     MAX_NUTRITION_RECIPE_IDS,
@@ -200,6 +202,8 @@ export const openApiComponents = {
     SourceCorrectionRequest: sourceCorrectionRequestSchema,
     SourceCorrectionResponse: sourceCorrectionResponseSchema,
     SourceCorrectionPreview: sourceCorrectionPreviewSchema,
+    SourceHoldClearRequest: sourceHoldClearRequestSchema,
+    SourceHoldClearResponse: sourceHoldClearResponseSchema,
     PrivateSlotUsage: privateSlotUsageSchema,
     RebindIngredientLineRequest: rebindIngredientLineRequestSchema,
     SetRatingRequest: setRatingRequestSchema,
@@ -649,6 +653,34 @@ const paths: Readonly<Record<string, Partial<Record<HttpMethod, Operation>>>> = 
                     schema: 'ErrorResponse',
                 },
                 '404': RECIPE_NOT_FOUND,
+                ...sharedErrorResponses(),
+            },
+        },
+    },
+    '/api/v1/recipes/{id}/source-correction/hold-clear': {
+        post: {
+            operationId: 'clearRecipeSourceHold',
+            summary: 'Staff: clear the correction hold of a recipe (ADR-0106).',
+            description:
+                'Requires the staff grant `recipes:source:correct`. Clears the hold of the recipe and of the owner’s clones the same correction held, each with one audit record; it never makes a recipe public, and the read rule still hides a recipe another term holds. `correctionId` is the `latestCorrectionId` the preview showed (`null` when it showed none). A recipe that is not held answers `409 HOLD_CLEAR_CONFLICT` with `details.reason` `HOLD_NOT_SET`; a stale `correctionId`, `CORRECTION_NOT_LATEST`; a lock deadlock, `LOCK_CONFLICT`. A missing recipe and a recipe of another owner answer the same `404`.',
+            parameters: [uuidPathParam('id', 'The recipe id.')],
+            requestBody: {
+                description: 'The owner staff confirmed, the correction staff saw, and the reason.',
+                required: true,
+                schema: 'SourceHoldClearRequest',
+            },
+            responses: {
+                '200': { description: 'The number of holds cleared.', schema: 'SourceHoldClearResponse' },
+                '403': {
+                    description: 'The caller does not hold the staff grant (`details.requiredScope`).',
+                    schema: 'ErrorResponse',
+                },
+                '404': RECIPE_NOT_FOUND,
+                '409': {
+                    description:
+                        '`HOLD_CLEAR_CONFLICT`: `details.reason` is `HOLD_NOT_SET`, `CORRECTION_NOT_LATEST` or `LOCK_CONFLICT`.',
+                    schema: 'ErrorResponse',
+                },
                 ...sharedErrorResponses(),
             },
         },

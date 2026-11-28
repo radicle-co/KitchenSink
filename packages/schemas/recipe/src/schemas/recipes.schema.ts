@@ -672,10 +672,43 @@ export const sourceCorrectionPreviewSchema = z.object({
         })
         .nullable(),
     sourceCorrected: z.boolean(),
+    /**
+     * The newest correction row across the recipe and every ancestor, by recorded time (ADR-0106): the id staff send back to a
+     * hold clear, which refuses if it is no longer the newest. `null` when no recipe in the chain was ever corrected.
+     */
+    latestCorrectionId: z.uuid().nullable(),
 });
 
 /** The correction preview. */
 export type SourceCorrectionPreview = z.infer<typeof sourceCorrectionPreviewSchema>;
+
+/**
+ * Request body of `POST /api/v1/recipes/{id}/source-correction/hold-clear` (ADR-0106): staff clear a recipe's correction hold.
+ * `ownerAccountId` is the owner staff confirmed, as on the correction. `correctionId` is the newest correction the preview showed
+ * (`latestCorrectionId`), or `null` when it showed none; the clear is refused with `CORRECTION_NOT_LATEST` if it is no longer
+ * the newest. `reason` is kept for audit and is never logged.
+ */
+export const sourceHoldClearRequestSchema = z.strictObject({
+    ownerAccountId: z.string().min(1).max(255),
+    correctionId: z.uuid().nullable(),
+    reason: z
+        .string()
+        .min(1)
+        .max(SOURCE_CORRECTION_REASON_MAX_LENGTH)
+        .refine((value) => value.trim() !== '', { message: 'reason is blank' }),
+});
+
+/** Request body for a staff hold clear. */
+export type SourceHoldClearRequest = z.infer<typeof sourceHoldClearRequestSchema>;
+
+/** Response of a hold clear: `released` is the number of holds cleared, the recipe itself plus each released clone. */
+export const sourceHoldClearResponseSchema = z.object({
+    result: z.literal('cleared'),
+    released: z.number().int().positive(),
+});
+
+/** The hold clear's answer. */
+export type SourceHoldClearResponse = z.infer<typeof sourceHoldClearResponseSchema>;
 
 /** Request body for setting a recipe's visibility. */
 export type SetRecipeVisibilityRequest = z.infer<typeof setRecipeVisibilityRequestSchema>;

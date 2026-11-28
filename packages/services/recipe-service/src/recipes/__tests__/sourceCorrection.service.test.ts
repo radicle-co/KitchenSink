@@ -50,7 +50,7 @@ const body = (over: Partial<SourceCorrectionRequest> = {}): SourceCorrectionRequ
 });
 
 /** The calls, in order, so the ORDER of the work is an assertion. */
-function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
+function build(recipe: CorrectableRecipe | null = BOOK_RECIPE, latestCorrectionId: string | null = null) {
     const calls: string[] = [];
     const rewrite = vi.fn<SourceCorrectionsDal['rewriteSource']>(() => {
         calls.push('rewrite');
@@ -98,10 +98,17 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE) {
         return fn(FAKE_TX);
     };
 
+    const readLatestCorrectionId = vi.fn<(id: string) => Promise<string | null>>(() => {
+        calls.push('readLatest');
+
+        return Promise.resolve(latestCorrectionId);
+    });
+
     const service = new SourceCorrectionService(
         { transaction, lockAndCountPrivateSlots: lockOwner },
         { lockRecipe, rewriteSource: rewrite, recordCorrection: record, holdOwnersClones: holdClones, readPreview },
         { insert: evidence },
+        { readLatestCorrectionId },
     );
 
     return { service, calls, rewrite, record, holdClones, evidence, lockRecipe, lockOwner, readPreview };
@@ -309,9 +316,19 @@ describe('SourceCorrectionService.preview', () => {
             visibility: 'private',
             answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' },
             sourceCorrected: false,
+            latestCorrectionId: null,
         });
-        expect(t.calls).toEqual(['readPreview']);
+        expect(t.calls).toEqual(['readPreview', 'readLatest']);
         expect(t.rewrite).not.toHaveBeenCalled();
+    });
+
+    it('names the newest correction id the DAL reports, and null when the chain has none', async () => {
+        await expect(
+            build(BOOK_RECIPE, 'newest-row').service.preview(staff(), RECIPE_ID, OWNER),
+        ).resolves.toMatchObject({ latestCorrectionId: 'newest-row' });
+        await expect(build().service.preview(staff(), RECIPE_ID, OWNER)).resolves.toMatchObject({
+            latestCorrectionId: null,
+        });
     });
 
     it.each([

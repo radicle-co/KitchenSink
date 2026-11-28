@@ -28,8 +28,11 @@ describe('PLANNED', () => {
         }
     });
 
-    it('holds the clear of the correction hold until PR 5 builds it', () => {
-        expect(PLANNED.find((row) => row.eventId === 'CLEAR_SOURCE_HOLD')?.pending).toBe('PR 5');
+    it('has built both clears of the correction hold: absent from PLANNED, present in TRANSITIONS (PR 5)', () => {
+        for (const id of ['CLEAR_SOURCE_HOLD', 'EARNED_REWRITE_CLEARS_HOLD']) {
+            expect(PLANNED.some((row) => row.eventId === id)).toBe(false);
+            expect(TRANSITIONS.some((row) => row.id === id)).toBe(true);
+        }
     });
 });
 
@@ -60,7 +63,6 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         'PUBLISH_DRAFT_NO_SLOT',
         'HIDE_AFTER_CHECK',
         'SOURCE_HOLD_LIFTED_BY_REWRITE',
-        'EARNED_REWRITE_CLEARS_HOLD',
         'MAKE_PUBLIC_TOO_CLOSE_PRIVATE',
     ];
     const DELETED_IDS = [
@@ -122,8 +124,15 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         }
     });
 
-    it('keeps the clear of the correction hold readable-again for a public recipe', () => {
-        expect(PLANNED.find((row) => row.eventId === 'CLEAR_SOURCE_HOLD')?.to).toContain('Readable again');
+    it('builds the staff clear of the correction hold as a staff edge from set to unset', () => {
+        expect(TRANSITIONS.find((row) => row.id === 'CLEAR_SOURCE_HOLD')).toEqual({
+            id: 'CLEAR_SOURCE_HOLD',
+            axis: 'holdSourceCorrected',
+            event: 'CLEAR_SOURCE_HOLD',
+            actors: ['staff'],
+            guard: 'staffHoldClear',
+            moves: [{ from: 'set', to: 'unset' }],
+        });
     });
 
     it('answers a not-approved publish of a public draft with the draft door, never with REFUSAL_CONTENT_NOT_APPROVED', () => {
@@ -139,16 +148,15 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
         expect(LABELLED_NAMES.VIEW_SAVE_REFUSED.shapes).toContain('.why.notApproved');
     });
 
-    it('clears a correction hold on an earned rewrite only by a system clear, for a third-party answer', () => {
-        const row = PLANNED.find((entry) => entry.eventId === 'EARNED_REWRITE_CLEARS_HOLD');
-
-        expect(row?.from).toContain('HOLD_SOURCE_CORRECTED');
-        expect(row?.actor).toBe('system');
-        expect(row?.guard).toContain('corrected answer is third-party');
-        expect(row?.guard).not.toContain('evidence');
-        expect(row?.guard).toContain('clear record');
-        expect(row?.to).toContain('exactly this recipe');
-        expect(row?.pending).toContain('PR 5');
+    it('clears a correction hold on an earned rewrite only by a system clear, when every correction row in the chain is third-party', () => {
+        expect(TRANSITIONS.find((entry) => entry.id === 'EARNED_REWRITE_CLEARS_HOLD')).toEqual({
+            id: 'EARNED_REWRITE_CLEARS_HOLD',
+            axis: 'holdSourceCorrected',
+            event: 'REWRITE_EARNS_FACT',
+            actors: ['system'],
+            guard: 'earnedRewriteClearsHold',
+            moves: [{ from: 'set', to: 'unset' }],
+        });
         expect(PLANNED.find((entry) => entry.eventId === 'SOURCE_HOLD_LIFTED_BY_REWRITE')?.from).not.toContain(
             'HOLD_SOURCE_CORRECTED',
         );

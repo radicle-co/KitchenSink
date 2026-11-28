@@ -25,6 +25,7 @@ export {
     RecipeDifficulty,
     RecipeMealType,
     RecipeErrorCode,
+    HOLD_CLEAR_CONFLICT_REASONS,
     IMPORT_LOCKED_STAGES,
     RecipeSearchSortBy,
     RECIPE_SOURCE_KINDS,
@@ -115,6 +116,7 @@ export type {
     RecipeVersionPendingArchive,
     VersionConflictDetails,
     VersionConflictSide,
+    HoldClearConflictReason,
     ImportLockedStage,
 } from './recipe.types.js';
 export {
@@ -234,6 +236,7 @@ export {
 } from './statementWordings.js';
 export type { PublicConfirmWording, StatementWording } from './statementWordings.js';
 export {
+    HOLD_CLEAR_CAUSES,
     PRIVATE_ONLY_SOURCE_KEYS,
     PRIVATE_ONLY_SOURCE_KEYS_JSON,
     SOURCE_CORRECTION_GROUNDS,
@@ -241,7 +244,7 @@ export {
     privateOnlySourceKey,
     sourceLockOf,
 } from './sourceRules.js';
-export type { CorrectableSourceFacts, SourceCorrectionGround, SourceLock } from './sourceRules.js';
+export type { CorrectableSourceFacts, HoldClearCause, SourceCorrectionGround, SourceLock } from './sourceRules.js';
 export {
     OWN_SITE_DOMAIN,
     SOURCE_LINK_INPUT_MAX_LENGTH,

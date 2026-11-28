@@ -51,6 +51,7 @@ import { z } from 'zod';
 
 import {
     IDENTITY_SYNC_PENDING_CODE,
+    HOLD_CLEAR_CONFLICT_REASONS,
     IMPORT_LOCKED_STAGES,
     privateFoodLinesDetailsSchema,
     publishRequirementsUnmetDetailsSchema,
@@ -182,6 +183,8 @@ export const recipeErrorCodeSchema = z.enum([
     'IMPORT_ID_IN_USE',
     /** The cook holds as many unpaid import bytes as one cook may (ADR-0072 §2). A 409, and not a 413: a smaller chunk does not help. */
     'IMPORT_STORAGE_FULL',
+    /** ADR-0106 — a staff hold clear met the state it did not expect; `details.reason` says which. */
+    'HOLD_CLEAR_CONFLICT',
 
     // ── Auth and account-lifecycle codes, which are NOT recipe-domain errors ──
     /** No, invalid, expired, or wrong-authorized-party bearer token. */
@@ -336,6 +339,14 @@ export const recipeApiErrorSchema = z.discriminatedUnion('code', [
              * private recipe), and states the truth rather than clamping, so the refusal can say how far over they are.
              */
             details: z.object({ used: z.number().int().nonnegative(), limit: z.number().int().positive() }).loose(),
+        })
+        .loose(),
+    z
+        .object({
+            code: z.literal('HOLD_CLEAR_CONFLICT'),
+            message: z.string(),
+            /** Which conflict (ADR-0106). REQUIRED. */
+            details: z.object({ reason: z.enum(HOLD_CLEAR_CONFLICT_REASONS) }).loose(),
         })
         .loose(),
     z

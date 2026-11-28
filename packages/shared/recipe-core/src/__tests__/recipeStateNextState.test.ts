@@ -290,12 +290,37 @@ describe('nextState: confirmation and the hold', () => {
         ]);
     });
 
-    it('sets the correction hold by staff only, and enforces no clear until PR 5', () => {
+    it('sets the correction hold by staff only, and clears it by a staff clear or an earned rewrite (PR 5)', () => {
         const staff = { ...cook(), actor: 'staff', staffGrant: true, newAnswerCanOpenPublic: true } as const;
 
         expect(nextState('holdSourceCorrected', 'unset', 'STAFF_CORRECT', staff)).toEqual({ ok: true, to: 'set' });
         expect(canTransition('holdSourceCorrected', 'unset', 'STAFF_CORRECT', { ...staff, actor: 'cook' })).toBe(false);
-        expect(canTransition('holdSourceCorrected', 'set', 'CLEAR_SOURCE_HOLD', staff)).toBe(false);
+        expect(canTransition('holdSourceCorrected', 'set', 'CLEAR_SOURCE_HOLD', staff)).toBe(true);
+        expect(canTransition('holdSourceCorrected', 'set', 'CLEAR_SOURCE_HOLD', { ...staff, staffGrant: false })).toBe(
+            false,
+        );
+        expect(canTransition('holdSourceCorrected', 'set', 'CLEAR_SOURCE_HOLD', { ...staff, actor: 'cook' })).toBe(
+            false,
+        );
+
+        const system = { ...cook(), actor: 'system', correctedAnswerThirdParty: true } as const;
+
+        expect(nextState('holdSourceCorrected', 'set', 'REWRITE_EARNS_FACT', system)).toEqual({
+            ok: true,
+            to: 'unset',
+        });
+        expect(
+            canTransition('holdSourceCorrected', 'set', 'REWRITE_EARNS_FACT', {
+                ...system,
+                correctedAnswerThirdParty: false,
+            }),
+        ).toBe(false);
+        expect(canTransition('holdSourceCorrected', 'set', 'REWRITE_EARNS_FACT', { ...system, actor: 'cook' })).toBe(
+            false,
+        );
+        expect(canTransition('holdSourceCorrected', 'set', 'REWRITE_EARNS_FACT', { ...system, actor: 'staff' })).toBe(
+            false,
+        );
     });
 });
 

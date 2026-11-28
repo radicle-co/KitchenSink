@@ -444,8 +444,9 @@ describe('the alarm feature flag — discovery is not vacuous', () => {
         ]);
         // An exact count, not a floor: a floor cannot tell "an alarm was added" from "the walk counted the gated
         // branch twice". A new alarm changes this number on purpose, in the commit that adds it. 42: the bulk
-        // import purge's `BulkImportPurgeBehindAlarm` joined the recipe-workers block.
-        expect(ALARM_SOURCES.flatMap(discoverAlarms)).toHaveLength(43);
+        // import purge's `BulkImportPurgeBehindAlarm` joined the recipe-workers block. 44: the hold-clear
+        // volume alarm `SourceHoldClearVolumeAlarm` joined the recipe-service block.
+        expect(ALARM_SOURCES.flatMap(discoverAlarms)).toHaveLength(44);
         expect(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => alarm.id)).toHaveLength(
             new Set(ALARM_SOURCES.flatMap(discoverAlarms).map((alarm) => `${alarm.file}#${alarm.id}`)).size,
         );

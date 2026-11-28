@@ -202,6 +202,8 @@ export type {
 // ── recipe_source_corrections (0092) — the append-only record of every staff correction of a source answer ──
 export { recipeSourceCorrections } from './recipeSourceCorrections.js';
 export type { NewRecipeSourceCorrectionRow, RecipeSourceCorrectionRow } from './recipeSourceCorrections.js';
+export { recipeSourceHoldClears } from './recipeSourceHoldClears.js';
+export type { RecipeSourceHoldClearRow } from './recipeSourceHoldClears.js';
 
 // ── recipe_statement_attestations (0088) — the append-only record of every statement and Public confirmation ──
 export {

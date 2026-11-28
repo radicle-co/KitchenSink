@@ -28,8 +28,14 @@ interface Row {
     readonly evidence: boolean;
     /** A private-only origin label (a book), with no evidence row. */
     readonly bookLabel?: boolean;
+    /** The stored statement of a from-person recipe: the read rule's fourth term, with no hold and no evidence (AE4, PR 5). */
+    readonly statementKind?: 'fromPerson';
+    /** A past from-person attestation with no stored statement: the other way the read rule's fourth term is true. */
+    readonly attested?: boolean;
+    /** Held first, then cleared by staff through the real clear record, so the row is a recipe whose hold was lifted. */
+    readonly clearedByStaff?: boolean;
     /** The wire reason the owner must get; `undefined` is "no key". */
-    readonly reason: 'sourceCorrected' | 'heldSource' | undefined;
+    readonly reason: 'sourceCorrected' | 'heldSource' | 'other' | undefined;
     readonly name: string;
 }
 
@@ -70,6 +76,34 @@ const ROWS: readonly Row[] = [
         reason: undefined,
         name: 'private with the hold (AE4)',
     },
+    {
+        n: 7,
+        visibility: 'public',
+        correctionHold: false,
+        evidence: false,
+        statementKind: 'fromPerson',
+        reason: 'other',
+        name: 'from person, stored statement (AE4 owner view)',
+    },
+    {
+        n: 8,
+        visibility: 'public',
+        correctionHold: false,
+        evidence: false,
+        attested: true,
+        reason: 'other',
+        name: 'from person, past attestation only (AE4 owner view)',
+    },
+    {
+        n: 9,
+        visibility: 'public',
+        correctionHold: false,
+        evidence: false,
+        statementKind: 'fromPerson',
+        clearedByStaff: true,
+        reason: 'other',
+        name: 'from person, hold cleared by staff (AE4 owner view)',
+    },
 ];
 
 describe('hiddenReason: the owner is told, nobody else is', () => {
@@ -84,8 +118,9 @@ describe('hiddenReason: the owner is told, nobody else is', () => {
             await client.query('BEGIN');
             await client.query(
                 `INSERT INTO recipes (id, owner_id, title, description, prep_time_minutes, cook_time_minutes,
-                                      total_time_minutes, servings, visibility, status, source_type, source_correction_hold)
-                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, 'published', $6, $5)`,
+                                      total_time_minutes, servings, visibility, status, source_type, source_correction_hold,
+                                      statement_kind)
+                 VALUES ($1, $2, $3, '', 1, 1, 2, 4, $4, 'published', $6, $5, $7)`,
                 [
                     rid(row.n),
                     OWNER,
@@ -93,8 +128,27 @@ describe('hiddenReason: the owner is told, nobody else is', () => {
                     row.visibility,
                     row.correctionHold,
                     row.bookLabel === true ? 'imported_physical' : 'user_created',
+                    row.statementKind ?? null,
                 ],
             );
+
+            if (row.attested === true) {
+                await client.query(
+                    `INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+                     VALUES ($1, $1, $2, 'explicit', 'fromPerson', 'fromPerson.v1', 'en', 'update')`,
+                    [rid(row.n), OWNER],
+                );
+            }
+
+            if (row.clearedByStaff === true) {
+                await client.query(`UPDATE recipes SET source_correction_hold = true WHERE id = $1`, [rid(row.n)]);
+                await client.query(
+                    `INSERT INTO recipe_source_hold_clears (recipe_id, cause, actor_account_id, reason)
+                     VALUES ($1, 'staff', 'staff01', 'a mistaken correction')`,
+                    [rid(row.n)],
+                );
+                await client.query(`UPDATE recipes SET source_correction_hold = false WHERE id = $1`, [rid(row.n)]);
+            }
 
             if (row.evidence) {
                 await client.query(

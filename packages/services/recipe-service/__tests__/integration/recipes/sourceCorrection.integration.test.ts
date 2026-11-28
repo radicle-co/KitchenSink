@@ -15,6 +15,7 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { SourceCorrectionsDal } from '../../../src/recipes/dal/sourceCorrections.dal.js';
+import { SourceHoldClearsDal } from '../../../src/recipes/dal/sourceHoldClears.dal.js';
 import type { CorrectableRecipe } from '../../../src/recipes/domain/sourceCorrectionScopePolicy.js';
 import { SOURCE_CORRECT_SCOPE } from '../../../src/recipes/recipes.schema.js';
 import type { RecipeTx } from '../../../src/database/unitOfWork.js';
@@ -123,6 +124,14 @@ beforeAll(async () => {
                     rewriteSource,
                     recordCorrection,
                     holdOwnersClones,
+                },
+            },
+            // The preview names the newest correction of the chain (ADR-0106); this recipe has none.
+            {
+                provide: SourceHoldClearsDal,
+                useValue: {
+                    readLatestCorrectionId: () => Promise.resolve(null),
+                    readCorrectionChain: () => Promise.resolve([]),
                 },
             },
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
@@ -302,6 +311,7 @@ describe('GET /api/v1/recipes/:id/source-correction (the runbook preview)', () =
             visibility: 'private',
             answer: { kind: 'book', citation: 'Joy of Cooking, p. 12' },
             sourceCorrected: false,
+            latestCorrectionId: null,
         });
         expect(calls).toEqual([]);
     });

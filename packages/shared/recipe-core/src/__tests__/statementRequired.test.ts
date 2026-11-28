@@ -14,7 +14,8 @@ import { statementRequiredOf } from '../statementRequired.js';
  * evidence, may not be left published and public until the cook says "I wrote this". Literal truth table: a mutant that drops
  * the sourceType clause, the statement clause, either arm of the OR, or the fail-closed arm fails at least one row.
  */
-const ANY_EVIDENCE: SourceEvidenceFacts = { sourceDomain: null, sourceKind: null };
+const ANY_EVIDENCE: SourceEvidenceFacts = { capture: 'other', sourceDomain: null, sourceKind: null };
+const STAFF_EVIDENCE: SourceEvidenceFacts = { capture: 'staffCorrection', sourceDomain: null, sourceKind: 'book' };
 const OWN = RecipeSourceType.USER_CREATED;
 
 describe('RECIPE_STATEMENT_KINDS', () => {
@@ -27,6 +28,8 @@ describe('statementRequiredOf', () => {
     it.each([
         ['typed, no evidence, no statement', OWN, null, false, [], false],
         ['pasted, no statement', OWN, null, true, [], true],
+        // The statement rule is deliberately unchanged by ADR-0106: a staffCorrection row still counts as evidence here.
+        ['typed, only a staffCorrection evidence row, no statement', OWN, null, false, [STAFF_EVIDENCE], true],
         ['typed, but evidence exists, no statement', OWN, null, false, [ANY_EVIDENCE], true],
         ['pasted and evidence, no statement', OWN, null, true, [ANY_EVIDENCE], true],
         ['pasted, the cook said "I wrote this"', OWN, 'authored', true, [], false],

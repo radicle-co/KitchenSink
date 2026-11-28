@@ -25,6 +25,7 @@ import type { CorrectableRecipe } from '../domain/sourceCorrectionScopePolicy.js
 import { recipeSourceCorrections, recipes } from '../../database/schema/index.js';
 import type { RecipeDrizzle } from '../../database/client.js';
 import type { RecipeTx } from '../../database/unitOfWork.js';
+import { descendantsCte } from './cloneWalks.js';
 import { activeRecipe } from './recipePredicates.js';
 
 /** What `recordCorrection` stores. */
@@ -169,11 +170,7 @@ export class SourceCorrectionsDal {
      */
     public async holdOwnersClones(tx: RecipeTx, recipeId: string, ownerId: string): Promise<void> {
         await tx.execute(sql`
-            WITH RECURSIVE descendants(id) AS (
-                SELECT ${recipes.id} FROM ${recipes} WHERE ${recipes.clonedFromId} = ${recipeId}::uuid
-                UNION
-                SELECT r.id FROM ${recipes} r JOIN descendants d ON r.cloned_from_id = d.id
-            )
+            ${descendantsCte(recipeId)}
             UPDATE ${recipes}
                SET visibility = 'private', source_correction_hold = true, updated_at = now()
              WHERE ${recipes.id} IN (SELECT id FROM descendants)

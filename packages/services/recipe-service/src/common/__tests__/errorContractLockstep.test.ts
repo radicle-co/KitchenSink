@@ -197,6 +197,7 @@ const SNAPSHOT = {
  * the value fails the exhaustive case — which is the coupling that keeps the two in step.
  */
 const DETAILS_BY_CODE: Partial<Record<string, Record<string, unknown>>> = {
+    HOLD_CLEAR_CONFLICT: { reason: 'HOLD_NOT_SET' },
     [RecipeErrorCode.VERSION_CONFLICT]: {
         currentVersion: 7,
         conflictingVersion: 5,

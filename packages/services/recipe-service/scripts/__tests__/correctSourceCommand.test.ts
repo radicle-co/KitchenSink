@@ -27,6 +27,7 @@ const PREVIEW = (title: string) => ({
     visibility: 'private',
     answer: { kind: 'webPage', citation: 'https://example.com/r' },
     sourceCorrected: false,
+    latestCorrectionId: null,
 });
 
 interface Seen {

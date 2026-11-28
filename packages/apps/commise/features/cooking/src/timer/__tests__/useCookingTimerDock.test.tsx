@@ -84,9 +84,16 @@ function setup(overrides: Partial<TimerDockInput> = {}) {
     return { store, real, log, dock, hook, disconnect };
 }
 
-const press = (control: { readonly onPress: () => void }): void => {
+/** Presses a control. A missing one fails the row, so a row never passes by pressing nothing. */
+const press = (control: { readonly onPress: () => void } | undefined): void => {
+    if (control === undefined) {
+        throw new Error('The row has no such control.');
+    }
+
+    const { onPress } = control;
+
     act(() => {
-        control.onPress();
+        onPress();
     });
 };
 
@@ -97,7 +104,7 @@ describe('useCookingTimerDock: the offer', () => {
         expect(dock().offer?.label).toBe('Time 20 min');
         expect(dock().rows).toEqual([]);
 
-        press(dock().offer ?? { onPress: vi.fn() });
+        press(dock().offer);
 
         expect(dock().offer).toBeUndefined();
         expect(dock().rows).toHaveLength(1);
@@ -110,7 +117,7 @@ describe('useCookingTimerDock: the offer', () => {
     it('primes the alarm sound inside the tap, BEFORE the timer starts', () => {
         const { dock, log } = setup();
 
-        press(dock().offer ?? { onPress: vi.fn() });
+        press(dock().offer);
 
         expect(log).toEqual(['prime', 'start']);
     });
@@ -118,7 +125,7 @@ describe('useCookingTimerDock: the offer', () => {
     it('starts the timer on this step with the step length, as an offered timer', () => {
         const { dock, real } = setup();
 
-        press(dock().offer ?? { onPress: vi.fn() });
+        press(dock().offer);
 
         expect(real.getSnapshot().timers[0]).toMatchObject({
             kind: 'running',
@@ -132,7 +139,7 @@ describe('useCookingTimerDock: the offer', () => {
     it('stores the digest of the step it starts on, so a blank step before it cannot shift the match', () => {
         const { dock, real } = setup();
 
-        press(dock().offer ?? { onPress: vi.fn() });
+        press(dock().offer);
         const timer = real.getSnapshot().timers.at(0);
 
         if (timer === undefined) {
@@ -146,7 +153,7 @@ describe('useCookingTimerDock: the offer', () => {
     it('asks for focus on the new row’s primary control, and lowers the request when it is taken', () => {
         const { dock } = setup();
 
-        press(dock().offer ?? { onPress: vi.fn() });
+        press(dock().offer);
 
         expect(dock().rows[0]?.primary.focusRequested).toBe(true);
 
@@ -162,7 +169,7 @@ describe('useCookingTimerDock: the row controls', () => {
     const started = () => {
         const made = setup();
 
-        press(made.dock().offer ?? { onPress: vi.fn() });
+        press(made.dock().offer);
         made.log.length = 0;
 
         return made;
@@ -171,11 +178,11 @@ describe('useCookingTimerDock: the row controls', () => {
     it('pauses and resumes the timer, sending only this timer’s id and run, and primes before a resume', () => {
         const { dock, real, log } = started();
 
-        press(dock().rows[0]?.primary ?? { onPress: vi.fn() });
+        press(dock().rows[0]?.primary);
 
         expect(real.getSnapshot().timers[0]?.kind).toBe('paused');
 
-        press(dock().rows[0]?.primary ?? { onPress: vi.fn() });
+        press(dock().rows[0]?.primary);
 
         expect(real.getSnapshot().timers[0]?.kind).toBe('running');
         expect(log).toEqual(['pause', 'prime', 'resume']);
@@ -190,7 +197,7 @@ describe('useCookingTimerDock: the row controls', () => {
 
         expect(dock().rows[0]?.kind).toBe('done');
 
-        press(dock().rows[0]?.primary ?? { onPress: vi.fn() });
+        press(dock().rows[0]?.primary);
 
         expect(real.getSnapshot().timers).toEqual([]);
         expect(dock().rows).toEqual([]);
@@ -213,9 +220,9 @@ describe('useCookingTimerDock: Cancel and Undo', () => {
     const cancelled = () => {
         const made = setup();
 
-        press(made.dock().offer ?? { onPress: vi.fn() });
+        press(made.dock().offer);
         made.log.length = 0;
-        press(made.dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(made.dock().rows[0]?.secondary);
 
         return made;
     };
@@ -277,7 +284,7 @@ describe('useCookingTimerDock: Cancel and Undo', () => {
                 durationMs: 5 * MINUTE,
             });
         });
-        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(dock().rows[0]?.secondary);
         hook.rerender();
 
         expect(dock().forward.requested).toBe(false);
@@ -297,7 +304,7 @@ describe('useCookingTimerDock: Cancel and Undo', () => {
                 durationMs: 5 * MINUTE,
             });
         });
-        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(dock().rows[0]?.secondary);
 
         expect(dock().offer).toBeUndefined();
         expect(dock().forward.requested).toBe(true);
@@ -314,8 +321,8 @@ describe('useCookingTimerDock: leaving', () => {
     it('withdraws the Undo snackbar and discards the held timer when the dock unmounts', () => {
         const { dock, hook, real } = setup();
 
-        press(dock().offer ?? { onPress: vi.fn() });
-        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(dock().offer);
+        press(dock().rows[0]?.secondary);
         hook.unmount();
 
         expect(real.getSnapshot().undo).toBeUndefined();
@@ -354,18 +361,9 @@ describe('useCookingTimerDock: the Done title signal', () => {
     const started = (finished: boolean) => {
         const made = setup({ finished });
 
-        press(made.dock().offer ?? { onPress: vi.fn() });
+        press(made.dock().offer);
 
         return made;
-    };
-
-    /** The control a row must have: a missing one fails the row instead of pressing nothing. */
-    const present = <T,>(control: T | undefined): T => {
-        if (control === undefined) {
-            throw new Error('The row has no such control.');
-        }
-
-        return control;
     };
 
     it('advances when Cancel is pressed on Done, and not before', () => {
@@ -373,7 +371,7 @@ describe('useCookingTimerDock: the Done title signal', () => {
 
         expect(dock().doneTitleSignal).toBe(0);
 
-        press(present(dock().rows[0]?.secondary));
+        press(dock().rows[0]?.secondary);
 
         expect(dock().doneTitleSignal).toBe(1);
     });
@@ -387,7 +385,7 @@ describe('useCookingTimerDock: the Done title signal', () => {
 
         expect(real.getSnapshot().timers[0]?.kind).toBe('ringing');
 
-        press(present(dock().rows[0]?.primary));
+        press(dock().rows[0]?.primary);
 
         expect(dock().doneTitleSignal).toBe(1);
     });
@@ -395,7 +393,7 @@ describe('useCookingTimerDock: the Done title signal', () => {
     it('stays 0 for a Cancel on a step, where Next takes focus', () => {
         const { dock } = started(false);
 
-        press(present(dock().rows[0]?.secondary));
+        press(dock().rows[0]?.secondary);
 
         expect(dock().doneTitleSignal).toBe(0);
     });

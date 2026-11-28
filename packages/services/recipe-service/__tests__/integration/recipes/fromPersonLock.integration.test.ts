@@ -63,6 +63,11 @@ let stored: RecipeRow;
 /** What a read OUTSIDE the lock sees (`findById`), when it differs from the locked row: a write that raced the statement. */
 let preLockStatementKind: RecipeRow['statementKind'] | undefined;
 
+/** The row a read outside the lock sees: the stored one, with the statement kind a racing write left. */
+function readBeforeLock(): RecipeRow {
+    return preLockStatementKind === undefined ? stored : { ...stored, statementKind: preLockStatementKind };
+}
+
 function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     return {
         recipe,
@@ -123,17 +128,7 @@ beforeAll(async () => {
                 create,
                 update,
                 findById: (id: string) =>
-                    Promise.resolve(
-                        id === RECIPE_ID
-                            ? readableAggregateOf(
-                                  aggregateOf(
-                                      preLockStatementKind === undefined
-                                          ? stored
-                                          : { ...stored, statementKind: preLockStatementKind },
-                                  ),
-                              )
-                            : undefined,
-                    ),
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(readBeforeLock())) : undefined),
                 privateFoodLines: () => Promise.resolve([]),
                 lockAndCountPrivateSlots: () => Promise.resolve(0),
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),

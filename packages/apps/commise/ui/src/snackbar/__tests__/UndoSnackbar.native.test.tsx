@@ -6,59 +6,167 @@
  * renders its `pressed` branch.
  */
 import { cleanup, screen } from '@testing-library/react';
-import { render } from '../../testing/tamaguiTesting.native.js';
+import { elevationBoxShadow } from '../../testing/elevationShadow.js';
+import { renderWithTamagui, resolvedColour, resolvedStyle } from '../../testing/tamaguiTesting.native.js';
+import { snackbarBarOf, undoFrameOf } from '../../testing/undoSnackbarParts.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 const press = vi.hoisted(() => ({ pressed: false }));
+/** The system text size the test sets, read through `useWindowDimensions`. */
+const text = vi.hoisted(() => ({ scale: 1 }));
 
 vi.mock('react-native', async (importOriginal) => {
     const { pressedPressable } = await import('../../testing/pressedPressable.js');
     const { withSystemScheme } = await import('../../testing/systemColorScheme.js');
     const actual = withSystemScheme(await importOriginal<typeof import('react-native')>());
 
-    return { ...actual, Pressable: pressedPressable(actual, () => press.pressed) };
+    return {
+        ...actual,
+        Pressable: pressedPressable(actual, () => press.pressed),
+        useWindowDimensions: () => ({ ...actual.useWindowDimensions(), fontScale: text.scale }),
+    };
 });
 
 import { rgb, rolesFor, systemScheme } from '../../testing/systemColorScheme.js';
 import { themeFor } from '../../theme/themeFor.js';
+import { snackbarMaxWidth, snackbarMessageBasis } from '../../tokens/layout.js';
 import { UndoSnackbar } from '../UndoSnackbar.native.js';
 
 afterEach(() => {
     cleanup();
     press.pressed = false;
+    text.scale = 1;
     systemScheme.current = null;
 });
 
 describe.each(['light', 'dark'] as const)('UndoSnackbar (native), %s theme', (scheme) => {
     it('paints the inverse fill on the bar', () => {
         systemScheme.current = scheme;
-        render(
+        renderWithTamagui(
             <UndoSnackbar
                 message="Recipe deleted"
                 action={{ label: 'Undo', onAction: vi.fn() }}
                 onPause={vi.fn()}
                 onResume={vi.fn()}
             />,
+            scheme,
         );
-        const bar = screen.getByText('Recipe deleted').parentElement as HTMLElement;
 
-        expect(getComputedStyle(bar).backgroundColor).toBe(rgb(rolesFor(scheme).inverse));
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedColour(bar, 'backgroundColor')).toBe(rgb(rolesFor(scheme).inverse));
+    });
+
+    it('lifts the bar with the lg level of the elevation table whole (mutant: no level, or another one)', () => {
+        systemScheme.current = scheme;
+        renderWithTamagui(
+            <UndoSnackbar
+                message="Recipe deleted"
+                action={{ label: 'Undo', onAction: vi.fn() }}
+                onPause={vi.fn()}
+                onResume={vi.fn()}
+            />,
+            scheme,
+        );
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedStyle(bar, 'boxShadow')).toBe(elevationBoxShadow('lg'));
+    });
+
+    it('is at most the snackbar max width wide (mutant: a literal width that drifts from the token)', () => {
+        systemScheme.current = scheme;
+        renderWithTamagui(
+            <UndoSnackbar
+                message="Recipe deleted"
+                action={{ label: 'Undo', onAction: vi.fn() }}
+                onPause={vi.fn()}
+                onResume={vi.fn()}
+            />,
+            scheme,
+        );
+        const bar = snackbarBarOf(screen.getByText('Recipe deleted'), screen.getByRole('button', { name: 'Undo' }));
+
+        expect(resolvedStyle(bar, 'maxWidth')).toBe(`${String(snackbarMaxWidth)}px`);
     });
 
     it('presses the Undo action to the inverse row of the press table', () => {
         systemScheme.current = scheme;
         press.pressed = true;
-        render(
+        renderWithTamagui(
             <UndoSnackbar
                 message="Recipe deleted"
                 action={{ label: 'Undo', onAction: vi.fn() }}
                 onPause={vi.fn()}
                 onResume={vi.fn()}
             />,
+            scheme,
         );
 
-        expect(getComputedStyle(screen.getByRole('button', { name: 'Undo' })).backgroundColor).toBe(
+        expect(resolvedColour(undoFrameOf(screen.getByRole('button', { name: 'Undo' })), 'backgroundColor')).toBe(
             rgb(themeFor(scheme).press.inverse),
         );
+    });
+});
+
+describe('UndoSnackbar (native), a message of any length (issue 409, owner ruling: it never clamps)', () => {
+    const LONG = 'Can\u2019t undo. The recipe changed since. Open its versions to check.';
+
+    const renderLong = (): HTMLElement => {
+        renderWithTamagui(
+            <UndoSnackbar
+                message={LONG}
+                action={{ label: 'Undo', onAction: vi.fn() }}
+                onPause={vi.fn()}
+                onResume={vi.fn()}
+            />,
+            'light',
+        );
+
+        return screen.getByText(LONG);
+    };
+
+    it('shows the whole message and never clamps or cuts it (mutant: numberOfLines back)', () => {
+        const message = renderLong();
+        const style = getComputedStyle(message);
+
+        expect(message.textContent).toBe(LONG);
+        // react-native-web draws numberOfLines as a line clamp with hidden overflow.
+        expect(style.getPropertyValue('-webkit-line-clamp')).toBe('');
+        expect(style.overflow).not.toBe('hidden');
+    });
+
+    it('wraps the row, so Undo drops under a message with no room, at the end (mutant: no wrap)', () => {
+        const message = renderLong();
+        const undo = screen.getByRole('button', { name: 'Undo' });
+
+        expect(resolvedStyle(snackbarBarOf(message, undo), 'flexWrap')).toBe('wrap');
+        expect(resolvedStyle(undo.parentElement as HTMLElement, 'marginLeft')).toBe('auto');
+        // Undo keeps its touch target on its own row.
+        expect(resolvedStyle(undoFrameOf(undo), 'minHeight')).toBe('44px');
+        expect(resolvedStyle(undoFrameOf(undo), 'minWidth')).toBe('44px');
+    });
+
+    it.each([
+        [1, `${String(snackbarMessageBasis)}px`],
+        [1.5, `${String(snackbarMessageBasis * 1.5)}px`],
+        [2, `${String(snackbarMessageBasis * 2)}px`],
+        [3, `${String(snackbarMessageBasis * 2)}px`],
+    ])(
+        'asks for 12 text units of room at text size %s, capped at 2x, so Undo drops as text grows (%s)',
+        (scale, basis) => {
+            text.scale = scale;
+
+            expect(resolvedStyle(renderLong().parentElement as HTMLElement, 'flexBasis')).toBe(basis);
+        },
+    );
+
+    it('lets the message grow but never shrink, and holds it to the bar (Yoga squeezes a shrinker)', () => {
+        const box = renderLong().parentElement as HTMLElement;
+
+        expect(resolvedStyle(box, 'flexGrow')).toBe('1');
+        // Rewritten for the device: this row used to pin flexShrink 1, which keeps Undo beside the message in Yoga.
+        expect(resolvedStyle(box, 'flexShrink')).toBe('0');
+        expect(resolvedStyle(box, 'minWidth')).toBe('0px');
+        expect(resolvedStyle(box, 'maxWidth')).toBe('100%');
     });
 });

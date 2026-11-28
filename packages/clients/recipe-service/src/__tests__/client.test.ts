@@ -365,7 +365,10 @@ describe('RecipeServiceClient — status → typed error mapping', () => {
     });
 
     it('404 → NotFoundError', async () => {
-        const client = new RecipeServiceClient({ baseUrl: BASE, fetch: stubFetch(404, { code: 'RECIPE_NOT_FOUND' }) });
+        const client = new RecipeServiceClient({
+            baseUrl: BASE,
+            fetch: stubFetch(404, { code: 'RECIPE_NOT_FOUND', message: 'Recipe rec_missing not found.' }),
+        });
         await expect(client.getRecipeById('rec_missing')).rejects.toBeInstanceOf(NotFoundError);
     });
 

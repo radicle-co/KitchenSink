@@ -2,6 +2,8 @@
 
 - **Status:** Accepted
 - **Date:** 2026-11-19
+- **Superseded in part by:** [ADR-0103](0103-the-recipe-state-model-is-code-and-staff-can-clear-the-correction-hold.md): Decision 1, the model document as the authority. The code is the source now.
+- **Amended by:** [ADR-0104](0104-a-recipe-stores-its-origin-in-one-column.md): Decision 5, the "until its own ADR" clause. The one origin field is `recipes.origin`.
 - **Supersedes:** [ADR-0089](0089-a-pasted-web-link-sets-the-source-and-a-web-copy-stays-private.md) §6: the statement
   stays editable before and after the first publish, and its list of locks. Only Commise changes a confirmed answer
   (Decision 3).

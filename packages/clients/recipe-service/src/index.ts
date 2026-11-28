@@ -48,6 +48,7 @@ export type { LibraryChunk } from './libraryChunk.js';
 export {
     BadRequestError,
     FetchUnavailableError,
+    ServiceUnreachableError,
     SourceUnavailableError,
     ForbiddenError,
     GoneError,
@@ -75,6 +76,7 @@ export {
     PublishRequirementsUnmetError,
     isBadRequestError,
     isFetchUnavailableError,
+    isServiceUnreachableError,
     isSourceUnavailableError,
     isForbiddenError,
     isSourceLockedError,

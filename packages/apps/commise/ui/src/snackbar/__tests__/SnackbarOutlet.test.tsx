@@ -13,6 +13,7 @@ import userEvent from '@testing-library/user-event';
 import { useContext, useState, type JSX, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { nearestAncestorHolding } from '../../testing/ancestorHolding.js';
 import { resizeEntryOf } from '../../testing/resizeObserver.js';
 import { snackbarRegionOf } from '../../testing/windowSnackbar.js';
 import { OverlayDepthContext } from '../../overlay/overlayDepthContext.js';
@@ -285,7 +286,13 @@ function FooteredSheet(): JSX.Element {
 /** Give the sheet, its title row and its footer their heights, and report a resize to every observer. */
 function layOut(heights: { readonly sheet: number; readonly titleRow: number; readonly footer: number }): void {
     const panel = screen.getByRole('dialog').firstElementChild as HTMLElement;
-    const titleRow = screen.getByRole('button', { name: 'Close Ingredients' }).parentElement as HTMLElement;
+    // The title row is the nearest ancestor of Close that also holds the title, wherever the icon button nests it.
+    const titleRow = nearestAncestorHolding(
+        screen.getByRole('button', { name: 'Close Ingredients' }),
+        screen.getByRole('heading', { name: 'Ingredients' }),
+        'the title',
+    );
+
     const footer = screen.getByRole('button', { name: 'Clear ticks' }).parentElement as HTMLElement;
 
     for (const [node, height] of [

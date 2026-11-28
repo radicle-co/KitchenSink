@@ -144,7 +144,7 @@ export function draftPublicFactsOf(
         sourceKind: recipe?.sourceKind ?? null,
         statementKind,
         held,
-        corrected: recipe?.sourceCorrected === true,
+        sourceCorrected: recipe?.sourceCorrected === true,
     };
 
     // A locked source is the server's, whatever the field holds: judge the stored facts.

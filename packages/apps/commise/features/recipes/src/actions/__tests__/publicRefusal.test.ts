@@ -23,6 +23,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
     PUBLIC_REFUSALS,
+    REFUSALS_OF_SOURCE,
     publicRefusalOf,
     publicRefusalOfStored,
     type PublicRefusal,
@@ -36,7 +37,7 @@ const facts = (over: Partial<PublicRefusalFacts>): PublicRefusalFacts => ({
     sourceKind: null,
     statementKind: null,
     held: false,
-    corrected: false,
+    sourceCorrected: false,
     ...over,
 });
 
@@ -44,7 +45,9 @@ type Combination = Pick<PublicRefusalFacts, 'sourceType' | 'sourceKind' | 'state
 
 /** One of each of the held and corrected states, for a combination of the three enums. */
 const heldAndCorrected = (combination: Combination): PublicRefusalFacts[] =>
-    [false, true].flatMap((held) => [false, true].map((corrected) => ({ ...combination, held, corrected })));
+    [false, true].flatMap((held) =>
+        [false, true].map((sourceCorrected) => ({ ...combination, held, sourceCorrected })),
+    );
 
 describe('publicRefusalOf: the decision table', () => {
     const rows: ReadonlyArray<readonly [string, Partial<PublicRefusalFacts>, PublicRefusal]> = [
@@ -60,24 +63,28 @@ describe('publicRefusalOf: the decision table', () => {
             'fromPerson',
         ],
         [
-            'a staff correction hold (read after "from another person", as the server does)',
-            { corrected: true },
+            'a staff correction hold (the state model reads it after the held source)',
+            { sourceCorrected: true },
             'sourceCorrected',
         ],
         [
             'a staff correction hold on a recipe the cook wrote',
-            { corrected: true, statementKind: 'authored' },
-            'sourceCorrected',
-        ],
-        ['a staff correction hold, held too', { corrected: true, held: true }, 'sourceCorrected'],
-        [
-            'a staff correction hold on a book: the hold names the reason',
-            { corrected: true, sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' },
+            { sourceCorrected: true, statementKind: 'authored' },
             'sourceCorrected',
         ],
         [
-            'from another person while corrected: its line wins, the server reads it first',
-            { corrected: true, statementKind: 'fromPerson' },
+            'a staff correction hold, held too: the held source is read first',
+            { sourceCorrected: true, held: true },
+            'sourceConflict',
+        ],
+        [
+            'a staff correction hold on a book: the book rule is read first',
+            { sourceCorrected: true, sourceType: IMPORTED_PHYSICAL, sourceKind: 'book' },
+            'policy.book',
+        ],
+        [
+            'from another person while corrected: its line wins, the model reads it first',
+            { sourceCorrected: true, statementKind: 'fromPerson' },
             'fromPerson',
         ],
         ['an unrecognised statement kind', { statementKind: UNRECOGNISED_STATEMENT_KIND }, 'unrecognised'],
@@ -111,6 +118,16 @@ describe('publicRefusalOf: the decision table', () => {
             { sourceType: IMPORTED_PHYSICAL, sourceKind: UNRECOGNISED_SOURCE_KIND },
             'unrecognised',
         ],
+        [
+            'an unrecognised source kind on a recipe the cook wrote',
+            { sourceKind: UNRECOGNISED_SOURCE_KIND },
+            'unrecognised',
+        ],
+        [
+            'a paid site, held (the policy outranks the hold)',
+            { sourceType: IMPORTED_PAID, sourceKind: 'paid_site', held: true },
+            'policy.paidSite',
+        ],
         ['a recorded source (held) on a recipe the slots rule governs', { held: true }, 'sourceConflict'],
         [
             'public-domain text (imported_public, no kind), held',
@@ -125,6 +142,18 @@ describe('publicRefusalOf: the decision table', () => {
 
     it.each(rows)('%s gives %s', (_name, over, expected) => {
         expect(publicRefusalOf(facts(over))).toBe(expected);
+    });
+
+    describe('the mapping from recipe-core refusal names to reasons (REFUSALS_OF_SOURCE)', () => {
+        it('lists exactly the reasons the recipe page shows', () => {
+            expect(new Set(REFUSALS_OF_SOURCE.map((pair) => pair[1]))).toEqual(new Set(PUBLIC_REFUSALS));
+        });
+
+        it('maps each refusal name at most once (names are unique)', () => {
+            const names = REFUSALS_OF_SOURCE.map((pair) => pair[0]);
+
+            expect(new Set(names).size).toBe(names.length);
+        });
     });
 
     describe('over every combination of the enums, held or not', () => {
@@ -153,7 +182,7 @@ describe('publicRefusalOf: the decision table', () => {
         });
 
         it('never offers Public for a corrected recipe', () => {
-            expect(combinations.filter((c) => c.corrected && publicRefusalOf(c) === 'none')).toEqual([]);
+            expect(combinations.filter((c) => c.sourceCorrected && publicRefusalOf(c) === 'none')).toEqual([]);
         });
 
         it('never offers Public for a held recipe', () => {
@@ -187,7 +216,13 @@ describe('publicRefusalOfStored: a stored recipe whose kind and statement may be
         for (const sourceType of Object.values(RecipeSourceType)) {
             for (const held of [false, true]) {
                 expect(publicRefusalOfStored({ sourceType }, held)).toBe(
-                    publicRefusalOf({ sourceType, sourceKind: null, statementKind: null, held, corrected: false }),
+                    publicRefusalOf({
+                        sourceType,
+                        sourceKind: null,
+                        statementKind: null,
+                        held,
+                        sourceCorrected: false,
+                    }),
                 );
             }
         }

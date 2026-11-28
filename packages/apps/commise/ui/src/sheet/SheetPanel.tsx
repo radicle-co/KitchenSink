@@ -25,11 +25,10 @@ import type { FC, ReactNode } from 'react';
 import { isToolbarCollapsed } from './onScreenKeyboard.js';
 import type { SheetToolbar } from './props.js';
 import { useFocusWithin } from './useFocusWithin.js';
-import { Icon } from '../icon/Icon.js';
+import { IconButton } from '../iconButton/IconButton.js';
 import { WindowScope } from '../overlay/WindowScope.js';
 import { usePinnedFooter } from '../layout/usePinnedFooter.js';
-import { FOCUS_RING_CLASS } from '../focusRing/focusRingClass.js';
-import { surfaceToneClass, PRESS_FILL_CLASS } from '../surfaceTone/surfaceToneClass.js';
+import { surfaceToneClass } from '../surfaceTone/surfaceToneClass.js';
 
 /** The footer's box: a hairline above it, and opaque, because pinned content scrolls beneath it. */
 const FOOTER = `shrink-0 border-t border-line-divider ${surfaceToneClass('paperOverlay')} px-6 py-4`;
@@ -78,14 +77,7 @@ export const SheetPanel: FC<SheetPanelProps> = ({
                         </Dialog.Title>
                         {collapsed ? toolbar.heading : null}
                     </div>
-                    <button
-                        type="button"
-                        aria-label={closeLabel}
-                        onClick={onClose}
-                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-ink-muted transition ${PRESS_FILL_CLASS.pointer} ${FOCUS_RING_CLASS.offset}`}
-                    >
-                        <Icon name="x" size={20} />
-                    </button>
+                    <IconButton icon="x" tone="inkMuted" accessibilityLabel={closeLabel} onPress={onClose} />
                 </div>
                 {toolbar === undefined ? null : (
                     <div className="flex flex-col gap-2 px-6 pt-2">

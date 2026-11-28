@@ -16,7 +16,7 @@
 import { QueryClient, QueryClientProvider, onlineManager } from '@tanstack/react-query';
 import { act, cleanup, render, screen, waitFor } from '@testing-library/react';
 import type { ReactElement } from 'react';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi, type MockInstance } from 'vitest';
 
 import { makeRecipeDetail } from '@kitchensink/recipe-core/testing';
 import { RecipeServiceClient, recipeServiceKeys } from '@kitchensink/recipe-service-client';
@@ -170,9 +170,25 @@ async function press(name: string): Promise<void> {
     });
 }
 
+/** The spy that pins the drain's jitter, kept so `afterEach` can put the real draw back. */
+let jitterSpy: MockInstance<() => number> | undefined;
+
+/**
+ * Makes the drain's backoff waits zero for the current row. The drain waits a full-jitter time before each re-send of
+ * a transient refusal (up to 500 ms, then up to 1 s, drawn from `Math.random` and slept in real time), which can pass
+ * the 1 s `waitFor` default and fail the row about a third of the time. The attempt count, and the wire traffic it
+ * asserts, do not depend on the length of the wait. The backoff schedule itself is pinned in the sync package's
+ * drainer unit test.
+ */
+function withNoBackoffWait(): void {
+    jitterSpy = vi.spyOn(Math, 'random').mockReturnValue(0);
+}
+
 afterEach(() => {
     cleanup();
     onlineManager.setOnline(true);
+    jitterSpy?.mockRestore();
+    jitterSpy = undefined;
 });
 
 describe('the offline write path (integration)', () => {
@@ -337,6 +353,7 @@ describe('the offline write path (integration)', () => {
     });
 
     it('re-sends a transient refusal through the real client after a wait, then empties the outbox', async () => {
+        withNoBackoffWait();
         const network = scriptedFetch([
             () => Response.json({ code: 'SERVICE_UNAVAILABLE', message: 'busy' }, { status: 503 }),
             () => detail('srv-soup', 2),
@@ -497,13 +514,16 @@ describe('a Discard settles the outbox through the real client (integration)', (
 
     /**
      * ⛔ A 404 THE SERVICE DID NOT SAY IS NOT "ALREADY DELETED". With `recipe-pr-{N}` torn down, the shared ALB
-     * answers the host with a code-less `text/plain` 404 (ADR-0003). Read as done, the delete synced and settled away
-     * the parked update of a recipe that still exists.
+     * answers the host with a `text/plain` 404 (ADR-0003). Read as done, the delete synced and settled away the
+     * parked update of a recipe that still exists. The client now reads that page as service-unavailable, which the
+     * sender reports as not processed (503) and the drain retries to its cap. The delete then parks with the 503 and,
+     * as a delete, is sent again on the next drain; the parked update is never settled.
      */
-    it("⛔ a delete that gets the ALB's text/plain 404 parks, and the recipe's parked update survives", async () => {
-        const network = scriptedFetch([
-            () => new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } }),
-        ]);
+    it("⛔ a delete that gets the ALB's text/plain 404 parks as 503 and the parked update survives", async () => {
+        withNoBackoffWait();
+        const albPage = (): Response =>
+            new Response('Not Found', { status: 404, headers: { 'content-type': 'text/plain' } });
+        const network = scriptedFetch([albPage, albPage, albPage]);
         const store = createMemoryOutboxStore();
         const update: Intent = {
             ...updateIntent('Edited'),
@@ -533,9 +553,10 @@ describe('a Discard settles the outbox through the real client (integration)', (
             ]),
         ).toStrictEqual([
             ['update', 'parked', 409],
-            ['delete', 'parked', 404],
+            ['delete', 'parked', 503],
         ]);
-        expect(wire(network.calls)).toStrictEqual(['DELETE /api/v1/recipes/srv-soup']);
+        // One DELETE per transient attempt (MAX_TRANSIENT_ATTEMPTS), and no other write.
+        expect(wire(network.calls)).toStrictEqual(Array(3).fill('DELETE /api/v1/recipes/srv-soup'));
     });
 });
 

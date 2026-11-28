@@ -10,7 +10,9 @@
  * it again. Given a `label` it sits in a landmark of that name, which follows `main` in the DOM. It is centred at the
  * foot, the gap above the CURRENT page's bottom chrome: each page's `PopupInsetsProvider` registers its reader with
  * the host's placement store, and the host re-places when one registers, unregisters or a snackbar shows. The pointer
- * or focus inside the snackbar pauses its timer (SC 2.2.1).
+ * or focus inside the snackbar pauses its timer (SC 2.2.1). Across the viewport it is centred over the CURRENT page's
+ * content column, which the same registration may state (`PageColumn`), so beside the sidebar it never covers it;
+ * where no page states one it spans the viewport.
  *
  * A `subject` (the signed-in user id, `null` signed out, `undefined` while loading) closes the snackbar showing when it
  * changes from a known one, so a snackbar that names a recipe never shows to the next person.
@@ -53,6 +55,8 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children, label, subject }
     const queue = useSnackbarQueue();
     const [placement] = useState(createSnackbarPlacement);
     const bottom = useSyncExternalStore(placement.subscribe, placement.getBottom, placement.getBottom);
+    const left = useSyncExternalStore(placement.subscribe, placement.getLeft, placement.getLeft);
+    const right = useSyncExternalStore(placement.subscribe, placement.getRight, placement.getRight);
     const { current, observeSubject, show } = queue;
 
     // The person the snackbars belong to: one effect, as the timer provider does it.
@@ -113,8 +117,8 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children, label, subject }
         <div
             ref={setRegion}
             role="status"
-            className="pointer-events-none fixed inset-x-0 z-50 flex justify-center px-4"
-            style={{ bottom }}
+            className="pointer-events-none fixed z-50 flex justify-center px-4"
+            style={{ bottom, left, right }}
         >
             {top === undefined ? snackbar : null}
         </div>

@@ -14,7 +14,13 @@
 import { describe, expect, it } from 'vitest';
 
 import type { CdkApp } from '../discoverApps.js';
-import { appsMissingCdkLib, cdkInstallArgs, cdkLibResolvesFrom, installFailureHint } from '../infraInstall.js';
+import {
+    appsMissingCdkLib,
+    cdkInstallArgs,
+    cdkInstallEnv,
+    cdkLibResolvesFrom,
+    installFailureHint,
+} from '../infraInstall.js';
 
 const app = (packageDir: string): CdkApp => ({
     packageName: `@kitchensink/${packageDir}`,
@@ -108,5 +114,25 @@ describe('cdkInstallArgs', () => {
             '--no-audit',
             '--no-fund',
         ]);
+    });
+});
+
+// `npm run local:up` hands its child the user's `allow-scripts` list as `npm_config_allow_scripts`, and npm refuses
+// that as a command-line policy in a project install (EALLOWSCRIPTS). The install sees it empty, so npm applies the
+// list from the user's `.npmrc` instead.
+describe('cdkInstallEnv', () => {
+    it('empties the allow-scripts list and keeps every other variable', () => {
+        expect(cdkInstallEnv({ PATH: '/bin', npm_config_allow_scripts: 'trace-mcp,protobufjs' })).toEqual({
+            PATH: '/bin',
+            npm_config_allow_scripts: '',
+        });
+    });
+
+    it('does not change the environment it was given', () => {
+        const base = { npm_config_allow_scripts: 'trace-mcp' };
+
+        cdkInstallEnv(base);
+
+        expect(base).toEqual({ npm_config_allow_scripts: 'trace-mcp' });
     });
 });

@@ -4,14 +4,28 @@
  * that grows with the text fails the 2x row; a glyph that grows fails the 2x row.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen } from '@testing-library/react';
+import { AccessibilityInfo } from 'react-native';
+import { createRef, type ReactElement } from 'react';
+import type { View } from 'react-native';
+
+// react-native-web does not implement `sendAccessibilityEvent`; the focus request reads its calls.
+vi.mock('react-native', async (importOriginal) => {
+    const actual = await importOriginal<typeof import('react-native')>();
+
+    return { ...actual, AccessibilityInfo: { ...actual.AccessibilityInfo, sendAccessibilityEvent: vi.fn() } };
+});
 
 import { withPlatformOs } from '../../testing/platformOs.native.js';
 import { present } from '../../testing/present.js';
 import { renderWithTamagui } from '../../testing/tamaguiTesting.native.js';
+import { DesignSystemTheme } from '../../tamagui/DesignSystemTheme.native.js';
 import { IconButton } from '../IconButton.native.js';
 
-afterEach(cleanup);
+afterEach(() => {
+    cleanup();
+    vi.mocked(AccessibilityInfo.sendAccessibilityEvent).mockClear();
+});
 
 const glyph = (): HTMLElement =>
     present(document.querySelector<HTMLElement>('[data-commise-stub="icon"]'), 'the glyph');
@@ -53,5 +67,75 @@ describe('IconButton (native)', () => {
         expect(getComputedStyle(frame).width).toBe(`${String(side)}px`);
         expect(getComputedStyle(frame).height).toBe(`${String(side)}px`);
         expect(getComputedStyle(circle).width).toBe('44px');
+    });
+});
+
+describe('IconButton (native), a focus request', () => {
+    const themed = (ui: ReactElement) => (
+        <DesignSystemTheme scheme="light" textScale={1}>
+            {ui}
+        </DesignSystemTheme>
+    );
+    const requested = (focusRequested: boolean, onFocusRequestHandled = vi.fn<() => void>()) => (
+        <IconButton
+            icon="x"
+            accessibilityLabel="Cancel"
+            onPress={vi.fn()}
+            focusRequested={focusRequested}
+            onFocusRequestHandled={onFocusRequestHandled}
+        />
+    );
+
+    it('moves the screen-reader cursor to the button and acknowledges, once', () => {
+        const handled = vi.fn<() => void>();
+        const { rerender } = render(themed(requested(false, handled)));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).not.toHaveBeenCalled();
+
+        rerender(themed(requested(true, handled)));
+        rerender(themed(requested(true, handled)));
+
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledTimes(1);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(
+            screen.getByRole('button', { name: 'Cancel' }),
+            'focus',
+        );
+        expect(handled).toHaveBeenCalledTimes(1);
+    });
+
+    it('hands the host its own ref, object or callback, the button node, and still moves focus on a request', () => {
+        const objectRef = createRef<View>();
+        const callbackRef = vi.fn<(node: View | null) => void>();
+
+        const { rerender } = render(
+            themed(
+                <IconButton
+                    icon="x"
+                    accessibilityLabel="Cancel"
+                    onPress={vi.fn()}
+                    ref={objectRef}
+                    focusRequested={false}
+                />,
+            ),
+        );
+        const button = screen.getByRole('button', { name: 'Cancel' });
+
+        expect(objectRef.current).toBe(button);
+
+        rerender(
+            themed(
+                <IconButton
+                    icon="x"
+                    accessibilityLabel="Cancel"
+                    onPress={vi.fn()}
+                    ref={callbackRef}
+                    focusRequested
+                    onFocusRequestHandled={vi.fn()}
+                />,
+            ),
+        );
+
+        expect(callbackRef).toHaveBeenCalledWith(button);
+        expect(AccessibilityInfo.sendAccessibilityEvent).toHaveBeenCalledWith(button, 'focus');
     });
 });

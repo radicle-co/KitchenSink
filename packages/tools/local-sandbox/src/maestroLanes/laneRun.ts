@@ -62,6 +62,20 @@ interface ScreenOutcome {
     readonly results: ReadonlyMap<string, ReadonlyMap<string, FlowResult>>;
 }
 
+/** The flows one platform's lanes will run. */
+interface PlannedFlows {
+    readonly platform: LanePlatform;
+    readonly flows: readonly string[];
+}
+
+/** How one planned flow ended on a lane that ran. */
+interface FlowOutcome {
+    readonly platform: LanePlatform;
+    readonly flow: string;
+    /** True for any ending but a recorded pass. */
+    readonly failed: boolean;
+}
+
 /** What the run needs from the world, injected so its order and its exits are testable without devices. */
 export interface LaneRunDeps {
     adapterFor(platform: LanePlatform): DeviceAdapter;
@@ -110,6 +124,20 @@ export interface LaneRunDeps {
     /** True once the operator asked the run to stop. */
     aborted(): boolean;
     /**
+     * The rerun limit. Asked once, under the host lock, after every platform is planned and before any
+     * preflight, service, user or device, and only when some platform has flows to run. It answers one line for each
+     * flow the limit refuses; any line refuses the whole run with {@link RERUN_REFUSED_EXIT}. Absent when there is
+     * no limit.
+     */
+    checkRerun?: (planned: readonly PlannedFlows[]) => readonly string[];
+    /**
+     * How each planned flow ended, called once and only when a lane started (a refusal or a failure before any lane
+     * is not an attempt) and the operator did not stop the run. A lane that ended before its flow gave a result is a
+     * failure.
+     * It must not throw for a history that cannot be written: that never changes the exit code.
+     */
+    recordRerun?: (outcomes: readonly FlowOutcome[]) => void;
+    /**
      * `--one-off` runs: copy the flows into `.maestro/oneOff/<runId>/` and answer their ids. Called once, under the
      * host lock, before any adapter step (the iOS flows sync to the Mac in `prepareHost`). It throws when a one-off is
      * refused. Absent for a run of committed flows.
@@ -125,6 +153,9 @@ export interface LaneRunDeps {
 
 /** The exit code of a run the operator stopped. */
 const ABORTED = 130;
+
+/** The exit code of a run the rerun limit refused: no service, user, device or lane was started. */
+export const RERUN_REFUSED_EXIT = 3;
 
 interface PlatformPlan {
     readonly adapter: DeviceAdapter;
@@ -244,6 +275,20 @@ export async function runLaneRun(deps: LaneRunDeps, request: LaneRunRequest): Pr
         }
 
         const lanes = plans.flatMap((plan) => plan.lanes);
+        const planned = plans.filter((plan) => plan.flows.length > 0);
+        const refusals =
+            planned.length === 0
+                ? []
+                : (deps.checkRerun?.(planned.map((plan) => ({ platform: plan.adapter.platform, flows: plan.flows }))) ??
+                  []);
+
+        if (refusals.length > 0) {
+            for (const line of refusals) {
+                deps.log(line);
+            }
+
+            return RERUN_REFUSED_EXIT;
+        }
 
         const run: RunContext = {
             runId: path.basename(deps.stateDir),
@@ -318,6 +363,35 @@ async function runPlanned(
     if (deps.aborted()) {
         return ABORTED;
     }
+
+    // A lane that started is an attempt; a failure before it is not.
+    // A field of an object, not a `let`: TypeScript narrows a `let` that only a closure assigns, so the catch below
+    // would read it as always false.
+    const attempt = { laneStarted: false };
+    let recorded = false;
+
+    /** Tell the rerun limit how every planned flow ended, once. */
+    const recordRerun = (failedOf: (platform: LanePlatform, flow: string) => boolean): void => {
+        if (deps.recordRerun === undefined || recorded) {
+            return;
+        }
+
+        recorded = true;
+
+        try {
+            deps.recordRerun(
+                plans.flatMap((plan) =>
+                    [...new Set(plan.flows)].map((flow) => ({
+                        platform: plan.adapter.platform,
+                        flow,
+                        failed: failedOf(plan.adapter.platform, flow),
+                    })),
+                ),
+            );
+        } catch (error) {
+            deps.log(`the rerun history was not written: ${error instanceof Error ? error.message : inspect(error)}`);
+        }
+    };
 
     const services = await deps.startServices();
     const platforms = plans.map((plan) => plan.adapter.platform);
@@ -403,6 +477,7 @@ async function runPlanned(
 
                 const startedAt = Date.now();
                 const child = deps.spawnLane(lane, envOf(lane));
+                attempt.laneStarted = true;
                 children.push(child);
                 deps.log(
                     `lane ${laneName(lane)}/${lane.count}: ${lane.device} started, log ${lane.stateDir}/runner.log`,
@@ -457,6 +532,9 @@ async function runPlanned(
 
         const runPlans = plans.filter((plan) => plan.lanes.length > 0);
         const checked = await deps.checkScreens(lanes);
+        recordRerun(
+            (platform, flow) => (checked.results.get(platform) ?? new Map<string, FlowResult>()).get(flow) !== 'passed',
+        );
 
         // A flow passes only on a recorded pass: one line each says how it ended, and any other ending fails the run
         // even when every lane exited 0 (a lane that stopped quietly leaves no result at all).
@@ -504,6 +582,11 @@ async function runPlanned(
     try {
         code = await runLanes();
     } catch (error) {
+        // Lanes that ran and ended without a result (a crash, a kill, a lost tunnel) failed every flow they were given.
+        if (attempt.laneStarted && !deps.aborted()) {
+            recordRerun(() => true);
+        }
+
         const cleanup = await tearDown();
 
         // The run's own failure is the one to report; a cleanup failure after it is logged, not swapped in.

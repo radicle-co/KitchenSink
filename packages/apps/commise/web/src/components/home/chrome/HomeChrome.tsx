@@ -20,10 +20,10 @@
  * ⚠️ PRESENTATIONAL about data: the profile arrives from `AppShell`, which is where data enters the chrome.
  */
 import type { HomeNavItemId } from '@commise/features-core';
-import { PopupInsetsProvider, useResizeWatch } from '@commise/ui/popup-insets';
+import { PopupInsetsProvider, useResizeWatchAll } from '@commise/ui/popup-insets';
 import { MainElementContext } from '@commise/ui/main-element';
 import { PinnedBarSlotContext } from '@commise/ui/pushed-page';
-import { useCallback, useState, type JSX, type ReactNode } from 'react';
+import { useCallback, useMemo, useState, type JSX, type ReactNode } from 'react';
 
 import type { WebChromeMessages } from '@/i18n/messages';
 
@@ -31,6 +31,7 @@ import { HomeSidebar } from './HomeSidebar';
 import { HomeTabBar } from './HomeTabBar';
 import type { ProfileEntry } from '@commise/features-core';
 import { useSidebarPreference } from './sidebarPreferenceContext';
+import { mainColumnOf } from './mainColumn';
 import { tabBarInsets } from './tabBarInsets';
 
 /** Props for {@link HomeChrome}. */
@@ -79,13 +80,20 @@ export function HomeChrome({
     // place themselves. A new reader only when the bar node changes.
     const [tabBar, setTabBar] = useState<HTMLElement | null>(null);
     const readInsets = useCallback(() => tabBarInsets(tabBar), [tabBar]);
-    const watchInsets = useResizeWatch(tabBar);
     // The slot a pushed page draws its pinned bar into: the first thing in `<main>`, ahead of the notice, so Back comes
     // before the notice in reading and focus order as it does on the screen (a bar drawn by the page would come after).
     const [barSlot, setBarSlot] = useState<HTMLElement | null>(null);
     // This `<main>`, handed to the page, so a page sizing itself to the main column measures THIS element and never the
     // document's first `<main>`, which during a load can be a hidden one (`@commise/ui/main-element`).
     const [mainElement, setMainElement] = useState<HTMLElement | null>(null);
+    // Where `<main>` sits across the viewport, for the snackbar to centre over, and one watch over the tab bar and
+    // `<main>`: at the width the sidebar shows the tab bar is hidden, and a sidebar collapse resizes only `<main>`.
+    const readColumn = useCallback(
+        () => mainColumnOf(mainElement, document.documentElement.clientWidth),
+        [mainElement],
+    );
+    const resizeNodes = useMemo(() => [tabBar, mainElement], [tabBar, mainElement]);
+    const watchInsets = useResizeWatchAll(resizeNodes);
 
     // Transparent, so the `body` canvas wash shows through (issue #145): one canvas, defined in the token layer.
     return (
@@ -119,7 +127,7 @@ export function HomeChrome({
                 }`}
             >
                 <MainElementContext value={mainElement}>
-                    <PopupInsetsProvider reader={readInsets} watch={watchInsets}>
+                    <PopupInsetsProvider reader={readInsets} watch={watchInsets} column={readColumn}>
                         <PinnedBarSlotContext value={barSlot}>
                             {/* Empty: the bar is `fixed`, so the slot takes no room. */}
                             <div ref={setBarSlot} />

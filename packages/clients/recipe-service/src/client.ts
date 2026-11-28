@@ -52,6 +52,7 @@ import { reportContractSkewOnce } from './contractSkew.js';
 import {
     BadRequestError,
     FetchUnavailableError,
+    ServiceUnreachableError,
     SourceUnavailableError,
     ForbiddenError,
     SourceLockedError,
@@ -1877,8 +1878,13 @@ export class RecipeServiceClient {
                 return new UnauthorizedError(message, code);
             case 403:
                 return new ForbiddenError(message, code);
+            // ⛔ A 404 is "not there" only when the SERVICE said so, and the service always answers with a JSON
+            // object. The shared ALB's own 404 (a host or path with no rule, ADR-0003) is a fixed text/plain page,
+            // so a body that is not a JSON object is the ALB (`packages/infra/global/lib/platform/SharedAlbStack.ts`).
+            // Reading it as "deleted" hid an outage behind a missing item (owner ruling 2026-11-26). The envelope is
+            // not the test: Nest's default 404 body has no `code` and is still the service.
             case 404:
-                return new NotFoundError(message, code);
+                return isParsedJson(res.body) ? new NotFoundError(message, code) : new ServiceUnreachableError();
             // A `409` this build cannot narrow keeps falling through to the version-conflict mapping, which is
             // the pre-convergence behaviour and remains the right guess: `VERSION_CONFLICT` is the only `409`
             // whose typed error carries data a caller acts on, and `toVersionConflict` tolerates a body with no
@@ -1891,6 +1897,16 @@ export class RecipeServiceClient {
                 return new UnexpectedResponseError(res.status, message, code, res.retryAfterSeconds);
         }
     }
+}
+
+/**
+ * Whether an error body parsed to a JSON object or array, which only the service sends: the ALB's pages are not JSON.
+ *
+ * @param body - The parsed error body, `undefined` when it did not parse.
+ * @returns `true` for a parsed object or array. Pure.
+ */
+function isParsedJson(body: unknown): boolean {
+    return typeof body === 'object' && body !== null;
 }
 
 /**

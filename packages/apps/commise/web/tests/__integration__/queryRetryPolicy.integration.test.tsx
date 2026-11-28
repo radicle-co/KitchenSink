@@ -37,17 +37,20 @@ const RECIPE_ID = '00000000-0000-4000-8000-00000000000a';
  * and `429` rows below would then "prove" no retry and look like a policy bug. A code-less body is what
  * actually exercises the status mapping these rows are about.
  */
-function stubStatus(status: number): { readonly fetch: typeof fetch; readonly urls: () => readonly string[] } {
+function stubStatus(
+    status: number,
+    answer: { readonly body: string; readonly contentType: string } = {
+        body: JSON.stringify({ message: 'nope' }),
+        contentType: 'application/json',
+    },
+): { readonly fetch: typeof fetch; readonly urls: () => readonly string[] } {
     const urls: string[] = [];
     const fetchMock = vi.fn(async (input: Request | string | URL) => {
         // The skew probe calls the RAW fetch and may pass a string or `URL` rather than a `Request`, so read
         // the target defensively — a `request.url` read alone throws `undefined` into the filter below.
         urls.push(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url);
 
-        return new Response(JSON.stringify({ message: 'nope' }), {
-            status,
-            headers: { 'content-type': 'application/json' },
-        });
+        return new Response(answer.body, { status, headers: { 'content-type': answer.contentType } });
     });
 
     return { fetch: fetchMock as unknown as typeof fetch, urls: () => urls.filter(isTheRecipeRead) };
@@ -101,6 +104,16 @@ describe('query retry policy — requests a real browser would issue', () => {
         await requestsIssued(transport.fetch);
 
         expect(transport.urls()).toHaveLength(1);
+    });
+
+    it("RETRIES the ALB's text/plain 404 to the cap (a routing outage, not a dead link)", async () => {
+        // The load balancer's page for a host or path with no rule (ADR-0003). The service always answers a missing
+        // item with JSON, so a 404 that is not JSON never means the recipe is gone.
+        const transport = stubStatus(404, { body: 'Not Found', contentType: 'text/plain' });
+
+        await requestsIssued(transport.fetch);
+
+        expect(transport.urls()).toHaveLength(MAX_QUERY_RETRIES + 1);
     });
 
     it.each([400, 403, 409, 410])('spends exactly ONE request on a %i', async (status) => {

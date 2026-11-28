@@ -445,7 +445,7 @@ describe('SnackbarHost (web): above the pages', () => {
 describe('UndoSnackbar (web)', () => {
     const tokensOf = (element: Element | null): readonly string[] => element?.className.split(/\s+/u) ?? [];
 
-    it('is ink with a paper message that wraps whole, at most 36rem wide', () => {
+    it('is ink with a paper message that wraps whole, at most the snackbar max width wide', () => {
         render(
             <SnackbarHost>
                 <Screen input={{ message: 'Removed Pasta' }} />
@@ -459,7 +459,9 @@ describe('UndoSnackbar (web)', () => {
         expect(tokensOf(message)).toEqual(expect.arrayContaining(['min-w-0', 'break-words', 'text-inverse-ink']));
         // Kills: the two-line clamp coming back, which cuts a message mid-word at large text.
         expect(tokensOf(message)).not.toContain('line-clamp-2');
-        expect(tokensOf(message.parentElement)).toEqual(expect.arrayContaining(['bg-inverse', 'max-w-[36rem]']));
+        expect(tokensOf(message.parentElement)).toEqual(
+            expect.arrayContaining(['bg-inverse', 'max-w-[var(--snackbar-max-width)]']),
+        );
     });
 
     it('draws its action in the inverseAction role at a 44px target', () => {

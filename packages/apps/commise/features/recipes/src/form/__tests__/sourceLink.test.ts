@@ -619,7 +619,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'public_web',
             statementKind: null,
             held: false,
-            corrected: false,
+            sourceCorrected: false,
         });
     });
 
@@ -629,7 +629,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: false,
-            corrected: false,
+            sourceCorrected: false,
         });
     });
 
@@ -639,7 +639,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: null,
             held: true,
-            corrected: false,
+            sourceCorrected: false,
         });
     });
 
@@ -649,7 +649,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: 'paid_site',
             statementKind: 'source',
             held: false,
-            corrected: false,
+            sourceCorrected: false,
         });
     });
 
@@ -659,7 +659,7 @@ describe('draftPublicFactsOf: the draft’s facts for publicRefusalOf', () => {
             sourceKind: null,
             statementKind: 'authored',
             held: false,
-            corrected: false,
+            sourceCorrected: false,
         });
     });
 
@@ -721,7 +721,7 @@ describe('AE7: the editor and the recipe page give one reason and one line over 
             sourceKind: recipe.sourceKind ?? null,
             statementKind: recipe.statementKind ?? null,
             held: recipe.publicNeedsCheck === true,
-            corrected: recipe.sourceCorrected === true,
+            sourceCorrected: recipe.sourceCorrected === true,
         });
         // The draft still holds the stored link (a web copy): taking it off is a different, held reason by design.
         const values =

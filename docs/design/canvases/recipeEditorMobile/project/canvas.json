@@ -1536,44 +1536,114 @@
       "h": 832,
       "title": "Recipe editor, copy of a public recipe (mobile, Android 384)"
     },
+    "RecipeEditorTooCloseSavedPrivateIphone390.dc.html": {
+      "x": 0,
+      "y": 24909,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, saved as private after a check (mobile, iPhone 390)"
+    },
+    "RecipeEditorTooCloseNoSlotIphone390.dc.html": {
+      "x": 470,
+      "y": 24909,
+      "w": 390,
+      "h": 915,
+      "title": "Recipe editor, not saved, no private slot (mobile, iPhone 390)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateIphone390.dc.html": {
+      "x": 940,
+      "y": 24909,
+      "w": 390,
+      "h": 844,
+      "title": "Recipe editor, saved as private, source hold (mobile, iPhone 390)"
+    },
+    "RecipeEditorTooCloseSavedPrivateAndroid384.dc.html": {
+      "x": 0,
+      "y": 26324,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, saved as private after a check (mobile, Android 384)"
+    },
+    "RecipeEditorTooCloseNoSlotAndroid384.dc.html": {
+      "x": 464,
+      "y": 26324,
+      "w": 384,
+      "h": 914,
+      "title": "Recipe editor, not saved, no private slot (mobile, Android 384)"
+    },
+    "RecipeEditorSourceHoldSavedPrivateAndroid384.dc.html": {
+      "x": 928,
+      "y": 26324,
+      "w": 384,
+      "h": 832,
+      "title": "Recipe editor, saved as private, source hold (mobile, Android 384)"
+    },
+    "RecipeEditorHeldSaveIphone390.dc.html": {
+      "x": 0,
+      "y": 27638,
+      "w": 390,
+      "h": 7590,
+      "title": "Recipe editor, a held public recipe’s save is blocked (mobile, iPhone 390)"
+    },
+    "RecipeEditorHeldSaveAndroid384.dc.html": {
+      "x": 470,
+      "y": 27638,
+      "w": 384,
+      "h": 7577,
+      "title": "Recipe editor, a held public recipe’s save is blocked (mobile, Android 384)"
+    },
+    "RecipeEditorHeldSaveIpad820.dc.html": {
+      "x": 934,
+      "y": 27638,
+      "w": 820,
+      "h": 6641,
+      "title": "Recipe editor, a held public recipe’s save is blocked (mobile, iPad 820)"
+    },
+    "RecipeEditorHeldSaveLargeTextIphone390.dc.html": {
+      "x": 1834,
+      "y": 27638,
+      "w": 390,
+      "h": 1884,
+      "title": "Recipe editor, blocked save at the largest text (mobile, iPhone 390)"
+    },
     "RecipeEditorSourceLockIphone390.dc.html": {
       "x": 0,
-      "y": 24809,
+      "y": 35428,
       "w": 390,
       "h": 5811,
       "title": "Recipe editor, the Source row locked (mobile, iPhone 390)"
     },
     "RecipeEditorSourceLockAndroid384.dc.html": {
       "x": 470,
-      "y": 24809,
+      "y": 35428,
       "w": 384,
       "h": 5818,
       "title": "Recipe editor, the Source row locked (mobile, Android 384)"
     },
     "RecipeEditorSourceLockIpad820.dc.html": {
       "x": 934,
-      "y": 24809,
+      "y": 35428,
       "w": 820,
       "h": 5194,
       "title": "Recipe editor, the Source row locked (mobile, iPad 820)"
     },
     "RecipeEditorSourceSheetIphone390.dc.html": {
       "x": 0,
-      "y": 31027,
+      "y": 41646,
       "w": 390,
       "h": 5015,
       "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPhone 390)"
     },
     "RecipeEditorSourceSheetAndroid384.dc.html": {
       "x": 470,
-      "y": 31027,
+      "y": 41646,
       "w": 384,
       "h": 5110,
       "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, Android 384)"
     },
     "RecipeEditorSourceSheetIpad820.dc.html": {
       "x": 934,
-      "y": 31027,
+      "y": 41646,
       "w": 820,
       "h": 4756,
       "title": "Recipe editor, where it’s from: first answer, change and downgrade (mobile, iPad 820)"
@@ -1798,6 +1868,16 @@
     "RecipeEditorRefusalNoticeIpad820.dc.html",
     "RecipeEditorPublicCopyIphone390.dc.html",
     "RecipeEditorPublicCopyAndroid384.dc.html",
+    "RecipeEditorTooCloseSavedPrivateIphone390.dc.html",
+    "RecipeEditorTooCloseNoSlotIphone390.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateIphone390.dc.html",
+    "RecipeEditorTooCloseSavedPrivateAndroid384.dc.html",
+    "RecipeEditorTooCloseNoSlotAndroid384.dc.html",
+    "RecipeEditorSourceHoldSavedPrivateAndroid384.dc.html",
+    "RecipeEditorHeldSaveIphone390.dc.html",
+    "RecipeEditorHeldSaveAndroid384.dc.html",
+    "RecipeEditorHeldSaveIpad820.dc.html",
+    "RecipeEditorHeldSaveLargeTextIphone390.dc.html",
     "RecipeEditorSourceLockIphone390.dc.html",
     "RecipeEditorSourceLockAndroid384.dc.html",
     "RecipeEditorSourceLockIpad820.dc.html",
@@ -1831,6 +1911,20 @@
       "x": 0,
       "y": 23305,
       "text": "Recipe editor, copy of a public recipe: mobile, iPhone 390 and Android 384",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes0": {
+      "x": 0,
+      "y": 24649,
+      "text": "Recipe editor, state boxes after a save: mobile, iPhone 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowStateBoxes1": {
+      "x": 0,
+      "y": 26064,
+      "text": "Recipe editor, state boxes after a save: mobile, Android 384",
       "kind": "title1",
       "maxW": 2400
     }

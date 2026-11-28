@@ -34,6 +34,7 @@ import {
     ParseJobExpiredError,
     PullDriftError,
     RecipeServiceClientError,
+    ServiceUnreachableError,
     SourceUnavailableError,
     UnauthorizedError,
     UnexpectedResponseError,
@@ -90,6 +91,8 @@ const CLASSIFICATION: Readonly<Record<string, { readonly error: RecipeServiceCli
         // exactly why the policy dispatches on the TYPE and not on a status range.
         FetchUnavailableError: { error: new FetchUnavailableError(), retry: true },
         SourceUnavailableError: { error: new SourceUnavailableError(), retry: true },
+        // The ALB's own 404 page: a routing outage, so transient like a dropped connection.
+        ServiceUnreachableError: { error: new ServiceUnreachableError(), retry: true },
         InvalidRequestError: { error: new InvalidRequestError('createRecipe', new Error('bad')), retry: false },
         // The unmapped-status class is the ONE place a status range is legitimate, because "a status I have
         // no dedicated class for" is the whole of its contract. `500` stands for it in the table; the 4xx/429

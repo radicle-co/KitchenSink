@@ -59,6 +59,7 @@
     },
     "devDependencies": {
         "@argos-ci/cli": "^6.9.1",
+        "@axe-core/playwright": "^4.14.1",
         "@commise/test-utils": "*",
         "@kitchensink/cdk-bootstrap": "*",
         "@kitchensink/e2e-fixtures": "*",

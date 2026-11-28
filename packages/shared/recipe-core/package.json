@@ -43,7 +43,9 @@
         "./parsing/parse-retry-prompt": "./src/parsing/parseRetryPrompt.ts",
         "./parsing/parse-answer": "./src/parsing/parseAnswer.ts",
         "./scaling": "./src/scaling.ts",
-        "./external-url": "./src/externalUrl.ts"
+        "./external-url": "./src/externalUrl.ts",
+        "./recipe-state": "./src/recipeState/recipeState.ts",
+        "./recipe-state/planned": "./src/recipeState/plannedTransitions.ts"
     },
     "dependencies": {
         "numeric-quantity": "^3.3.1",

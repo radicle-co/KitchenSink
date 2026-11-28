@@ -10,6 +10,8 @@
  *
  * ⚠️ The on-device proof is the Maestro landscape flow, which types into the filter sheet with the keyboard up.
  */
+import { nearestAncestorHolding } from '../../testing/ancestorHolding.js';
+import { present } from '../../testing/present.js';
 import { reportResize } from '../../testing/resizeObserver.js';
 import { act, cleanup, screen } from '@testing-library/react';
 import { createElement, useEffect, type ComponentProps, type FC, type JSX } from 'react';
@@ -115,14 +117,27 @@ const toolbarSheet = (): JSX.Element => (
 /** The sheet: the dialog nearest around its title header, which names it (`docs/design/nativeContainerNames.md` N1). */
 const dialog = (): HTMLElement =>
     screen.getByRole('heading', { name: 'Filter recipes' }).closest('[role="dialog"]') as HTMLElement;
+
+/**
+ * The title row: the nearest ancestor of Close that also holds the title. It is found by what it holds, so it does not
+ * depend on how many boxes the icon button nests its button in.
+ */
+const titleRow = (): HTMLElement =>
+    nearestAncestorHolding(
+        screen.getByRole('button', { name: 'Close filters' }),
+        screen.getByRole('heading', { name: 'Filter recipes' }),
+        'the title',
+    );
+
+/** The swipe zone: the grab handle and the title row. */
+const swipeZone = (): HTMLElement => present(titleRow().parentElement, 'the swipe zone');
 /**
  * The top block the footer decision measures: everything pinned above the scroll region, which is the swipe zone (the
  * grab handle and the title row with Close) and, below it, the toolbar. REWRITTEN for issue #192 review item 3: it used
  * to be the swipe zone alone (Close's grandparent), which left a toolbar out of the measure. Before that, parity item 7
  * added the handle to the zone.
  */
-const topBlock = (): HTMLElement =>
-    screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement?.parentElement as HTMLElement;
+const topBlock = (): HTMLElement => present(swipeZone().parentElement, 'the top block');
 /** The footer: the view that holds Done. */
 const footer = (): HTMLElement => screen.getByRole('button', { name: 'Done' }).parentElement as HTMLElement;
 const scrollRegion = (): Element => dialog().querySelector('[data-scroll-region]') as Element;
@@ -253,9 +268,7 @@ describe('Sheet (native) — the footer unpins past a limit', () => {
 
         // The swipe zone alone (handle and title row) is 56: with the 92 footer that is 148, under half of 300, so a
         // measure of the swipe zone alone would keep the footer pinned.
-        const swipeZone = screen.getByRole('button', { name: 'Close filters' }).parentElement?.parentElement;
-
-        Object.defineProperty(swipeZone, 'offsetHeight', { value: 56, configurable: true });
+        Object.defineProperty(swipeZone(), 'offsetHeight', { value: 56, configurable: true });
         layOut({ sheet: 300, topBlock: 166, footer: 92 });
 
         expect(scrollRegion().contains(screen.getByRole('button', { name: 'Done' }))).toBe(true);

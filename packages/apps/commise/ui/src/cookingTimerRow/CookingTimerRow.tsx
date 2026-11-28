@@ -19,8 +19,15 @@ import { timerRowActions } from './timerRowActions.js';
 export const CookingTimerRow: FC<CookingTimerRowProps> = ({ state, body }) => (
     <div className="flex items-center gap-2">
         {body}
-        {timerRowActions(state).map(({ icon, action }) => (
-            <IconButton key={icon} icon={icon} accessibilityLabel={action.label} onPress={action.onPress} />
+        {timerRowActions(state).map(({ slot, icon, action }) => (
+            <IconButton
+                key={slot}
+                icon={icon}
+                accessibilityLabel={action.label}
+                onPress={action.onPress}
+                focusRequested={action.focusRequested}
+                onFocusRequestHandled={action.onFocusRequestHandled}
+            />
         ))}
     </div>
 );

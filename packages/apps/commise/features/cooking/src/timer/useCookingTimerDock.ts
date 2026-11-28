@@ -146,15 +146,12 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finish
 
         setHeld({ handle, id: undo.id });
 
-        // The offer draws only while no timer is live, and Done has neither offer nor Next: a request nothing can take
-        // would stay pending and fire later, on another step.
+        // Done draws neither an offer nor Next, so a request there would stay pending and fire on another step.
         if (finished) {
             return;
         }
 
-        const offerReturns = offerMs !== undefined && store.getSnapshot().timers.length === 0;
-
-        setFocus(offerReturns ? { kind: 'offer' } : { kind: 'forward' });
+        setFocus(offerMs === undefined ? { kind: 'forward' } : { kind: 'offer' });
     };
 
     const rows = view.rows.map((row): TimerDockRow => {

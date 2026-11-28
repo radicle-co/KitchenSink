@@ -33,7 +33,6 @@ import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
-import {} from '../../../src/recipes/recipes.tokens.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';

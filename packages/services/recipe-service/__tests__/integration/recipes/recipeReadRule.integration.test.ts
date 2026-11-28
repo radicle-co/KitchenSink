@@ -19,7 +19,6 @@ import type { Principal } from '../../../src/auth/principal.js';
 import type { ReadableRecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
-import {} from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';

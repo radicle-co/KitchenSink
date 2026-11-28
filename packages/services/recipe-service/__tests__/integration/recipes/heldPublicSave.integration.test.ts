@@ -28,7 +28,6 @@ import type {
     RecipeAggregate,
     UpdateRecipeInput,
 } from '../../../src/recipes/dal/recipes.dal.js';
-import {} from '../../../src/recipes/recipes.tokens.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeSourceEvidenceRow } from '../../../src/database/schema/index.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';

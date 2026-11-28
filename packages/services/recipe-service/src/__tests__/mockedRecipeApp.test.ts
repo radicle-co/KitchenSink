@@ -9,13 +9,13 @@ import { RECIPE_LINE_VERIFICATIONS_DAL, RECIPE_PHOTOS_DAL, RECIPE_RATINGS_DAL } 
 import { PendingArchivesDal } from '../versions/dal/pendingArchives.dal.js';
 
 /** The token each default answers for, beside the default's own value. */
-const DEFAULTED: ReadonlyArray<readonly [ProviderDouble['provide'], unknown]> = [
-    [PendingArchivesDal, DEFAULT_ANSWERS.pendingArchives],
-    [RECIPE_PHOTOS_DAL, DEFAULT_ANSWERS.photos],
-    [RECIPE_RATINGS_DAL, DEFAULT_ANSWERS.ratings],
-    [RECIPE_LINE_VERIFICATIONS_DAL, DEFAULT_ANSWERS.lineVerifications],
-    [ErasureJobsDal, DEFAULT_ANSWERS.erasureJobs],
-    [AuthorHandlesDal, DEFAULT_ANSWERS.authorHandles],
+const DEFAULTED: ReadonlyArray<readonly [string, ProviderDouble['provide'], unknown]> = [
+    ['PendingArchivesDal', PendingArchivesDal, DEFAULT_ANSWERS.pendingArchives],
+    ['RECIPE_PHOTOS_DAL', RECIPE_PHOTOS_DAL, DEFAULT_ANSWERS.photos],
+    ['RECIPE_RATINGS_DAL', RECIPE_RATINGS_DAL, DEFAULT_ANSWERS.ratings],
+    ['RECIPE_LINE_VERIFICATIONS_DAL', RECIPE_LINE_VERIFICATIONS_DAL, DEFAULT_ANSWERS.lineVerifications],
+    ['ErasureJobsDal', ErasureJobsDal, DEFAULT_ANSWERS.erasureJobs],
+    ['AuthorHandlesDal', AuthorHandlesDal, DEFAULT_ANSWERS.authorHandles],
 ];
 
 /** `bootServiceApp` applies doubles in order and the LAST one for a token wins, so that is the one a suite gets. */
@@ -24,11 +24,11 @@ function effective(doubles: readonly ProviderDouble[], token: ProviderDouble['pr
 }
 
 describe('withDefaultDoubles', () => {
-    it.each(DEFAULTED)('gives every suite a default for %s', (token, value) => {
+    it.each(DEFAULTED)('gives every suite a default for %s', (_name, token, value) => {
         expect(effective(withDefaultDoubles([]), token)).toBe(value);
     });
 
-    it.each(DEFAULTED)('lets a suite double for %s replace the whole default', (token) => {
+    it.each(DEFAULTED)('lets a suite double for %s replace the whole default', (_name, token) => {
         const own: ProviderDouble = { provide: token, useValue: { own: true } };
 
         expect(effective(withDefaultDoubles([own]), token)).toBe(own.useValue);

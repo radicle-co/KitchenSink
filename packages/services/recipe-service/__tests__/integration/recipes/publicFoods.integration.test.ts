@@ -30,7 +30,6 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import type { FoodRefAnswer } from '../../../src/ingredients/domain/foodRefAnswer.js';
 import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
-import {} from '../../../src/recipes/recipes.tokens.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';

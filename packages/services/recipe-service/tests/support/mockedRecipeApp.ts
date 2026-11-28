@@ -6,13 +6,12 @@
  * client still serializes, forwards the bearer and parses. Every other dependency address is FORCED to a closed port,
  * so a call a suite forgot to mock fails instead of reaching the LocalStack or Postgres the tier's global setup starts.
  *
- * Seven tokens are the exception: every suite gets a default that answers "nothing" (`DEFAULT_ATTESTATIONS_DOUBLE`
- * and `DEFAULT_ANSWERS`), so a forgotten mock for one of them does NOT fail loud. Two of the defaults matter to a
- * suite's meaning: `ErasureJobsDal.findActiveJob` feeds `ErasureLockGuard`, so a suite gets "no erasure in progress",
- * and a suite that tests the erasure lock stages its own double; and `PendingArchivesDal.enqueueMany` is a WRITE that
- * is accepted and forgotten, so a suite that asserts on it stages its own too. A default is the WHOLE token:
- * `bootServiceApp` replaces a token's whole `useValue` and never merges members, so a suite whose double differs
- * keeps its whole copy.
+ * The tokens in `DEFAULT_DOUBLES` are the exception: every suite gets a default that answers "nothing", so a forgotten
+ * mock for one of them does NOT fail loud. `ErasureJobsDal.findActiveJob` feeds `ErasureLockGuard`, so a suite gets
+ * "no erasure in progress"; a suite that tests the erasure lock stages its own double. `PendingArchivesDal.enqueueMany`
+ * is a WRITE that is accepted and forgotten; a suite that asserts on it stages its own too. A default is the WHOLE
+ * token: `bootServiceApp` replaces a token's whole `useValue` and never merges members, so a suite whose double
+ * differs keeps its whole copy.
  */
 import { bootServiceApp, type BootedServiceApp, type ProviderDouble } from '@kitchensink/service-test-harness';
 

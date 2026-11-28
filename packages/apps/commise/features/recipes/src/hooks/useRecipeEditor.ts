@@ -1121,34 +1121,27 @@ function adoptResolved(ctx: EditorContext, serverId: string, trigger: Checkpoint
  *
  * @sideEffect Reads the recipe, may move the server facts, and resends the cook's other edits.
  */
-function rereadAfterLockRefusal(ctx: EditorContext): void {
+async function rereadAfterLockRefusal(ctx: EditorContext): Promise<void> {
     const { server } = ctx.core.get();
 
-    if (server.kind !== 'stored') {
-        retry(ctx, { stay: true });
+    if (server.kind === 'stored') {
+        const { id } = server.recipe;
+        const { baseVersion } = server;
 
-        return;
+        try {
+            const detail = await ctx.opts.rereadRecipe(id);
+            const now = ctx.core.get().server;
+            const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion && detail.id === id;
+
+            if (unchanged && detail.currentVersion === baseVersion) {
+                adoptServerFacts(ctx, detail, undefined);
+            }
+        } catch {
+            // A failed read changes nothing: the cook's other edits still go out below, and the notice stays.
+        }
     }
 
-    const { id } = server.recipe;
-    const { baseVersion } = server;
-
-    void ctx.opts
-        .rereadRecipe(id)
-        .then(
-            (detail) => {
-                const now = ctx.core.get().server;
-                const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion && detail.id === id;
-
-                if (unchanged && detail.currentVersion === baseVersion) {
-                    adoptServerFacts(ctx, detail, undefined);
-                }
-            },
-            () => undefined,
-        )
-        .then(() => {
-            retry(ctx, { stay: true });
-        });
+    retry(ctx, { stay: true });
 }
 
 /** A synced answer for the outstanding write: the server facts move, and a finishing write hands off. @sideEffect */
@@ -1294,7 +1287,7 @@ function onRefused(ctx: EditorContext, event: Settlement, pending: OutstandingWr
         dropRefusedSource(ctx);
         ctx.setSourceLockRefused(true);
         ctx.countSourceLockRefusal();
-        rereadAfterLockRefusal(ctx);
+        void rereadAfterLockRefusal(ctx);
 
         return;
     }

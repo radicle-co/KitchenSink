@@ -187,9 +187,7 @@ function useEditForm(recipe: RecipeDetail, port: ReturnType<typeof makeOutboxPor
             readRecipe: async () => {
                 throw new Error('readRecipe: this suite`s recipe is stored from the start');
             },
-            rereadRecipe: async () => {
-                throw new Error('rereadRecipe: this suite never meets a lock refusal');
-            },
+            rereadRecipe: () => Promise.reject(new Error('rereadRecipe: this suite never meets a lock refusal')),
             pastePending: false,
         },
     );

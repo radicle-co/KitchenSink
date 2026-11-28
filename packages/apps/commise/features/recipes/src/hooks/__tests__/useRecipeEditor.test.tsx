@@ -113,9 +113,9 @@ function mount(
     const readRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
         throw new Error('readRecipe: not expected in this test');
     });
-    const rereadRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(async () => {
-        throw new Error('rereadRecipe: not expected in this test');
-    });
+    const rereadRecipe = vi.fn<(id: string) => Promise<RecipeDetail>>(() =>
+        Promise.reject(new Error('rereadRecipe: not expected in this test')),
+    );
     const reportError = vi.fn<ErrorReporter>();
     const view = renderHook(
         (props: { readonly seed: EditorSeed; readonly pastePending?: boolean }) =>
@@ -4846,7 +4846,7 @@ describe("the Source row's own sheet (ADR-0100)", () => {
 
         it('⛔ a read that lands after the server facts moved is ignored', async () => {
             const view = mount({ recipe: stored });
-            let land: (detail: RecipeDetail) => void = () => undefined;
+            let land: ((detail: RecipeDetail) => void) | undefined;
             view.rereadRecipe.mockReturnValue(
                 new Promise<RecipeDetail>((resolve) => {
                     land = resolve;
@@ -4862,7 +4862,7 @@ describe("the Source row's own sheet (ADR-0100)", () => {
             await settle();
             const sentBefore = view.port.submitted.length;
             act(() => {
-                land(locked);
+                land?.(locked);
             });
             await settle();
 

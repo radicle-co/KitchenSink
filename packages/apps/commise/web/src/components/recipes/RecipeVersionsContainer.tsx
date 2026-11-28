@@ -14,9 +14,11 @@
  *
  * @pattern Facade — the route's boundary and navigation over the shared version-history view
  */
+import { commonMessages } from '@commise/features-core/common';
 import { RecipeVersionListError, recipeVersionMessages } from '@commise/features-recipes';
 import { RecipeVersionsView, useRecipeTitle } from '@commise/features-recipes/versions';
 import { useMessages } from '@commise/i18n/react';
+import { isNotFoundError } from '@kitchensink/recipe-service-client';
 import { useParams } from 'next/navigation';
 import type { FC } from 'react';
 
@@ -31,15 +33,22 @@ export interface RecipeVersionsContainerProps {
     readonly recipeId: string;
 }
 
-/** The version history's failed state: the same header, an alert and a retry. */
-const VersionsError: FC<{ readonly onBack: () => void; readonly backHref: string; readonly onRetry: () => void }> = ({
-    onBack,
-    backHref,
-    onRetry,
-}) => {
+/**
+ * The version history's failed state: the same header, and an alert with a retry. A 404 is final: it says the one reader
+ * sentence (the recipe was deleted, made private or hidden, and nothing says which) and offers no retry.
+ */
+const VersionsError: FC<{
+    readonly error: unknown;
+    readonly onBack: () => void;
+    readonly backHref: string;
+    readonly onRetry: () => void;
+}> = ({ error, onBack, backHref, onRetry }) => {
     const { versionList } = useMessages(recipeVersionMessages);
+    const { recipeUnavailable } = useMessages(commonMessages);
 
-    return (
+    return isNotFoundError(error) ? (
+        <RecipeVersionListError title={recipeUnavailable} onBack={onBack} backHref={backHref} />
+    ) : (
         <RecipeVersionListError
             title={versionList.loadError}
             retryLabel={versionList.retry}
@@ -91,9 +100,14 @@ export const RecipeVersionsContainer: FC<RecipeVersionsContainerProps> = ({ reci
     return (
         <ClientQueryBoundary
             loading={<RecipeVersionsRouteLoading />}
-            renderError={({ resetErrorBoundary }) => (
+            renderError={({ error, resetErrorBoundary }) => (
                 <RecipeVersionsFrame recipeId={recipeId}>
-                    <VersionsError onBack={goToRecipe} backHref={recipeHref} onRetry={resetErrorBoundary} />
+                    <VersionsError
+                        error={error}
+                        onBack={goToRecipe}
+                        backHref={recipeHref}
+                        onRetry={resetErrorBoundary}
+                    />
                 </RecipeVersionsFrame>
             )}
             resetKeys={[recipeId]}

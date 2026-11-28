@@ -10,6 +10,7 @@
 import { CookMarksProvider, recipeActionMessages } from '@commise/features-recipes';
 import { recipeLoadMessages } from '@commise/features-recipes/detail';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 import { act, cleanup, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, onlineManager } from '@tanstack/react-query';
 import { useState, type ReactElement } from 'react';
@@ -428,7 +429,7 @@ describe('RecipeDetailScreen — error state', () => {
 
         render(<RecipeDetailScreen recipeId="rec_1" />);
 
-        expect(await screen.findByText('This recipe isn’t available.')).toBeTruthy();
+        expect(await screen.findByText(commonMessages.en.recipeUnavailable)).toBeTruthy();
         expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
     });
 
@@ -468,7 +469,7 @@ describe('RecipeDetailScreen — error state', () => {
         expect(getRecipe).not.toHaveBeenCalled();
         expect(screen.getByRole('alert')).toBeTruthy();
         expect(screen.getByRole('button', { name: 'Try again' })).toBeTruthy();
-        expect(screen.queryByText('This recipe isn’t available.')).toBeNull();
+        expect(screen.queryByText(commonMessages.en.recipeUnavailable)).toBeNull();
     });
 });
 

@@ -20,6 +20,8 @@ export type CookingEntryView =
 export interface CookingEntryViewInput
     extends CookingEntry, Pick<CookingScreenProps, 'read' | 'onLeave' | 'onEdit' | 'onHome'> {
     readonly copy: CookingMessages;
+    /** The one reader sentence for a recipe that cannot be read (`commonMessages.recipeUnavailable`): it never says why. */
+    readonly unavailable: string;
 }
 
 /** The back action every load notice carries. */
@@ -79,6 +81,7 @@ export function cookingEntryViewOf({
     phase,
     read,
     copy,
+    unavailable,
     onLeave,
     onEdit,
     onHome,
@@ -104,7 +107,7 @@ export function cookingEntryViewOf({
             return {
                 kind: 'notice',
                 notice: {
-                    title: copy.gone.title,
+                    title: unavailable,
                     secondary: { label: copy.gone.home, icon: 'house', onPress: onHome },
                 },
             };

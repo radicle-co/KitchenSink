@@ -34,9 +34,11 @@ export const RecipeVersionListError: FC<RecipeVersionListErrorProps> = ({ title,
             <LargeTitleHeader headingId={headingId} title={versionList.heading} />
             <View role="alert" collapsable={false} style={styles.alert}>
                 <Text style={[nativeTokens.type.body, { color: colors.ink }]}>{title}</Text>
-                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
-                    {retryLabel}
-                </Button>
+                {onRetry === undefined ? null : (
+                    <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
+                        {retryLabel}
+                    </Button>
+                )}
             </View>
         </View>
     );

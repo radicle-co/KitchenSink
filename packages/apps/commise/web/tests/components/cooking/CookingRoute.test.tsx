@@ -26,6 +26,7 @@ import type { ReactNode } from 'react';
 import { hydrateRoot } from 'react-dom/client';
 import { renderToString } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { CookingRoute } from '@/app/[locale]/recipes/[id]/cook/CookingRoute';
 
@@ -193,7 +194,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         useAuthMock.mockReturnValue({ sessionClaims: { external_id: 'usr_other' } });
         open({ status: RecipeStatus.DRAFT, steps: STEPS, visibility: RecipeVisibility.PUBLIC });
 
-        expect(await screen.findByText('This recipe isn’t available any more')).toBeInTheDocument();
+        expect(await screen.findByText(commonMessages.en.recipeUnavailable)).toBeInTheDocument();
         expect(replaceMock).not.toHaveBeenCalled();
     });
 
@@ -235,7 +236,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         expect(read).not.toHaveBeenCalled();
         expect(replaceMock).not.toHaveBeenCalled();
         expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
-        expect(screen.queryByText('This recipe isn’t available any more')).not.toBeInTheDocument();
+        expect(screen.queryByText(commonMessages.en.recipeUnavailable)).not.toBeInTheDocument();
 
         for (const text of texts.seen) {
             expect(text).not.toContain(STEP_TEXT);
@@ -254,7 +255,7 @@ describe('CookingRoute: where the link goes (R-2, decisions/0029)', () => {
         vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError('Recipe not found'));
         renderWithRecipeClient(<CookingRouteWithMarks />, client);
 
-        expect(await screen.findByText('This recipe isn’t available any more')).toBeInTheDocument();
+        expect(await screen.findByText(commonMessages.en.recipeUnavailable)).toBeInTheDocument();
         await userEvent.setup().click(screen.getByRole('button', { name: 'Go to Home' }));
         expect(replaceMock).toHaveBeenCalledWith('/en');
     });
@@ -424,7 +425,7 @@ describe('CookingRoute: a cook on a step is not moved by a later read', () => {
         [
             'a 404 as gone',
             () => Promise.reject(new NotFoundError('Recipe not found')),
-            'This recipe isn’t available any more',
+            commonMessages.en.recipeUnavailable,
         ],
         [
             'blank steps as no steps',

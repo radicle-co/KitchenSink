@@ -13,6 +13,7 @@ import { renderWithRecipeClient } from '@commise/test-utils';
 import { QueryClient } from '@tanstack/react-query';
 import { act, cleanup, fireEvent, screen, waitFor } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { useSessionClaims } from '../../src/hooks/useSessionClaims.js';
 import { CookingModeScreen } from '../../src/screens/CookingModeScreen.js';
@@ -100,7 +101,7 @@ describe('CookingModeScreen: the read outcomes', () => {
         vi.spyOn(client, 'getRecipeById').mockRejectedValue(new NotFoundError('Recipe not found'));
         renderWithRecipeClient(screenOf(), client);
 
-        expect(await screen.findByText('This recipe isn’t available any more')).toBeTruthy();
+        expect(await screen.findByText(commonMessages.en.recipeUnavailable)).toBeTruthy();
     });
 
     it('shows a recipe with no steps as such', async () => {
@@ -138,7 +139,7 @@ describe('CookingModeScreen: no decision while the viewer is unknown', () => {
         expect(onEdit).not.toHaveBeenCalled();
         expect(screen.getByRole('main').getAttribute('aria-busy')).toBe('true');
         expect(screen.queryByText('Heat the oil.')).toBeNull();
-        expect(screen.queryByText('This recipe isn’t available any more')).toBeNull();
+        expect(screen.queryByText(commonMessages.en.recipeUnavailable)).toBeNull();
 
         // Positive control: once the viewer is known the same draft IS decided, so the asserts above are not vacuous.
         vi.mocked(useSessionClaims).mockReturnValue({ external_id: OWNER_ID });
@@ -213,7 +214,7 @@ describe('CookingModeScreen: a cook on a step is not moved by a later read', () 
         [
             'a 404 as gone',
             () => Promise.reject(new NotFoundError('Recipe not found')),
-            'This recipe isn’t available any more',
+            commonMessages.en.recipeUnavailable,
         ],
         [
             'blank steps as no steps',

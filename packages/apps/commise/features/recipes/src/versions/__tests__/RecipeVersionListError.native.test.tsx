@@ -40,6 +40,14 @@ describe('RecipeVersionListError (native)', () => {
         expect(onRetry).toHaveBeenCalledTimes(1);
     });
 
+    // hiddenViews R10: a 404 is final, so the alert says its sentence and draws no retry (the props carry none).
+    it('draws no Try again when it is given no retry', () => {
+        render(<RecipeVersionListError title="This recipe isn’t available." />);
+
+        expect(screen.getByRole('alert').textContent).toContain('This recipe isn’t available.');
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+    });
+
     // REWRITES "draws a Back in the header only when it is given one": the pinned bar owns Back on native, and a header
     // Back left in the tree beside it is a second element with the same name. `onBack` is the web leaf's prop, so this
     // leaf's props no longer carry it.

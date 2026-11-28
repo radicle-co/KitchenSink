@@ -19,6 +19,7 @@ import userEvent from '@testing-library/user-event';
 import type { ComponentProps } from 'react';
 import { AccessibilityInfo } from 'react-native';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { makeCookingWrapper } from '../__fixtures__/makeCookingWrapper.native.js';
@@ -261,8 +262,8 @@ describe('CookingScreen (native): recipe gone', () => {
     it('says the title and Go to Home, and never why', async () => {
         const { onHome, container } = setup({ kind: 'gone' });
 
-        expect(screen.getByRole('alert').textContent).toBe('This recipe isn’t available any more');
-        expect(container.textContent).toBe('This recipe isn’t available any moreGo to Home');
+        expect(screen.getByRole('alert').textContent).toBe(commonMessages.en.recipeUnavailable);
+        expect(container.textContent).toBe(`${commonMessages.en.recipeUnavailable}${cookingMessages.en.gone.home}`);
         await press('Go to Home');
         expect(onHome).toHaveBeenCalledTimes(1);
     });
@@ -298,7 +299,7 @@ describe('CookingScreen (native): where a cook link goes', () => {
     it('tells another cook a draft is not available, and never why', () => {
         const { onEdit, container } = setup(ready({ recipe: draft, viewerIsOwner: false }));
 
-        expect(screen.getByRole('alert').textContent).toBe('This recipe isn’t available any more');
+        expect(screen.getByRole('alert').textContent).toBe(commonMessages.en.recipeUnavailable);
         expect(container.textContent).not.toMatch(/draft/iu);
         expect(onEdit).not.toHaveBeenCalled();
     });

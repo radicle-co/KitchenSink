@@ -18,27 +18,36 @@ import { recipeVersionMessages } from './messages.js';
 import { VERSION_TITLE_ID, versionBackOf } from './history.js';
 import { RecipeVersionListHeader } from './RecipeVersionListHeader.js';
 
-/** Props for the failed state, native's too: the words and the retry. */
-export interface RecipeVersionListErrorProps {
-    /** Why there is no history: "We couldn’t load the history." */
+/**
+ * The retry a failed read offers, or none: a 404 is final (the recipe was deleted, made private or hidden), so trying again
+ * cannot help and the control is not drawn. The label and the handler come together or not at all.
+ */
+export type RecipeVersionListRetry =
+    | {
+          /** The retry control's label: "Try again". */
+          readonly retryLabel: string;
+          /** Read the history again. */
+          readonly onRetry: () => void;
+      }
+    | { readonly retryLabel?: never; readonly onRetry?: never };
+
+/** Props for the failed state, native's too: the words and the retry, if any. */
+export type RecipeVersionListErrorProps = RecipeVersionListRetry & {
+    /** Why there is no history: "We couldn’t load the history." Or the shared reader sentence, for a 404. */
     readonly title: string;
-    /** The retry control's label: "Try again". */
-    readonly retryLabel: string;
-    /** Read the history again. */
-    readonly onRetry: () => void;
-}
+};
 
 /** Props for the WEB failed state: the shared props and the way back, which native's pinned bar owns instead. */
-export interface RecipeVersionListErrorWebProps extends RecipeVersionListErrorProps {
+export type RecipeVersionListErrorWebProps = RecipeVersionListErrorProps & {
     /** Back to the recipe, the header's eyebrow from 840; absent draws no Back. */
     readonly onBack?: () => void;
     /** The recipe's address, so a modified click on Back still works. */
     readonly backHref?: string;
-}
+};
 
 /**
  * @param props - The words, the retry and the way back.
- * @returns The header, an alert, and a quiet Try again button.
+ * @returns The header, an alert, and a quiet Try again button when the read can be tried again.
  */
 export const RecipeVersionListError: FC<RecipeVersionListErrorWebProps> = ({
     title,
@@ -55,9 +64,11 @@ export const RecipeVersionListError: FC<RecipeVersionListErrorWebProps> = ({
             <RecipeVersionListHeader headingId={VERSION_TITLE_ID} back={back} />
             <div role="alert" className="flex flex-col items-start gap-3">
                 <p className="text-body text-ink">{title}</p>
-                <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
-                    {retryLabel}
-                </Button>
+                {onRetry === undefined ? null : (
+                    <Button variant="quiet" icon="refreshCw" onPress={onRetry}>
+                        {retryLabel}
+                    </Button>
+                )}
             </div>
         </section>
     );

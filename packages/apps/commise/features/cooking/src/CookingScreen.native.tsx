@@ -8,6 +8,7 @@
  *
  * @pattern Visitor — an exhaustive switch over the read-level screen state, each case picking one render component
  */
+import { commonMessages } from '@commise/features-core/common';
 import { useMessages } from '@commise/i18n/react';
 import { useBackIntercept } from '@commise/ui/back-intercept';
 import type { StateNoticeProps } from '@commise/ui/state-notice';
@@ -73,6 +74,7 @@ const loadingFrame = ({ copy, phase, narrow, onLeave }: LoadingFrameInput) => (
 /** The native cooking screen. */
 export const CookingScreen: FC<CookingScreenProps> = ({ read, recipeId, ...routeWays }) => {
     const copy = useMessages(cookingMessages);
+    const { recipeUnavailable: unavailable } = useMessages(commonMessages);
     // Every way out says so first when this recipe's timer is still going: the one place, for the loading frame, the
     // notices and the session alike.
     const { onLeave, onEdit, onHome } = useExitMessageWays(
@@ -96,7 +98,7 @@ export const CookingScreen: FC<CookingScreenProps> = ({ read, recipeId, ...route
     const short = height / fontScale < SHORT_SCREEN.maxHeightPx;
     const previewInBody = height / fontScale < PREVIEW_IN_BODY.maxHeightPx;
 
-    const view = cookingEntryViewOf({ ...entry, read, copy, onLeave, onEdit, onHome });
+    const view = cookingEntryViewOf({ ...entry, read, copy, unavailable, onLeave, onEdit, onHome });
 
     switch (view.kind) {
         case 'loading':

@@ -30,7 +30,8 @@ import { LocaleProvider } from '@commise/i18n/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { VersionConflictError, VersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
+import { commonMessages } from '@commise/features-core/common';
+import { NotFoundError, VersionConflictError, VersionLineUnrestorableError } from '@kitchensink/recipe-service-client';
 import { RecipeServiceProvider } from '@kitchensink/recipe-service-client/hooks';
 import { createFakeRecipeServiceClient } from '@kitchensink/recipe-service-client/testing';
 import type { RecipeServiceClient } from '@kitchensink/recipe-service-client';
@@ -172,6 +173,25 @@ describe('RecipeVersionsContainer', () => {
         // reset makes it a real second request, and the history renders.
         expect(await screen.findByText('Current version')).toBeInTheDocument();
         expect(versionsSpy).toHaveBeenCalledTimes(2);
+    });
+
+    // hiddenViews AE8/R10: a 404 says the shared reader sentence and offers NO retry (a retry cannot make a deleted, private or
+    // hidden recipe appear); the header's Back stays. Either read can be the one that 404s.
+    it.each([
+        ['the versions read', 'listRecipeVersions'],
+        ['the recipe read', 'getRecipeById'],
+    ] as const)('says the shared sentence with no retry when %s is a 404, and keeps Back', async (_name, failing) => {
+        const client = createFakeRecipeServiceClient();
+        vi.spyOn(client, 'listRecipeVersions').mockResolvedValue([makeRecipeVersion({ versionNumber: 1 })]);
+        vi.spyOn(client, 'getRecipeById').mockResolvedValue(makeRecipeDetail({ currentVersion: 1 }));
+        vi.spyOn(client, failing).mockRejectedValue(new NotFoundError('Recipe not found'));
+        vi.spyOn(console, 'error').mockImplementation(() => undefined);
+
+        renderVersions(<RecipeVersionsContainer recipeId="rec_1" />, client);
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(commonMessages.en.recipeUnavailable);
+        expect(screen.queryByRole('button', { name: 'Try again' })).toBeNull();
+        expectOneBackInBarAndOneInHeader('Back to recipe');
     });
 
     it('⛔ issues NO request during the server render, which is the loading state with its way back', () => {

@@ -6,6 +6,7 @@
 import { resolveMessages } from '@commise/i18n';
 import { RecipeStatus } from '@kitchensink/recipe-core';
 import { describe, expect, it, vi } from 'vitest';
+import { commonMessages } from '@commise/features-core/common';
 
 import { makeCookingRecipe } from '../__fixtures__/makeCookingRecipe.js';
 import { cookingEntryOf } from '../cookingEntry.js';
@@ -21,7 +22,14 @@ const recipe = (instruction: string, status: CookingRecipe['status'] = RecipeSta
 
 function view(read: CookingScreenRead, phase: LoadingPhase = 'blank') {
     const handlers = { onLeave: vi.fn(), onEdit: vi.fn(), onHome: vi.fn() };
-    const input: CookingEntryViewInput = { state: cookingEntryOf(read).state, phase, read, copy, ...handlers };
+    const input: CookingEntryViewInput = {
+        state: cookingEntryOf(read).state,
+        phase,
+        read,
+        copy,
+        unavailable: commonMessages.en.recipeUnavailable,
+        ...handlers,
+    };
 
     return { result: cookingEntryViewOf(input), ...handlers };
 }
@@ -79,7 +87,10 @@ describe('cookingEntryViewOf', () => {
 
         expect(result).toEqual({
             kind: 'notice',
-            notice: { title: copy.gone.title, secondary: { label: copy.gone.home, icon: 'house', onPress: onHome } },
+            notice: {
+                title: commonMessages.en.recipeUnavailable,
+                secondary: { label: copy.gone.home, icon: 'house', onPress: onHome },
+            },
         });
     });
 

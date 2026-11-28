@@ -369,7 +369,7 @@ export interface UseRecipeEditorResult {
      * is cleared only by a refusal. `undefined` until the cook answers.
      */
     readonly rowStated: RowAnswer | undefined;
-    /** The recipe as the server holds it now (the row's facts), `undefined` before the first server write. */
+    /** The recipe as the server holds it now (the row's facts), `undefined` until the server has created the recipe. */
     readonly storedRecipe: RecipeDetail | undefined;
     /**
      * The server refused a change to a confirmed source: the answer and the field change were dropped and the rest was sent

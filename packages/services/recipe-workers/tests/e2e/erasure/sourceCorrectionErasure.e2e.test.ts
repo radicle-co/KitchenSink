@@ -131,6 +131,52 @@ describe('erasure and the source lock (migration 0092)', () => {
         expect(Number(rows[0]?.n)).toBe(0);
     });
 
+    /** A staff clear of a held recipe: the record's own trigger refuses a clear of a recipe that is not held. */
+    async function clearByStaffRecord(recipeId: string, actor: string): Promise<void> {
+        await db.transaction(async (tx) => {
+            await tx.execute(sql`
+                INSERT INTO recipe_source_hold_clears (recipe_id, cause, actor_account_id, reason, recorded_at, xact_id)
+                VALUES (${recipeId}, 'staff', ${actor}, 'a mistaken correction', now(), pg_current_xact_id())
+            `);
+            await tx.execute(sql`UPDATE recipes SET source_correction_hold = false WHERE id = ${recipeId}`);
+        });
+    }
+
+    it('relabels a staff account on its hold-clear records to one erased token, and leaves another staff account alone', async () => {
+        const first = await insertOwn(OTHER_COOK, true);
+        const second = await insertOwn(OTHER_COOK, true);
+
+        await clearByStaffRecord(first, STAFF);
+        await clearByStaffRecord(second, 'someoneElseStaff00000000000');
+        await startJob(STAFF);
+
+        await eraseRecipeRows(db, STAFF, []);
+
+        const { rows } = await db.execute<{ actor_account_id: string }>(sql`
+            SELECT actor_account_id FROM recipe_source_hold_clears WHERE recipe_id IN (${first}, ${second})
+             ORDER BY actor_account_id
+        `);
+        const actors = rows.map((row) => row.actor_account_id);
+
+        expect(actors).toContain('someoneElseStaff00000000000');
+        expect(actors).not.toContain(STAFF);
+        expect(actors.filter((actor) => TOKEN_SHAPE.test(actor))).toHaveLength(1);
+    });
+
+    it('removes the hold-clear records of a removed recipe with it', async () => {
+        const removed = await insertOwn(COOK, true);
+
+        await clearByStaffRecord(removed, STAFF);
+        await startJob(COOK);
+        await eraseRecipeRows(db, COOK, []);
+
+        const { rows } = await db.execute<{ n: string }>(sql`
+            SELECT count(*) AS n FROM recipe_source_hold_clears WHERE recipe_id = ${removed}
+        `);
+
+        expect(Number(rows[0]?.n)).toBe(0);
+    });
+
     it('refuses the relabel when no erasure job is in flight for the staff account, and rolls the erasure back', async () => {
         const kept = await insertOwn(OTHER_COOK, false);
 

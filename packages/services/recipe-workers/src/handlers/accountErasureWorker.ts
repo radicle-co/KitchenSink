@@ -804,6 +804,12 @@ export const eraseRecipeRows = async (
             SET actor_account_id = ${attestationAccountToken}
             WHERE actor_account_id = ${ownerId}
         `);
+        // A staff hold clear names its actor the same way (migration 0100); an earned clear has no actor and is untouched.
+        await tx.execute(sql`
+            UPDATE recipe_source_hold_clears
+            SET actor_account_id = ${attestationAccountToken}
+            WHERE actor_account_id = ${ownerId}
+        `);
 
         // 6. Scoped recipe delete — the removed set (owner-only, post-flip), NOT owner-wide, so truly-public +
         //    donated survive. No `deleted_at` filter: a tombstoned owner-only recipe is erased too.
@@ -1049,6 +1055,12 @@ export const purgeTestPrincipalRows = async (
         // corrected stays, who corrected it does not.
         await tx.execute(sql`
             UPDATE recipe_source_corrections
+            SET actor_account_id = ${resetAccountToken}
+            WHERE actor_account_id = ${ownerId}
+        `);
+        // A staff hold clear names its actor the same way (migration 0100); an earned clear has no actor and is untouched.
+        await tx.execute(sql`
+            UPDATE recipe_source_hold_clears
             SET actor_account_id = ${resetAccountToken}
             WHERE actor_account_id = ${ownerId}
         `);

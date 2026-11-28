@@ -111,6 +111,8 @@ export const EXPECTED_TABLES = [
     'recipe_source_evidence',
     // The staff correction record (0092): erasure relabels `actor_account_id` on it, and the e2e reads the rows.
     'recipe_source_corrections',
+    // The hold-clear record (0100): erasure relabels `actor_account_id` on it, and the e2e reads and writes the rows.
+    'recipe_source_hold_clears',
     // The attestation record (0088): erasure replaces `account_id` on the rows of a recipe it keeps, and the e2e reads them.
     'recipe_statement_attestations',
     'recipe_verification_attempts',

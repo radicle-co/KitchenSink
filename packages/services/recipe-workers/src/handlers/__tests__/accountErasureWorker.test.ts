@@ -538,6 +538,25 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         expect(statements.some((s) => /delete from recipe_source_corrections/i.test(s.text))).toBe(false);
     });
 
+    // 0100: a staff hold clear names its actor, and that name is relabelled the same way.
+    it('moves the actor of every hold-clear record to the erasure token BEFORE the recipe delete, and never deletes one', async () => {
+        const control = createFakeDb();
+        seedRemoved(control, REMOVED_A);
+
+        await eraseRecipeRows(control.db, OWNER, []);
+
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_source_hold_clears\s+set actor_account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(statements.findIndex((s) => /^delete from recipes where/i.test(s.text)));
+        expect(statements[swapIndex]?.text).toMatch(/where actor_account_id = \$\d$/i);
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+        expect(statements.some((s) => /delete from recipe_source_hold_clears/i.test(s.text))).toBe(false);
+    });
+
     it('scopes the clone-detach to the REMOVED set and guards SURVIVORS (id NOT IN removed), not owner_id', async () => {
         const control = createFakeDb();
         seedRemoved(control, REMOVED_A, REMOVED_B);
@@ -1647,6 +1666,18 @@ describe('purgeTestPrincipalRows (ADR-0040 — TOTAL, repeatable purge of a regi
         const statements = control.statements();
         const swapIndex = statements.findIndex((s) =>
             /^update recipe_source_corrections\s+set actor_account_id/i.test(s.text),
+        );
+
+        expect(swapIndex).toBeGreaterThanOrEqual(0);
+        expect(swapIndex).toBeLessThan(indexOf(control, /^delete from recipes\b/i));
+        expect(statements[swapIndex]?.params).toEqual([expect.stringMatching(/^erased_[0-9a-f]{32}$/), OWNER]);
+    });
+
+    it('swaps the actor of every hold-clear record to one erased token BEFORE the recipe delete', async () => {
+        const control = await purge();
+        const statements = control.statements();
+        const swapIndex = statements.findIndex((s) =>
+            /^update recipe_source_hold_clears\s+set actor_account_id/i.test(s.text),
         );
 
         expect(swapIndex).toBeGreaterThanOrEqual(0);

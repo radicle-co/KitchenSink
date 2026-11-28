@@ -176,7 +176,7 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
     const statementSheet = useStatementSheet({
         locale,
         surface: PUBLISH_SHEET_SURFACE,
-        recipeConfirmed: seed.recipe?.sourceConfirmed === true,
+        recipeConfirmed: editor.storedRecipe?.sourceConfirmed === true,
         onAnswer: editor.answerStatement,
     });
     // ADR-0100: the Source row's own sheet. `rowSheet` is which of its three purposes is open; the sheet is the same one.
@@ -518,8 +518,8 @@ export const RecipeEditorSurface: FC<RecipeEditorSurfaceProps> = ({
             )}
             <SourceStatementSheet
                 open={editor.statementAsk}
-                surface="editor"
-                recipeConfirmed={seed.recipe?.sourceConfirmed === true}
+                surface={PUBLISH_SHEET_SURFACE}
+                recipeConfirmed={editor.storedRecipe?.sourceConfirmed === true}
                 state={statementSheet.state}
                 dispatch={statementSheet.dispatch}
                 onConfirm={statementSheet.confirm}

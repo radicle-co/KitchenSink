@@ -363,9 +363,10 @@ export interface UseRecipeEditorResult {
      */
     readonly statementAsk: boolean;
     /**
-     * What the Source row draws from an answer no write has carried yet: the Publish sheet's confirmed paid-site answer, else
-     * what the Source row's own sheet answered (the Publish sheet's answer wins). Either way `locks` is the rule's answer
-     * (`answerLocks`). `undefined` until the cook answers, and again once a write carried it.
+     * What the Source row draws from an answer the cook gave: the Publish sheet's confirmed paid-site answer, else what the
+     * Source row's own sheet answered (the Publish sheet's answer wins). Either way `locks` is the rule's answer
+     * (`answerLocks`). The row sheet's answer clears once a write carried it; the Publish sheet's lives for the session and
+     * is cleared only by a refusal. `undefined` until the cook answers.
      */
     readonly rowStated: RowAnswer | undefined;
     /** The recipe as the server holds it now (the row's facts), `undefined` before the first server write. */

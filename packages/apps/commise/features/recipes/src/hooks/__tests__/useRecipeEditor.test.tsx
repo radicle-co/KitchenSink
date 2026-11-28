@@ -5240,6 +5240,44 @@ describe('the source question on Publish (ADR-0095)', () => {
         });
     });
 
+    it('the Publish sheet\u2019s paid-site answer wins over a row sheet answer held at the same time', () => {
+        const { result } = mount();
+        const bookRow = {
+            statement: {
+                kind: 'book',
+                citation: 'Salt Fat Acid Heat',
+                wording: { version: 'statementBook.v2', locale: 'en' },
+            },
+            visibility: RecipeVisibility.PRIVATE,
+        } as const;
+        const paid = {
+            statement: {
+                kind: 'paid_site',
+                citation: 'Sam’s Subscription Kitchen',
+                wording: { version: 'statementPaidSite.v1', locale: 'en' },
+            },
+            visibility: RecipeVisibility.PRIVATE,
+        } as const;
+
+        act(() => {
+            result.current.setValues(pasted());
+        });
+        act(() => {
+            result.current.publish('');
+        });
+        act(() => {
+            result.current.answerRowStatement(bookRow, 'firstAnswer');
+        });
+
+        expect(result.current.rowStated).toEqual({ statement: bookRow.statement, locks: false });
+
+        act(() => {
+            result.current.answerStatement(paid);
+        });
+
+        expect(result.current.rowStated).toEqual({ statement: paid.statement, locks: true });
+    });
+
     it('⛔ a paid-site answer is held as stated from the confirm, goes out Private with its statement, and is not stated before', async () => {
         const { result, port } = mount();
         const paid = {

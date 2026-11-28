@@ -1059,6 +1059,27 @@
       "w": 390,
       "h": 516,
       "title": "Recipe editor, saved as private, source hold (web, 390)"
+    },
+    "RecipeEditorHeldSaveWeb1280.dc.html": {
+      "x": 0,
+      "y": 31086,
+      "w": 1280,
+      "h": 4433,
+      "title": "Recipe editor, a held public recipe’s save is blocked (web, 1280)"
+    },
+    "RecipeEditorHeldSaveWeb390.dc.html": {
+      "x": 1360,
+      "y": 31086,
+      "w": 390,
+      "h": 7293,
+      "title": "Recipe editor, a held public recipe’s save is blocked (web, 390)"
+    },
+    "RecipeEditorHeldSaveLargeTextWeb390.dc.html": {
+      "x": 1830,
+      "y": 31086,
+      "w": 390,
+      "h": 1803,
+      "title": "Recipe editor, blocked save at the largest text (web, 390)"
     }
   },
   "order": [
@@ -1211,7 +1232,10 @@
     "RecipeEditorSourceHoldSavedPrivateWeb1280.dc.html",
     "RecipeEditorTooCloseSavedPrivateWeb390.dc.html",
     "RecipeEditorTooCloseNoSlotWeb390.dc.html",
-    "RecipeEditorSourceHoldSavedPrivateWeb390.dc.html"
+    "RecipeEditorSourceHoldSavedPrivateWeb390.dc.html",
+    "RecipeEditorHeldSaveWeb1280.dc.html",
+    "RecipeEditorHeldSaveWeb390.dc.html",
+    "RecipeEditorHeldSaveLargeTextWeb390.dc.html"
   ],
   "notes": {
     "row0": {

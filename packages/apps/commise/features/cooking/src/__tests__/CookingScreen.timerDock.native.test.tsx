@@ -2,8 +2,8 @@
  * The timer dock on the native cooking screen: the offer under a step that has a length, the row it starts, and where
  * the screen-reader cursor goes after Start, Cancel, Undo and Stop. Real store, real snackbar, real copy; only the
  * screen-reader focus event is doubled, because react-native-web does not implement it.
- * Mutation lens: a Start that leaves the cursor where it was, a Cancel that sends it to Undo, or a ring that leaves it
- * off Stop each fail a row here.
+ * Mutation lens: a Start that leaves the cursor where it was, a Cancel that sends it to Undo, or a Cancel or Stop on
+ * Done that leaves the cursor off the title each fail a row here.
  */
 import { stepDigestsOf } from '@kitchensink/cooking-core';
 import { render } from '@commise/ui/testing/tamagui';
@@ -83,6 +83,7 @@ beforeEach(() => {
 
 afterEach(() => {
     cleanup();
+    vi.useRealTimers();
 });
 
 describe('CookingScreen (native): the timer dock', () => {

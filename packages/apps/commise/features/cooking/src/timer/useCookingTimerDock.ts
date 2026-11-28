@@ -96,12 +96,14 @@ export function useCookingTimerDock({ recipe, stepIndex, offerMs, locale, finish
     const { order, command, start } = useCookingTimers();
     const [focus, setFocus] = useState<FocusRequest | undefined>(undefined);
     const [doneTitleSignal, setDoneTitleSignal] = useState(0);
+
     // Done draws neither an offer nor Next, so Done's title takes the focus a Cancel or Stop button lost there.
     const bumpIfDone = (): void => {
         if (finished) {
             setDoneTitleSignal((signal) => signal + 1);
         }
     };
+
     const [held, setHeld] = useState<HeldUndo | undefined>(undefined);
     const running = order.some((entry) => entry.kind === 'live' && entry.timer.kind === 'running');
     const nowMs = useSecondTick(running);

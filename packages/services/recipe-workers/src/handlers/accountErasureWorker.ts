@@ -31,7 +31,7 @@ import { logger } from '../common/logger.js';
  * **This is a SCOPED erasure, not a whole-owner wipe (CR-002 / U3).** A user may keep community content:
  * a recipe is removed only when it is OWNER-ONLY — `visibility='private'` **OR** `status='draft'` (a
  * draft is owner-only regardless of visibility; both columns are a security boundary). A **truly-public**
- * recipe (`visibility='public' AND status='published'`) SURVIVES, pseudonymized. The owner may also
+ * recipe (`visibility='public' AND status='published'` and not held from readers, ADR-0105) SURVIVES, pseudonymized. The owner may also
  * **donate** specific owner-only recipes via a per-recipe election (`account_erasure_jobs.publish_recipe_ids`):
  * those are flipped to public+published FIRST and then survive too. So this path removes only the owner's
  * owner-only, non-donated recipes (+ their media), all their collections, and their ratings on others'
@@ -557,7 +557,7 @@ export interface EraseRecipeRowsResult {
  *     removed). Scoped `AND owner_id = ownerId`, so an election id the owner does not own is a harmless
  *     no-op, never a way to publish someone else's recipe. Running first means what remains owner-only
  *     afterwards is exactly the to-be-removed set.
- *  2. **Compute the removed set.** `owner_id = ownerId AND NOT (visibility='public' AND status='published')`
+ *  2. **Compute the removed set.** `owner_id = ownerId AND NOT (visibility='public' AND status='published' AND NOT held from readers)`
  *     — owner-only = private OR draft (both a security boundary; a public *draft* is still owner-only).
  *     Captured as concrete ids because (a) the scoped S3 sweep needs them and (b) after the delete they
  *     are unrecoverable — see step 3.

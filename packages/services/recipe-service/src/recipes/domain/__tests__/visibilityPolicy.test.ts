@@ -633,7 +633,7 @@ describe('evaluatePublishedState — the order of refusals', () => {
         'a DRAFT (public or private) with %j is never refused, except a PUBLIC draft held by a staff correction',
         (...present) => {
             // Only its owner can read a draft, so no refusal applies, with ONE exception: the database refuses a held recipe
-            // that is public whatever its status (`recipes_held_is_not_public`), so the policy answers it first (a typed 400, not a 500).
+            // that is public whatever its status, so the policy answers it first (a typed 400).
             expectDecision(leave(RecipeStatus.DRAFT, PUBLIC, present), !present.includes('sourceCorrected'));
             expectDecision(leave(RecipeStatus.DRAFT, PRIVATE, present), true);
         },

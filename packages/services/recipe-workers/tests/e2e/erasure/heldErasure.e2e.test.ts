@@ -43,21 +43,31 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         held: boolean;
         visibility?: 'public' | 'private';
         sourceType?: string;
+        sourceKind?: string;
         correctionHold?: boolean;
     }): Promise<string> {
-        const { held, visibility = 'public', sourceType = 'user_created', correctionHold = false } = opts;
+        const { held, visibility = 'public', sourceType = 'user_created', sourceKind, correctionHold = false } = opts;
 
         return db.transaction(async (tx) => {
             const { rows } = await tx.execute<{ id: string }>(sql`
                 INSERT INTO recipes (owner_id, title, description, servings, prep_time_minutes, cook_time_minutes,
-                                     total_time_minutes, visibility, status, source_type, source_correction_hold)
-                VALUES (${COOK}, 'held erasure probe', 'probe', 2, 5, 5, 10, ${visibility}, 'published', ${sourceType}, ${correctionHold})
+                                     total_time_minutes, visibility, status, source_type, source_kind, statement_kind, source_correction_hold)
+                VALUES (${COOK}, 'held erasure probe', 'probe', 2, 5, 5, 10, ${visibility}, 'published', ${sourceType}, ${sourceKind ?? null}, ${sourceKind === undefined ? null : 'source'}, ${correctionHold})
                 RETURNING id
             `);
             const id = rows[0]?.id;
 
             if (typeof id !== 'string') {
                 throw new Error('test setup: the recipe insert returned no id');
+            }
+
+            if (sourceKind !== undefined) {
+                // The stated source needs an evidence row to commit; a staff-capture row is ignored by the read rule's evidence
+                // term, so the label alone holds the recipe.
+                await tx.execute(sql`
+                    INSERT INTO recipe_source_evidence (recipe_id, capture, source_kind, citation)
+                    VALUES (${id}, 'staffCorrection', ${sourceKind}, 'A Cookbook, p. 3')
+                `);
             }
 
             if (held) {
@@ -102,7 +112,9 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         const privateReadableElected = await insertRecipe({ held: false, visibility: 'private' });
         const privateHeldElected = await insertRecipe({ held: true, visibility: 'private' });
         const privateReadableNotElected = await insertRecipe({ held: false, visibility: 'private' });
-        // The database's own CHECK refuses a held (staff-held) recipe made public, so a flip that forgot the held term errors here.
+        // No CHECK backstops the flip (migration 0099). A flip that forgot the held term is NOT caught here: the removal set
+        // (`ownerOnly`) has its own held term and removes the row anyway. The flip's term is pinned by the exact-SQL unit test;
+        // this e2e guards `ownerOnly`.
         const privateCorrectionHeldElected = await insertRecipe({
             held: false,
             visibility: 'private',
@@ -115,5 +127,40 @@ describe('erasure of a recipe held from readers (ADR-0105)', () => {
         expect(await survivor(privateHeldElected)).toBeUndefined();
         expect(await survivor(privateCorrectionHeldElected)).toBeUndefined();
         expect(await survivor(privateReadableNotElected)).toBeUndefined();
+    });
+
+    it('removes a PUBLIC correction-held recipe, elected or not: the hold alone hides it (no CHECK, migration 0099)', async () => {
+        const heldElected = await insertRecipe({ held: false, correctionHold: true });
+        const heldNotElected = await insertRecipe({ held: false, correctionHold: true });
+        const readable = await insertRecipe({ held: false });
+
+        await erase([heldElected, readable]);
+
+        expect(await survivor(heldElected)).toBeUndefined();
+        expect(await survivor(heldNotElected)).toBeUndefined();
+        expect(await survivor(readable)).toEqual({ visibility: 'public' });
+    });
+
+    it.each([
+        ['a correction hold', { held: false, correctionHold: true }],
+        ['cook evidence', { held: true }],
+        ['a private-only label', { held: false, sourceType: 'imported_physical', sourceKind: 'book' }],
+    ] as const)('never leaves a recipe held by %s public, whatever its visibility or election', async (_name, held) => {
+        const privateElected = await insertRecipe({ ...held, visibility: 'private' });
+        const publicElected = await insertRecipe({ ...held, visibility: 'public' });
+        const control = await insertRecipe({ held: false, visibility: 'private' });
+
+        await erase([privateElected, publicElected, control]);
+
+        expect(await survivor(privateElected)).toBeUndefined();
+        expect(await survivor(publicElected)).toBeUndefined();
+        // Control: the same election donates a readable recipe, so the removals above are the hold.
+        expect(await survivor(control)).toEqual({ visibility: 'public' });
+
+        const { rows } = await db.execute<{ n: string }>(
+            sql`SELECT count(*) AS n FROM recipes WHERE owner_id = ${COOK} AND id IN (${privateElected}, ${publicElected})`,
+        );
+
+        expect(Number(rows[0]?.n)).toBe(0);
     });
 });

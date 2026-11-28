@@ -7,8 +7,8 @@
  *
  *  1. CONFIRMED. `source_confirmed_at` is set by the database when a recipe is first published (an insert as published, an
  *     update to published), keeps an earlier value, never changes once set, and a published row cannot have it NULL.
- *  2. HOLD. `source_correction_hold` only goes false to true, a held recipe cannot be public by any writer, and a clone of a
- *     held recipe is inserted held.
+ *  2. HOLD. `source_correction_hold` only goes false to true, a held recipe may be public (the read rule hides it, ADR-0105,
+ *     migration 0099), and a clone of a held recipe is inserted held.
  *  3. RECORD. `recipe_source_corrections` is append-only for every role. It admits the cascade of a deleted recipe and ONE
  *     update, the erasure relabel of the actor, which moves no other column and needs an erasure job in flight.
  *  4. EVIDENCE. A correction's evidence row (capture `staffCorrection`) inserts, and a stated source with no evidence row
@@ -18,6 +18,8 @@ import { randomUUID } from 'node:crypto';
 
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import pg from 'pg';
+
+import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
 
 import { recipeDb } from '../../support/roleDb.js';
 
@@ -109,6 +111,15 @@ describe('the source lock schema (migration 0092)', () => {
         expect(rows).toHaveLength(1);
 
         return rows[0];
+    }
+
+    async function heldFromReaders(id: string = RECIPE_ID): Promise<boolean | undefined> {
+        const { rows } = await pool.query<{ held: boolean }>(
+            `SELECT recipe_held_from_readers(r, $2::jsonb) AS held FROM recipes r WHERE r.id = $1`,
+            [id, JSON.stringify(PRIVATE_ONLY_SOURCE_KEYS)],
+        );
+
+        return rows[0]?.held;
     }
 
     describe('source_confirmed_at', () => {
@@ -207,20 +218,23 @@ describe('the source lock schema (migration 0092)', () => {
             ).rejects.toMatchObject({ code: CHECK_VIOLATION });
         });
 
-        it('refuses visibility public on a held row, for any writer', async () => {
+        it('accepts visibility public on a held row, and the read function hides it (ADR-0105)', async () => {
             await insertRecipe({ hold: true });
+            await pool.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [RECIPE_ID]);
 
-            await expect(
-                pool.query(`UPDATE recipes SET visibility = 'public' WHERE id = $1`, [RECIPE_ID]),
-            ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+            expect((await recipeRow()).source_correction_hold).toBe(true);
+            expect((await pool.query(`SELECT visibility FROM recipes WHERE id = $1`, [RECIPE_ID])).rows[0]).toEqual({
+                visibility: 'public',
+            });
+            expect(await heldFromReaders()).toBe(true);
         });
 
-        it('refuses to hold a recipe that is public', async () => {
+        it('accepts holding a recipe that is public, and the read function hides it', async () => {
             await insertRecipe({ visibility: 'public' });
+            await pool.query(`UPDATE recipes SET source_correction_hold = true WHERE id = $1`, [RECIPE_ID]);
 
-            await expect(
-                pool.query(`UPDATE recipes SET source_correction_hold = true WHERE id = $1`, [RECIPE_ID]),
-            ).rejects.toMatchObject({ code: CHECK_VIOLATION });
+            expect((await recipeRow()).source_correction_hold).toBe(true);
+            expect(await heldFromReaders()).toBe(true);
         });
 
         it('inserts a clone of a held recipe held, and a clone of an unheld recipe unheld', async () => {

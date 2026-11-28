@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8" />
+        <title>Recipe editor, saved as private after a check (web, 390)</title>
+        <script src="./support.js"></script>
+        <link rel="stylesheet" href="ds/commise/tokens.css" />
+        <link rel="stylesheet" href="ds/commise/bundle.css" />
+        <script src="ds/commise/bundle.js"></script>
+        <style id="redesignOverrides">
+            /* Redesign: type ramp 13 / 15 / 17 for form controls and for the native text classes (react-native-web
+               atomic classes), weights up to 600. Redundant once typeRole in the native bundle follows the ramp. */
+            input,
+            textarea,
+            select,
+            button {
+                font-size: 16px;
+            }
+            .r-1gkfh8e,
+            .r-1enofrn {
+                font-size: 14px !important;
+            }
+            .r-1b43r93 {
+                font-size: 16px !important;
+            }
+            /* No-photo cover (spec, Surfaces): a sky-to-coral gradient, a photo icon in a paper disc and "Waiting for its
+               photo". Never a letter tile. Reworks the component output with CSS only. */
+            [class*='bg-cover-'][aria-hidden='true'],
+            [aria-hidden='true'][style*='aspect-ratio'],
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) {
+                background: linear-gradient(135deg, var(--cover-sky), var(--cover-peach)) !important;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+                justify-content: center;
+                gap: 8px;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child {
+                position: relative;
+                display: block;
+                width: 48px;
+                height: 48px;
+                flex: none;
+                border-radius: 50%;
+                background: var(--paper);
+                font-size: 14px !important;
+                line-height: 20px !important;
+                color: transparent;
+                text-indent: 100%;
+                overflow: hidden;
+                white-space: nowrap;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:first-child::before,
+            [aria-hidden='true'][style*='aspect-ratio'] > div:first-child::before,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:first-child::before {
+                content: '';
+                position: absolute;
+                inset: 12px;
+                background: var(--ink-muted);
+                -webkit-mask: var(--photo-icon) center / contain no-repeat;
+                mask: var(--photo-icon) center / contain no-repeat;
+            }
+            [class*='bg-cover-'][aria-hidden='true'] > span:nth-child(2),
+            [aria-hidden='true'][style*='aspect-ratio'] > div:nth-child(2),
+            [aria-hidden='true']:has(> div[style*='font-size: 38px']) > div:nth-child(2) {
+                display: none !important;
+            }
+            [class*='bg-cover-'][aria-hidden='true']::after,
+            [aria-hidden='true'][style*='aspect-ratio']::after,
+            [aria-hidden='true']:has(> div[style*='font-size: 38px'])::after {
+                content: 'Waiting for its photo';
+                font-size: 14px;
+                line-height: 20px;
+                color: var(--ink-muted);
+                text-align: center;
+            }
+            [aria-hidden='true'][style*='aspect-ratio: 1 / 1']::after {
+                display: none;
+            }
+            @container cover (max-height: 6rem) {
+                [class*='bg-cover-'][aria-hidden='true']::after {
+                    display: none;
+                }
+            }
+            :root {
+                --photo-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Crect x='3' y='4' width='18' height='16' rx='3'/%3E%3Ccircle cx='9' cy='10' r='1.5'/%3E%3Cpath d='M21 16l-5-5-8 8'/%3E%3C/svg%3E");
+            }
+            [style*='font-variant-numeric: tabular-nums'] {
+                font-size: 16px !important;
+            }
+            /* Editor sections are cards on the canvas (spec row 15); the title field is the one 28 title as you type. */
+            .ed-col {
+                max-width: 720px;
+            }
+            .ed-col > section,
+            [style*='gap: 24px'][style*='padding: 16px 16px'] > .sc-host-x > div {
+                background: var(--paper);
+                border-radius: var(--radius-lg);
+                box-shadow: var(--shadow-md);
+                padding: 20px 16px;
+            }
+            textarea#title,
+            input#title,
+            textarea#recipe-title,
+            input#recipe-title {
+                font: 600 28px/32px var(--font-display) !important;
+            }
+            .sr-only,
+            .r-109y4c4 {
+                font-size: 14px !important;
+            }
+            script {
+                display: none;
+            }
+            .r-ubezar,
+            .r-1i10wst,
+            .r-adyw6z,
+            .r-1x35g6 {
+                font-size: 16px !important;
+            }
+        </style>
+    <link rel="stylesheet" href="ds/commise/redesign.css" /></head>
+    <body>
+        <x-dc
+            ><helmet
+                ><style>
+                    body {
+                        margin: 0;
+                        background: var(--canvas);
+                        color: var(--ink);
+                        font: 400 16px/24px var(--font-body);
+                    }
+                    * {
+                        box-sizing: border-box;
+                    }
+                    h2,
+                    h3,
+                    p,
+                    ul {
+                        margin: 0;
+                    }
+                    ul {
+                        padding: 0;
+                        list-style: none;
+                    }
+                    .cap {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                        margin-bottom: 8px;
+                    }
+                    .h3 {
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .body {
+                        font: 400 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .hint {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .alert {
+                        font: 500 16px/24px var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .cluster {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .page {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 32px;
+                        padding: 16px 0 24px;
+                    }
+                    .fig {
+                        padding: 0 16px;
+                    }
+                    .cap {
+                        padding: 0;
+                    }
+                    .pm-grid {
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: flex-start;
+                        gap: 10px;
+                    }
+                    .pm-tile {
+                        position: relative;
+                        width: 31%;
+                    }
+                    .pm-img {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                    }
+                    .pm-q {
+                        position: relative;
+                        overflow: hidden;
+                        aspect-ratio: 1 / 1;
+                        border-radius: 12px;
+                        background: var(--surface-muted);
+                    }
+                    .pm-fill {
+                        position: absolute;
+                        inset: 0;
+                    }
+                    .pm-menu {
+                        position: absolute;
+                        top: 2px;
+                        right: 2px;
+                    }
+                    .pm-cover {
+                        position: absolute;
+                        bottom: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        background: var(--action);
+                        padding: 2px 8px;
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--on-action);
+                    }
+                    .pm-removing {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                        border-radius: 999px;
+                        background: var(--photo-chip);
+                        padding: 2px 0;
+                        text-align: center;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-status {
+                        position: absolute;
+                        top: 6px;
+                        left: 6px;
+                        border-radius: 999px;
+                        padding: 2px 8px;
+                        font: 500 14px/20px var(--font-body);
+                        background: var(--photo-chip);
+                        color: var(--ink);
+                    }
+                    .pm-status.bad {
+                        background: var(--danger);
+                        color: var(--on-action);
+                    }
+                    .pm-retry {
+                        position: absolute;
+                        left: 6px;
+                        right: 6px;
+                        bottom: 6px;
+                    }
+                    .pm-err {
+                        margin-top: 4px;
+                        padding: 0 2px;
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--danger-text);
+                    }
+                    .pm-mi {
+                        display: flex;
+                        min-height: 48px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/24px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .pm-mi.danger {
+                        color: var(--danger-text);
+                    }
+                    .pm-sep {
+                        height: 1px;
+                        margin: 4px 0;
+                        background: var(--line-divider);
+                    }
+                    .stage {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        justify-content: flex-end;
+                        width: 390px;
+                        min-height: 600px;
+                        background: var(--canvas);
+                        overflow: hidden;
+                    }
+                    .under {
+                        position: absolute;
+                        inset: 0;
+                        padding: 16px;
+                    }
+                    .scrim {
+                        position: absolute;
+                        inset: 0;
+                        background: var(--scrim);
+                    }
+                    .sh {
+                        position: relative;
+                        display: flex;
+                        flex-direction: column;
+                        min-height: 0;
+                        max-height: 100%;
+                    }
+                    .src {
+                        display: flex;
+                        min-height: 56px;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 0 8px;
+                        font: 400 16px/24px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .msgs {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 12px;
+                    }
+                    .msg {
+                        display: flex;
+                        flex-direction: column;
+                        gap: 4px;
+                        padding-top: 12px;
+                        border-top: 1px solid var(--line-divider);
+                    }
+                    .msg:first-child {
+                        padding-top: 0;
+                        border-top: 0;
+                    }
+                    .vl {
+                        font: 600 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                    .vt {
+                        font: 600 16px/20px var(--font-body);
+                        color: var(--ink);
+                    }
+                    .vh,
+                    .vn {
+                        font: 500 14px/20px var(--font-body);
+                        color: var(--ink-muted);
+                    }
+                </style></helmet
+            >
+            <div class="page"><section class="fig" aria-label="After saving a public recipe whose steps are too close to the source: saved as private"><p class="cap">After saving a public recipe whose steps are too close to the source: saved as private</p><section role="region" aria-labelledby="bxEditorSaved" style="display:flex;flex-direction:column;gap:12px;padding:16px;border:1px solid var(--line-divider);border-radius:12px;background:var(--surface-muted);margin-bottom:16px"><p id="bxEditorSaved" style="font:600 16px/24px var(--font-body);color:var(--ink)">Saved as private</p><p style="font:400 14px/20px var(--font-body);color:var(--ink-muted)">Your steps are still too close to the source’s wording to share, so we saved this recipe as private. Change the steps in your own words to make it public.</p><a href="#" style="color:var(--action-text);font:600 16px/24px var(--font-body);text-decoration:underline;min-height:44px;display:inline-flex;align-items:center">See the source</a><div style="display:flex;flex-direction:column;flex-wrap:wrap;gap:8px"><a href="#" style="min-height:44px;border:0;border-radius:999px;background:var(--action);color:var(--on-action);font:600 16px/24px var(--font-body);padding:10px 20px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;flex:1 1 0%">Edit steps</a><a href="#" style="min-height:44px;border:1px solid var(--line-control);border-radius:999px;background:transparent;color:var(--ink);font:600 16px/24px var(--font-body);padding:9px 20px;display:inline-flex;align-items:center;justify-content:center;text-decoration:none;flex:1 1 0%">Dismiss</a></div><div style="display:flex;flex-direction:column;flex-wrap:wrap;align-items:flex-start;gap:0"><p style="font:400 14px/20px var(--font-body);color:var(--ink-muted)">Let AI rewrite the steps in new words with Pro.</p><a href="#" style="color:var(--action-text);font:600 16px/24px var(--font-body);text-decoration:underline;min-height:44px;display:inline-flex;align-items:center">Edit with AI</a></div></section><div style="display:flex;flex-direction:column;gap:8px"><span class="vl" style="display:flex;align-items:center;gap:8px">Who can see it<span style="display:inline-flex;align-items:center;gap:4px;height:24px;padding:0 8px;border-radius:8px;background:var(--surface-muted);font:500 14px/20px var(--font-body);color:var(--ink);white-space:nowrap"><svg aria-hidden="true" viewBox="0 0 24 24" style="width:16px;height:16px;fill:none;stroke:currentColor;stroke-width:1.9;stroke-linecap:round;stroke-linejoin:round;flex:none"><rect x="5.5" y="10.5" width="13" height="9.5" rx="2"/><path d="M8.5 10.5V8a3.5 3.5 0 0 1 7 0v2.5"/></svg>Private</span></span><div role="radiogroup" aria-label="Who can see it" style="display:flex;flex-direction:column;gap:8px"><div role="radio" aria-checked="false" aria-disabled="true" style="min-height:56px;display:flex;align-items:center;gap:12px;border-radius:12px;padding:8px 16px;border:1px solid transparent;background:var(--surface-muted)"><div style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="vt" style="color:var(--ink-muted)">Public</span></div></div><div role="radio" aria-checked="true" style="min-height:56px;display:flex;align-items:center;gap:12px;border-radius:12px;padding:8px 16px;border:1px solid var(--selected-edge);background:var(--selected-fill)"><div style="display:flex;flex-direction:column;min-width:0;flex:1"><span class="vt">Private</span><span class="vh">Only you can see it</span></div></div></div></div></section></div>
+        </x-dc>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":821}}'>
+            class Component extends DCLogic { renderVals(){ const noop=()=>{}; return {noop,yes:true,one:1,jItems:[{id:'setCover',label:"Set as cover",onSelect:noop},{id:'moveEarlier',label:"Move earlier",onSelect:noop},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jItemsCover:[{id:'setCover',label:"Set as cover",onSelect:noop,disabled:true},{id:'moveEarlier',label:"Move earlier",onSelect:noop,disabled:true},{id:'moveLater',label:"Move later",onSelect:noop},{id:'replace',label:"Replace",onSelect:noop}],jNone:[],jRemove:{id:'remove',label:"Remove",onSelect:noop},}; } }
+        </script>
+    </body>
+</html>

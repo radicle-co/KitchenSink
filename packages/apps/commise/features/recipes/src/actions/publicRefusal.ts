@@ -6,21 +6,15 @@
  * reason names are the recipe state model's (the recipe state model under `docs/architecture`, its `refusals`), so one vocabulary
  * serves the model and both surfaces.
  *
- * It composes recipe-core's `privateRuleOf` (ADR-0073 section 10) and restates none of it: a rule that says "private
- * only" is split here only into the reason the cook is told.
+ * It has no ordering of its own: it asks recipe-core's `refusalOf` (the model's one refusal function) and maps the answer
+ * to this client's reason string through {@link REFUSALS_OF_SOURCE}.
  *
  * Pure.
  *
  * @pattern Specification — a pure predicate-and-pick over facts the surface already holds
  */
-import {
-    privateRuleOf,
-    RecipeSourceType,
-    UNRECOGNISED_SOURCE_KIND,
-    UNRECOGNISED_STATEMENT_KIND,
-    type RecipeSourceKindView,
-    type RecipeStatementKindView,
-} from '@kitchensink/recipe-core';
+import type { RecipeSourceKindView, RecipeSourceType, RecipeStatementKindView } from '@kitchensink/recipe-core';
+import { refusalOf, type Refusal } from '@kitchensink/recipe-core/recipe-state';
 
 import type { PublicRefusalMessages } from './messages.js';
 
@@ -52,49 +46,31 @@ export interface PublicRefusalFacts {
     readonly held: boolean;
 }
 
-/** The reason for a rule that is private only, from the label and kind that put the recipe under it. */
-function privateOnlyReasonOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKindView | null): PublicRefusal {
-    // A kind this client cannot name is the closed answer, and it names no answer it cannot word.
-    if (sourceKind === UNRECOGNISED_SOURCE_KIND) {
-        return 'unrecognised';
-    }
-
-    switch (sourceType) {
-        case RecipeSourceType.IMPORTED_PHYSICAL:
-            return 'policy.book';
-        case RecipeSourceType.IMPORTED_PAID:
-            return 'policy.paidSite';
-        case RecipeSourceType.IMPORTED_PUBLIC:
-            return 'policy.webPage';
-        case RecipeSourceType.USER_CREATED:
-            // Unreachable while `privateRuleOf` keeps `user_created` under the slots rule. Closed, not open, if it ever is.
-            return 'unrecognised';
-    }
-}
+/**
+ * The client reason string of each refusal name `refusalOf` can answer for the facts a client holds. The reasons are
+ * `PUBLIC_REFUSALS`, and the model JSON's `reason` values, which `publicRefusalNames.test.ts` holds equal.
+ */
+export const REFUSALS_OF_SOURCE = [
+    ['REFUSAL_POLICY_WEB_PAGE', 'policy.webPage'],
+    ['REFUSAL_POLICY_BOOK', 'policy.book'],
+    ['REFUSAL_POLICY_PAID_SITE', 'policy.paidSite'],
+    ['REFUSAL_FROM_PERSON', 'fromPerson'],
+    ['REFUSAL_SOURCE_CONFLICT', 'sourceConflict'],
+    ['REFUSAL_UNRECOGNISED', 'unrecognised'],
+    ['REFUSAL_NONE', 'none'],
+] as const satisfies readonly (readonly [Refusal, PublicRefusal])[];
 
 /**
  * Why a recipe cannot be public.
  *
- * Order: "From another person" first (its line wins over a held recipe); a statement kind this client cannot name; a
- * rule that is private only, split by the source; a held recipe; else nothing.
- *
  * @param facts - The recipe's source and statement, and whether a recorded source holds it.
- * @returns The reason, or `none` when Public may be offered. Pure.
+ * @returns The reason, or `none` when Public may be offered. A refusal this client has no words for (a flag it cannot see)
+ *   reads `unrecognised`, which is closed. Pure.
  */
 export function publicRefusalOf(facts: PublicRefusalFacts): PublicRefusal {
-    if (facts.statementKind === 'fromPerson') {
-        return 'fromPerson';
-    }
+    const name = refusalOf(facts);
 
-    if (facts.statementKind === UNRECOGNISED_STATEMENT_KIND) {
-        return 'unrecognised';
-    }
-
-    if (privateRuleOf(facts.sourceType, facts.sourceKind) === 'privateOnly') {
-        return privateOnlyReasonOf(facts.sourceType, facts.sourceKind);
-    }
-
-    return facts.held ? 'sourceConflict' : 'none';
+    return REFUSALS_OF_SOURCE.find((pair) => pair[0] === name)?.[1] ?? 'unrecognised';
 }
 
 /**

@@ -6,6 +6,7 @@
  * Every case reads the calls the service made, so a service that wrote in the wrong order, wrote on a refusal, or logged twice fails.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { DrizzleQueryError } from 'drizzle-orm';
 import { DatabaseError } from 'pg';
 
 import type { RecipeTx } from '../../database/unitOfWork.js';
@@ -53,8 +54,12 @@ interface Setup {
     readonly missing?: boolean;
     readonly otherOwner?: boolean;
     readonly chain?: readonly CorrectionChainRow[];
+    /** The newest correction id across the whole chain; defaults to the id the request names. */
+    readonly latest?: string | null;
     readonly released?: readonly string[];
     readonly transactionFails?: unknown;
+    /** The body runs and the transaction then rejects, as a failed COMMIT does. */
+    readonly commitFails?: unknown;
 }
 
 function build(setup: Setup = {}) {
@@ -76,6 +81,7 @@ function build(setup: Setup = {}) {
         );
     });
     const readCorrectionChain = log('readChain', setup.chain ?? [row()]);
+    const readLatestCorrectionId = log('readLatest', setup.latest === undefined ? ROW_ID : setup.latest);
     const lockOwnersDescendants = log('lockDescendants', undefined);
     const releasableDescendants = log('derive', setup.released ?? []);
     const recordClears = log('record', undefined);
@@ -90,12 +96,19 @@ function build(setup: Setup = {}) {
             throw setup.transactionFails;
         }
 
-        return fn(FAKE_TX);
+        const result = await fn(FAKE_TX);
+
+        if (setup.commitFails !== undefined) {
+            throw setup.commitFails;
+        }
+
+        return result;
     };
 
     const dal = {
         lockHoldFacts,
         readCorrectionChain,
+        readLatestCorrectionId,
         lockOwnersDescendants,
         releasableDescendants,
         recordClears,
@@ -151,7 +164,7 @@ describe('SourceHoldClearService.clearByStaff', () => {
             'begin',
             'slotLock',
             'lockRow',
-            'readChain',
+            'readLatest',
             'lockDescendants',
             'derive',
             'record',
@@ -204,7 +217,7 @@ describe('SourceHoldClearService.clearByStaff', () => {
 
     it.each([
         ['a recipe that is not held', { held: false }, 'HOLD_NOT_SET'],
-        ['a correction that is no longer the newest', { chain: [row({ id: 'newer' })] }, 'CORRECTION_NOT_LATEST'],
+        ['a correction that is no longer the newest', { latest: 'newer' }, 'CORRECTION_NOT_LATEST'],
     ] as const)(
         'refuses %s with HOLD_CLEAR_CONFLICT (409), writes nothing and emits no metric',
         async (_name, setup, reason) => {
@@ -233,6 +246,48 @@ describe('SourceHoldClearService.clearByStaff', () => {
             details: { reason: 'LOCK_CONFLICT' },
         });
         expect(metricLines()).toEqual([]);
+    });
+
+    it('maps the deadlock as Drizzle really throws it: a DrizzleQueryError wrapping the driver error', async () => {
+        captureLog();
+        const driver = Object.assign(new DatabaseError('deadlock detected', 0, 'error'), { code: '40P01' });
+        const t = build({ transactionFails: new DrizzleQueryError('update recipes', [], driver) });
+
+        await expect(t.service.clearByStaff(staff(), RECIPE_ID, body())).rejects.toMatchObject({
+            code: 'HOLD_CLEAR_CONFLICT',
+            details: { reason: 'LOCK_CONFLICT' },
+        });
+    });
+
+    it('logs the refusal line, with the route, before it throws LOCK_CONFLICT', async () => {
+        captureLog();
+        const driver = Object.assign(new DatabaseError('deadlock detected', 0, 'error'), { code: '40P01' });
+        const t = build({ transactionFails: new DrizzleQueryError('update recipes', [], driver) });
+
+        await expect(t.service.clearByStaff(staff(), RECIPE_ID, body())).rejects.toBeDefined();
+
+        expect(captured.join('\n')).toContain('"refusal":"LOCK_CONFLICT"');
+        expect(captured.join('\n')).toContain('"route":"holdClear"');
+    });
+
+    it('emits no metric when the commit fails AFTER the body ran (the line is written only after the commit)', async () => {
+        captureLog();
+        const t = build({ commitFails: new Error('commit failed') });
+
+        await expect(t.service.clearByStaff(staff(), RECIPE_ID, body())).rejects.toThrow('commit failed');
+
+        expect(t.recordClears).toHaveBeenCalledTimes(1);
+        expect(metricLines()).toEqual([]);
+    });
+
+    it('never reads the full chain on the staff path, so an unclassifiable row cannot make it fail', async () => {
+        captureLog();
+        const t = build({
+            chain: [row({ newSourceType: 'user_created', newSourceKind: null, newStatementKind: null })],
+        });
+
+        await expect(t.service.clearByStaff(staff(), RECIPE_ID, body())).resolves.toMatchObject({ result: 'cleared' });
+        expect(t.calls).not.toContain('readChain');
     });
 
     it('lets any other database error through unchanged', async () => {

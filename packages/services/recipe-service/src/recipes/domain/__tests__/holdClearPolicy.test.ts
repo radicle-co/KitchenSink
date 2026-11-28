@@ -13,20 +13,17 @@ const earned = (answers: SourceAnswerKind[], held = true) =>
     holdClearPolicy({ cause: 'earnedRewrite', held, chain: chain(...answers) });
 
 describe('holdClearPolicy: staff clear', () => {
-    const staff = (over: { held?: boolean; answers?: SourceAnswerKind[]; expected?: string | null }) =>
+    const staff = (over: { held?: boolean; latest?: string | null; expected?: string | null }) =>
         holdClearPolicy({
             cause: 'staff',
             held: over.held ?? true,
-            chain: chain(...(over.answers ?? ['own'])),
+            latestCorrectionId: over.latest === undefined ? 'row0' : over.latest,
             expectedCorrectionId: over.expected === undefined ? 'row0' : over.expected,
         });
 
-    it.each(['own', 'person', 'webPage', 'book', 'paidSite'] as const)(
-        'clears a held recipe whose newest answer is %s',
-        (answer) => {
-            expect(staff({ answers: [answer] })).toEqual({ kind: 'clear' });
-        },
-    );
+    it('clears a held recipe whose newest correction id is the one the staff member saw', () => {
+        expect(staff({})).toEqual({ kind: 'clear' });
+    });
 
     it('refuses a recipe that is not held, before it looks at the correction id', () => {
         expect(staff({ held: false, expected: 'stale' })).toEqual({ kind: 'refuse', reason: 'notHeld' });
@@ -37,9 +34,9 @@ describe('holdClearPolicy: staff clear', () => {
     });
 
     it('accepts null only when the chain has no row ("still no row")', () => {
-        expect(staff({ answers: [], expected: null })).toEqual({ kind: 'clear' });
-        expect(staff({ answers: ['own'], expected: null })).toEqual({ kind: 'refuse', reason: 'correctionNotLatest' });
-        expect(staff({ answers: [], expected: 'row0' })).toEqual({ kind: 'refuse', reason: 'correctionNotLatest' });
+        expect(staff({ latest: null, expected: null })).toEqual({ kind: 'clear' });
+        expect(staff({ latest: 'row0', expected: null })).toEqual({ kind: 'refuse', reason: 'correctionNotLatest' });
+        expect(staff({ latest: null, expected: 'row0' })).toEqual({ kind: 'refuse', reason: 'correctionNotLatest' });
     });
 });
 

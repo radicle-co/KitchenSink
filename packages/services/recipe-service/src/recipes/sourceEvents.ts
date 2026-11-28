@@ -76,7 +76,7 @@ export function recordSourceCorrected(
  * @sideEffect Writes one EMF line.
  */
 export function recordSourceCorrectionRefused(
-    input: { readonly refusal: string; readonly callerId: string },
+    input: { readonly refusal: string; readonly callerId: string; readonly route?: 'holdClear' },
     stage: string = resolveMetricStage(),
     sink: Sink = console.log,
 ): void {
@@ -85,7 +85,13 @@ export function recordSourceCorrectionRefused(
             namespace: SOURCE_EVENT_NAMESPACE,
             metricName: 'source.correctionRefused',
             stage,
-            properties: { event: 'source.correctionRefused', refusal: input.refusal, callerId: input.callerId },
+            properties: {
+                event: 'source.correctionRefused',
+                refusal: input.refusal,
+                callerId: input.callerId,
+                // A hold-clear refusal names its route, so the two doors are told apart in the log.
+                ...(input.route === undefined ? {} : { route: input.route }),
+            },
         }),
     );
 }

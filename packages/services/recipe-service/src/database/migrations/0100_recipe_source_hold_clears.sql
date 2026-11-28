@@ -20,6 +20,7 @@
 -- Trust model, one line each: a savepoint takes the top-level transaction id and the deferred check catches a rolled-back clear;
 -- COMMIT PREPARED and logical apply run no trigger; an owner or master role bypasses every trigger and DD17 keeps services off
 -- those roles. EXPAND-ONLY: a table, triggers, one replaced function body; no data change, no grant change.
+-- The stamp trigger's `AND FOUND` is deliberate: a record for a recipe that does not exist is left to the foreign key (23503).
 
 SET LOCAL lock_timeout = '5s';
 

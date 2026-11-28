@@ -279,6 +279,33 @@ describe('a correction hold clear (e2e, ADR-0106)', () => {
         expect(await recordsOf(id)).toHaveLength(0);
     });
 
+    it('B3: a correction on a FARTHER ancestor after the preview makes the clear stale, even when a nearer node has its own older row', async () => {
+        const grand = await paidToBook();
+        const parent = await cloneOf(grand, COOK);
+        const held = await cloneOf(parent, COOK);
+
+        // The nearer node (parent) has its own, older row X; the clone is held, as the staff correction of its root held it.
+        await corrections.correct(staff(), parent, correction(WEB));
+        await db.execute(sql`UPDATE recipes SET source_correction_hold = true WHERE id = ${held}`);
+        const seen = await previewId(held);
+        const parentRow = await db.execute<{ id: string }>(
+            sql`SELECT id FROM recipe_source_corrections WHERE recipe_id = ${parent} ORDER BY recorded_at DESC, id DESC LIMIT 1`,
+        );
+
+        // The preview names the newest row of the whole chain, which is the parent's row here, not a nearest-node pick by luck.
+        expect(seen).toBe(parentRow.rows[0]?.id);
+
+        // A staff correction of the FARTHER ancestor lands after the preview and holds the owner's clones again.
+        await corrections.correct(staff(), grand, correction(WEB));
+        await db.execute(sql`UPDATE recipes SET source_correction_hold = true WHERE id = ${held}`);
+
+        await expect(
+            clears.clearByStaff(staff(), held, { ownerAccountId: COOK, correctionId: seen, reason: 'stale' }),
+        ).rejects.toMatchObject({ code: 'HOLD_CLEAR_CONFLICT', details: { reason: 'CORRECTION_NOT_LATEST' } });
+        expect((await readRow(held)).sourceCorrectionHold).toBe(true);
+        expect(await recordsOf(held)).toHaveLength(0);
+    });
+
     it('refuses a recipe that is not held with HOLD_NOT_SET and writes no record', async () => {
         const id = await create({ statement: AUTHORED, visibility: 'private' });
 
@@ -446,6 +473,32 @@ describe('a correction hold clear (e2e, ADR-0106)', () => {
 
             await expect(earned(clone)).resolves.toEqual({ cleared: false, reason: 'ownAnswerInChain' });
         });
+    });
+
+    describe('a from-person recipe is hidden from another cook even with no hold (the fourth read term)', () => {
+        it.each([
+            ['a stored fromPerson statement', 'fromPerson', false],
+            ['a NULL statement with a past fromPerson attestation', null, true],
+        ] as const)(
+            '%s: public, unheld, no evidence, read by another cook is not found',
+            async (_name, statement, attested) => {
+                const id = await create({ statement: AUTHORED, visibility: 'private' });
+
+                await db.execute(
+                    sql`UPDATE recipes SET statement_kind = ${statement}, visibility = 'public', status = 'published' WHERE id = ${id}`,
+                );
+
+                if (attested) {
+                    await db.execute(sql`
+                    INSERT INTO recipe_statement_attestations (recipe_id, recipe_ref, account_id, mode, choice, wording_version, locale, action)
+                    VALUES (${id}::uuid, ${id}::uuid, ${COOK}, 'explicit', 'fromPerson', 'fromPerson.v1', 'en', 'update')`);
+                }
+
+                expect((await readRow(id)).sourceCorrectionHold).toBe(false);
+                expect(await readableBy(OTHER_COOK, id)).toBe(404);
+                expect(await readableBy(COOK, id)).toBe(200);
+            },
+        );
     });
 
     describe('the write side agrees with the read side (AE7, ADR-0106)', () => {

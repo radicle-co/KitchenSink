@@ -111,6 +111,11 @@ export class SourceHoldClearService {
             outcome = await this.dal.transaction((tx) => this.clearInTransaction(tx, principal, recipeId, request));
         } catch (error) {
             if (postgresErrorOf(error)?.code === '40P01') {
+                recordSourceCorrectionRefused({
+                    refusal: 'LOCK_CONFLICT',
+                    callerId: principal.userId,
+                    route: 'holdClear',
+                });
                 throw holdClearConflict('LOCK_CONFLICT');
             }
 
@@ -125,7 +130,11 @@ export class SourceHoldClearService {
             case 'notFound':
                 return this.refuse(principal, 'notFound', recipeId);
             case 'refused':
-                recordSourceCorrectionRefused({ refusal: outcome.reason, callerId: principal.userId });
+                recordSourceCorrectionRefused({
+                    refusal: outcome.reason,
+                    callerId: principal.userId,
+                    route: 'holdClear',
+                });
                 throw holdClearConflict(outcome.reason);
         }
     }
@@ -180,11 +189,11 @@ export class SourceHoldClearService {
             return { kind: 'notFound' };
         }
 
-        const chain = (await this.clears.readCorrectionChain(recipeId, tx)).map(chainAnswerOf);
+        // The staff clear reads only the newest row's id: it must not depend on every chain row being classifiable.
         const verdict = holdClearPolicy({
             cause: 'staff',
             held: facts.held,
-            chain,
+            latestCorrectionId: await this.clears.readLatestCorrectionId(recipeId, tx),
             expectedCorrectionId: request.correctionId,
         });
 
@@ -210,7 +219,7 @@ export class SourceHoldClearService {
 
     /** Log the refusal and throw its answer. */
     private refuse(principal: Principal, refusal: 'forbidden' | 'notFound', recipeId?: string): never {
-        recordSourceCorrectionRefused({ refusal, callerId: principal.userId });
+        recordSourceCorrectionRefused({ refusal, callerId: principal.userId, route: 'holdClear' });
 
         if (refusal === 'forbidden') {
             throw provenanceNotPermitted('Clearing a source hold requires the staff grant.', {

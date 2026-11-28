@@ -116,6 +116,31 @@ export class SourceHoldClearsDal {
     }
 
     /**
+     * The newest correction row across the WHOLE chain (the recipe and every ancestor), newest by `recorded_at` then `id`. This is
+     * the one answer to "what is the latest correction", read by the preview and by the staff clear's stale check, so a
+     * correction on a farther ancestor is never hidden behind an older row on a nearer recipe.
+     *
+     * @param id - The recipe.
+     * @param db - The caller's transaction; the pool when omitted (the preview reads it unlocked).
+     * @returns The row id, or `null` when no recipe in the chain was ever corrected.
+     */
+    public async readLatestCorrectionId(id: string, db: RecipeTx | RecipeDrizzle = this.db): Promise<string | null> {
+        const result = await db.execute<{ id: string }>(sql`
+            WITH RECURSIVE chain(id) AS (
+                SELECT ${id}::uuid
+                UNION ALL
+                SELECT r.cloned_from_id FROM chain c JOIN recipes r ON r.id = c.id WHERE r.cloned_from_id IS NOT NULL
+            ) CYCLE id SET is_cycle USING path
+            SELECT k.id FROM chain c JOIN recipe_source_corrections k ON k.recipe_id = c.id
+             WHERE NOT c.is_cycle
+             ORDER BY k.recorded_at DESC, k.id DESC
+             LIMIT 1
+        `);
+
+        return result.rows?.[0]?.id ?? null;
+    }
+
+    /**
      * Row-lock the owner's live descendants of the root, in ascending id (the lock order of the staff clear).
      *
      * @param tx - The open transaction.

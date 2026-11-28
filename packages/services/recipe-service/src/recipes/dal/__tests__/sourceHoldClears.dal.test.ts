@@ -64,6 +64,23 @@ describe('SourceHoldClearsDal.readCorrectionChain', () => {
     });
 });
 
+describe('SourceHoldClearsDal.readLatestCorrectionId', () => {
+    it('takes the newest row across the WHOLE chain, ordered by recorded_at then id, not the nearest node', async () => {
+        await dal.readLatestCorrectionId(ROOT);
+
+        const [text] = statements();
+
+        expect(text).toContain('CYCLE id SET is_cycle USING path');
+        expect(text).toContain('ORDER BY k.recorded_at DESC, k.id DESC');
+        expect(text).toContain('LIMIT 1');
+        expect(text).not.toContain('depth');
+    });
+
+    it('answers null when no recipe in the chain was ever corrected', async () => {
+        await expect(dal.readLatestCorrectionId(ROOT)).resolves.toBeNull();
+    });
+});
+
 describe('SourceHoldClearsDal.lockOwnersDescendants', () => {
     it("locks the owner's live descendants in ascending id", async () => {
         await dal.lockOwnersDescendants(tx(), ROOT, OWNER);

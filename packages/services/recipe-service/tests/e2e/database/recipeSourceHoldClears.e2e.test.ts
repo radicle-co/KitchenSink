@@ -250,6 +250,13 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
             });
         });
 
+        it('refuses a record for a recipe that does not exist with the foreign key, not the not-held guard (the AND FOUND is deliberate)', async () => {
+            await expect(recordClear(pool, randomUUID())).rejects.toMatchObject({
+                code: '23503',
+                constraint: 'recipe_source_hold_clears_recipe_id_fkey',
+            });
+        });
+
         it('refuses at COMMIT a record whose clear was rolled back to a savepoint (the deferred check)', async () => {
             const id = await insertRecipe(true);
 

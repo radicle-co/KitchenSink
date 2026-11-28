@@ -128,7 +128,13 @@ beforeAll(async () => {
                 },
             },
             // The preview names the newest correction of the chain (ADR-0106); this recipe has none.
-            { provide: SourceHoldClearsDal, useValue: { readCorrectionChain: () => Promise.resolve([]) } },
+            {
+                provide: SourceHoldClearsDal,
+                useValue: {
+                    readLatestCorrectionId: () => Promise.resolve(null),
+                    readCorrectionChain: () => Promise.resolve([]),
+                },
+            },
             // The erasure lock reads the CALLER's job on every write; no job here.
             { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },

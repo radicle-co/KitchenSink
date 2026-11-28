@@ -101,6 +101,7 @@ beforeAll(async () => {
                         return Promise.resolve(facts);
                     },
                     readCorrectionChain: () => Promise.resolve(chain),
+                    readLatestCorrectionId: () => Promise.resolve(chain[0]?.id ?? null),
                     lockOwnersDescendants: () => Promise.resolve(),
                     releasableDescendants: () => Promise.resolve([]),
                     recordClears,

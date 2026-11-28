@@ -27,6 +27,18 @@ export type EarnedHoldClearRefusal = 'notHeld' | 'noCorrectionRow' | 'ownAnswerI
 /** Why a staff clear is refused. */
 export type StaffHoldClearRefusal = 'notHeld' | 'correctionNotLatest';
 
+/**
+ * Whether a correction row's answer lets an earned rewrite clear the hold. A `satisfies Record` table, so a new answer kind is a
+ * compile error until it is decided here, and the default for an undecided kind never reaches `true`.
+ */
+const EARNS_CLEAR = {
+    own: false,
+    person: false,
+    webPage: true,
+    book: true,
+    paidSite: true,
+} as const satisfies Record<SourceAnswerKind, boolean>;
+
 /** One correction row of the chain, newest and nearest first. */
 export interface ChainAnswer {
     readonly id: string;
@@ -45,7 +57,8 @@ export type HoldClearVerdict<R extends string> =
 export function holdClearPolicy(input: {
     readonly cause: 'staff';
     readonly held: boolean;
-    readonly chain: readonly ChainAnswer[];
+    /** The newest correction row across the whole chain, from the one shared read; `null` when the chain has none. */
+    readonly latestCorrectionId: string | null;
     readonly expectedCorrectionId: string | null;
 }): HoldClearVerdict<StaffHoldClearRefusal>;
 export function holdClearPolicy(input: {
@@ -59,7 +72,7 @@ export function holdClearPolicy(
         | {
               readonly cause: 'staff';
               readonly held: boolean;
-              readonly chain: readonly ChainAnswer[];
+              readonly latestCorrectionId: string | null;
               readonly expectedCorrectionId: string | null;
           }
         | { readonly cause: 'earnedRewrite'; readonly held: boolean; readonly chain: readonly ChainAnswer[] },
@@ -69,7 +82,7 @@ export function holdClearPolicy(
     }
 
     if (input.cause === 'staff') {
-        return (input.chain[0]?.id ?? null) === input.expectedCorrectionId
+        return input.latestCorrectionId === input.expectedCorrectionId
             ? { kind: 'clear' }
             : { kind: 'refuse', reason: 'correctionNotLatest' };
     }
@@ -86,5 +99,8 @@ export function holdClearPolicy(
         return { kind: 'refuse', reason: 'fromPersonAnswerInChain' };
     }
 
-    return { kind: 'clear' };
+    // Membership is checked positively: an answer kind this table does not list as third-party is never cleared by default.
+    return input.chain.every((row) => EARNS_CLEAR[row.answer])
+        ? { kind: 'clear' }
+        : { kind: 'refuse', reason: 'ownAnswerInChain' };
 }

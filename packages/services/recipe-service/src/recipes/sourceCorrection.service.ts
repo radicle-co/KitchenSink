@@ -67,7 +67,7 @@ export class SourceCorrectionService {
             'lockRecipe' | 'rewriteSource' | 'recordCorrection' | 'holdOwnersClones' | 'readPreview'
         >,
         @Inject(RecipeSourceEvidenceDal) private readonly evidence: Pick<RecipeSourceEvidenceDal, 'insert'>,
-        @Inject(SourceHoldClearsDal) private readonly holdClears: Pick<SourceHoldClearsDal, 'readCorrectionChain'>,
+        @Inject(SourceHoldClearsDal) private readonly holdClears: Pick<SourceHoldClearsDal, 'readLatestCorrectionId'>,
     ) {}
 
     /**
@@ -174,7 +174,7 @@ export class SourceCorrectionService {
         }
 
         // Display only: the clear re-reads the chain under the lock.
-        const [latest] = await this.holdClears.readCorrectionChain(recipeId);
+        const latestCorrectionId = await this.holdClears.readLatestCorrectionId(recipeId);
 
         return {
             title: recipe.title,
@@ -185,7 +185,7 @@ export class SourceCorrectionService {
                     ? null
                     : { kind: verdict.answer, citation: citationOf(verdict.answer, recipe) },
             sourceCorrected: recipe.sourceCorrectionHold,
-            latestCorrectionId: latest?.id ?? null,
+            latestCorrectionId,
         };
     }
 

@@ -25,8 +25,9 @@ import {
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
-import type { LockedRecipeFacts, ReadableRecipeAggregate, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
+import type { ReadableRecipeAggregate, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
+import { lockedFactsOf } from '../__fixtures__/lockedRecipeFacts.fixture.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
 import { isRecipeDomainError, type RecipeDomainError } from '../recipe.error.js';
@@ -292,19 +293,16 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         const found = aggregate({ visibility: currentVisibility, sourceType, status });
         const setVisibility = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn(async (): Promise<LockedRecipeFacts | undefined> => ({
-            visibility: currentVisibility,
-            status,
-            sourceType,
-            sourceKind: null,
-            statementKind: null,
-            contentPastedAt: null,
-            clonedFromId: null,
-            sourceAttribution: null,
-            sourceUrl: null,
-            sourceConfirmedAt: status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-            sourceCorrectionHold: false,
-        }));
+        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(async () =>
+            lockedFactsOf(
+                makeRecipeRow({
+                    visibility: currentVisibility,
+                    status,
+                    sourceType,
+                    sourceConfirmedAt: status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                }),
+            ),
+        );
         const dal = fakeRecipesDal({
             findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             setVisibility,
@@ -368,7 +366,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
 
     it('answers 404 when the row vanished under the lock (a concurrent tombstone)', async () => {
         const { dal } = holding(0, 'public');
-        (dal.lockSlotFacts as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        vi.mocked(dal.lockSlotFacts).mockResolvedValue(undefined);
 
         const error = await refusalOf(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
@@ -422,19 +420,18 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         // The pre-transaction read says the cook wrote it; by the time the lock is held a PATCH has stated a web link,
         // which made it a private-only web copy (ADR-0089). Judging the stale source would publish a web copy.
         const { dal, setVisibility, lockSlotFacts } = holding(0, 'private');
-        lockSlotFacts.mockResolvedValue({
-            visibility: RecipeVisibility.PRIVATE,
-            status: 'published',
-            sourceType: 'imported_public',
-            sourceKind: 'public_web',
-            statementKind: 'source',
-            contentPastedAt: null,
-            clonedFromId: null,
-            sourceAttribution: null,
-            sourceUrl: null,
-            sourceConfirmedAt: new Date('2026-11-10T00:00:00.000Z'),
-            sourceCorrectionHold: false,
-        });
+        lockSlotFacts.mockResolvedValue(
+            lockedFactsOf(
+                makeRecipeRow({
+                    visibility: RecipeVisibility.PRIVATE,
+                    status: 'published',
+                    sourceType: 'imported_public',
+                    sourceKind: 'public_web',
+                    statementKind: 'source',
+                    sourceConfirmedAt: new Date('2026-11-10T00:00:00.000Z'),
+                }),
+            ),
+        );
 
         const error = await refusalOf(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PUBLIC, undefined),
@@ -561,18 +558,15 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
         });
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: facts.visibility, status: 'published' }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn(async (): Promise<LockedRecipeFacts> => ({
-            ...facts,
-            sourceType,
-            sourceKind: null,
-            statementKind: null,
-            contentPastedAt: null,
-            clonedFromId: null,
-            sourceAttribution: null,
-            sourceUrl: null,
-            sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-            sourceCorrectionHold: false,
-        }));
+        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(async () =>
+            lockedFactsOf(
+                makeRecipeRow({
+                    ...facts,
+                    sourceType,
+                    sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                }),
+            ),
+        );
         const dal = fakeRecipesDal({
             findById: vi.fn().mockResolvedValue(found),
             update,
@@ -645,19 +639,9 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             findById: vi.fn().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots: vi.fn(async () => 50),
-            lockSlotFacts: vi.fn(async (): Promise<LockedRecipeFacts> => ({
-                visibility: 'private',
-                status: 'draft',
-                sourceType: 'user_created',
-                sourceKind: null,
-                statementKind: null,
-                contentPastedAt: null,
-                clonedFromId: null,
-                sourceAttribution: null,
-                sourceUrl: null,
-                sourceConfirmedAt: null,
-                sourceCorrectionHold: false,
-            })),
+            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(async () =>
+                lockedFactsOf(makeRecipeRow({ visibility: 'private', status: 'draft', sourceConfirmedAt: null })),
+            ),
         });
 
         const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
@@ -721,7 +705,7 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
 
     it('answers a vanished row under the lock as the version conflict path (nothing written)', async () => {
         const { dal, update } = draftHolding(0, { visibility: 'private', status: 'draft' });
-        (dal.lockSlotFacts as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+        vi.mocked(dal.lockSlotFacts).mockResolvedValue(undefined);
         (dal.readConflict as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
         const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));
@@ -755,19 +739,16 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
             findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots,
-            lockSlotFacts: vi.fn((): Promise<LockedRecipeFacts> =>
-                Promise.resolve({
-                    ...facts,
-                    sourceType: 'user_created',
-                    sourceKind: null,
-                    statementKind: null,
-                    contentPastedAt: null,
-                    clonedFromId: null,
-                    sourceAttribution: null,
-                    sourceUrl: null,
-                    sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-                    sourceCorrectionHold: false,
-                }),
+            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(() =>
+                Promise.resolve(
+                    lockedFactsOf(
+                        makeRecipeRow({
+                            ...facts,
+                            sourceConfirmedAt:
+                                facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                        }),
+                    ),
+                ),
             ),
         });
 

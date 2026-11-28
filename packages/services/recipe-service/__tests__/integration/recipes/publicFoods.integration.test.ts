@@ -33,7 +33,6 @@ import type { FoodRefAnswer } from '../../../src/ingredients/domain/foodRefAnswe
 import { FoodRefsGateway } from '../../../src/ingredients/foodRefs.gateway.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import {
-    RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
     RECIPE_PHOTOS_DAL,
     RECIPE_RATINGS_DAL,
@@ -42,6 +41,9 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const AZP = 'https://recipes.example.com';
@@ -161,34 +163,20 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    update,
-                    setVisibility,
-                    lockAndCountPrivateSlots: async () => 0,
-                    countPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility,
-                        status: stored.status,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        contentPastedAt: stored.contentPastedAt,
-                        sourceAttribution: stored.sourceAttribution,
-                        clonedFromId: stored.clonedFromId,
-                        statementKind: stored.statementKind,
-                        sourceUrl: stored.sourceUrl,
-                        sourceConfirmedAt: stored.sourceConfirmedAt,
-                        sourceCorrectionHold: stored.sourceCorrectionHold,
-                    }),
-                    findById: async (id: string) => (id === stored.id ? aggregateOf(stored) : undefined),
-                    // The database's own last check finds nothing: the policy alone must refuse here.
-                    privateFoodLines: async () => [],
-                    clearPublicFoodOwners: async () => undefined,
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                },
-            },
+            recipesDalDouble({
+                create,
+                update,
+                setVisibility,
+                lockAndCountPrivateSlots: async () => 0,
+                countPrivateSlots: async () => 0,
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                findById: async (id: string) =>
+                    id === stored.id ? readableAggregateOf(aggregateOf(stored)) : undefined,
+                // The database's own last check finds nothing: the policy alone must refuse here.
+                privateFoodLines: async () => [],
+                clearPublicFoodOwners: async () => undefined,
+                transaction: (work) => work(FAKE_TX),
+            }),
             {
                 provide: VERSIONS_DAL,
                 useValue: {

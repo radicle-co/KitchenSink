@@ -92,8 +92,9 @@ every other hold.
    refused for want of a slot.
 7. **Clearing the correction hold** is one of the two ways back (Decision 4). It lifts the hold only. A recipe whose audience is private stays private. A recipe
    whose audience is public is readable again when no other term of the read rule hides it (a recorded source or a
-   private-only label still does). A cleared correction never makes a "from another person" recipe readable: PR 5
-   adds that term with its clear route (ADR-0097 Decision 2). The release of the owner's clones
+   private-only label still does). A cleared correction does not make a "from another person" recipe readable. It
+   stays hidden until spec 016's family source type ships and the cook confirms the giver agreed (owner ruling
+   2026-11-15). PR 5 adds that term with its clear route (ADR-0097 Decision 2). The release of the owner's clones
    follows the same rule. Each released clone keeps its own audience.
 8. **Erasure removes a held public recipe.** It is not kept and it is not donated. The kept set is "public, published
    and not held from readers". A donation is refused for a recipe held from readers.

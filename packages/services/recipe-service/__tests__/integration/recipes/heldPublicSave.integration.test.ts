@@ -37,6 +37,7 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { lockedFactsOf } from '../../../tests/support/lockedFactsOf.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JSOURCESTATEMENTCOOK0001';
@@ -121,23 +122,7 @@ beforeAll(async () => {
                     findById: (id: string) => Promise.resolve(id === RECIPE_ID ? aggregateOf(stored) : undefined),
                     privateFoodLines: () => Promise.resolve([]),
                     lockAndCountPrivateSlots: () => Promise.resolve(0),
-                    lockSlotFacts: () => {
-                        const row = stored;
-
-                        return Promise.resolve({
-                            visibility: row.visibility,
-                            status: row.status,
-                            sourceType: row.sourceType,
-                            sourceKind: row.sourceKind,
-                            sourceUrl: row.sourceUrl,
-                            sourceConfirmedAt: row.sourceConfirmedAt,
-                            sourceCorrectionHold: row.sourceCorrectionHold,
-                            statementKind: row.statementKind,
-                            contentPastedAt: row.contentPastedAt,
-                            clonedFromId: row.clonedFromId,
-                            sourceAttribution: row.sourceAttribution,
-                        });
-                    },
+                    lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                     setVisibility,
                     clearPublicFoodOwners: () => Promise.resolve(undefined),
                     transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),

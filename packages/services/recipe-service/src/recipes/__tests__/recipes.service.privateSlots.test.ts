@@ -25,7 +25,7 @@ import {
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../__fixtures__/index.js';
 import { CURATOR_IMPORT_SCOPE } from '../recipes.schema.js';
-import type { LockedRecipeFacts, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
+import type { LockedRecipeFacts, ReadableRecipeAggregate, RecipeAggregate, RecipesDal } from '../dal/recipes.dal.js';
 import type { CreateRecipeDto } from '../dto/createRecipe.dto.js';
 import { fakeRecipesDal, FAKE_TX } from '../__fixtures__/recipesDal.fixture.js';
 import { makeRecipesService } from '../__fixtures__/recipesService.fixture.js';
@@ -65,11 +65,15 @@ const CREATE_DTO: CreateRecipeDto = {
     steps: [{ instruction: 'Mix' }],
 };
 
-function aggregate(overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {}): RecipeAggregate {
+function aggregate(
+    overrides: Partial<Parameters<typeof makeRecipeRow>[0]> = {},
+    heldFromReaders = false,
+): ReadableRecipeAggregate {
     const recipe = makeRecipeRow({ id: 'r-1', ownerId: OWNER, cuisine: 'Thai', ...overrides });
 
     return {
-        recipe,
+        // The read rule's hold, explicit: a held recipe is hidden from every reader but its owner (#536).
+        recipe: { ...recipe, heldFromReaders },
         steps: [makeRecipeStepRow({ recipeId: recipe.id, stepNumber: 1, instruction: 'Mix' })],
         // One line and a cuisine, so a patch that only says `status: 'published'` meets the publish requirements and the
         // refusal under test is the SLOT refusal, not PUBLISH_REQUIREMENTS_UNMET.
@@ -302,7 +306,7 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
             sourceCorrectionHold: false,
         }));
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(found),
+            findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             setVisibility,
             lockAndCountPrivateSlots,
             lockSlotFacts,
@@ -738,13 +742,17 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
             status: 'published',
         },
         preLockVisibility: 'public' | 'private' = facts.visibility,
+        heldFromReaders = false,
     ) {
         // `found` is the pre-lock read; `lockSlotFacts` below is the locked one. They may disagree (a race).
-        const found = aggregate({ visibility: preLockVisibility, status: facts.status, currentVersion: 1 });
+        const found = aggregate(
+            { visibility: preLockVisibility, status: facts.status, currentVersion: 1 },
+            heldFromReaders,
+        );
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', status: facts.status }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
         const dal = fakeRecipesDal({
-            findById: vi.fn().mockResolvedValue(found),
+            findById: vi.fn<RecipesDal['findById']>().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots,
             lockSlotFacts: vi.fn(async (): Promise<LockedRecipeFacts> => ({
@@ -849,14 +857,22 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
         );
     });
 
-    it("another cook's recipe is refused as not owned before anything is counted or written (AE9)", async () => {
-        const { dal, update, lockAndCountPrivateSlots } = holding(10);
+    it.each([
+        ['an unheld public recipe', false, RecipeErrorCode.NOT_OWNER],
+        ['a held recipe, which a stranger cannot see (#536)', true, RecipeErrorCode.RECIPE_NOT_FOUND],
+    ])('a stranger on %s is refused before anything is counted or written (AE9)', async (_label, held, code) => {
+        const { dal, update, lockAndCountPrivateSlots } = holding(
+            10,
+            { visibility: 'public', status: 'published' },
+            'public',
+            held,
+        );
 
         const error = await refusalOf(
             serviceOver(dal).update(principal({ userId: 'someone-else' }), 'r-1', PATCH, undefined),
         );
 
-        expect(error.code).toBe(RecipeErrorCode.NOT_OWNER);
+        expect(error.code).toBe(code);
         expect(lockAndCountPrivateSlots).not.toHaveBeenCalled();
         expect(update).not.toHaveBeenCalled();
     });

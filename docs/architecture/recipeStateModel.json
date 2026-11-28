@@ -555,6 +555,14 @@
             "moves": [{ "from": "PPu", "to": "PPr" }]
         },
         {
+            "id": "SAVE_AS_PRIVATE",
+            "axis": "lifecycleAudience",
+            "event": "SAVE_AS_PRIVATE",
+            "actors": ["cook"],
+            "guard": "privateSlotFree",
+            "moves": [{ "from": "PPu", "to": "PPr" }]
+        },
+        {
             "id": "UNPUBLISH",
             "axis": "lifecycleAudience",
             "event": "UNPUBLISH",
@@ -850,17 +858,6 @@
             "guard": "the new content cannot stay public: a recorded source holds it, its steps are too close, or it was not approved",
             "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC`. Nothing saved. The edit stays on the device. The refused-save sheet",
             "pending": "P10 (held source), 020 (too close, not approved)"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
-            "eventId": "SAVE_AS_PRIVATE",
-            "from": "PPu, readable, refused as above",
-            "event": "`SAVE_AS_PRIVATE`",
-            "actor": "cook",
-            "guard": "a private slot is free",
-            "to": "PPr, saved",
-            "pending": "P10"
         },
         {
             "axis": "lifecycleAudience",

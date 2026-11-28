@@ -122,6 +122,16 @@ export const TRANSITIONS: readonly TransitionRow[] = [
         guard: 'privateSlotFree',
         moves: [{ from: 'PPu', to: 'PPr' }],
     }),
+    // The cook's own choice in a save (`heldSave: 'private'`, heldPublicSave U8): from any owned published public recipe,
+    // held or not (a hold can clear between an offline choice and the drain), to private in the same write.
+    row({
+        id: 'SAVE_AS_PRIVATE',
+        axis: 'lifecycleAudience',
+        event: 'SAVE_AS_PRIVATE',
+        actors: ['cook'],
+        guard: 'privateSlotFree',
+        moves: [{ from: 'PPu', to: 'PPr' }],
+    }),
     row({
         id: 'UNPUBLISH',
         axis: 'lifecycleAudience',

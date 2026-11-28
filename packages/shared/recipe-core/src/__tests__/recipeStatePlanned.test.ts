@@ -33,10 +33,25 @@ describe('PLANNED', () => {
     });
 });
 
+describe('SAVE_AS_PRIVATE is enforced since heldPublicSave U8 (ADR-0103)', () => {
+    it('is a live cook edge from a published public recipe to a published private one, behind a free slot, and no longer planned', () => {
+        expect(TRANSITIONS.filter((row) => row.id === 'SAVE_AS_PRIVATE')).toEqual([
+            {
+                id: 'SAVE_AS_PRIVATE',
+                axis: 'lifecycleAudience',
+                event: 'SAVE_AS_PRIVATE',
+                actors: ['cook'],
+                guard: 'privateSlotFree',
+                moves: [{ from: 'PPu', to: 'PPr' }],
+            },
+        ]);
+        expect(PLANNED.some((row) => row.eventId === 'SAVE_AS_PRIVATE')).toBe(false);
+    });
+});
+
 describe('PLANNED: held means hidden (ADR-0105)', () => {
     const NEW_IDS = [
         'SAVE_CANNOT_STAY_PUBLIC',
-        'SAVE_AS_PRIVATE',
         'SAVE_AND_HIDE',
         'SAVE_WHILE_HIDDEN',
         'CREATE_CANNOT_GO_PUBLIC',
@@ -60,7 +75,7 @@ describe('PLANNED: held means hidden (ADR-0105)', () => {
     ];
     const ids = PLANNED.map((row) => row.eventId);
 
-    it('holds the eleven new rows, in order, and none of the deleted ones', () => {
+    it('holds the ten new rows, in order, and none of the deleted ones', () => {
         expect(ids.filter((id) => NEW_IDS.includes(id))).toEqual(NEW_IDS);
         expect(ids.filter((id) => DELETED_IDS.includes(id))).toEqual([]);
     });

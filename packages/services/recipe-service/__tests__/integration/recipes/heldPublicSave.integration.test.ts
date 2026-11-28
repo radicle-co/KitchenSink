@@ -71,9 +71,17 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-/** The read path's aggregate: the stored row plus the hold the real DAL selects (never held here: this suite is the save path). */
+/**
+ * Whether the double reports the recipe as held from readers (#536). The hold has NO TypeScript twin: the real DAL selects it
+ * from the database function `recipe_held_from_readers` (`heldFromReadersSql`), which a mocked-DB suite cannot run. So the
+ * test that seeds web evidence (`webEvidence`) sets this too, and the LOCAL e2e (`sourceStatement.e2e.test.ts`) proves the
+ * real function reports a held row.
+ */
+let heldFromReaders = false;
+
+/** The read path's aggregate: the stored row plus the hold the real DAL selects. */
 function readableOf(recipe: RecipeRow): ReadableRecipeAggregate {
-    return { ...aggregateOf(recipe), recipe: { ...recipe, heldFromReaders: false } };
+    return { ...aggregateOf(recipe), recipe: { ...recipe, heldFromReaders } };
 }
 
 const update = vi.fn((_id: string, patch: UpdateRecipeInput) => {
@@ -181,6 +189,7 @@ beforeAll(async () => {
 
 afterEach(() => {
     evidence = [];
+    heldFromReaders = false;
     slotsUsed = 0;
     vi.clearAllMocks();
 });
@@ -207,6 +216,7 @@ function heldRow(): RecipeRow {
 }
 
 function webEvidence(): void {
+    heldFromReaders = true;
     evidence.push({
         id: 'e-0',
         recipeId: RECIPE_ID,

@@ -839,7 +839,14 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
 
         expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
         expect(update).toHaveBeenCalledOnce();
-        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+        expect(update).toHaveBeenCalledWith(
+            'r-1',
+            expect.objectContaining({
+                visibility: 'private',
+                provenance: expect.objectContaining({ sourceKind: 'book' }),
+            }),
+            FAKE_TX,
+        );
     });
 
     it("another cook's recipe is refused as not owned before anything is counted or written (AE9)", async () => {

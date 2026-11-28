@@ -20,7 +20,6 @@ import { PressScale } from '@commise/ui/press-scale';
 import { RecipeCover } from '@commise/ui/recipe-cover';
 import { RefreshNotice } from '@commise/ui/refresh-notice';
 import { Text } from '@commise/ui/text';
-import { useTheme } from '@commise/ui/theme';
 import { FlashList } from '@shopify/flash-list';
 import { useContext, type FC } from 'react';
 import { RefreshControl, ScrollView, StyleSheet, View, useWindowDimensions } from 'react-native';
@@ -199,7 +198,6 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
     // A copy's credit: its source owner through the one byline rule (plan 2026-10-15-010 D11).
     const copiedFrom = sourceOwnerBylineText(collection, useMessages(bylineMessages), 'sentence');
     const { card } = useMessages(recipeMessages);
-    const { colors } = useTheme();
     const locale = useLocale();
     const visibility = collection.visibility === 'public' ? list.visibilityPublic : list.visibilityPrivate;
     // The count is on the list read (W-11); a body that carries none says none, never a made-up 0.
@@ -223,10 +221,7 @@ const CollectionCard: FC<{ readonly collection: CollectionCardSource; readonly o
             width="fill"
             onPress={() => onSelect(collection.id)}
         >
-            <Elevated
-                level="sm"
-                style={{ ...styles.card, backgroundColor: colors.paper, borderColor: colors.lineDivider }}
-            >
+            <Elevated level="sm" backgroundColor="$paper" borderColor="$lineDivider" style={styles.card}>
                 <View style={styles.clip}>
                     <CollectionCover collection={collection} />
                     <View style={styles.cardBody}>

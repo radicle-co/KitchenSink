@@ -69,7 +69,7 @@ export const FabFace: FC<FabFaceProps> = ({ label, icon, presentation, onLabelWi
     }
 
     return (
-        <Elevated level="lg" style={{ ...styles.face, ...shape, backgroundColor: colors.action }}>
+        <Elevated level="lg" backgroundColor="$action" style={{ ...styles.face, ...shape }}>
             {content}
         </Elevated>
     );

@@ -36,5 +36,6 @@ describe.each(['light', 'dark'] as const)('PlaceholderWidgetCard (native), %s th
         const card = filledBoxOf(screen.getByText('Today’s nutrition'), rgb(rolesFor(scheme).paper), 'the card');
 
         expect(resolvedStyle(card, 'boxShadow')).toBe(elevationBoxShadow('sm'));
+        expect(resolvedStyle(card, 'borderTopColor')).toBe(rolesFor(scheme).lineDivider);
     });
 });

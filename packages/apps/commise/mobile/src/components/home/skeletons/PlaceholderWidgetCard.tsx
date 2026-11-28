@@ -68,7 +68,8 @@ export interface PlaceholderWidgetCardProps {
  * The card is `paper` under a hairline `lineDivider` at the `sm` elevation (`buildSpec.md` §1.6), never glass: owner
  * D12 keeps glass off cards, and the translucent white tier this used had no dark value, so dark mode drew light ink
  * on light glass (`evaluateFinal.md` F1). The title and the badge are the design system's capped `Text` in theme colour
- * keys (ADR-0080); the card's fill and the edges are roles read from `useTheme()`.
+ * keys (ADR-0080); the card's fill and edge are `$paper` and `$lineDivider` tokens, the badge edge a role from
+ * `useTheme()`.
  *
  * @param props - The widget `title`, the `soonLabel`, and the skeleton `children`.
  * @returns A card presenting the coming widget without inventing any of its data.
@@ -77,7 +78,7 @@ export function PlaceholderWidgetCard({ title, soonLabel, children }: Placeholde
     const { colors } = useTheme();
 
     return (
-        <Elevated level="sm" style={{ ...styles.card, backgroundColor: colors.paper, borderColor: colors.lineDivider }}>
+        <Elevated level="sm" backgroundColor="$paper" borderColor="$lineDivider" style={styles.card}>
             <View accessible accessibilityRole="header" style={styles.header}>
                 <Text typeRole="cardTitle" color="$ink" flexShrink={1}>
                     {title}

@@ -352,13 +352,8 @@ const ARRANGEMENT: Readonly<Record<CardVariant, FC<ArrangementSlots>>> = {
 
 /** The level-1 surface: an elevated shell that never clips, and the clipping content view inside it. */
 const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => {
-    const { colors } = useTheme();
-
     return (
-        <Elevated
-            level="sm"
-            style={{ ...styles.shell, backgroundColor: colors.paper, borderColor: colors.lineDivider }}
-        >
+        <Elevated level="sm" backgroundColor="$paper" borderColor="$lineDivider" style={styles.shell}>
             <View style={styles.clip}>{children}</View>
         </Elevated>
     );

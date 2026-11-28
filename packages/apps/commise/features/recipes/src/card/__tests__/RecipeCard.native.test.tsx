@@ -9,7 +9,7 @@
  * still elevates and still clips its cover.
  */
 import { cleanup, screen } from '@testing-library/react';
-import { pressFrameOf, render } from '@commise/ui/testing/tamagui';
+import { pressFrameOf, render, resolvedStyle } from '@commise/ui/testing/tamagui';
 import { fireEvent } from '@testing-library/dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
@@ -122,8 +122,8 @@ describe.each(VARIANTS)('RecipeCard (native, %s) — what every variant keeps', 
         );
         const shell = shadowed(container)[0]!;
 
-        expect(getComputedStyle(shell).backgroundColor).toBe(rgb(paper));
-        expect(getComputedStyle(shell).borderTopColor).toBe(rgb(divider));
+        expect(resolvedStyle(shell, 'backgroundColor')).toBe(paper);
+        expect(resolvedStyle(shell, 'borderTopColor')).toBe(divider);
         expect(container.innerHTML).not.toMatch(/backdrop-filter/u);
     });
 

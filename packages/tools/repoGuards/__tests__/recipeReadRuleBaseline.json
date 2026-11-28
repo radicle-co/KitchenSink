@@ -1,0 +1,25 @@
+{
+    "sites": {
+        "packages/services/recipe-service/src/collections/collections.errors.ts#invalidVisibilityError": 1,
+        "packages/services/recipe-service/src/collections/collections.service.ts#assertMayPublish": 1,
+        "packages/services/recipe-service/src/collections/collections.service.ts#isCollectionVisibleTo": 1,
+        "packages/services/recipe-service/src/database/schema/collections.ts#<top>": 1,
+        "packages/services/recipe-service/src/database/schema/recipeImports.ts#<top>": 2,
+        "packages/services/recipe-service/src/database/schema/recipes.ts#<top>": 3,
+        "packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts#toCatalogHit": 1,
+        "packages/services/recipe-service/src/ingredients/foodRefs.gateway.ts#toAnswer": 1,
+        "packages/services/recipe-service/src/ingredients/resolution/lexicalTier.ts#isAuthorAugmented": 1,
+        "packages/services/recipe-service/src/recipes/dal/privateSlots.dal.ts#PrivateSlotsDal.count": 1,
+        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#communityOf": 1,
+        "packages/services/recipe-service/src/recipes/dal/recipePredicates.ts#viewableBy": 1,
+        "packages/services/recipe-service/src/recipes/dal/sourceCorrections.dal.ts#SourceCorrectionsDal.holdOwnersClones": 1,
+        "packages/services/recipe-service/src/recipes/domain/privateSlotPolicy.ts#holdsPrivateSlot": 1,
+        "packages/services/recipe-service/src/recipes/domain/publicFoodsPolicy.ts#evaluatePublicFoods": 1,
+        "packages/services/recipe-service/src/recipes/domain/recipeVisibility.ts#isRecipeViewableBy": 1,
+        "packages/services/recipe-service/src/recipes/domain/statementAttestation.ts#publicConfirmationDutyOf": 2,
+        "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#evaluatePublishedState": 2,
+        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.assertNoPrivateFoodLinesIn": 1,
+        "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.setVisibility": 2,
+        "packages/services/recipe-workers/src/handlers/accountErasureWorker.ts#eraseRecipeRows": 2
+    }
+}

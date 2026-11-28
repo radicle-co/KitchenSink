@@ -34,6 +34,7 @@ const NEUTRAL_CLASS = 'border border-line-divider bg-paper text-ink-muted';
  */
 const STATUS_CLASS: Readonly<Record<BadgeStatus, string>> = {
     draft: NEUTRAL_CLASS,
+    hidden: NEUTRAL_CLASS,
     private: NEUTRAL_CLASS,
     public: NEUTRAL_CLASS,
     pro: 'bg-pro-fill text-pro-ink',

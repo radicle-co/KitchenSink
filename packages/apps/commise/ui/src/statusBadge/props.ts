@@ -6,7 +6,7 @@
  * (`docs/architecture/uiOverhaulBlueprint.md` Part B). The list holds the blueprint's recipe statuses and the two
  * ingredient-line statuses the badge already carried, which the blueprint's list did not account for:
  *
- * - `draft`, `private`, `public` — a recipe's publication status: neutral, each with its own glyph (§1.4 "Status").
+ * - `draft`, `hidden`, `private`, `public` — a recipe's publication status: neutral, each with its own glyph (§1.4 "Status").
  * - `pro` — the premium badge; `soon` — a placeholder's "coming soon".
  * - `note` — a quiet fact about an ingredient line ("Custom"); `attention` — something the cook can act on ("Needs
  *   review").
@@ -18,7 +18,7 @@ import { statusTone } from '../tokens/tones.js';
 import type { TypeRole } from '../tokens/typography.js';
 
 /** Every status a badge can state. */
-export const BADGE_STATUSES = ['draft', 'private', 'public', 'pro', 'soon', 'note', 'attention'] as const;
+export const BADGE_STATUSES = ['draft', 'hidden', 'private', 'public', 'pro', 'soon', 'note', 'attention'] as const;
 
 /** A status a badge can state. */
 export type BadgeStatus = (typeof BADGE_STATUSES)[number];
@@ -26,6 +26,7 @@ export type BadgeStatus = (typeof BADGE_STATUSES)[number];
 /** The glyph each status draws before its words, or `null` for a status that is only words. */
 export const BADGE_GLYPH: Readonly<Record<BadgeStatus, IconName | null>> = {
     draft: statusTone.draft.icon,
+    hidden: statusTone.hidden.icon,
     private: statusTone.private.icon,
     public: statusTone.public.icon,
     pro: null,

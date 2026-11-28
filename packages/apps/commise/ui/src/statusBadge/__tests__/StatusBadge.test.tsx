@@ -99,8 +99,9 @@ describe('StatusBadge (web)', () => {
     // REWRITTEN for componentFixes §7: neutral is paper under inkMuted (it was pearl under ink, and vanished on a pearl
     // parent), told apart by the glyph, never amber.
     it('paints the recipe statuses neutral — paper and inkMuted, never amber — told apart by their glyph', () => {
-        const glyphs: Readonly<Record<'draft' | 'private' | 'public', string>> = {
+        const glyphs: Readonly<Record<'draft' | 'hidden' | 'private' | 'public', string>> = {
             draft: 'lucide-pencil-line',
+            hidden: 'lucide-eye-off',
             private: 'lucide-lock',
             public: 'lucide-globe',
         };
@@ -141,7 +142,7 @@ describe('StatusBadge (web)', () => {
 
     // componentFixes §7: a neutral badge is paper with a 1 px lineDivider edge, so it reads on canvas, paper and
     // surfaceMuted alike. Mutation lens: fill it surfaceMuted again, or drop the edge, and a row fails.
-    it.each(['draft', 'private', 'public', 'soon', 'note'] satisfies BadgeStatus[])(
+    it.each(['draft', 'hidden', 'private', 'public', 'soon', 'note'] satisfies BadgeStatus[])(
         '%s keeps its own paper fill and a lineDivider edge on a surfaceMuted parent',
         (status) => {
             render(

@@ -38,6 +38,7 @@ const names = [
     'rotateCcw',
     'chevronDown',
     'eye',
+    'eyeOff',
     'user',
     'minus',
     'chevronRight',

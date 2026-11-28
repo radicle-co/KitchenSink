@@ -5,6 +5,7 @@ import { defineCard } from '../../../../src/cards/defineCard.js';
 
 const STATUSES = [
     ['draft', 'Draft'],
+    ['hidden', 'Hidden'],
     ['private', 'Private'],
     ['public', 'Public'],
     ['pro', 'Pro'],

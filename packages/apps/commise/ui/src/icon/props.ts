@@ -50,6 +50,7 @@ export const ICON_NAMES = [
     'rotateCcw',
     'chevronDown',
     'eye',
+    'eyeOff',
     'user',
     // Meanings the apps already drew, moved onto the Registry in slice 2 (see the module note).
     'minus',

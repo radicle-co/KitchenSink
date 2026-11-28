@@ -102,6 +102,7 @@ describe('StatusBadge (native)', () => {
     it('paints the recipe statuses paper and inkMuted, each with its glyph', () => {
         for (const [status, glyph] of [
             ['draft', 'pencil-line'],
+            ['hidden', 'eye-off'],
             ['private', 'lock'],
             ['public', 'globe'],
         ] as const) {
@@ -117,7 +118,7 @@ describe('StatusBadge (native)', () => {
         }
     });
 
-    it.each(['draft', 'private', 'public', 'soon', 'note'] as const)(
+    it.each(['draft', 'hidden', 'private', 'public', 'soon', 'note'] as const)(
         '%s keeps its own paper fill and a 1 pt lineDivider edge on a surfaceMuted parent',
         (status) => {
             renderWithTamagui(

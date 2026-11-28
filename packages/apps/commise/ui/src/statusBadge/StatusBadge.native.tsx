@@ -34,6 +34,7 @@ const TONE_OF: Readonly<Record<BadgeStatus, BadgeTone>> = {
     pro: 'pro',
     attention: 'attention',
     draft: 'neutral',
+    hidden: 'neutral',
     private: 'neutral',
     public: 'neutral',
     soon: 'neutral',

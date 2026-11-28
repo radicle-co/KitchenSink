@@ -6,7 +6,7 @@
  *
  * - **Difficulty** is neutral for every level and always travels with the three-dot meter, so it never relies on
  *   colour (SC 1.4.1). `error` is never a difficulty.
- * - **Status** (Draft, Private, Public) is neutral for every status — `paper` with `inkMuted`, never amber — and the
+ * - **Status** (Draft, Hidden, Private, Public) is neutral for every status — `paper` with `inkMuted`, never amber — and the
  *   icon is what tells the three apart.
  * - **A neutral badge is paper with a 1 px `lineDivider` edge** (`componentFixes.md` §7, 2026-10-27). It used to be
  *   `surfaceMuted`, so it vanished on any `surfaceMuted` parent (a notice, a pressed row, a raised dark surface). The
@@ -25,7 +25,7 @@ import { palette, role, roleDark } from './colors.js';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 
 /** A recipe's publication status, as a badge states it. */
-export type RecipeStatus = 'draft' | 'private' | 'public';
+export type RecipeStatus = 'draft' | 'hidden' | 'private' | 'public';
 
 /** A fill and the label painted on it. */
 export interface Tone {
@@ -52,6 +52,7 @@ export const difficultyTone: Readonly<Record<Difficulty, Tone>> = {
 /** The status tones: one neutral pair for every status, told apart by the icon. */
 export const statusTone: Readonly<Record<RecipeStatus, StatusTone>> = {
     draft: { fill: role.paper, text: role.inkMuted, icon: 'pencilLine' },
+    hidden: { fill: role.paper, text: role.inkMuted, icon: 'eyeOff' },
     private: { fill: role.paper, text: role.inkMuted, icon: 'lock' },
     public: { fill: role.paper, text: role.inkMuted, icon: 'globe' },
 };
@@ -66,6 +67,7 @@ export const difficultyToneDark: Readonly<Record<Difficulty, Tone>> = {
 /** The status tones in the dark theme: dark `paper` under dark `inkMuted`, glyphs as in light. */
 export const statusToneDark: Readonly<Record<RecipeStatus, StatusTone>> = {
     draft: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'pencilLine' },
+    hidden: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'eyeOff' },
     private: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'lock' },
     public: { fill: roleDark.paper, text: roleDark.inkMuted, icon: 'globe' },
 };

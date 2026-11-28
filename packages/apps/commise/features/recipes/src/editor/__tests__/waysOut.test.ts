@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import { CAUSES } from '../__fixtures__/describeRewriteWayContract.js';
+import { CAUSES } from '../__fixtures__/blockCauses.js';
 import { waysOutOf, type WaysOutFacts } from '../waysOut.js';
 import type { RewriteWayAnswer } from '../rewriteWay.js';
 

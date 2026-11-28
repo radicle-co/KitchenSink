@@ -38,6 +38,7 @@ describe('SAVE_AS_PRIVATE is enforced since heldPublicSave U8 (ADR-0103)', () =>
         expect(TRANSITIONS.filter((row) => row.id === 'SAVE_AS_PRIVATE')).toEqual([
             {
                 id: 'SAVE_AS_PRIVATE',
+                group: 'MAKE_PRIVATE_PUBLISHED',
                 axis: 'lifecycleAudience',
                 event: 'SAVE_AS_PRIVATE',
                 actors: ['cook'],

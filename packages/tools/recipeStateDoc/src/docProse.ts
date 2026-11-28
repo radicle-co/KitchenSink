@@ -351,6 +351,7 @@ export const LIFECYCLE_ROWS: readonly EdgeDocRow[] = [
     },
     {
         group: 'MAKE_PRIVATE_PUBLISHED',
+        event: '`MAKE_PRIVATE` / `SAVE_AS_PRIVATE`',
         from: 'PPu',
         guard: 'a free private slot (ADR-0073). No actor but the cook makes a recipe private (ADR-0105)',
         to: 'PPr',

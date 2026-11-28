@@ -126,6 +126,7 @@ export const TRANSITIONS: readonly TransitionRow[] = [
     // held or not (a hold can clear between an offline choice and the drain), to private in the same write.
     row({
         id: 'SAVE_AS_PRIVATE',
+        group: 'MAKE_PRIVATE_PUBLISHED',
         axis: 'lifecycleAudience',
         event: 'SAVE_AS_PRIVATE',
         actors: ['cook'],

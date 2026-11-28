@@ -36177,7 +36177,7 @@
                         },
                         {
                             "name": "returns",
-                            "text": "The header, an alert, and a quiet Try again button."
+                            "text": "The header, an alert, and a quiet Try again button when the read can be tried again."
                         }
                     ],
                     "detectedBy": "react-docgen-typescript",
@@ -36190,7 +36190,7 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "The recipe's address, so a modified click on Back still works.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "onBack",
@@ -36199,25 +36199,25 @@
                             "required": false,
                             "defaultValue": null,
                             "description": "Back to the recipe, the header's eyebrow from 840; absent draws no Back.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "onRetry",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
                             "description": "Read the history again.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "retryLabel",
                             "type": "string",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
                             "description": "The retry control's label: \"Try again\".",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "title",
@@ -36225,8 +36225,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Why there is no history: \"We couldn’t load the history.\"",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "description": "Why there is no history: \"We couldn’t load the history.\" Or the shared reader sentence, for a 404.",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],
@@ -36264,21 +36264,21 @@
                     "props": [
                         {
                             "name": "onRetry",
-                            "type": "() => void",
+                            "type": "(() => void)",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
                             "description": "Read the history again.",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "retryLabel",
                             "type": "string",
                             "typeDetail": null,
-                            "required": true,
+                            "required": false,
                             "defaultValue": null,
                             "description": "The retry control's label: \"Try again\".",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "declaredIn": null
                         },
                         {
                             "name": "title",
@@ -36286,8 +36286,8 @@
                             "typeDetail": null,
                             "required": true,
                             "defaultValue": null,
-                            "description": "Why there is no history: \"We couldn’t load the history.\"",
-                            "declaredIn": "packages/apps/commise/features/recipes/src/versions/RecipeVersionListError.tsx"
+                            "description": "Why there is no history: \"We couldn’t load the history.\" Or the shared reader sentence, for a 404.",
+                            "declaredIn": null
                         }
                     ],
                     "usesRefApi": [],

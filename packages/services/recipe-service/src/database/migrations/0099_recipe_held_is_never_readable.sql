@@ -6,6 +6,8 @@
 -- (readability depends on the viewer, which no CHECK can state), and the repo guard plus the LOCAL e2e on every read path
 -- are the backstop.
 --
+-- Forward-only: once a held public row exists, re-adding the CHECK fails; set those rows private or clear the hold first.
+--
 -- Unchanged: the hold ratchet (false to true only) and the BEFORE INSERT trigger that copies the hold onto a clone.
 -- EXPAND-THEN-CONTRACT (DD16): 0098 is deployed, so every reader already hides a held row before this runs. Dropping a CHECK
 -- takes a brief ACCESS EXCLUSIVE lock and no table scan.

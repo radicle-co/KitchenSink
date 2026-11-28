@@ -19,7 +19,7 @@
  * @pattern Mediator — the host stands between the screens that ask and the one snackbar that shows; the queue's rules
  *     are the pure reducer's (State + Command)
  */
-import { useCallback, useContext, useEffect, useState, type FC } from 'react';
+import { useCallback, useContext, useEffect, useMemo, useState, type FC } from 'react';
 import { AccessibilityInfo, StyleSheet, View } from 'react-native';
 
 import { PageFootContext } from '../popupInsets/pageFootContext.js';
@@ -94,6 +94,8 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children, subject }) => {
         }
     }, [screenReader, currentId, pause, resume]);
 
+    // Stable, so an effect that lists the api as a dependency does not rerun (and clean up) on every render here.
+    const api = useMemo(() => ({ show: queue.show, withdraw: queue.withdraw }), [queue.show, queue.withdraw]);
     const top = topOutlet(outlets);
     const actionProps =
         action === undefined || current === null
@@ -122,14 +124,7 @@ export const SnackbarHost: FC<SnackbarHostProps> = ({ children, subject }) => {
         );
 
     return (
-        <SnackbarContext
-            value={{
-                show: (input) => {
-                    return queue.show(input);
-                },
-                withdraw: queue.withdraw,
-            }}
-        >
+        <SnackbarContext value={api}>
             {/* The measured height, or 0 when nothing shows, so the floating create button can rise above the bar. */}
             <SnackbarClearanceContext value={current === null ? 0 : regionHeight}>
                 {/* An open window draws the snackbar instead, in its own outlet: the app root is under its window. */}

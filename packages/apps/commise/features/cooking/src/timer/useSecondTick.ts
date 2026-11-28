@@ -6,12 +6,24 @@
  * The countdown on the dock row is drawn from the timer's end and this clock, so the figure is always right however
  * late a tick comes. A paused timer, a ringing one or no timer needs no tick, so the interval runs only while `active`.
  *
- * @pattern Observer — a timer subscription that re-renders its reader once a second
+ * @pattern Observer — an external clock that `useSyncExternalStore` reads, so its reader re-renders once a second
  */
-import { useEffect, useState } from 'react';
+import { useCallback, useState, useSyncExternalStore } from 'react';
 
 /** How often the clock moves on, in ms. */
 const TICK_MS = 1000;
+
+/** A clock that holds the time of its last refresh, so a read between ticks answers the same value. */
+function createClock(): { readonly read: () => number; readonly refresh: () => void } {
+    let nowMs = Date.now();
+
+    return {
+        read: () => nowMs,
+        refresh: () => {
+            nowMs = Date.now();
+        },
+    };
+}
 
 /**
  * The clock now, in ms, refreshed once a second while `active`.
@@ -21,22 +33,27 @@ const TICK_MS = 1000;
  * @sideEffect Runs an interval while `active`, and clears it when `active` turns off or the component unmounts.
  */
 export function useSecondTick(active: boolean): number {
-    const [nowMs, setNowMs] = useState(() => Date.now());
+    const [clock] = useState(createClock);
+    const subscribe = useCallback(
+        (notify: () => void) => {
+            if (!active) {
+                return () => undefined;
+            }
 
-    useEffect(() => {
-        if (!active) {
-            return undefined;
-        }
+            const refresh = (): void => {
+                clock.refresh();
+                notify();
+            };
 
-        setNowMs(Date.now());
-        const interval = setInterval(() => {
-            setNowMs(Date.now());
-        }, TICK_MS);
+            refresh();
+            const interval = setInterval(refresh, TICK_MS);
 
-        return () => {
-            clearInterval(interval);
-        };
-    }, [active]);
+            return () => {
+                clearInterval(interval);
+            };
+        },
+        [active, clock],
+    );
 
-    return nowMs;
+    return useSyncExternalStore(subscribe, clock.read, clock.read);
 }

@@ -9,6 +9,9 @@ One board family, RecipeHeldSaveDetail, on recipeDetailWeb (web 1280, 390) and r
   owner line on the shipped hidden-after-a-report pattern ("… Only you can see it now.");
 - notes for who sees neither, and for notifications.
 
+RecipeHeldSaveDetailLargeText (web 390, iPhone 390) draws the same states at the largest text (ADR-0080 §8: text 2x,
+titles 1.5x, glyphs scaled), so the owner line and the meta row are seen wrapping at true size.
+
 The copy is the designer's DH20 and DH26 (squad record). Both lines are owner-only and are never in a live region.
 
 Each board takes its head, sprite, shell and stack from RecipePublicVersionHidden at the same size (the shipped
@@ -30,6 +33,7 @@ HOST = "RecipePublicVersionHidden"
 FAMILY = "RecipeHeldSaveDetail"
 
 SIZES = ["Web1280", "Web390", "Iphone390", "Ipad820"]
+LARGE_SIZES = ["Web390", "Iphone390"]
 WIDTH = {"Web1280": 1280, "Web390": 390, "Iphone390": 390, "Ipad820": 820}
 SIZE_WORDS = {
     "Web1280": "web, 1280",
@@ -48,6 +52,13 @@ M = {
 
 P10_CSS = """
 .p10-note { margin: 0 0 8px; padding: 6px 10px; border: 1px dashed var(--line-control); border-radius: 8px; font: 500 14px/20px var(--font-body); color: var(--ink-muted); }
+.rd .p10-lt .rTitle { font-size: 42px; line-height: 48px; }
+.rd .p10-lt .eyebrow { font-size: 28px; line-height: 36px; }
+.rd .p10-lt .staticNotice p { font-size: 28px; line-height: 36px; }
+.rd .p10-lt .metaRow2.t15, .rd .p10-lt .p10-snack { font-size: 32px; line-height: 40px; }
+.rd .p10-lt .metaRow2 .mi { min-height: 44px; gap: 8px; }
+.rd .p10-lt .ic { width: 40px; height: 40px; }
+.rd .p10-lt .ic.sm { width: 32px; height: 32px; }
 .p10-snack { align-self: center; margin: 16px auto 0; width: fit-content; padding: 12px 16px; border-radius: 12px; background: var(--ink); color: var(--canvas); font: 500 16px/24px var(--font-body); }
 """
 
@@ -125,9 +136,9 @@ def figure(caption: str, body: str) -> str:
     return f'<div role="group" aria-label="{caption}"><p class="p10-note">{caption}</p>{body}</div>'
 
 
-def content() -> str:
-    """Every state of the board."""
-    return "".join(
+def content(large: bool) -> str:
+    """Every state of the board; at the largest text, inside a `.p10-lt` scope."""
+    states = "".join(
         [
             figure(
                 "Owner, a save refused after the cook left the editor (AE7): the recipe is still public and unchanged. "
@@ -151,27 +162,40 @@ def content() -> str:
             ),
         ]
     )
+    if not large:
+        return states
+    lead = figure(
+        "Largest text: 2x, titles 1.5x (ADR-0080 §8). The owner line and the meta row wrap; nothing is cut or "
+        "truncated, and each link and chip stays at least 44 pt tall",
+        "",
+    )
+    return f'{lead}<div class="p10-lt">{states}</div>'
 
 
-def build(size: str) -> str:
+def build(size: str, large: bool) -> str:
     """The host at `size` with its stack's states replaced."""
     canvas = DWEB if size.startswith("Web") else DMOB
     host = board_path(canvas, f"{HOST}{size}").read_text()
-    return fill(host, r'<div class="sStack[^"]*">', content())
+    return fill(host, r'<div class="sStack[^"]*">', content(large))
 
 
 def main() -> None:
     """Draw every board and lay out each canvas.json."""
     heights = json.loads(Path(__file__).with_name("draw20261127P10HeldSaveDetailBoardsHeights.json").read_text())
     made: dict[str, list[tuple[str, int, int, str]]] = {DWEB: [], DMOB: []}
-    for size in SIZES:
-        canvas = DWEB if size.startswith("Web") else DMOB
-        name = f"{FAMILY}{size}"
-        width = WIDTH[size]
-        h = max(heights[name], DEVICE_FLOOR.get(size, 0))
-        title = f"Recipe detail, a held public recipe’s refused save and Save and hide ({SIZE_WORDS[size]})"
-        board_path(canvas, name).write_text(set_meta(build(size), title, name, width, h))
-        made[canvas].append((name, width, h, title))
+    families = [
+        (FAMILY, "Recipe detail, a held public recipe’s refused save and Save and hide", SIZES, False),
+        (f"{FAMILY}LargeText", "Recipe detail, refused save and Save and hide at the largest text", LARGE_SIZES, True),
+    ]
+    for family, words, sizes, large in families:
+        for size in sizes:
+            canvas = DWEB if size.startswith("Web") else DMOB
+            name = f"{family}{size}"
+            width = WIDTH[size]
+            h = max(heights[name], DEVICE_FLOOR.get(size, 0))
+            title = f"{words} ({SIZE_WORDS[size]})"
+            board_path(canvas, name).write_text(set_meta(build(size, large), title, name, width, h))
+            made[canvas].append((name, width, h, title))
     for canvas, boards in made.items():
         cj = ROOT / canvas / "project" / "canvas.json"
         d = json.loads(cj.read_text())

@@ -870,6 +870,13 @@
       "w": 390,
       "h": 1070,
       "title": "Recipe detail, a held public recipe’s refused save and Save and hide (web, 390)"
+    },
+    "RecipeHeldSaveDetailLargeTextWeb390.dc.html": {
+      "x": 1830,
+      "y": 48207,
+      "w": 390,
+      "h": 1796,
+      "title": "Recipe detail, refused save and Save and hide at the largest text (web, 390)"
     }
   },
   "order": [
@@ -995,7 +1002,8 @@
     "RecipeDetailSourceWeb390.dc.html",
     "RecipePublicVersionReportSignInWeb390.dc.html",
     "RecipeHeldSaveDetailWeb1280.dc.html",
-    "RecipeHeldSaveDetailWeb390.dc.html"
+    "RecipeHeldSaveDetailWeb390.dc.html",
+    "RecipeHeldSaveDetailLargeTextWeb390.dc.html"
   ],
   "notes": {
     "row0": {

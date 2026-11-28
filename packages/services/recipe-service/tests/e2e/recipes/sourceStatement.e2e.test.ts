@@ -751,17 +751,31 @@ describe('a pasted web link as the recipe source (e2e)', () => {
                     id: _id,
                     createdAt: _c,
                     updatedAt: _u,
-                    firstPublishedAt: _f,
-                    sourceConfirmedAt: _s,
+                    firstPublishedAt,
+                    sourceConfirmedAt,
                     ...columns
                 } = await readRow(id);
-
                 const { rows: evidence } = await pool.query(
                     `SELECT capture, source_kind, source_domain FROM recipe_source_evidence WHERE recipe_id = $1 ORDER BY recorded_at`,
                     [id],
                 );
+                const { rows: attestations } = await pool.query(
+                    `SELECT choice, wording_version FROM recipe_statement_attestations WHERE recipe_id = $1 ORDER BY recorded_at`,
+                    [id],
+                );
+                const { rows: versions } = await pool.query(
+                    `SELECT count(*)::int AS n FROM recipe_versions WHERE recipe_id = $1`,
+                    [id],
+                );
 
-                return { columns, evidence };
+                // The two timestamps differ by nature; both must be SET on both routes.
+                return {
+                    columns,
+                    confirmed: [firstPublishedAt !== null, sourceConfirmedAt !== null],
+                    evidence,
+                    attestations,
+                    versions,
+                };
             };
 
             expect(await stateOf(viaChoice.id)).toEqual(await stateOf(viaTwoCalls.id));

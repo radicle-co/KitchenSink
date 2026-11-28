@@ -1589,7 +1589,8 @@ export class RecipesService {
                       })
                     : {
                           correction,
-                          setsPrivate: forcesPrivate,
+                          // Always false here: a statement that makes it private, or a `heldSave`, is decided under the lock above.
+                          setsPrivate: false,
                           pendingEvidence,
                           recordsConfirmation: false,
                           statementToRecord: correction.kind === 'apply' ? dto.statement : undefined,
@@ -1804,7 +1805,7 @@ export class RecipesService {
         });
 
         if ((input.publishesDraft || setsPrivate) && visibilityAfter === RecipeVisibility.PRIVATE) {
-            this.assertPrivatePublishAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
+            this.assertMoveToPrivateAllowed(input, { current, visibilityAfter, sourceAfter, verdict });
         }
 
         return {
@@ -1848,7 +1849,8 @@ export class RecipesService {
     }
 
     /**
-     * Publishing a private draft is a move to private like any other, so it meets the SAME C-004 policy, with the slot fact
+     * Every write that leaves a recipe private (a private draft published, a statement that makes it private, the cook's
+     * `heldSave: 'private'`) is a move to private like any other, so it meets the SAME C-004 policy, with the slot fact
      * counted under the lock where a slot can matter (ADR-0073: a free cook's private recipe uses a slot, and ADR-0077
      * section 6 means no Premium or substantive edit is needed).
      *
@@ -1857,7 +1859,7 @@ export class RecipesService {
      * @throws {HttpException} The visibility refusal, or a full private slot standing.
      * @throws {Error} When a move that takes a slot ran without the slot lock (fails closed).
      */
-    private assertPrivatePublishAllowed(
+    private assertMoveToPrivateAllowed(
         input: {
             readonly principal: Principal;
             readonly isPremium: boolean;

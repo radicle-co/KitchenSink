@@ -808,6 +808,14 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
         expect(update).not.toHaveBeenCalled();
     });
 
+    it('pre-lock read private, locked read public, a free slot: the write carries visibility private', async () => {
+        const { dal, update } = holding(10, { visibility: 'public', status: 'published' }, 'private');
+
+        await expect(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined)).resolves.toBeDefined();
+
+        expect(update).toHaveBeenCalledWith('r-1', expect.objectContaining({ visibility: 'private' }), FAKE_TX);
+    });
+
     it('pre-lock read public, locked read private: nothing to move, so no visibility is written', async () => {
         const { dal, update } = holding(10, { visibility: 'private', status: 'published' }, 'public');
 

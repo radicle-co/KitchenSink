@@ -29,6 +29,7 @@ python3 docs/design/canvasScripts/draw20261128HiddenViewsBoards.py
 
 import json
 import re
+from html.parser import HTMLParser
 from pathlib import Path
 
 ROOT = Path("docs/design/canvases")
@@ -88,6 +89,102 @@ def _sub1(pattern: str | re.Pattern[str], repl: str, s: str) -> str:
     if n != 1:
         raise ValueError(f"no match for {pattern!r}")
     return out
+
+
+class _UsedClasses(HTMLParser):
+    """The classes a board uses, read as boardDeadSelectors.ts reads them: class attributes and every script token."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.used: set[str] = set()
+        self._in_script = False
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        self._in_script = tag == "script"
+        for name, value in attrs:
+            if name == "class" and value:
+                self.used.update(value.split())
+
+    def handle_endtag(self, tag: str) -> None:
+        self._in_script = False
+
+    def handle_data(self, data: str) -> None:
+        if self._in_script:
+            self.used.update(re.findall(r"[\w-]+", data))
+
+
+CLASS_IN_SELECTOR = re.compile(r"\.(-?[_a-zA-Z][\w-]*)")
+BLOCK_AT_RULES = ("@media", "@supports", "@container", "@layer")
+
+
+def _split_top(text: str, sep: str) -> list[str]:
+    """Split on `sep` outside parentheses and brackets."""
+    parts, depth, start = [], 0, 0
+    for i, ch in enumerate(text):
+        depth += 1 if ch in "([" else -1 if ch in ")]" else 0
+        if ch == sep and depth == 0:
+            parts.append(text[start:i])
+            start = i + 1
+    return [*parts, text[start:]]
+
+
+def _classes(selector: str) -> set[str]:
+    """The class names a selector names, outside attribute brackets."""
+    return set(CLASS_IN_SELECTOR.findall(re.sub(r"\[[^\]]*\]", "", selector)))
+
+
+def _live_selector(selector: str, used: set[str]) -> str | None:
+    """The selector without what an unused class makes dead, or None when it matches nothing.
+
+    A `:not()` of an unused class is always true, so removing it leaves the match unchanged.
+    """
+    s = re.sub(r":not\(([^()]*)\)", lambda m: "" if _classes(m[1]) - used else m[0], selector)
+    return None if _classes(s) - used else s
+
+
+def _prune_sheet(css: str, used: set[str]) -> str:
+    """The stylesheet without the selectors that name a class no element uses; a rule left with none goes."""
+    out, i = [], 0
+    while i < len(css):
+        brace = css.find("{", i)
+        semi = css.find(";", i)
+        if brace == -1 or (semi != -1 and semi < brace and css[i:semi].strip().startswith("@")):
+            out.append(css[i:] if brace == -1 else css[i : semi + 1])
+            i = len(css) if brace == -1 else semi + 1
+            continue
+        depth, j = 0, brace
+        while True:
+            depth += {"{": 1, "}": -1}.get(css[j], 0)
+            if depth == 0:
+                break
+            j += 1
+        prelude, body = css[i:brace], css[brace + 1 : j]
+        head = prelude.strip()
+        if head.startswith(BLOCK_AT_RULES):
+            inner = _prune_sheet(body, used)
+            if inner.strip():
+                out.append(f"{prelude}{{{inner}}}")
+        elif head.startswith("@"):
+            out.append(css[i : j + 1])
+        else:
+            kept = [k for k in (_live_selector(sel, used) for sel in _split_top(prelude, ",")) if k is not None]
+            if kept:
+                lead = prelude[: len(prelude) - len(prelude.lstrip())]
+                out.append(lead + ",".join(k.strip() for k in kept) + " {" + body + "}")
+        i = j + 1
+    return "".join(out)
+
+
+def prune_dead_css(html: str) -> str:
+    """The board with only the CSS it draws: boardDeadSelectors.test.ts admits a new board only at zero unused."""
+    reader = _UsedClasses()
+    reader.feed(html)
+
+    def prune(m: re.Match[str]) -> str:
+        sheet = re.sub(r"/\*.*?\*/", "", m[2], flags=re.S)
+        return m[1] + _prune_sheet(sheet, reader.used) + m[3]
+
+    return re.sub(r"(<style\b[^>]*>)(.*?)(</style\s*>)", prune, html, flags=re.S | re.I)
 
 
 def element_end(s: str, start: int, tag: str) -> int:
@@ -270,7 +367,7 @@ def main() -> None:
     def write(canvas: str, name: str, size: str, words: str, s: str) -> None:
         h = max(heights[name], DEVICE_FLOOR.get(size, 0))
         title = f"{words} ({SIZE_WORDS[size]})"
-        board_path(canvas, name).write_text(set_meta(s, title, name, WIDTH[size], h))
+        board_path(canvas, name).write_text(prune_dead_css(set_meta(s, title, name, WIDTH[size], h)))
         made[canvas].append((name, WIDTH[size], h, title))
 
     for size in SIZES:
@@ -295,12 +392,12 @@ def main() -> None:
                 recipes_board(size, dark=True),
             )
         nf = board_path(dc, f"RecipeNotFound{size}")
-        nf.write_text(not_found(nf.read_text()))
+        nf.write_text(prune_dead_css(not_found(nf.read_text())))
 
     # After the Lines boards, which take their head and stack from these boards.
     for size in ("Web1280", "Web390", "Iphone390", "Ipad820"):
         rb = board_path(DWEB if size.startswith("Web") else DMOB, f"RecipePublicVersionHidden{size}")
-        rb.write_text(report_board(rb.read_text()))
+        rb.write_text(prune_dead_css(report_board(rb.read_text())))
 
     for canvas in (DWEB, DMOB):
         for f in (ROOT / canvas / "project").glob("*.dc.html"):

@@ -2,7 +2,7 @@
  * The two recursive clone-tree walks the source-correction DALs share, written once so the read that shows a staff member
  * the newest correction and the read that checks it cannot walk different trees.
  *
- * @pattern Specification: each walk is one named query fragment, composed into the statement that needs it.
+ * @pattern Query Object: each walk is one named query fragment, composed into the statement that needs it.
  */
 import { sql, type SQL } from 'drizzle-orm';
 

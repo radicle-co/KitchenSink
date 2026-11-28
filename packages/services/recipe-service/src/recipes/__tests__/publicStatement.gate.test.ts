@@ -371,3 +371,25 @@ describe('PublicStatementGate.record', () => {
         expect(insertMany).not.toHaveBeenCalled();
     });
 });
+
+describe('PublicStatementGate.judge — an edit of a held published public recipe (heldPublicSave U1)', () => {
+    /** The edit leaves the state it found: published and public already, so no confirmation is owed. */
+    const editOfHeld = (): PublicWrite =>
+        writeOf({
+            stored: { tx: FAKE_TX, recipeId: 'r1' },
+            before: { status: 'published' as RecipeStatus, visibility: 'public' as RecipeVisibility },
+            confirmation: undefined,
+        });
+
+    it('refuses with SOURCE_CONFLICT', async () => {
+        const { gate } = gateOf([WEB_ROW]);
+
+        await expect(reasonOf(gate.judge(editOfHeld()))).resolves.toBe('SOURCE_CONFLICT');
+    });
+
+    it('CONTROL: the same edit with no evidence on record is allowed', async () => {
+        const { gate } = gateOf([]);
+
+        await expect(reasonOf(gate.judge(editOfHeld()))).resolves.toBe('ALLOWED');
+    });
+});

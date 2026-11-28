@@ -44,6 +44,17 @@ const PLACES = [
     { id: 'collections', label: 'Collections' },
 ] as const;
 
+/** The face of a segment: the `Elevated` inside the pressable role element that carries its fill and edge. */
+const faceOf = (segment: HTMLElement): HTMLElement => {
+    const face = segment.firstElementChild;
+
+    if (!(face instanceof HTMLElement)) {
+        throw new Error('The segment has no face view');
+    }
+
+    return face;
+};
+
 describe('SegmentedControl (native) — route', () => {
     it('is a tablist named by its label, the current tab selected', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
@@ -66,7 +77,9 @@ describe('SegmentedControl (native) — route', () => {
     it('paints the current tab paper with an ink label, the other inkMuted, on a pearl track', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
 
-        expect(getComputedStyle(screen.getByRole('tab', { name: 'My recipes' })).backgroundColor).toBe(rgb(role.paper));
+        expect(resolvedColour(faceOf(screen.getByRole('tab', { name: 'My recipes' })), 'backgroundColor')).toBe(
+            rgb(role.paper),
+        );
         // The label is the design-system Text, whose colour is a theme variable, so it is read resolved.
         expect(resolvedColour(screen.getByText('My recipes'), 'color')).toBe(rgb(role.ink));
         expect(resolvedColour(screen.getByText('Collections'), 'color')).toBe(rgb(role.inkMuted));
@@ -80,14 +93,25 @@ describe('SegmentedControl (native) — route', () => {
     // one shifts nothing.
     it('draws the current tab a 1 pt lineControl edge, and every other tab a transparent one of the same width', () => {
         render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
-        const current = getComputedStyle(screen.getByRole('tab', { name: 'My recipes' }));
-        const other = getComputedStyle(screen.getByRole('tab', { name: 'Collections' }));
+        const current = faceOf(screen.getByRole('tab', { name: 'My recipes' }));
+        const other = faceOf(screen.getByRole('tab', { name: 'Collections' }));
 
-        expect(current.borderTopWidth).toBe('1px');
-        expect(current.borderTopColor).toBe(rgb(role.lineControl));
-        expect(current.backgroundColor).toBe(rgb(role.paper));
-        expect(other.borderTopWidth).toBe('1px');
-        expect(other.borderTopColor).not.toBe(rgb(role.lineControl));
+        expect(getComputedStyle(current).borderTopWidth).toBe('1px');
+        expect(resolvedColour(current, 'borderTopColor')).toBe(rgb(role.lineControl));
+        expect(resolvedColour(current, 'backgroundColor')).toBe(rgb(role.paper));
+        expect(getComputedStyle(other).borderTopWidth).toBe('1px');
+        expect(resolvedColour(other, 'borderTopColor')).not.toBe(rgb(role.lineControl));
+    });
+
+    // The face fills its segment, so the fill and the edge span the whole target rather than shrinking to the label.
+    // It reads what Tamagui renders on the face element, so it also fails if the grow moves to the slot or the label.
+    it("gives each segment's face, not its label, flex-grow 1 so the fill spans the segment", () => {
+        render(<SegmentedControl form="route" label="Recipes" segments={PLACES} current="mine" onSelect={vi.fn()} />);
+
+        for (const name of ['My recipes', 'Collections']) {
+            expect(getComputedStyle(faceOf(screen.getByRole('tab', { name }))).flexGrow).toBe('1');
+            expect(getComputedStyle(screen.getByText(name)).flexGrow).not.toBe('1');
+        }
     });
 
     // Designer ruling 2026-11-01 (ADR-0080 §8): a view-switch label is navigation chrome, so it grows to 1.5× at most,

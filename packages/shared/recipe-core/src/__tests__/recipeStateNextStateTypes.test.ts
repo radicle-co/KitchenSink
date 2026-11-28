@@ -5,6 +5,7 @@
  */
 import { describe, expect, expectTypeOf, it } from 'vitest';
 
+import { GUARD_NAMES } from '../recipeState/transitions.js';
 import type { LabelKey } from '../recipeState/labelledNames.js';
 import { nextState, type TransitionFacts } from '../recipeState/nextState.js';
 import type { RefusalFacts, ServerRefusalFacts } from '../recipeState/refusalOf.js';
@@ -43,5 +44,12 @@ describe('LabelKey', () => {
         expectTypeOf<'VIEW_ADAPTED_BY_COOK.bogus'>().not.toExtend<LabelKey>();
         expectTypeOf<'ORIGIN_WEB_PAGE.owner'>().not.toExtend<LabelKey>();
         expectTypeOf<string>().not.toExtend<LabelKey>();
+    });
+});
+
+describe('the guards of nextState (ADR-0105)', () => {
+    it('has no forcesPrivate guard and no forcesPrivate fact', () => {
+        expect(GUARD_NAMES).not.toContain('forcesPrivate');
+        expectTypeOf<'forcesPrivate'>().not.toExtend<keyof TransitionFacts>();
     });
 });

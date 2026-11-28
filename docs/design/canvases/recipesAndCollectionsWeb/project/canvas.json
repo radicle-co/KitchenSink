@@ -436,6 +436,27 @@
       "w": 390,
       "h": 1238,
       "title": "Collection detail, delete? (web, 390)"
+    },
+    "RecipesHiddenWeb1280.dc.html": {
+      "x": 0,
+      "y": 11757,
+      "w": 1280,
+      "h": 1523,
+      "title": "My recipes, a hidden recipe (web, 1280)"
+    },
+    "RecipesHiddenDarkWeb1280.dc.html": {
+      "x": 1360,
+      "y": 11757,
+      "w": 1280,
+      "h": 1523,
+      "title": "My recipes, a hidden recipe, dark theme (web, 1280)"
+    },
+    "RecipesHiddenWeb390.dc.html": {
+      "x": 2720,
+      "y": 11757,
+      "w": 390,
+      "h": 1700,
+      "title": "My recipes, a hidden recipe (web, 390)"
     }
   },
   "order": [
@@ -499,7 +520,10 @@
     "CollectionDetailEmptyWeb390.dc.html",
     "CollectionDetailAlertsWeb390.dc.html",
     "CollectionRenameSheetWeb390.dc.html",
-    "CollectionDeleteDialogWeb390.dc.html"
+    "CollectionDeleteDialogWeb390.dc.html",
+    "RecipesHiddenWeb1280.dc.html",
+    "RecipesHiddenDarkWeb1280.dc.html",
+    "RecipesHiddenWeb390.dc.html"
   ],
   "notes": {
     "row0": {
@@ -527,6 +551,13 @@
       "x": 0,
       "y": 8035,
       "text": "Recipes and collections: web 390",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowHiddenrecipesAndCollectionsWeb": {
+      "x": 0,
+      "y": 11497,
+      "text": "My recipes, a hidden recipe (hiddenViews): web",
       "kind": "title1",
       "maxW": 2400
     }

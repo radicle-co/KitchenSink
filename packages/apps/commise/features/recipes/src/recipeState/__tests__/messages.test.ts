@@ -98,3 +98,55 @@ describe('the earned sentence (VIEW_ADAPTED_BY_COOK.earnedSentence)', () => {
         expect(earned).not.toMatch(/saved|published/i);
     });
 });
+
+describe('held means hidden strings (ADR-0105, mergedHeldStrings.md)', () => {
+    it('words every new key as the merged list does', () => {
+        expect(en.labels).toMatchObject({
+            VIEW_HIDDEN: 'Hidden',
+            'VIEW_HIDDEN_REASON.heldSource': 'Hidden because it was saved with a source. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.tooClose':
+                'Hidden because its steps are too close to the source’s wording. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.afterCheck': 'Hidden after a check. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.notApproved':
+                'Hidden because it wasn’t approved to be public. Only you can see it now.',
+            'VIEW_HIDDEN_REASON.sourceCorrected': 'Hidden because its source was corrected. Only you can see it now.',
+            'VIEW_SAVE_REFUSED.title': 'This recipe can’t stay public',
+            'VIEW_SAVE_REFUSED.why.heldSource':
+                'It was saved with a source, such as a web page or a book, so it can’t be public.',
+            'VIEW_SAVE_REFUSED.why.tooClose': 'Its steps are too close to the source’s wording to share.',
+            'VIEW_SAVE_REFUSED.why.notApproved': 'It wasn’t approved to be public.',
+            'VIEW_SAVE_REFUSED.why.sourceCorrected': 'Its source was corrected, so it can’t be public as it is.',
+            'VIEW_SAVE_REFUSED.wayRewrite': 'Change the steps in your own words to keep it public.',
+            'VIEW_SAVE_REFUSED.wayRewriteAction': 'Edit steps',
+            'VIEW_SAVE_REFUSED.wayDiscard': 'Discard your changes to keep the public recipe as it is.',
+            'VIEW_SAVE_REFUSED.wayHide':
+                'Or save your changes and hide this recipe. Only you will be able to see it, and it won’t use one of your private recipes.',
+            'VIEW_SAVE_REFUSED.wayHideAction': 'Save and hide',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.heldSource':
+                'This recipe can’t stay public because it was saved with a source.',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.tooClose':
+                'This recipe can’t stay public because its steps are too close to the source’s wording.',
+            'VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected':
+                'This recipe can’t be public because its source was corrected.',
+            VIEW_SAVE_REFUSED_LATE:
+                'Your changes weren’t saved because this recipe can’t stay public. Open the editor to choose what to do.',
+            'VIEW_DRAFT_DOOR.title': 'This recipe can’t be public',
+            'VIEW_DRAFT_DOOR.publishPrivateOnly': 'Publish this recipe as private instead.',
+        });
+    });
+
+    it('keeps the shipped wording of REFUSAL_CONTENT_NOT_APPROVED', () => {
+        expect(en.refusals.REFUSAL_CONTENT_NOT_APPROVED).toBe(
+            'This recipe stays private because it wasn’t approved to be public.',
+        );
+    });
+
+    it('says nothing was made private in any hidden or refused-save line', () => {
+        const lines = Object.entries(en.labels).filter(([key]) =>
+            /^VIEW_(HIDDEN|SAVE_REFUSED|CARD_CANNOT|DRAFT_DOOR)/.test(key),
+        );
+
+        expect(lines.length).toBeGreaterThan(15);
+        expect(lines.filter(([, text]) => /saved (as )?private|made private after/i.test(text))).toEqual([]);
+    });
+});

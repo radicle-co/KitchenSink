@@ -639,6 +639,34 @@
       "w": 820,
       "h": 1180,
       "title": "Collection detail, delete? (mobile, iPad 820)"
+    },
+    "RecipesHiddenIphone390.dc.html": {
+      "x": 0,
+      "y": 10819,
+      "w": 390,
+      "h": 1696,
+      "title": "My recipes, a hidden recipe (mobile, iPhone 390)"
+    },
+    "RecipesHiddenDarkIphone390.dc.html": {
+      "x": 470,
+      "y": 10819,
+      "w": 390,
+      "h": 1696,
+      "title": "My recipes, a hidden recipe, dark theme (mobile, iPhone 390)"
+    },
+    "RecipesHiddenAndroid384.dc.html": {
+      "x": 940,
+      "y": 10819,
+      "w": 384,
+      "h": 1699,
+      "title": "My recipes, a hidden recipe (mobile, Android 384)"
+    },
+    "RecipesHiddenIpad820.dc.html": {
+      "x": 1404,
+      "y": 10819,
+      "w": 820,
+      "h": 1713,
+      "title": "My recipes, a hidden recipe (mobile, iPad 820)"
     }
   },
   "order": [
@@ -731,7 +759,11 @@
     "CollectionDetailAlertsIpad820.dc.html",
     "CollectionRenameSheetIpad820.dc.html",
     "CollectionRenameSheetTypingIpad820.dc.html",
-    "CollectionDeleteDialogIpad820.dc.html"
+    "CollectionDeleteDialogIpad820.dc.html",
+    "RecipesHiddenIphone390.dc.html",
+    "RecipesHiddenDarkIphone390.dc.html",
+    "RecipesHiddenAndroid384.dc.html",
+    "RecipesHiddenIpad820.dc.html"
   ],
   "notes": {
     "row0": {
@@ -752,6 +784,13 @@
       "x": 0,
       "y": 7053,
       "text": "Recipes and collections: mobile, iPad 820 (820 x 1180)",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowHiddenrecipesAndCollectionsMobile": {
+      "x": 0,
+      "y": 10559,
+      "text": "My recipes, a hidden recipe (hiddenViews): mobile",
       "kind": "title1",
       "maxW": 2400
     }

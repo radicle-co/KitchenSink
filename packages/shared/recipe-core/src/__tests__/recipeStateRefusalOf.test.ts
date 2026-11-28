@@ -5,7 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { RecipeSourceType } from '../recipe.types.js';
-import { REFUSAL, refusalOf, type RefusalFacts } from '../recipeState/refusalOf.js';
+import { REFUSAL, refusalOf, type RefusalFacts, type ServerRefusalFacts } from '../recipeState/refusalOf.js';
 
 const facts = (overrides: Partial<RefusalFacts> = {}): RefusalFacts => ({
     sourceType: RecipeSourceType.USER_CREATED,
@@ -57,5 +57,48 @@ describe('refusalOf: an attested "from another person"', () => {
     it('refuses a recipe whose statement was cleared after the cook said it was from a person', () => {
         expect(refusalOf(facts({ attestedFromPerson: true }))).toBe('REFUSAL_FROM_PERSON');
         expect(refusalOf(facts({ attestedFromPerson: true, statementKind: 'authored' }))).toBe('REFUSAL_NONE');
+    });
+});
+
+describe('the save refusal (ADR-0105)', () => {
+    it('retires REFUSAL_DETECTED_NO_PRIVATE_SLOT and adds REFUSAL_SAVE_CANNOT_STAY_PUBLIC', () => {
+        expect(Object.keys(REFUSAL)).not.toContain('REFUSAL_DETECTED_NO_PRIVATE_SLOT');
+        expect(REFUSAL.REFUSAL_SAVE_CANNOT_STAY_PUBLIC).toBe('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
+    });
+
+    it('never answers a MAKE_PUBLIC question with the save reason, over the full fact cross product', () => {
+        const types = Object.values(RecipeSourceType);
+        const kinds = [null, 'public_web', 'book', 'paid_site', 'unrecognised'] as const;
+        const statements = [null, 'authored', 'fromPerson', 'unrecognised'] as const;
+        const flags = [false, true] as const;
+        const total = types.length * kinds.length * statements.length * flags.length ** 4;
+
+        // Each combination is one number, read as digits in mixed radix: one digit per fact, in the order taken below.
+        const combinationAt = (index: number): ServerRefusalFacts => {
+            let rest = index;
+
+            const digit = <T>(values: readonly T[]): T => {
+                const value = values[rest % values.length];
+
+                rest = Math.floor(rest / values.length);
+
+                return value;
+            };
+
+            return {
+                sourceType: digit(types),
+                sourceKind: digit(kinds),
+                statementKind: digit(statements),
+                held: digit(flags),
+                sourceCorrected: digit(flags),
+                statementRequired: digit(flags),
+                attestedFromPerson: digit(flags),
+            };
+        };
+
+        const combinations = Array.from({ length: total }, (_, index) => combinationAt(index));
+
+        expect(new Set(combinations.map((entry) => JSON.stringify(entry))).size).toBe(total);
+        expect(combinations.map(refusalOf)).not.toContain('REFUSAL_SAVE_CANNOT_STAY_PUBLIC');
     });
 });

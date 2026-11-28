@@ -40,6 +40,7 @@
  * an English-shaped sentence. An explicit `accessibilityLabel` would also SUPPRESS the badge, dropping half the
  * information this module exists to expose.
  */
+import { Elevated } from '@commise/ui/elevation';
 import { nativeTokens } from '@commise/ui/native';
 import { Text } from '@commise/ui/text';
 import { useTheme } from '@commise/ui/theme';
@@ -76,7 +77,7 @@ export function PlaceholderWidgetCard({ title, soonLabel, children }: Placeholde
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.card, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+        <Elevated level="sm" style={{ ...styles.card, backgroundColor: colors.paper, borderColor: colors.lineDivider }}>
             <View accessible accessibilityRole="header" style={styles.header}>
                 <Text typeRole="cardTitle" color="$ink" flexShrink={1}>
                     {title}
@@ -91,7 +92,7 @@ export function PlaceholderWidgetCard({ title, soonLabel, children }: Placeholde
             </View>
 
             {children}
-        </View>
+        </Elevated>
     );
 }
 
@@ -101,7 +102,6 @@ const styles = StyleSheet.create({
         borderRadius: nativeTokens.radius.md,
         borderWidth: StyleSheet.hairlineWidth,
         padding: nativeTokens.spacing[4],
-        ...nativeTokens.elevation.sm,
     },
     header: {
         flexDirection: 'row',

@@ -5,6 +5,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { RecipeSourceType } from '../recipe.types.js';
+import { ACTORS, LIFECYCLE_AUDIENCE_STATES, type LifecycleAudienceState } from '../recipeState/recipeStateValues.js';
 import { canTransition, nextState, type TransitionFacts } from '../recipeState/nextState.js';
 import type { ServerRefusalFacts } from '../recipeState/refusalOf.js';
 import { TRANSITIONS } from '../recipeState/transitions.js';
@@ -76,24 +77,18 @@ describe('nextState: lifecycle and audience', () => {
         expect(canTransition('lifecycleAudience', 'DPr', 'MAKE_PUBLIC', cook())).toBe(true);
     });
 
-    it('lets a published public recipe go private only when a slot is free, except when forced', () => {
+    it('lets a published public recipe go private only for the cook, and only when a slot is free', () => {
         expect(canTransition('lifecycleAudience', 'PPu', 'MAKE_PRIVATE', cook())).toBe(false);
         expect(canTransition('lifecycleAudience', 'PPu', 'MAKE_PRIVATE', cook({ privateSlotFree: true }))).toBe(true);
-        expect(
-            canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', {
-                ...cook(),
-                actor: 'system',
-                forcesPrivate: true,
-            }),
-        ).toBe(true);
-        expect(
-            canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', {
-                ...cook(),
-                actor: 'cook',
-                forcesPrivate: true,
-            }),
-        ).toBe(false);
-        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...cook(), actor: 'system' })).toBe(false);
+
+        for (const actor of ['system', 'staff'] as const) {
+            expect(
+                canTransition('lifecycleAudience', 'PPu', 'MAKE_PRIVATE', {
+                    ...cook({ privateSlotFree: true }),
+                    actor,
+                }),
+            ).toBe(false);
+        }
     });
 
     it('donates a recipe only when elected, with no statement owed, and no hold', () => {
@@ -326,14 +321,6 @@ describe('nextState: who may take which edge (each row of the table)', () => {
         expect(canTransition('lifecycleAudience', 'PPu', 'DELETE', { ...cook(), actor: 'staff' })).toBe(false);
     });
 
-    it('lets staff FORCE_PRIVATE as well as the system, and no cook', () => {
-        const forced = { ...cook(), forcesPrivate: true };
-
-        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'staff' })).toBe(true);
-        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'system' })).toBe(true);
-        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'curator' })).toBe(false);
-    });
-
     it('lets the cook, the system and staff CONFIRM_SOURCE, and no curator', () => {
         for (const actor of ['cook', 'system', 'staff'] as const) {
             expect(
@@ -485,6 +472,43 @@ describe('nextState: a failure says why', () => {
         expect(nextState('lifecycleAudience', 'DPu', 'PUBLISH', cook({ source: { ...clean, held: true } }))).toEqual({
             ok: false,
             refusal: 'REFUSAL_SOURCE_CONFLICT',
+        });
+    });
+});
+
+describe('nextState: Commise never makes a recipe private (ADR-0105, AE9)', () => {
+    const PRIVATE_STATES = ['DPr', 'PPr'] as const;
+
+    it('has no enforced row that moves a recipe to a private state for an actor other than the cook', () => {
+        const offenders = TRANSITIONS.filter((row) => row.axis === 'lifecycleAudience')
+            .filter((row) => row.moves.some((move) => (PRIVATE_STATES as readonly string[]).includes(move.to)))
+            .filter((row) => row.actors.some((actor) => actor !== 'cook'))
+            .map((row) => row.id);
+
+        expect(offenders).toEqual([]);
+    });
+
+    it('accepts no FORCE_PRIVATE event from any state, for any actor, with every fact set', () => {
+        const everything = cook({ privateSlotFree: true, publishSheetAccepted: true, requirementsMet: true });
+
+        for (const from of Object.keys(LIFECYCLE_AUDIENCE_STATES) as LifecycleAudienceState[]) {
+            for (const actor of ACTORS) {
+                expect(nextState('lifecycleAudience', from, 'FORCE_PRIVATE', { ...everything, actor })).toEqual({
+                    ok: false,
+                    cause: 'noEdge',
+                });
+            }
+        }
+    });
+
+    it('refuses MAKE_PRIVATE of a published public recipe when no private slot is free', () => {
+        expect(nextState('lifecycleAudience', 'PPu', 'MAKE_PRIVATE', cook({ privateSlotFree: false }))).toEqual({
+            ok: false,
+            refusal: 'REFUSAL_NO_PRIVATE_SLOT',
+        });
+        expect(nextState('lifecycleAudience', 'PPu', 'MAKE_PRIVATE', cook())).toEqual({
+            ok: false,
+            refusal: 'REFUSAL_NO_PRIVATE_SLOT',
         });
     });
 });

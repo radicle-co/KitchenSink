@@ -756,3 +756,36 @@ describe('the staff-correction hold (migration 0092)', () => {
         expect(defaultCloneVisibility(RecipeSourceType.USER_CREATED, null, REAL_ENFORCING, PUBLIC, open)).toBe(PUBLIC);
     });
 });
+
+/**
+ * P10a (heldPublicSave U1): a HELD recipe is published and public with a third-party source on record. Today the state
+ * it would be saved in is refused with the `sourceConflict` denial, for any edit: the policy is asked about the state a write
+ * LEAVES, never about what changed.
+ */
+describe('evaluatePublishedState — a held published public recipe is refused today (heldPublicSave U1)', () => {
+    const held = (over: Partial<Parameters<typeof evaluatePublishedState>[0]> = {}) =>
+        evaluatePublishedState({
+            status: RecipeStatus.PUBLISHED,
+            visibility: PUBLIC,
+            sourceType: RecipeSourceType.USER_CREATED,
+            sourceKind: null,
+            sourceConflict: true,
+            fromPerson: false,
+            sourceCorrected: false,
+            statementRequired: false,
+            ...REAL_ENFORCING,
+            ...over,
+        });
+
+    it('answers the sourceConflict denial, as a policy refusal', () => {
+        expect(held()).toMatchObject({ allowed: false, denial: 'sourceConflict' });
+    });
+
+    it('answers it even when the statement rule also holds (the evidence rule is asked first)', () => {
+        expect(held({ statementRequired: true })).toMatchObject({ allowed: false, denial: 'sourceConflict' });
+    });
+
+    it('CONTROL: the same state with no evidence on record is allowed', () => {
+        expectDecision(held({ sourceConflict: false }), true);
+    });
+});

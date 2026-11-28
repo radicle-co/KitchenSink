@@ -32,7 +32,12 @@ import {
 import { authorHandles } from '../../database/schema/authorHandles.js';
 import { recipes, type RecipeRow } from '../../database/schema/recipes.js';
 import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
-import { activeRecipe, readableBy } from '../../recipes/dal/recipePredicates.js';
+import {
+    activeRecipe,
+    readableBy,
+    readableRecipeColumns,
+    type ReadableRecipeRow,
+} from '../../recipes/dal/recipePredicates.js';
 import { withTransaction, type RecipeTx, type Writer } from '../../database/unitOfWork.js';
 import { collectionLimitReachedError } from '../collections.errors.js';
 import { COLLECTION_COVER_LIMIT } from '../collections.schema.js';
@@ -339,9 +344,9 @@ export class CollectionsDal {
     }
 
     /** Fetch an active (non-tombstoned) recipe by id, for validating a membership add. */
-    public async findActiveRecipe(recipeId: string): Promise<RecipeRow | undefined> {
+    public async findActiveRecipe(recipeId: string): Promise<ReadableRecipeRow | undefined> {
         const rows = await this.db
-            .select()
+            .select(readableRecipeColumns())
             .from(recipes)
             .where(and(eq(recipes.id, recipeId), activeRecipe()))
             .limit(1);
@@ -446,8 +451,8 @@ export class CollectionsDal {
      * List the recipes in a collection VIEWABLE BY `viewerId`, oldest membership first. Two filters:
      *  - EXCLUDING tombstoned recipes (C-007): the `INNER JOIN` + `deleted_at IS NULL` drops soft-deleted
      *    recipes even though their junction rows remain.
-     *  - EXCLUDING recipes the viewer may not see: `visibility = 'public' OR owner_id = viewerId` AND the
-     *    W8-a.3 draft term `status = 'published' OR owner_id = viewerId`. This is the authoritative half of
+     *  - EXCLUDING recipes the viewer may not see, by the shared `readableBy` predicate
+     *    (`recipes/dal/recipePredicates.ts`: public, published and not held from readers, or owned). This is the authoritative half of
      *    the membership-IDOR guard — a recipe that was public when added but later went private OR became a
      *    draft (which add-time validation cannot catch) is filtered out here at read time. This ONE read
      *    serves three callers (the `CollectionWithRecipes` embed, `cloneCollection`'s clone-seed, and

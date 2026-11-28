@@ -22,8 +22,6 @@ export interface TransitionFacts {
     readonly privateSlotFree?: boolean;
     /** The cook accepted the Publish sheet. */
     readonly publishSheetAccepted?: boolean;
-    /** The origin answer forces private, or a staff correction does (`FORCE_PRIVATE`). */
-    readonly forcesPrivate?: boolean;
     /** The cook elected to donate on erasure. */
     readonly donationElected?: boolean;
     /** What `sourceLockOf` answers. */
@@ -72,7 +70,6 @@ const GUARDS: Readonly<Record<GuardName, GuardFn>> = {
         return holdsOr(!isPrivateTarget(move) || facts.privateSlotFree === true, REFUSAL.REFUSAL_NO_PRIVATE_SLOT);
     },
     privateSlotFree: (facts) => holdsOr(facts.privateSlotFree === true, REFUSAL.REFUSAL_NO_PRIVATE_SLOT),
-    forcesPrivate: (facts) => holdsOr(facts.forcesPrivate === true, 'guard'),
     donationElected: (facts) => holdsOr(facts.donationElected === true, 'guard'),
     sourceLockOpen: (facts) =>
         holdsOr(facts.sourceLock === SOURCE_LOCK.SOURCE_LOCK_OPEN, REFUSAL.REFUSAL_SOURCE_LOCKED),
@@ -111,8 +108,6 @@ function runGuard(name: GuardName, facts: TransitionFacts, move: Move<Axis>): Gu
             return GUARDS.publishable(facts, move);
         case 'privateSlotFree':
             return GUARDS.privateSlotFree(facts, move);
-        case 'forcesPrivate':
-            return GUARDS.forcesPrivate(facts, move);
         case 'donationElected':
             return GUARDS.donationElected(facts, move);
         case 'sourceLockOpen':

@@ -9,6 +9,7 @@ import {
     failClosedRewriteWay,
     rewriteWay,
     unavailableRewriteWay,
+    type RewriteWayInput,
     type RewriteWayPort,
     type RewriteWayAnswer,
 } from '../rewriteWay.js';
@@ -16,7 +17,7 @@ import {
 const AVAILABLE: RewriteWayAnswer = { kind: 'available', wayLineKey: 'keepPublicInOwnWords' };
 const RAW_AVAILABLE = { kind: 'available', wayLineKey: 'keepPublicInOwnWords' };
 const UNAVAILABLE: RewriteWayAnswer = { kind: 'unavailable' };
-const INPUT = BLOCKED_INPUTS[0]!;
+const INPUT: RewriteWayInput = { recipeId: 'rcp_1', door: 'save', cause: { kind: 'heldSource' } };
 const portAnswering = (answer: () => Promise<unknown>): RewriteWayPort => ({ answer });
 
 describeRewriteWayContract(
@@ -201,7 +202,12 @@ describe('failClosedRewriteWay', () => {
     it('an answer just inside the deadline is kept', async () => {
         vi.useFakeTimers();
         const slow = portAnswering(
-            () => new Promise((resolve) => setTimeout(() => resolve(RAW_AVAILABLE), REWRITE_WAY_DEADLINE_MS - 1)),
+            () =>
+                new Promise((resolve) =>
+                    setTimeout(() => {
+                        resolve(RAW_AVAILABLE);
+                    }, REWRITE_WAY_DEADLINE_MS - 1),
+                ),
         );
         const pending = failClosedRewriteWay(slow).answer(INPUT, signal());
         await vi.advanceTimersByTimeAsync(REWRITE_WAY_DEADLINE_MS - 1);

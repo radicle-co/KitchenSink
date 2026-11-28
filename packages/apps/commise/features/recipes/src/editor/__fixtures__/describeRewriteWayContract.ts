@@ -28,7 +28,7 @@ export interface RewriteWayIo {
 }
 
 /** Builds the doubles and the list of mutating calls they record. */
-export function makeRecordingIo(): { readonly io: RewriteWayIo; readonly mutatingCalls: string[] } {
+function makeRecordingIo(): { readonly io: RewriteWayIo; readonly mutatingCalls: string[] } {
     const mutatingCalls: string[] = [];
     const io: RewriteWayIo = {
         client: {

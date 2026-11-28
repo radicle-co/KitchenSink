@@ -19,7 +19,7 @@ export interface BlockCause {
 }
 
 /** The message keys the rewrite way's line may use. A closed set: never free text (designer DH24, DH26). */
-export const REWRITE_WAY_LINE_KEYS = ['keepPublicInOwnWords'] as const;
+const REWRITE_WAY_LINE_KEYS = ['keepPublicInOwnWords'] as const;
 
 /** One of {@link REWRITE_WAY_LINE_KEYS}. */
 export type RewriteWayLineKey = (typeof REWRITE_WAY_LINE_KEYS)[number];
@@ -99,8 +99,14 @@ export function failClosedRewriteWay(port: RewriteWayPort): RewriteWay {
             let timer: ReturnType<typeof setTimeout> | undefined;
             let onAbort: (() => void) | undefined;
             const stop = new Promise<RewriteWayAnswer>((resolve) => {
-                timer = setTimeout(() => resolve(UNAVAILABLE), REWRITE_WAY_DEADLINE_MS);
-                onAbort = () => resolve(UNAVAILABLE);
+                timer = setTimeout(() => {
+                    resolve(UNAVAILABLE);
+                }, REWRITE_WAY_DEADLINE_MS);
+
+                onAbort = () => {
+                    resolve(UNAVAILABLE);
+                };
+
                 signal.addEventListener('abort', onAbort, { once: true });
             });
 

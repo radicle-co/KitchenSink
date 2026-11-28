@@ -8,7 +8,6 @@
 import { styled } from 'tamagui';
 
 import { Elevated } from '../elevation/Elevated.native.js';
-import { nativeTokens } from '../tokens/native.js';
 import { SEGMENT_EDGE, SEGMENT_ICON_GAP, SEGMENT_PADDING_X } from './nativeSegmentGeometry.js';
 
 /**
@@ -26,7 +25,7 @@ export const SegmentFace = styled(Elevated, {
     alignItems: 'center',
     justifyContent: 'center',
     gap: SEGMENT_ICON_GAP,
-    borderRadius: nativeTokens.radius.full,
+    borderRadius: '$full',
     borderWidth: SEGMENT_EDGE,
     paddingHorizontal: SEGMENT_PADDING_X,
 

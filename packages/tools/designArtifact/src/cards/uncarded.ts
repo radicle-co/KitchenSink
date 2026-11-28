@@ -34,6 +34,8 @@ export const UNCARDED: Readonly<Record<string, string>> = {
         "The native RadioList row's content group (the circle and the words, top-aligned). A part of RadioList, never placed on its own; the RadioList card covers it.",
     RadioMark:
         "The native RadioList row's circle, centred in a slot one label line tall. A part of RadioList, never placed on its own; the RadioList card covers it.",
+    SegmentFace:
+        "The native SegmentedControl's segment face: the elevated view that carries a segment's fill and edge, in a file of its own. A part of SegmentedControl, never placed on its own; the SegmentedControl card covers it.",
     EqualShare:
         "The native DialogActions' equal-share wrapper (one child grows to an equal share of a row when `shares` is `equal`). A part of DialogActions, never placed on its own; the DialogActions card covers it.",
     DesignSystemProvider:

@@ -110,6 +110,7 @@ describe('SegmentedControl (native) — route', () => {
 
         for (const name of ['My recipes', 'Collections']) {
             expect(getComputedStyle(faceOf(screen.getByRole('tab', { name }))).flexGrow).toBe('1');
+            expect(getComputedStyle(screen.getByText(name)).flexGrow).not.toBe('1');
         }
     });
 

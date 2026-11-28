@@ -5,7 +5,7 @@
  * The table (`nativeTokens.elevation`) is the ONE source of every native shadow's numbers, and `Elevated`
  * (`ui/src/elevation`) is the one view that turns it into a shadow, with the shadow colour taken from the theme. A
  * component that spreads a level into its own style draws a shadow the theme cannot recolour and that Android draws
- * only when that view carries the fill. So the table is read only inside the four folders that own it (see
+ * only when that view carries the fill. So the table is read only inside the folders that own it (see
  * `ELEVATION_TABLE_OWNERS`).
  *
  * Known limit: an aliased import (`import { nativeTokens as t }`) is not followed. Nobody writes one today; widen the

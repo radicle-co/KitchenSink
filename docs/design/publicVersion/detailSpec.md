@@ -17,16 +17,16 @@ judgement, untested.
 
 ## 0. Decisions this spec makes
 
-| #   | Decision                                                                                                                                                            | Why                                                                                                                                                 |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| D1  | The credit is a block of plain lines under the badge row, before the hero photo's rating row. It is not a card.                                                     | R6: the recipe's own facts sit by its name. A card reads as a facts card, which ADR-0093 retires.                                                   |
-| D2  | The owner never sees "Report a problem" on their own public version. They can edit it or make it private.                                                           | Same rule as R7 (an owner cannot rate their own recipe).                                                                                            |
-| D3  | "Report a problem" opens the existing report page of spec 016 (`RightsReport*` boards), with this recipe as the target. There is no second report form.             | One report form in the product. A second form with other reasons drifts from the notice route that 016 owns.                                        |
-| D4  | The reader menu on a public version labels its report item `publicPage.report` too. Both entry points open the same page.                                           | One action, one name. "Report this recipe" stays on every other recipe.                                                                             |
-| D5  | While hidden, the owner's visibility badge reads "Hidden" (`publicPage.hiddenBadge`, new) in place of "Public".                                                     | "Public" is false while no reader can see the page.                                                                                                 |
-| D6  | A hidden page shows a reader only `publicPage.hiddenReader` and the app's own navigation. No title, photo, cook, credit or action. It never says a report happened. | FR-082 hides the version from every public surface. A title or cook name on the hidden page leaks it.                                               |
-| D7  | "Share a public version" replaces "Make public" in the owner menu of a private import. The server's offer decides what pressing it does (spec.md V1).               | A private import can never itself go public (ADR-0093, its Amends line on ADR-0073, and §1). The menu keeps one visibility item in one place (R12). |
-| D8  | When the later route cannot write now, the menu surface swaps its items for the offer's one line and "Done". It never opens a centred dialog.                       | Copy such as `budget.line` and `privateOnly.noSteps` promises "share it later from the recipe", so the item must answer.                            |
+| #   | Decision                                                                                                                                                                                                                   | Why                                                                                                                                                                           |
+| --- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| D1  | The credit is a block of plain lines under the badge row, before the hero photo's rating row. It is not a card.                                                                                                            | R6: the recipe's own facts sit by its name. A card reads as a facts card, which ADR-0093 retires.                                                                             |
+| D2  | The owner never sees "Report a problem" on their own public version. They can edit it or make it private.                                                                                                                  | Same rule as R7 (an owner cannot rate their own recipe).                                                                                                                      |
+| D3  | "Report a problem" opens the existing report page of spec 016 (`RightsReport*` boards), with this recipe as the target. There is no second report form.                                                                    | One report form in the product. A second form with other reasons drifts from the notice route that 016 owns.                                                                  |
+| D4  | The reader menu on a public version labels its report item `publicPage.report` too. Both entry points open the same page.                                                                                                  | One action, one name. "Report this recipe" stays on every other recipe.                                                                                                       |
+| D5  | While hidden, the owner's status row reads "Hidden" (`VIEW_HIDDEN`) with the `eyeOff` glyph in place of "Public" (hiddenViews U5).                                                                                         | "Public" is false while no reader can see the page.                                                                                                                           |
+| D6  | A hidden page shows a reader only the shared not-found sentence "This recipe isn’t available." and the app's own navigation (hiddenViews KTD-7). No title, photo, cook, credit or action. It never says a report happened. | FR-082 hides the version from every public surface. A title or cook name on the hidden page leaks it. One sentence for deleted, private and hidden, so nobody can tell which. |
+| D7  | "Share a public version" replaces "Make public" in the owner menu of a private import. The server's offer decides what pressing it does (spec.md V1).                                                                      | A private import can never itself go public (ADR-0093, its Amends line on ADR-0073, and §1). The menu keeps one visibility item in one place (R12).                           |
+| D8  | When the later route cannot write now, the menu surface swaps its items for the offer's one line and "Done". It never opens a centred dialog.                                                                              | Copy such as `budget.line` and `privateOnly.noSteps` promises "share it later from the recipe", so the item must answer.                                                      |
 
 ---
 
@@ -73,10 +73,10 @@ Under the badge row, same type:
 
 ## 2. C2 Hidden views
 
-| View                  | Who    | What shows                                                                                                                                                                                                                                             |
-| --------------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Hidden after a report | Owner  | The whole recipe, as before. Badge `publicPage.hiddenBadge` "Hidden". Under the title, a `StaticNotice` (glyph `eyeOff`, §2.1) with `publicPage.hiddenOwner` (copy v3). The credit block follows unchanged. Edit, the menu and cooking work as before. |
-| Hidden                | Reader | The `RecipeNotFound*` layout: the app's navigation and back control, then `publicPage.hiddenReader` as the page's H1: "This recipe isn’t available right now." Nothing else. The page is `noindex` and its document title is the app name only.        |
+| View                  | Who    | What shows                                                                                                                                                                                                                                                                                                                                                                                |
+| --------------------- | ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Hidden after a report | Owner  | The whole recipe, as before. The status row reads `VIEW_HIDDEN` "Hidden" with the `eyeOff` glyph. Under the status row, the owner line `VIEW_HIDDEN_AFTER_REPORT.owner` as plain muted text in the page's standing owner slot (`RecipeVisibilityNotice`, hiddenViews U5): no box, no icon, no live region. The credit block follows unchanged. Edit, the menu and cooking work as before. |
+| Hidden                | Reader | The `RecipeNotFound*` layout: the app's navigation and back control, then the shared not-found sentence as the page's H1: "This recipe isn’t available." (hiddenViews KTD-7). Nothing else. The page is `noindex` and its document title is the app name only.                                                                                                                            |
 
 The reader view drops the second line of the not-found board, because that line names the wrong cause. It also drops "Back to My recipes", because a signed-out reader has none. The way out
 is the shell's back control (N8) and navigation, which exist for every role.
@@ -85,14 +85,10 @@ A reader who sent the report and comes back sees this same view (§4.3).
 
 ### 2.1 Design-system additions
 
-The hidden notice is static information above content the owner can still use. No house notice fits: `StateNotice`
-replaces the content, takes no glyph and is `role="alert"`; `LoadingNotice`, `RefreshNotice`, `SyncNotice` and
-`OfflineReadSlot` are all `role="status"` live regions.
+The owner line of a hidden page is not a notice of its own: it is the standing line of the page's owner slot
+(`RecipeVisibilityNotice`), the same slot every other owner line uses (hiddenViews U5). So no `StaticNotice` is added.
 
-- **`StaticNotice`** (new, `packages/apps/commise/ui/src/staticNotice/`, web and native): a `Surface` (tone `muted`,
-  radius 12, padding 12 by 16) holding a decorative `Icon` (20, `inkMuted`) and one line of body small (14) `ink` text.
-  Props: `glyph: IconName`, `children: string`. No role, no live region, never takes focus.
-- **Glyphs** added to `ICON_NAMES` (`icon/props.ts`): `eyeOff` (the hidden notice and badge) and `flag` (the report
+- **Glyphs** added to `ICON_NAMES` (`icon/props.ts`): `eyeOff` (the Hidden status) and `flag` (the report
   link, §1.1). Neither mirrors in RTL.
 
 ---
@@ -179,12 +175,12 @@ The layout reserves the credit block's height on load, so nothing shifts when it
 
 Keys are under `importMessages.choice.*`, as copy v3's `publicPage.*` keys are.
 
-| Key                        | Copy                                                              | Where  |
-| -------------------------- | ----------------------------------------------------------------- | ------ |
-| `publicPage.hiddenBadge`   | "Hidden"                                                          | §2, D5 |
-| `publicPage.reportFailed`  | "We couldn’t send your report. Try again."                        | §4.3   |
-| `publicPage.reportOffline` | "You’re offline. Connect, then send your report."                 | §4.3   |
-| `later.failed`             | "We couldn’t check this recipe right now. Try again in a moment." | §3     |
+| Key                                                | Copy                                                              | Where  |
+| -------------------------------------------------- | ----------------------------------------------------------------- | ------ |
+| `VIEW_HIDDEN` (shipped, `recipeState/messages.ts`) | "Hidden"                                                          | §2, D5 |
+| `publicPage.reportFailed`                          | "We couldn’t send your report. Try again."                        | §4.3   |
+| `publicPage.reportOffline`                         | "You’re offline. Connect, then send your report."                 | §4.3   |
+| `later.failed`                                     | "We couldn’t check this recipe right now. Try again in a moment." | §3     |
 
 Every other string is copy v3, spec.md §7.2, the paste spec, or `recipeLoadMessages`, as cited.
 
@@ -200,7 +196,7 @@ Every other string is copy v3, spec.md §7.2, the paste spec, or `recipeLoadMess
 | Later-route line      | In the same popover, in place of items  | In the same sheet               | In the same sheet. Done full width at the bottom | In the same popover       | kept        | No new surface, no centred dialog (D8)   |
 | Report link           | In the credit block and the reader menu | Same                            | Same                                             | Same                      | kept        |                                          |
 | Report page           | Pushed page, Send in flow               | Pushed page, Send pinned        | Pushed page, Send pinned, full width             | Pushed page, Send in flow | moved       | Reach. The keyboard is open while typing |
-| Hidden notice         | Under the title                         | Same                            | Same                                             | Same                      | kept        |                                          |
+| Hidden owner line     | Under the status row                    | Same                            | Same                                             | Same                      | kept        |                                          |
 
 **Primary action by reach.** The page's primary actions do not change (Start cooking, Edit recipe or Save a copy, R4).
 Report is never a primary. On phones and web below 840, Done in the later-route sheet and Send on the report page sit at
@@ -209,7 +205,7 @@ the bottom, full width. From 840 on web and on iPad they sit in flow.
 **Touch equivalents.** Nothing depends on hover, right-click or drag. The links act on tap, Enter and Space where they
 are buttons. The credit links are in-text links with 24 px of line height.
 
-**320 CSS px.** The credit block wraps, the domain breaks anywhere, and the hidden notice wraps. No element passes the
+**320 CSS px.** The credit block wraps, the domain breaks anywhere, and the hidden owner line wraps. No element passes the
 right edge. The drawing pass renders each 390 board at 320 to confirm.
 
 **Scroll budget.** At 390 by 844, the credit block adds about 120 px below the badge row on a free-site version. The
@@ -227,12 +223,12 @@ R1's pinned bar keeps the ingredients in reach.
   has one H1, the line itself.
 - **Links (2.4.4).** "Report a problem", "See my copy" and "See the public version" are links with their visible text as
   the accessible name (2.5.3). The domain link adds "opens in a new tab" on web.
-- **Status (4.1.3).** The hidden notice is static text, not live. `done.public` and the received page's H1 go through
+- **Status (4.1.3).** The hidden owner line is static text, not live. `done.public` and the received page's H1 go through
   the polite `LiveRegion`. The report error and offline alerts are `role="alert"`, and focus moves to them.
 - **Busy (4.1.2).** Send has `aria-busy="true"` while sending, and its label never changes.
 - **Menu.** The later-route line replaces the menu items in the same surface, and focus moves to the line. Done returns
   focus to the more button.
-- **Not by colour (1.4.1).** The hidden badge and notice carry the `eyeOff` glyph and text.
+- **Not by colour (1.4.1).** The Hidden status carries the `eyeOff` glyph and its word; the owner line is text.
 - **Targets (2.5.8).** Menu rows 44 tall on web and iOS, 48 dp on Android. Done and Send 44 pt or 48 dp.
 - **Contrast (1.4.3).** `inkMuted` body small on `paper` and on `paperRaised`, light and dark: the drawing pass computes
   each pair on the boards and records the ratio.
@@ -283,7 +279,7 @@ Sample values: spec.md S14 (public title "Baked chicken and vegetable pie", cook
 | RecipePublicVersionStates            | Stacked: signed out, paid-site credit (no line 2), loading, offline cached, +35% credit      | Web1280, Web390 | Iphone390                      |
 | RecipePublicVersionOwner             | Owner, Both path, Checking badge, "See my copy", no Report                                   | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePublicVersionHidden            | Owner: hidden after a report                                                                 | Web1280, Web390 | Iphone390, Ipad820             |
-| RecipePublicVersionHiddenReader      | Reader view of a hidden version                                                              | Web1280, Web390 | Iphone390                      |
+| RecipePublicVersionHiddenReader      | Retired (hiddenViews U7): a reader of a hidden recipe gets RecipeNotFound                    | none            | none                           |
 | RecipePrivateImportMenu              | Private copy with rightsLabel and authorLabel, owner menu open with "Share a public version" | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePrivateImportShareLine         | Stacked: loading, privateOnly paidRecent, budget, publicExists published, writing            | Web1280, Web390 | Iphone390, Ipad820             |
 | RecipePublicVersionReaderMenu        | Reader menu open on a public version, item "Report a problem"                                | Web1280, Web390 | Iphone390                      |

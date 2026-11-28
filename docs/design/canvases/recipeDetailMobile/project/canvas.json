@@ -927,13 +927,6 @@
       "h": 844,
       "title": "Recipe detail, public version, hidden after a report (owner) (mobile, iPhone 390)"
     },
-    "RecipePublicVersionHiddenReaderIphone390.dc.html": {
-      "x": 1880,
-      "y": 24255,
-      "w": 390,
-      "h": 1046,
-      "title": "Recipe detail, public version, hidden (reader) (mobile, iPhone 390)"
-    },
     "RecipePrivateImportMenuIphone390.dc.html": {
       "x": 2350,
       "y": 24255,
@@ -1116,20 +1109,6 @@
       "h": 3338,
       "title": "Recipe detail, why it stays private (mobile, iPad 820)"
     },
-    "RecipeDetailTooCloseAfterReviewIphone390.dc.html": {
-      "x": 0,
-      "y": 44775,
-      "w": 390,
-      "h": 4145,
-      "title": "Recipe detail, made private after a check, steps too close (mobile, iPhone 390)"
-    },
-    "RecipeDetailSourceHoldAfterCheckIphone390.dc.html": {
-      "x": 470,
-      "y": 44775,
-      "w": 390,
-      "h": 3982,
-      "title": "Recipe detail, made private after a check, source hold (mobile, iPhone 390)"
-    },
     "RecipeDetailSourceIphone390.dc.html": {
       "x": 940,
       "y": 44775,
@@ -1143,20 +1122,6 @@
       "w": 390,
       "h": 844,
       "title": "Recipe detail, written by Commise, signed-out report (mobile, iPhone 390)"
-    },
-    "RecipeDetailTooCloseAfterReviewAndroid384.dc.html": {
-      "x": 0,
-      "y": 49420,
-      "w": 384,
-      "h": 4112,
-      "title": "Recipe detail, made private after a check, steps too close (mobile, Android 384)"
-    },
-    "RecipeDetailSourceHoldAfterCheckAndroid384.dc.html": {
-      "x": 464,
-      "y": 49420,
-      "w": 384,
-      "h": 3949,
-      "title": "Recipe detail, made private after a check, source hold (mobile, Android 384)"
     },
     "RecipeDetailSourceAndroid384.dc.html": {
       "x": 928,
@@ -1192,6 +1157,34 @@
       "w": 390,
       "h": 1856,
       "title": "Recipe detail, refused save and Save and hide at the largest text (mobile, iPhone 390)"
+    },
+    "RecipeDetailHiddenIphone390.dc.html": {
+      "x": 0,
+      "y": 56448,
+      "w": 390,
+      "h": 3732,
+      "title": "Recipe detail, hidden from readers (owner) (mobile, iPhone 390)"
+    },
+    "RecipeDetailHiddenLinesIphone390.dc.html": {
+      "x": 470,
+      "y": 56448,
+      "w": 390,
+      "h": 1160,
+      "title": "Recipe detail, hidden: the owner line per reason (mobile, iPhone 390)"
+    },
+    "RecipeDetailHiddenAndroid384.dc.html": {
+      "x": 940,
+      "y": 56448,
+      "w": 384,
+      "h": 3699,
+      "title": "Recipe detail, hidden from readers (owner) (mobile, Android 384)"
+    },
+    "RecipeDetailHiddenIpad820.dc.html": {
+      "x": 1404,
+      "y": 56448,
+      "w": 820,
+      "h": 2018,
+      "title": "Recipe detail, hidden from readers (owner) (mobile, iPad 820)"
     }
   },
   "order": [
@@ -1326,7 +1319,6 @@
     "RecipePublicVersionOwnerIphone390.dc.html",
     "RecipePublicVersionStatesIphone390.dc.html",
     "RecipePublicVersionHiddenIphone390.dc.html",
-    "RecipePublicVersionHiddenReaderIphone390.dc.html",
     "RecipePrivateImportMenuIphone390.dc.html",
     "RecipePrivateImportShareLineIphone390.dc.html",
     "RecipePublicVersionReaderMenuIphone390.dc.html",
@@ -1353,17 +1345,17 @@
     "RecipeRefusalNoticeIphone390.dc.html",
     "RecipeRefusalNoticeAndroid384.dc.html",
     "RecipeRefusalNoticeIpad820.dc.html",
-    "RecipeDetailTooCloseAfterReviewIphone390.dc.html",
-    "RecipeDetailSourceHoldAfterCheckIphone390.dc.html",
     "RecipeDetailSourceIphone390.dc.html",
     "RecipePublicVersionReportSignInIphone390.dc.html",
-    "RecipeDetailTooCloseAfterReviewAndroid384.dc.html",
-    "RecipeDetailSourceHoldAfterCheckAndroid384.dc.html",
     "RecipeDetailSourceAndroid384.dc.html",
     "RecipePublicVersionReportSignInAndroid384.dc.html",
     "RecipeHeldSaveDetailIphone390.dc.html",
     "RecipeHeldSaveDetailIpad820.dc.html",
-    "RecipeHeldSaveDetailLargeTextIphone390.dc.html"
+    "RecipeHeldSaveDetailLargeTextIphone390.dc.html",
+    "RecipeDetailHiddenIphone390.dc.html",
+    "RecipeDetailHiddenLinesIphone390.dc.html",
+    "RecipeDetailHiddenAndroid384.dc.html",
+    "RecipeDetailHiddenIpad820.dc.html"
   ],
   "notes": {
     "row0": {
@@ -1433,6 +1425,13 @@
       "x": 0,
       "y": 49160,
       "text": "Recipe detail, state boxes and the Written by Commise report sheet: mobile, Android 384",
+      "kind": "title1",
+      "maxW": 2400
+    },
+    "rowHiddenrecipeDetailMobile": {
+      "x": 0,
+      "y": 56188,
+      "text": "Recipe detail, hidden from readers (hiddenViews): mobile",
       "kind": "title1",
       "maxW": 2400
     }

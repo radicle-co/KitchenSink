@@ -26,6 +26,7 @@
  * @pattern Compound Component — a Root carrying the view in context, and parts each surface arranges
  * @pattern Registry — the variant's default arrangement, keyed by the closed variant union
  */
+import { Elevated } from '@commise/ui/elevation';
 import { nativeTokens } from '@commise/ui/native';
 import { Icon } from '@commise/ui/icon';
 import { PressScale } from '@commise/ui/press-scale';
@@ -354,9 +355,12 @@ const CardSurface: FC<{ readonly children: ReactNode }> = ({ children }) => {
     const { colors } = useTheme();
 
     return (
-        <View style={[styles.shell, { backgroundColor: colors.paper, borderColor: colors.lineDivider }]}>
+        <Elevated
+            level="sm"
+            style={{ ...styles.shell, backgroundColor: colors.paper, borderColor: colors.lineDivider }}
+        >
             <View style={styles.clip}>{children}</View>
-        </View>
+        </Elevated>
     );
 };
 
@@ -430,7 +434,6 @@ const styles = StyleSheet.create({
         flexGrow: 1,
         borderRadius: nativeTokens.radius.md,
         borderWidth: StyleSheet.hairlineWidth,
-        ...nativeTokens.elevation.sm,
     },
     clip: { flexGrow: 1, borderRadius: nativeTokens.radius.md, overflow: 'hidden' },
     cover: { position: 'relative', width: '100%' },

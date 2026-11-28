@@ -880,20 +880,33 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
 
     const row = rowAnswerRidesWrite(writeInput) ? stated.row : undefined;
 
-    void ctx.opts.port.submitExclusive(intent).then(
-        (outcome) => {
-            recordSubmit(ctx, outcome, {
-                trigger,
-                kind,
-                sent: draft,
-                finishing,
-                ...(row === undefined ? {} : { row }),
-            });
-        },
-        () => {
-            ctx.setMemento('failed');
-        },
-    );
+    void sendWrite(ctx, intent, {
+        trigger,
+        kind,
+        sent: draft,
+        finishing,
+        ...(row === undefined ? {} : { row }),
+    });
+}
+
+/**
+ * Sends the write and records its outcome. Only the send sits in the `try`: a failed send is the `failed` memento, and an
+ * error thrown while recording the outcome is not swallowed.
+ *
+ * @sideEffect Submits to the outbox and moves the lane.
+ */
+async function sendWrite(ctx: EditorContext, intent: Intent, sent: Parameters<typeof recordSubmit>[2]): Promise<void> {
+    let outcome: Awaited<ReturnType<EditorContext['opts']['port']['submitExclusive']>>;
+
+    try {
+        outcome = await ctx.opts.port.submitExclusive(intent);
+    } catch {
+        ctx.setMemento('failed');
+
+        return;
+    }
+
+    recordSubmit(ctx, outcome, sent);
 }
 
 /** The visibility step failed: no Publish is sent, the failure is reported, and Try again re-runs the finish. @sideEffect */
@@ -1165,16 +1178,20 @@ async function rereadAfterLockRefusal(ctx: EditorContext): Promise<void> {
         const { id } = server.recipe;
         const { baseVersion } = server;
 
-        try {
-            const detail = await ctx.opts.rereadRecipe(id);
-            const now = ctx.core.get().server;
-            const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion && detail.id === id;
+        let detail: RecipeDetail | undefined;
 
-            if (unchanged && detail.currentVersion === baseVersion) {
-                adoptServerFacts(ctx, detail, undefined);
-            }
-        } catch {
-            // A failed read changes nothing: the cook's other edits still go out below, and the notice stays.
+        try {
+            detail = await ctx.opts.rereadRecipe(id);
+        } catch (error) {
+            // A failed read changes nothing: the cook's other edits still go out below, and the notice stays. It is reported.
+            ctx.opts.reportError(error, { operation: 'recipeSourceReread' });
+        }
+
+        const now = ctx.core.get().server;
+        const unchanged = now.kind === 'stored' && now.baseVersion === baseVersion;
+
+        if (detail?.id === id && unchanged && detail.currentVersion === baseVersion) {
+            adoptServerFacts(ctx, detail, undefined);
         }
     }
 

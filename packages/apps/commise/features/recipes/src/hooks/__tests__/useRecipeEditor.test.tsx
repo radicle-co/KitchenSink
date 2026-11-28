@@ -4831,11 +4831,15 @@ describe("the Source row's own sheet (ADR-0100)", () => {
 
         it('⛔ a failed read adopts nothing and keeps the notice, and the cook’s edits still go (one write, the title, no statement)', async () => {
             const view = mount({ recipe: stored });
-            view.rereadRecipe.mockRejectedValue(new Error('offline'));
+            const offline = new Error('offline');
+            view.rereadRecipe.mockRejectedValue(offline);
 
             typeTitle(view.result, 'Renamed soup');
             const sentBefore = await refuseAnswer(view);
             const resent = view.port.submitted.slice(sentBefore);
+
+            // A failed read is reported, not swallowed: a miswired read port must reach error reporting.
+            expect(view.reportError).toHaveBeenCalledWith(offline, { operation: 'recipeSourceReread' });
 
             expect(resent).toHaveLength(1);
             expect(resent[0]).toMatchObject({ payload: { input: { title: 'Renamed soup' } } });

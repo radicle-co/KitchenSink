@@ -485,7 +485,13 @@ def build(canvas: str, host_name: str, size: str, content: str) -> str:
     return fill(host, r'<div class="p3(?: wide)?">', content)
 
 
-def redraw_p3() -> None:
+def resize(s: str, height: int) -> str:
+    """A board drawn taller by P8's copy: its preview height and its device's minimum height follow the render."""
+    s = re.sub(r'("\$preview":\s?\{"width":\s?\d+,\s?"height":\s?)\d+', lambda m: f"{m[1]}{height}", s)
+    return re.sub(r'(class="nv-device[^"]*" style="width: \d+px; )min-height: \d+px', rf"\1min-height: {height}px", s, count=1)
+
+
+def redraw_p3(heights: dict[str, int]) -> None:
     """P8's copy on the P3 boards: the new locked line with the help link, and lockNote under web, book and person."""
     for size in SIZES:
         for canvas, name in (
@@ -505,6 +511,12 @@ def redraw_p3() -> None:
             s = s.replace(hint, f"Stays private to you. {M['lockNote']}</span>")
             if n:
                 s = s.replace("</style>", P8_CSS + "</style>", 1)
+            if name in heights:
+                s = resize(s, heights[name])
+                cj = ROOT / canvas / "project" / "canvas.json"
+                d = json.loads(cj.read_text())
+                d["boards"][f"{name}.dc.html"]["h"] = heights[name]
+                cj.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
             path.write_text(s)
 
 
@@ -555,7 +567,7 @@ def main() -> None:
                     d["order"].append(key)
                 x += w + 80
             cj.write_text(json.dumps(d, indent=2, ensure_ascii=False) + "\n")
-    redraw_p3()
+    redraw_p3(heights)
 
 
 if __name__ == "__main__":

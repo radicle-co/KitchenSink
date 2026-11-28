@@ -1484,21 +1484,21 @@
       "x": 0,
       "y": 16441,
       "w": 390,
-      "h": 3752,
+      "h": 4080,
       "title": "Recipe editor, where it’s from: a paid website (mobile, iPhone 390)"
     },
     "RecipeEditorStatementPaidSiteAndroid384.dc.html": {
       "x": 470,
       "y": 16441,
       "w": 384,
-      "h": 3739,
+      "h": 4127,
       "title": "Recipe editor, where it’s from: a paid website (mobile, Android 384)"
     },
     "RecipeEditorStatementPaidSiteIpad820.dc.html": {
       "x": 934,
       "y": 16441,
       "w": 820,
-      "h": 3564,
+      "h": 3832,
       "title": "Recipe editor, where it’s from: a paid website (mobile, iPad 820)"
     },
     "RecipeEditorRefusalNoticeIphone390.dc.html": {

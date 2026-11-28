@@ -22,23 +22,17 @@ import {
     makeRecipeStepRow,
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
-import {
-    RECIPES_DAL,
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 import type { RecipeStatus } from '@kitchensink/recipe-core';
 
@@ -64,7 +58,7 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: { readonly status: RecipeStatus; readonly cuisine?: string }) => {
+const create = vi.fn((input: { readonly status?: RecipeStatus; readonly cuisine?: string }) => {
     stored = makeRecipeRow({
         id: RECIPE_ID,
         ownerId: COOK,
@@ -73,7 +67,7 @@ const create = vi.fn(async (input: { readonly status: RecipeStatus; readonly cui
         firstPublishedAt: input.status === 'published' ? AT : null,
     });
 
-    return aggregateOf(stored);
+    return Promise.resolve(aggregateOf(stored));
 });
 const update = vi.fn(
     async (
@@ -130,44 +124,24 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    update,
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
-                    // ADR-0029 section 4: the database holds no private food in these suites.
-                    privateFoodLines: async () => [],
-                    // A write that leaves the recipe published judges it under the row lock (0087): the stored row, unchanged.
-                    lockSlotFacts: async () => ({
-                        visibility: stored.visibility,
-                        status: stored.status,
-                        sourceType: stored.sourceType,
-                        sourceKind: stored.sourceKind,
-                        sourceAttribution: stored.sourceAttribution,
-                        clonedFromId: stored.clonedFromId,
-                        sourceUrl: stored.sourceUrl,
-                        sourceConfirmedAt: stored.sourceConfirmedAt,
-                        sourceCorrectionHold: stored.sourceCorrectionHold,
-                        statementKind: stored.statementKind,
-                        contentPastedAt: stored.contentPastedAt,
-                    }),
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                },
-            },
+            recipesDalDouble({
+                create,
+                update,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
+                // ADR-0029 section 4: the database holds no private food in these suites.
+                privateFoodLines: () => Promise.resolve([]),
+                // A write that leaves the recipe published judges it under the row lock (0087): the stored row,
+                // unchanged.
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                transaction: (work) => work(FAKE_TX),
+            }),
             {
                 provide: VERSIONS_DAL,
                 useValue: {
                     createSnapshot: vi.fn(async () => ({ id: 'v', snapshot: {}, createdAt: AT })),
                     findVersionsBeyondRetention: async () => [],
                 },
-            },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
             },
             {
                 provide: FoodLookupsDal,
@@ -176,9 +150,6 @@ beforeAll(async () => {
                         new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : []),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            // The byline read model (plan 2026-10-15-010 D8): a cook it has never seen, so writes use the claims.
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

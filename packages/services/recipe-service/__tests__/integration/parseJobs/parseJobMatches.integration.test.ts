@@ -18,7 +18,6 @@ import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import {
     inMemoryParseJobMatches,
@@ -28,7 +27,6 @@ import {
 } from '../../../src/recipes/__fixtures__/parseJobMatches.fixture.js';
 import { PARSE_JOB_MATCHES_DAL } from '../../../src/recipes/matchProposal.service.js';
 import { PARSE_JOBS_DAL } from '../../../src/recipes/parseJobs.service.js';
-import { RECIPE_LINE_VERIFICATIONS_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { VERIFICATION_QUEUE } from '../../../src/recipes/verification.queue.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
@@ -105,14 +103,9 @@ beforeAll(async () => {
                 },
             },
             {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
-            },
-            {
                 provide: ResolutionMappingsDal,
                 useValue: { findInForce: async () => undefined, findMemo: async () => undefined },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

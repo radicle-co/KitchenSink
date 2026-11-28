@@ -14,7 +14,6 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest
 
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
@@ -70,10 +69,7 @@ beforeAll(async () => {
     food = await startFoodFake();
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
-        doubles: [
-            { provide: CollectionsDal, useValue: { createIfUnderCap } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-        ],
+        doubles: [{ provide: CollectionsDal, useValue: { createIfUnderCap } }],
     });
 });
 

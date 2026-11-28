@@ -23,8 +23,6 @@ import {
     makeRecipeStepRow,
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import type {
     NewRecipeSourceEvidenceRow,
@@ -35,16 +33,12 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import type { RecipeAggregate, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { RecipeStatementAttestationsDal } from '../../../src/recipes/dal/recipeStatementAttestations.dal.js';
-import {
-    RECIPES_DAL,
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JATTESTATIONCOOK000001';
@@ -58,7 +52,7 @@ const BASIL: FoodLookupArm = {
     createdAt: AT,
 };
 const LINK = 'https://www.allrecipes.com/recipe/1/soup/';
-const TX = { __tx: true };
+const TX = FAKE_TX;
 
 const CONFIRM = PUBLIC_CONFIRMATION_AS_SHOWN;
 const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
@@ -223,45 +217,26 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    update: async (id: string, patch: UpdateRecipeInput, tx?: unknown) =>
-                        writeFindsNoRow ? undefined : update(id, patch, tx),
-                    findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),
-                    privateFoodLines: async () => [],
-                    lockAndCountPrivateSlots: async () => 0,
-                    lockSlotFacts: async () => {
-                        const row = underLock ?? stored;
-
-                        return {
-                            visibility: row.visibility,
-                            status: row.status,
-                            sourceType: row.sourceType,
-                            sourceKind: row.sourceKind,
-                            sourceUrl: row.sourceUrl,
-                            sourceConfirmedAt: row.sourceConfirmedAt,
-                            sourceCorrectionHold: row.sourceCorrectionHold,
-                            statementKind: row.statementKind,
-                            contentPastedAt: row.contentPastedAt,
-                            firstPublishedAt: row.firstPublishedAt,
-                            clonedFromId: row.clonedFromId,
-                            sourceAttribution: row.sourceAttribution,
-                        };
-                    },
-                    setVisibility: async (
-                        id: string,
-                        visibility: RecipeVisibility,
-                        tx?: unknown,
-                        provenance?: UpdateRecipeInput['provenance'],
-                    ) => (writeFindsNoRow ? undefined : setVisibility(id, visibility, tx, provenance)),
-                    clearPublicFoodOwners: async () => undefined,
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work(TX),
-                    findNutritionInputs: async () => [],
-                    readConflict: async () => ({ current: aggregateOf(stored) }),
-                },
-            },
+            recipesDalDouble({
+                create,
+                update: async (id: string, patch: UpdateRecipeInput, tx?: unknown) =>
+                    writeFindsNoRow ? undefined : update(id, patch, tx),
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(underLock ?? stored)),
+                setVisibility: async (
+                    id: string,
+                    visibility: RecipeVisibility,
+                    tx?: unknown,
+                    provenance?: UpdateRecipeInput['provenance'],
+                ) => (writeFindsNoRow ? undefined : setVisibility(id, visibility, tx, provenance)),
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                transaction: (work) => work(TX),
+                findNutritionInputs: () => Promise.resolve([]),
+                readConflict: () => Promise.resolve({ current: aggregateOf(stored) }),
+            }),
             { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson, hasWordedAttestation } },
             {
                 provide: RecipeSourceEvidenceDal,
@@ -277,13 +252,6 @@ beforeAll(async () => {
                     findVersionsBeyondRetention: async () => [],
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
-            },
             {
                 provide: FoodLookupsDal,
                 useValue: {
@@ -291,8 +259,6 @@ beforeAll(async () => {
                         new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : []),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
         ],
     });
 });

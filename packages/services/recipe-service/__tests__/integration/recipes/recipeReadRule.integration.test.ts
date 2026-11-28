@@ -15,20 +15,13 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
 import { recipeApiErrorSchema } from '../../../src/common/apiError.schema.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { Principal } from '../../../src/auth/principal.js';
 import type { ReadableRecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
-import {
-    RECIPES_DAL,
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor } from '../../../tests/support/foodFake.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const OWNER = '01JREADRULEOWNER0000000001';
@@ -64,29 +57,15 @@ function get(id: string, as: string): Promise<Response> {
 beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    findById: (id: string) => Promise.resolve(stored.get(id)),
-                    findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
-                    privateFoodLines: () => Promise.resolve([]),
-                },
-            },
+            recipesDalDouble({
+                findById: (id: string) => Promise.resolve(stored.get(id)),
+                findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
+                privateFoodLines: () => Promise.resolve([]),
+            }),
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: { insert: () => Promise.resolve(undefined), list: () => Promise.resolve([]) },
             },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: {
-                    findBandsByKeys: () => Promise.resolve(new Map()),
-                    findExistingKeys: () => Promise.resolve(new Set()),
-                },
-            },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
-            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });

@@ -385,8 +385,8 @@ describe('eraseRecipeRows (CR-002 / U3 — SCOPED, owner-only erasure)', () => {
         const flip = control.statements().find((s) => /update recipes set visibility/i.test(s.text));
 
         // The database's own evidence rule (migration 0086), not a copy of it: the same shape as `recipe_holds_private_food`.
-        // Rewritten for ADR-0105 (qse TEST-CHANGE): the evidence rule and the correction hold (migration 0092, whose CHECK would
-        // refuse the flip and roll the erasure back) are two terms of `recipe_held_from_readers`, which the flip calls.
+        // Rewritten for ADR-0105 (qse TEST-CHANGE): the evidence rule and the correction hold (migration 0092; its CHECK was dropped
+        // in 0099) are two terms of `recipe_held_from_readers`, which the flip calls.
         expect(flip?.text).toBe(FLIP_TEXT);
         expect(flip?.text).not.toMatch(/recipe_holds_third_party_source|source_correction_hold/i);
         // …and it adds no parameter: the election, the owner and the private-only keys are still the whole list.

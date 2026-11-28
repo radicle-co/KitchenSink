@@ -40,6 +40,7 @@ import {
     type RecipeSourceKind,
 } from '@kitchensink/recipe-core';
 
+import type { HeldSave } from '../recipes.schema.js';
 import { evaluateContainment, isContained, type ContainmentSubject } from '../../common/containmentPolicy.js';
 
 /** The complete input to a C-004 visibility decision. */
@@ -255,9 +256,9 @@ export function evaluatePublishedState(
         readonly statementRequired: boolean;
     },
 ): VisibilityDecision {
-    // ⛔ The one refusal that does not wait for a published recipe: the database refuses a held recipe that is public whatever its
-    // status (`recipes_held_is_not_public`, migration 0092), so a PUBLIC DRAFT of one is answered here, as a typed refusal, and
-    // never reaches the CHECK as a 500. Containment is asked first, as everywhere.
+    // ⛔ The one refusal that does not wait for a published recipe: a PUBLIC DRAFT of a held recipe is answered here, as a typed
+    // refusal. The database no longer refuses it (migration 0099 dropped the CHECK; the read rule hides a held recipe, ADR-0105),
+    // so this stays until P8h (the writer flip) and P10 (the save sheet) replace it. Containment is asked first, as everywhere.
     if (
         input.sourceCorrected &&
         input.visibility === RecipeVisibility.PUBLIC &&
@@ -315,6 +316,29 @@ export function evaluateVisibility(input: VisibilityPolicyInput): VisibilityDeci
                 ? allow('A free-tier user may keep an imported physical-book or paid recipe private in a free slot.')
                 : denyNoSlot('All of your private slots are in use.');
     }
+}
+
+/**
+ * Whether a save that carries `heldSave` makes the recipe private in the same write (heldPublicSave KTD-8, redteam R3): the cook
+ * chose `'private'` for a recipe that is published and public before the write and published after it. Held or not: a hold can
+ * clear between an offline choice and the drain, and set-visibility's public-to-private is allowed for any owned recipe. Every
+ * other state answers as if the field were absent (a draft, a private recipe, a write that returns it to a draft, `'hide'`,
+ * which waits for the hide change set). The facts are the STORED ones, read under the row lock. Pure.
+ *
+ * ⛔ A move to private takes a slot: the caller asserts it exactly as it does for a statement that forces private.
+ */
+export function savesPrivateOnChoice(input: {
+    readonly heldSave: HeldSave | undefined;
+    readonly status: RecipeStatus;
+    readonly visibility: RecipeVisibility;
+    readonly afterStatus: RecipeStatus;
+}): boolean {
+    return (
+        input.heldSave === 'private' &&
+        input.status === RecipeStatus.PUBLISHED &&
+        input.visibility === RecipeVisibility.PUBLIC &&
+        input.afterStatus === RecipeStatus.PUBLISHED
+    );
 }
 
 /**

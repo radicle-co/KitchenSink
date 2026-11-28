@@ -21,8 +21,8 @@
             "reason": "the import tables definition: an import item has its own visibility"
         },
         "packages/services/recipe-service/src/database/schema/recipes.ts#<top>": {
-            "count": 3,
-            "reason": "the recipes table definition: its CHECK constraints"
+            "count": 2,
+            "reason": "the recipes table definition: the recipes_visibility_check CHECK and the partial-index WHERE"
         },
         "packages/services/recipe-service/src/ingredients/foodCatalog.gateway.ts#toCatalogHit": {
             "count": 1,
@@ -71,6 +71,10 @@
         "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#evaluatePublishedState": {
             "count": 2,
             "reason": "write policy: which visibility a recipe may hold"
+        },
+        "packages/services/recipe-service/src/recipes/domain/visibilityPolicy.ts#savesPrivateOnChoice": {
+            "count": 1,
+            "reason": "write policy: whether the cook's heldSave makes the recipe private in the same write"
         },
         "packages/services/recipe-service/src/recipes/recipes.service.ts#RecipesService.assertNoPrivateFoodLinesIn": {
             "count": 1,

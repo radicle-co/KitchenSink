@@ -96,17 +96,6 @@ export const PLANNED: readonly PlannedTransition[] = [
     {
         axis: 'lifecycleAudience',
         axisLabel: 'lifecycle × audience',
-        eventId: 'SAVE_AS_PRIVATE',
-        from: 'PPu, readable, refused as above',
-        event: '`SAVE_AS_PRIVATE`',
-        actor: 'cook',
-        guard: 'a private slot is free',
-        to: 'PPr, saved',
-        pending: 'P10',
-    },
-    {
-        axis: 'lifecycleAudience',
-        axisLabel: 'lifecycle × audience',
         eventId: 'SAVE_AND_HIDE',
         from: 'PPu, readable, refused as above',
         event: '`SAVE_AND_HIDE`',

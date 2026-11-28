@@ -13,7 +13,7 @@
   the last Consequences bullet's "It makes a recipe private and held". The rest stands.
 - **Supersedes:** [ADR-0103](0103-the-recipe-state-model-is-code-and-staff-can-clear-the-correction-hold.md) Decision 2,
   three bullets: "It lifts the hold only. It never makes a recipe public. The recipe stays private…", "The CHECK
-  `recipes_held_is_not_public` does not change", and "Every released recipe stays private". Also the words "a
+  `recipes_held_is_not_public` does not change", and "Every released recipe stays private". Also Decision 3's words "forces a recipe private by a CHECK". Also the words "a
   staff-only, audited edge" in that decision's first sentence, and the "staff actor" in the bullet "The record": a system
   clear for an earned rewrite writes a clear record too. Also the Consequences bullet "one audited exit … needs the
   scope", which now describes the staff clear only. The rest stands.
@@ -74,8 +74,8 @@ every other hold.
    fact (Decision 5), which also lifts a correction hold when the corrected answer is third-party (a
    book, a paid site or a web page). The ratchet keeps false to true. PR 5 gives it one guarded true-to-false path, which
    needs a clear record in the same transaction, either a staff clear or a system clear for the earned rewrite. The
-   writers stop setting `private` (Decision 1) in the change that drops the CHECK, and that change waits for the
-   function to be deployed (the schema deploys first).
+   writers stop setting `private` (Decision 1) in P8h, a later change; dropping the CHECK waits for the function to be
+   deployed (the schema deploys first).
 5. **An edit that cannot stay public.** When a cook edits a recipe that readers can see, and the new content cannot
    stay public (a recorded source holds it, its wording is too close, or it was not approved), the save is refused and
    the edit stays on the device. The same sheet opens for a recipe that is already hidden: it is refused while a

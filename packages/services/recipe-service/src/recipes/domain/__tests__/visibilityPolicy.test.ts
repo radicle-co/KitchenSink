@@ -17,6 +17,7 @@ import {
     defaultCloneVisibility,
     evaluatePublishedState,
     evaluateVisibility,
+    savesPrivateOnChoice,
     type VisibilityDecision,
 } from '../visibilityPolicy.js';
 import type { ContainmentSubject } from '../../../common/containmentPolicy.js';
@@ -632,7 +633,7 @@ describe('evaluatePublishedState — the order of refusals', () => {
         'a DRAFT (public or private) with %j is never refused, except a PUBLIC draft held by a staff correction',
         (...present) => {
             // Only its owner can read a draft, so no refusal applies, with ONE exception: the database refuses a held recipe
-            // that is public whatever its status (`recipes_held_is_not_public`), so the policy answers it first (a typed 400, not a 500).
+            // that is public whatever its status, so the policy answers it first (a typed 400).
             expectDecision(leave(RecipeStatus.DRAFT, PUBLIC, present), !present.includes('sourceCorrected'));
             expectDecision(leave(RecipeStatus.DRAFT, PRIVATE, present), true);
         },
@@ -787,5 +788,33 @@ describe('evaluatePublishedState — a held published public recipe is refused t
 
     it('CONTROL: the same state with no evidence on record is allowed', () => {
         expectDecision(held({ sourceConflict: false }), true);
+    });
+});
+
+/**
+ * heldPublicSave U8: `heldSave: 'private'` is the cook's own choice, honoured for an owned published public recipe, held or
+ * not (KTD-8, redteam R3). Every other state answers as if the field were absent: a draft, a private recipe, a write that
+ * leaves the recipe a draft, `'hide'` (not honoured before U6), and no field at all.
+ */
+describe('savesPrivateOnChoice', () => {
+    const base = {
+        heldSave: 'private' as const,
+        status: RecipeStatus.PUBLISHED,
+        visibility: PUBLIC,
+        afterStatus: RecipeStatus.PUBLISHED,
+    };
+
+    it('is true for a published public recipe the write leaves published', () => {
+        expect(savesPrivateOnChoice(base)).toBe(true);
+    });
+
+    it.each([
+        ['a draft', { status: RecipeStatus.DRAFT }],
+        ['a private recipe', { visibility: PRIVATE }],
+        ['a write that leaves it a draft', { afterStatus: RecipeStatus.DRAFT }],
+        ['hide, which is not honoured before U6', { heldSave: 'hide' as const }],
+        ['no field', { heldSave: undefined }],
+    ])('is false for %s', (_label, over) => {
+        expect(savesPrivateOnChoice({ ...base, ...over })).toBe(false);
     });
 });

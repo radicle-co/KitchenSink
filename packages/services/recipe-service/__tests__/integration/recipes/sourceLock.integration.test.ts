@@ -18,24 +18,22 @@ import {
     makeRecipeStepRow,
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import type { RecipeAggregate, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
+import type {
+    ReadableRecipeAggregate,
+    RecipeAggregate,
+    UpdateRecipeInput,
+} from '../../../src/recipes/dal/recipes.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { RecipeStatementAttestationsDal } from '../../../src/recipes/dal/recipeStatementAttestations.dal.js';
-import {
-    RECIPES_DAL,
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { FAKE_TX, readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
+import { lockedFactsOf } from '../../../src/recipes/__fixtures__/lockedRecipeFacts.fixture.js';
+import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JSOURCELOCKCOOK000001';
@@ -48,7 +46,7 @@ const BASIL: FoodLookupArm = {
     foodOwnerId: null,
     createdAt: AT,
 };
-const TX = { __tx: true };
+const TX = FAKE_TX;
 
 const AUTHORED = { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } } as const;
 
@@ -97,14 +95,14 @@ let food: FoodFake;
 let booted: BootedServiceApp;
 
 /** The stored recipe as the DAL returns it, with the statement kind the test set aside for the read before the lock. */
-function readStored(id: string): Promise<ReturnType<typeof aggregateOf> | undefined> {
+function readStored(id: string): Promise<ReadableRecipeAggregate | undefined> {
     if (id !== RECIPE_ID) {
         return Promise.resolve(undefined);
     }
 
     const row = preLockStatementKind === undefined ? stored : { ...stored, statementKind: preLockStatementKind };
 
-    return Promise.resolve(aggregateOf(row));
+    return Promise.resolve(readableAggregateOf(aggregateOf(row)));
 }
 
 async function call(method: string, path: string, body: unknown): Promise<Response> {
@@ -130,33 +128,17 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            {
-                provide: RECIPES_DAL,
-                useValue: {
-                    create,
-                    update,
-                    findById: readStored,
-                    privateFoodLines: () => Promise.resolve([]),
-                    lockAndCountPrivateSlots: () => Promise.resolve(heldSlots),
-                    lockSlotFacts: () =>
-                        Promise.resolve({
-                            visibility: stored.visibility,
-                            status: stored.status,
-                            sourceType: stored.sourceType,
-                            sourceKind: stored.sourceKind,
-                            sourceUrl: stored.sourceUrl,
-                            sourceConfirmedAt: stored.sourceConfirmedAt,
-                            sourceCorrectionHold: stored.sourceCorrectionHold,
-                            statementKind: stored.statementKind,
-                            contentPastedAt: stored.contentPastedAt,
-                            clonedFromId: stored.clonedFromId,
-                            sourceAttribution: stored.sourceAttribution,
-                        }),
-                    setVisibility,
-                    clearPublicFoodOwners: () => Promise.resolve(undefined),
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work(TX),
-                },
-            },
+            recipesDalDouble({
+                create,
+                update,
+                findById: readStored,
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(heldSlots),
+                lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
+                setVisibility,
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                transaction: (work) => work(TX),
+            }),
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
             {
                 provide: RecipeStatementAttestationsDal,
@@ -169,16 +151,6 @@ beforeAll(async () => {
                     findVersionsBeyondRetention: () => Promise.resolve([]),
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: () => Promise.resolve(undefined) } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: () => Promise.resolve([]) } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: () => Promise.resolve(undefined) } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: {
-                    findBandsByKeys: () => Promise.resolve(new Map()),
-                    findExistingKeys: () => Promise.resolve(new Set()),
-                },
-            },
             {
                 provide: FoodLookupsDal,
                 useValue: {
@@ -186,8 +158,6 @@ beforeAll(async () => {
                         Promise.resolve(new Map(ids.includes(BASIL.lookupId) ? [[BASIL.lookupId, BASIL]] : [])),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: () => Promise.resolve(undefined) } },
-            { provide: AuthorHandlesDal, useValue: { findByline: () => Promise.resolve(undefined) } },
         ],
     });
 });

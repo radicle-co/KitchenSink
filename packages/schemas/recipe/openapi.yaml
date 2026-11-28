@@ -7053,6 +7053,11 @@ components:
                 - kind
                 - wording
               additionalProperties: false
+        heldSave:
+          type: string
+          enum:
+            - private
+            - hide
         contentPasted:
           type: boolean
           enum:

@@ -13,5 +13,5 @@ export {
     type PopupInsetsRegistry,
     type PopupInsetsWatch,
 } from './popupInsetsRegistry.js';
-export { useResizeWatch } from './useResizeWatch.js';
+export { resizeWatchOf, useResizeWatch } from './useResizeWatch.js';
 export { useResizeWatchAll } from './useResizeWatchAll.js';

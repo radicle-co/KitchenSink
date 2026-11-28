@@ -15,6 +15,7 @@ import { useEffect, type FC } from 'react';
 
 import { COOKING_DONE_TITLE_ID, CookingDone } from './CookingDone.js';
 import { CookingDoneActions } from './CookingDoneActions.js';
+import { CookingFootInsets } from './CookingFootInsets.js';
 import { CookingFrame } from './CookingFrame.js';
 import { CookingNav } from './CookingNav.js';
 import { CookingNextPreview } from './CookingNextPreview.js';
@@ -100,22 +101,24 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
 
     if (done !== null) {
         return (
-            <CookingFrame
-                topBar={<CookingTopBar exit={model.exit} />}
-                busy={false}
-                body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
-                foot={{
-                    ...dock,
-                    actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
-                }}
-            />
+            <CookingFootInsets>
+                <CookingFrame
+                    topBar={<CookingTopBar exit={model.exit} />}
+                    busy={false}
+                    body={<CookingDone title={done.title} enjoy={done.enjoy} screenOff={done.screenOff} />}
+                    foot={{
+                        ...dock,
+                        actions: <CookingDoneActions backToRecipe={done.backToRecipe} cookAgain={done.cookAgain} />,
+                    }}
+                />
+            </CookingFootInsets>
         );
     }
 
     const { nav, preview } = model;
 
     return (
-        <>
+        <CookingFootInsets>
             <CookingFrame
                 busy={false}
                 {...(panel.column === undefined ? {} : { column: <CookingIngredientsColumn {...panel.column} /> })}
@@ -171,6 +174,6 @@ export const CookingSessionScreen: FC<CookingSessionScreenProps> = ({ recipe, on
                 }}
             />
             {panel.sheet === undefined ? null : <CookingIngredientsSheet {...panel.sheet} />}
-        </>
+        </CookingFootInsets>
     );
 };

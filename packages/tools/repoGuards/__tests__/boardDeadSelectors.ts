@@ -9,7 +9,6 @@
  */
 import { parse as parseCss, walk } from 'css-tree';
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';
-import type { AdmitNewPath } from './ratchetBaseline.js';
 
 type Node = DefaultTreeAdapterMap['node'];
 
@@ -84,18 +83,4 @@ export function deadClassSelectors(html: string): readonly string[] {
     });
 
     return [...selected].filter((name) => !used.has(name)).sort((a, b) => a.localeCompare(b));
-}
-
-/**
- * Which boards the baseline ratchet admits without a recorded count. At the cutover, before the baseline is on
- * `origin/main`, every board already on main is intake. Once the baseline is on main there is NO rule (`undefined`, the
- * strict ratchet): any rule, even one that admits nothing, makes `raisedAgainst` floor an unrecorded path at the PR's own
- * row, so a clean or pruned board could come back with dead CSS. Pure.
- *
- * @param onMain - The boards tracked at `origin/main`.
- * @param baselineOnMain - Whether the baseline file is tracked at `origin/main` yet.
- * @returns The admission rule for `raisedAgainst`, or `undefined` once the baseline has landed.
- */
-export function admitsAtCutover(onMain: ReadonlySet<string>, baselineOnMain: boolean): AdmitNewPath | undefined {
-    return baselineOnMain ? undefined : (file) => onMain.has(file);
 }

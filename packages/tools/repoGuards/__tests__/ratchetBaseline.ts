@@ -110,18 +110,6 @@ export function baselineHistory<T>(baselinePath: string): readonly BaselineVersi
     });
 }
 
-/**
- * Every file at a git revision under a pathspec.
- *
- * @param revision - The revision to read.
- * @param pathspec - A repo-relative directory or file.
- * @returns The tracked paths; empty when the revision or the path is absent.
- * @sideEffect Reads git.
- */
-export function trackedAt(revision: string, pathspec: string): ReadonlySet<string> {
-    return new Set((git(['ls-tree', '-r', '--name-only', revision, '--', pathspec]) ?? '').split('\n').filter(Boolean));
-}
-
 /** The current detector's count for one file, given that file's source. */
 export type Recount = (file: string, source: string) => number;
 

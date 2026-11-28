@@ -770,6 +770,7 @@ describe('every committed k6 load script is invoked by a workflow step', () => {
         'packages/services/food-service/tests/load/serviceErasure.load.js',
         'packages/services/identity/tests/load/adminUserSearch.load.js',
         'packages/services/identity/tests/load/provisioningAndRename.load.js',
+        'packages/services/recipe-service/tests/load/holdClear.load.js',
         'packages/services/recipe-service/tests/load/nutritionBatch.load.js',
         'packages/services/recipe-service/tests/load/serviceErasure.load.js',
         'packages/services/recipe-service/tests/load/versionArchiveRead.load.js',

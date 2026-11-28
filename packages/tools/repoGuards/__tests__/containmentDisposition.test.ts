@@ -260,6 +260,12 @@ const CONTAINMENT_DISPOSITION: {
             ownerScoped:
                 'Staff-granted rewrite of one recipe’s source answer, decided by the correction policy: it makes the recipe private, never public.',
         },
+        // ADR-0106: a staff clear removes the correction hold of one recipe and the owner's clones it releases. It publishes
+        // nothing and requests no verification; the same grant is its authorization, and a read of the recipe stays the read rule's.
+        'SourceCorrectionController.clearSourceHold': {
+            ownerScoped:
+                'Staff-granted removal of a correction hold on one recipe, decided by the hold-clear policy: it never makes a recipe public.',
+        },
         // Plan 002 U5: runs through the recipe update (verification) and records a correction for an unmatched
         // phrase through the corrections writer, which decides promotion containment from the principal. A `name`
         // target also writes the shared by-name binding, which ruling 1 accepts as food (see `addByName`).

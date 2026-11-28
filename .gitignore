@@ -125,6 +125,9 @@ packages/services/*/tests/load/clerk-tokens.json
 packages/services/*/tests/load/clerk-public-key.pem
 packages/services/*/tests/load/erasure-tokens.json
 packages/services/*/tests/load/erasure-public-key.pem
+packages/services/*/tests/load/holdClearPool.json
+packages/services/*/tests/load/holdClearPublicKey.pem
+packages/services/*/tests/load/holdClearPrivateKey.pem
 # Signed CloudFront URLs minted by `prepareSignedUrls.ts` (remote search, ADR-0055): each one is a request the
 # distribution admits until it expires.
 packages/services/*/tests/load/signedUrls.json

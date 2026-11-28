@@ -555,7 +555,7 @@ describe('SearchDal.search', () => {
 describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)', () => {
     const OTHER_COOK = '01J0000000000000000OTHER00';
     const heldRow = (overrides: Record<string, unknown> = {}) =>
-        makeRawRecipeSearchRow({ held_from_readers: true, source_correction_hold: true, ...overrides });
+        makeRawRecipeSearchRow({ owner_held_from_readers: true, source_correction_hold: true, ...overrides });
     let execute: ReturnType<typeof vi.fn>;
     let dal: SearchDal;
 
@@ -573,22 +573,25 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
 
         const pageSql = sqlText(execute.mock.calls[0]![0]);
 
-        expect(pageSql).toContain('recipe_held_from_readers("recipes", $');
-        expect(pageSql).toContain('AS held_from_readers');
+        expect(pageSql).toMatch(
+            /\(case when "recipes"\."owner_id" = \$\d+ then recipe_held_from_readers\("recipes", \$\d+::jsonb\) else false end\) AS owner_held_from_readers/,
+        );
         expect(pageSql).toContain('(case when "recipes"."owner_id" = $');
         expect(pageSql).toContain('recipe_has_cook_source_evidence("recipes"."id")');
         expect(pageSql).toContain('AS has_cook_source_evidence');
         expect(pageSql).toContain('recipes.source_correction_hold');
     });
 
-    it("pays no evidence probe in the community scope, which never returns the viewer's own rows (AE7)", async () => {
+    it("selects false for both facts in the community scope, which never returns the viewer's own rows (AE7)", async () => {
         primeExecute(execute);
 
         await dal.search(filters({ scope: 'community' }));
 
         const pageSql = sqlText(execute.mock.calls[0]![0]);
 
+        expect(pageSql).toContain('false AS owner_held_from_readers');
         expect(pageSql).toContain('false AS has_cook_source_evidence');
+        // The probe survives only in the WHERE's own read-rule term, never in the select.
         expect(pageSql).not.toContain('recipe_has_cook_source_evidence');
     });
 
@@ -609,7 +612,7 @@ describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)',
     });
 
     it('tells nobody for a row the read rule does not hold', async () => {
-        primeExecute(execute, { rows: [heldRow({ held_from_readers: false })] });
+        primeExecute(execute, { rows: [heldRow({ owner_held_from_readers: false })] });
 
         const { results } = await dal.search(filters());
 

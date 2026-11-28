@@ -1388,7 +1388,7 @@ export class RecipesService {
             data: rows.map((row) => {
                 const hiddenReason = hiddenReasonOfRow(row.recipe, {
                     viewerId: ownerId,
-                    heldFromReaders: row.heldFromReaders,
+                    ownerHeldFromReaders: row.ownerHeldFromReaders,
                     hasCookSourceEvidence: row.hasCookSourceEvidence,
                 });
 

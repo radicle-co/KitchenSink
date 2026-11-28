@@ -213,7 +213,7 @@ export class CollectionsService {
             // The gate is "the viewer owns THIS RECIPE", never "owns the collection": a member is often another cook's.
             const hiddenReason = hiddenReasonOfRow(row, {
                 viewerId: ownerId,
-                heldFromReaders: row.heldFromReaders,
+                ownerHeldFromReaders: row.ownerHeldFromReaders,
                 hasCookSourceEvidence: row.hasCookSourceEvidence,
             });
 

@@ -69,7 +69,7 @@ beforeAll(async () => {
                 useValue: {
                     findOwnerHiddenFacts: (id: string) =>
                         Promise.resolve({
-                            heldFromReaders: stored.get(id)?.recipe.heldFromReaders ?? false,
+                            ownerHeldFromReaders: stored.get(id)?.recipe.heldFromReaders ?? false,
                             hasCookSourceEvidence: false,
                         }),
                     findById: (id: string) => Promise.resolve(stored.get(id)),

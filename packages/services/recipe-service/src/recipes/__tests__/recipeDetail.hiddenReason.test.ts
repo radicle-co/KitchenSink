@@ -18,7 +18,7 @@ const CALLER = CallerToken.fromAuthorizationHeader('Bearer hidden-detail');
 const read = (
     recipe: ReturnType<typeof makeRecipeRow>,
     viewerId: string,
-    facts = { heldFromReaders: true, hasCookSourceEvidence: false },
+    facts = { ownerHeldFromReaders: true, hasCookSourceEvidence: false },
 ) => {
     const findOwnerHiddenFacts = vi.fn(async () => facts);
     const assembler = makeRecipeDetailAssembler({ dal: fakeRecipesDal({ findOwnerHiddenFacts }) });
@@ -41,14 +41,14 @@ describe('RecipeDetailAssembler.toDetailResponse: hiddenReason', () => {
 
     it('tells the owner a recorded source is why, from the selected evidence term (AE2)', async () => {
         const { detail } = await read(makeRecipeRow({ ownerId: OWNER, visibility: 'public' }), OWNER, {
-            heldFromReaders: true,
+            ownerHeldFromReaders: true,
             hasCookSourceEvidence: true,
         });
 
         expect(detail.hiddenReason).toBe('heldSource');
     });
 
-    it('shows Hidden with no line when the read rule holds a from-person recipe whose hold is false (AE4 owner view)', async () => {
+    it('gives `other`, the chip with no line, when the read rule holds a recipe for a term the function does not map (held, no hold, no evidence, no label)', async () => {
         const { detail } = await read(
             makeRecipeRow({
                 ownerId: OWNER,
@@ -64,7 +64,7 @@ describe('RecipeDetailAssembler.toDetailResponse: hiddenReason', () => {
 
     it('carries nothing for a recipe the read rule does not hold, a private one, or a stranger', async () => {
         const held = makeRecipeRow({ ownerId: OWNER, visibility: 'public', sourceCorrectionHold: true });
-        const clean = await read(held, OWNER, { heldFromReaders: false, hasCookSourceEvidence: false });
+        const clean = await read(held, OWNER, { ownerHeldFromReaders: false, hasCookSourceEvidence: false });
         const priv = await read({ ...held, visibility: 'private' }, OWNER);
         const stranger = await read(held, READER);
 

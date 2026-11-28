@@ -8,12 +8,12 @@ import { hiddenReasonOf, type HiddenReason } from '@kitchensink/recipe-core/reci
 
 import { recipeRowToDomain, type RecipeRowInput } from './recipeRowToDomain.js';
 
-/** What a producer selects beside the row (`heldFromReadersSql`, `cookSourceEvidenceOf`) plus who is reading. */
+/** What a producer selects beside the row (`ownerHeldFromReadersSql`, `cookSourceEvidenceOf`) plus who is reading. */
 export interface HiddenReasonRowFacts {
     /** The requesting principal, or `undefined` for a caller with none: never the owner. */
     readonly viewerId: string | undefined;
     /** The read function's own answer for this row, as selected. REQUIRED: a producer that forgot it does not compile. */
-    readonly heldFromReaders: boolean;
+    readonly ownerHeldFromReaders: boolean;
     /** The cook-evidence term, selected for the viewer's own rows (`false` otherwise). */
     readonly hasCookSourceEvidence: boolean;
 }
@@ -32,7 +32,7 @@ export function hiddenReasonOfRow(
     return hiddenReasonOf({
         viewerIsOwner: facts.viewerId === recipe.ownerId,
         visibility: recipe.visibility,
-        heldFromReaders: facts.heldFromReaders,
+        ownerHeldFromReaders: facts.ownerHeldFromReaders,
         sourceCorrected: row.sourceCorrectionHold,
         hasCookSourceEvidence: facts.hasCookSourceEvidence,
         sourceType: recipe.sourceType,

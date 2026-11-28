@@ -73,7 +73,7 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         clearPublicFoodOwners: vi.fn(async () => undefined),
         privateFoodLines: vi.fn(async () => []),
         // Nothing holds a recipe by default; a suite about the owner's reason supplies the facts.
-        findOwnerHiddenFacts: vi.fn(async () => ({ heldFromReaders: false, hasCookSourceEvidence: false })),
+        findOwnerHiddenFacts: vi.fn(async () => ({ ownerHeldFromReaders: false, hasCookSourceEvidence: false })),
         setVisibility: vi.fn(),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
         ...overrides,

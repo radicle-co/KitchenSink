@@ -14,6 +14,8 @@ import {
     communityOf,
     cookSourceEvidenceOf,
     heldFromReadersSql,
+    hiddenFromReadersSql,
+    ownerHeldFromReadersSql,
     publishedOrOwnedBy,
     readableBy,
     viewableBy,
@@ -123,5 +125,20 @@ describe('the cook-evidence select (hiddenViews KTD-2)', () => {
             '(case when "recipes"."owner_id" = $1 then recipe_has_cook_source_evidence("recipes"."id") else false end)',
         );
         expect(params).toEqual([VIEWER]);
+    });
+});
+
+describe('the owner-only presence select (hiddenViews S4, S5)', () => {
+    it("hiddenFromReadersSql() is the readers' own fragment, today the one database function", () => {
+        expect(compile(hiddenFromReadersSql())).toEqual(compile(heldFromReadersSql()));
+    });
+
+    it("ownerHeldFromReadersSql() calls the function for the viewer's OWN rows only (exact SQL and params)", () => {
+        const { sql, params } = compile(ownerHeldFromReadersSql(VIEWER));
+
+        expect(sql).toBe(
+            '(case when "recipes"."owner_id" = $1 then recipe_held_from_readers("recipes", $2::jsonb) else false end)',
+        );
+        expect(params).toEqual([VIEWER, KEYS_PARAM]);
     });
 });

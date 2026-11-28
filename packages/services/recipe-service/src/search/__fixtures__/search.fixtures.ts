@@ -40,7 +40,7 @@ export function makeRawRecipeSearchRow(overrides: Partial<Record<string, unknown
         updated_at: '2026-07-01T00:00:00.000Z',
         cover_photo_key: null,
         // The three facts the owner's reason is decided from (hiddenViews U2): not held, no hold, no cook evidence.
-        held_from_readers: false,
+        owner_held_from_readers: false,
         has_cook_source_evidence: false,
         source_correction_hold: false,
         rank: 0.75,

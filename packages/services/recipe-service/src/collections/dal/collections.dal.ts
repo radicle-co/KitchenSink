@@ -35,7 +35,7 @@ import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import {
     activeRecipe,
     cookSourceEvidenceOf,
-    heldFromReadersSql,
+    ownerHeldFromReadersSql,
     readableBy,
     readableRecipeColumns,
     type ReadableRecipeRow,
@@ -475,7 +475,7 @@ export class CollectionsDal {
             .select({
                 ...getTableColumns(recipes),
                 addedVia: recipeCollections.addedVia,
-                heldFromReaders: heldFromReadersSql(),
+                ownerHeldFromReaders: ownerHeldFromReadersSql(viewerId),
                 hasCookSourceEvidence: cookSourceEvidenceOf(viewerId),
             })
             .from(recipeCollections)

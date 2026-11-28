@@ -34,7 +34,7 @@ import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
 import {
     communityOf,
     cookSourceEvidenceOf,
-    heldFromReadersSql,
+    ownerHeldFromReadersSql,
     readableBy,
 } from '../../recipes/dal/recipePredicates.js';
 import { hiddenReasonOfRow } from '../../recipes/mappers/hiddenReasonOfRow.js';
@@ -178,7 +178,7 @@ interface RawRecipeSearchRow {
     updated_at: Date | string;
     cover_photo_key: string | null;
     /** The read rule's own answer for the row (`recipe_held_from_readers`), selected by the page read only. */
-    held_from_readers: boolean;
+    owner_held_from_readers: boolean;
     /** Cook-evidence term, selected for the viewer's own rows (`false` for every other row). */
     has_cook_source_evidence: boolean;
     source_correction_hold: boolean;
@@ -462,11 +462,13 @@ export class SearchDal {
         const rank = rankExpr(query);
         const orderBy = orderByExpr(filters.sortBy, query);
         // The community scope never returns the viewer's own rows, so there is no owner to tell: no probe is paid.
-        const evidence = filters.scope === 'community' ? sql`false` : cookSourceEvidenceOf(filters.ownerId);
+        const community = filters.scope === 'community';
+        const ownerHeld = community ? sql`false` : ownerHeldFromReadersSql(filters.ownerId);
+        const evidence = community ? sql`false` : cookSourceEvidenceOf(filters.ownerId);
 
         const pageResult = await this.db.execute<RawRecipeSearchRow>(sql`
             SELECT ${RECIPE_COLUMNS}, recipes.source_correction_hold, cp.cover_photo_key, ${rank} AS rank,
-                   ${heldFromReadersSql()} AS held_from_readers,
+                   ${ownerHeld} AS owner_held_from_readers,
                    ${evidence} AS has_cook_source_evidence
             FROM recipes
             LEFT JOIN ${coverPhotoLateral()} ON true
@@ -538,7 +540,7 @@ export class SearchDal {
             { ...toRecipeRowInput(row), sourceCorrectionHold: row.source_correction_hold },
             {
                 viewerId,
-                heldFromReaders: row.held_from_readers,
+                ownerHeldFromReaders: row.owner_held_from_readers,
                 hasCookSourceEvidence: row.has_cook_source_evidence,
             },
         );

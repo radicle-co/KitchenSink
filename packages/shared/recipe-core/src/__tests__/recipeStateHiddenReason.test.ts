@@ -1,6 +1,6 @@
 /**
  * `hiddenReasonOf` decides what the owner of a hidden recipe is told. Whether a reason exists comes ONLY from the read
- * function's own answer (`heldFromReaders`); the terms pick the line. Every table row states `heldFromReaders`, so a
+ * function's own answer (`ownerHeldFromReaders`); the terms pick the line. Every table row states `ownerHeldFromReaders`, so a
  * deleted owner gate or audience gate cannot pass for the wrong reason (qse decision, hiddenViews U1).
  */
 import { describe, expect, it } from 'vitest';
@@ -14,7 +14,7 @@ const OPEN_ORIGIN = { sourceType: RecipeSourceType.USER_CREATED, sourceKind: nul
 const facts = (overrides: Partial<HiddenReasonFacts> = {}): HiddenReasonFacts => ({
     viewerIsOwner: true,
     visibility: RecipeVisibility.PUBLIC,
-    heldFromReaders: true,
+    ownerHeldFromReaders: true,
     sourceCorrected: false,
     hasCookSourceEvidence: false,
     ...OPEN_ORIGIN,
@@ -47,14 +47,14 @@ describe('hiddenReasonOf: the owner of a public recipe the read rule holds', () 
         expect(
             hiddenReasonOf(
                 facts({
-                    heldFromReaders: false,
+                    ownerHeldFromReaders: false,
                     sourceCorrected: true,
                     hasCookSourceEvidence: true,
                     ...PRIVATE_ONLY_ORIGIN,
                 }),
             ),
         ).toBeUndefined();
-        expect(hiddenReasonOf(facts({ heldFromReaders: false }))).toBeUndefined();
+        expect(hiddenReasonOf(facts({ ownerHeldFromReaders: false }))).toBeUndefined();
     });
 
     it('says nothing for a private audience, with the hold set (AE4)', () => {
@@ -81,7 +81,7 @@ describe('hiddenReasonOf: a viewer who is not the owner never gets a reason (AE3
     });
 
     it.each(rows)('is undefined for %j, with the read rule holding it', (row) => {
-        expect(hiddenReasonOf(facts({ ...row, viewerIsOwner: false, heldFromReaders: true }))).toBeUndefined();
+        expect(hiddenReasonOf(facts({ ...row, viewerIsOwner: false, ownerHeldFromReaders: true }))).toBeUndefined();
     });
 });
 

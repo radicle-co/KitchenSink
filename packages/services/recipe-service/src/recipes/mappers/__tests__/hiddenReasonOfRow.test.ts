@@ -11,7 +11,7 @@ import { hiddenReasonOfRow } from '../hiddenReasonOfRow.js';
 const OWNER = '01JHIDDENROWOWNER00000001';
 const OTHER = '01JHIDDENROWOTHER00000001';
 
-const held = { heldFromReaders: true, hasCookSourceEvidence: false };
+const held = { ownerHeldFromReaders: true, hasCookSourceEvidence: false };
 const publicRow = (overrides: Parameters<typeof makeRecipeRow>[0] = {}) =>
     makeRecipeRow({ ownerId: OWNER, visibility: 'public', ...overrides });
 
@@ -37,7 +37,7 @@ describe('hiddenReasonOfRow', () => {
 
     it('tells nobody else, with the read rule holding the row and every term set (AE3)', () => {
         const row = publicRow({ sourceCorrectionHold: true, sourceType: 'imported_physical', sourceKind: 'book' });
-        const facts = { heldFromReaders: true, hasCookSourceEvidence: true };
+        const facts = { ownerHeldFromReaders: true, hasCookSourceEvidence: true };
 
         expect(hiddenReasonOfRow(row, { viewerId: OTHER, ...facts })).toBeUndefined();
         expect(hiddenReasonOfRow(row, { viewerId: undefined, ...facts })).toBeUndefined();
@@ -47,7 +47,7 @@ describe('hiddenReasonOfRow', () => {
         expect(
             hiddenReasonOfRow(publicRow({ sourceCorrectionHold: true }), {
                 viewerId: OWNER,
-                heldFromReaders: false,
+                ownerHeldFromReaders: false,
                 hasCookSourceEvidence: true,
             }),
         ).toBeUndefined();

@@ -1,7 +1,7 @@
 /**
  * Why the owner of a public recipe is told it is Hidden: the one owner-only wire fact `hiddenReason`, decided once, here.
  *
- * Whether Hidden shows comes ONLY from `heldFromReaders`, the read function's own answer (`recipe_held_from_readers`), so
+ * Whether Hidden shows comes ONLY from `ownerHeldFromReaders`, the read function's own answer (`recipe_held_from_readers`), so
  * the owner's chip and the readers' not-found can never disagree, however the function's body changes. The terms only pick
  * the line: the correction hold wins, then a recorded source (cook evidence or a private-only label), and a recipe the
  * function holds for a term mapped here gets `other` (the chip, no line). The audience test lives here, not in a service.
@@ -18,7 +18,7 @@ export interface HiddenReasonFacts {
     readonly viewerIsOwner: boolean;
     readonly visibility: RecipeVisibility;
     /** The read function's own answer for this row (`recipe_held_from_readers`), as selected. */
-    readonly heldFromReaders: boolean;
+    readonly ownerHeldFromReaders: boolean;
     /** `source_correction_hold`. */
     readonly sourceCorrected: boolean;
     /** `recipe_has_cook_source_evidence`, selected for the viewer's own rows. */
@@ -32,7 +32,7 @@ export interface HiddenReasonFacts {
  * rule does not hold.
  */
 export function hiddenReasonOf(facts: HiddenReasonFacts): HiddenReason | undefined {
-    if (!facts.viewerIsOwner || facts.visibility !== RecipeVisibility.PUBLIC || !facts.heldFromReaders) {
+    if (!facts.viewerIsOwner || facts.visibility !== RecipeVisibility.PUBLIC || !facts.ownerHeldFromReaders) {
         return undefined;
     }
 

@@ -11,6 +11,7 @@ import { describe, it, expect } from 'vitest';
 import { RecipeErrorCode } from '@kitchensink/recipe-core';
 
 import type { RecipeDrizzle } from '../../../database/database.module.js';
+import { selectedSql } from '../../../__testing__/selectedSql.js';
 import { makeFakeDrizzle, methodsOf } from '../../../__testing__/makeFakeDrizzle.js';
 import { isRecipeDomainError } from '../../../recipes/recipe.error.js';
 import { makeCollectionRow, makeMembershipRow, makeRecipeRow } from '../../__fixtures__/collections.fixtures.js';
@@ -357,6 +358,26 @@ describe('CollectionsDal.removeRecipe', () => {
         const dal = new CollectionsDal(fake.db);
 
         expect(await dal.removeRecipe('c1', 'gone')).toBe(false);
+    });
+});
+
+describe('CollectionsDal.listRecipes: the owner-only hidden facts (hiddenViews S1)', () => {
+    it("selects the read rule and the cook-evidence term for the VIEWER's own rows only (exact SQL)", async () => {
+        const fake = createFakeDb();
+        fake.enqueue([]);
+        await new CollectionsDal(fake.db).listRecipes('c1', 'viewer-1');
+
+        const held = selectedSql(fake.calls, 'ownerHeldFromReaders');
+        const evidence = selectedSql(fake.calls, 'hasCookSourceEvidence');
+
+        expect(held.sql).toBe(
+            '(case when "recipes"."owner_id" = $1 then recipe_held_from_readers("recipes", $2::jsonb) else false end)',
+        );
+        expect(held.params[0]).toBe('viewer-1');
+        expect(evidence.sql).toBe(
+            '(case when "recipes"."owner_id" = $1 then recipe_has_cook_source_evidence("recipes"."id") else false end)',
+        );
+        expect(evidence.params).toEqual(['viewer-1']);
     });
 });
 

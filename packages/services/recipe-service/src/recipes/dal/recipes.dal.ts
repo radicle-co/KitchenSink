@@ -36,7 +36,7 @@ import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
 import {
     activeRecipe,
     cookSourceEvidenceOf,
-    heldFromReadersSql,
+    ownerHeldFromReadersSql,
     readableBy,
     readableRecipeColumns,
     type ReadableRecipeRow,
@@ -201,7 +201,7 @@ export interface ReadableRecipeAggregate extends RecipeAggregate {
 
 /** What {@link RecipesDal.findOwnerHiddenFacts} reads. */
 export interface OwnerHiddenFacts {
-    readonly heldFromReaders: boolean;
+    readonly ownerHeldFromReaders: boolean;
     readonly hasCookSourceEvidence: boolean;
 }
 
@@ -240,7 +240,7 @@ export interface ListRecipeRow {
      * so the owner's `hiddenReason` is decided from the database's answer and never from a TypeScript copy. REQUIRED: a select
      * that forgot them does not compile.
      */
-    heldFromReaders: boolean;
+    ownerHeldFromReaders: boolean;
     hasCookSourceEvidence: boolean;
     coverPhotoKey?: string;
     /** Whether any line is bound to a private food (`recipe_holds_private_food`, migration 0064). */
@@ -511,7 +511,10 @@ export class RecipesDal {
      */
     public async findOwnerHiddenFacts(id: string, ownerId: string): Promise<OwnerHiddenFacts | undefined> {
         const [facts] = await this.db
-            .select({ heldFromReaders: heldFromReadersSql(), hasCookSourceEvidence: cookSourceEvidenceOf(ownerId) })
+            .select({
+                ownerHeldFromReaders: ownerHeldFromReadersSql(ownerId),
+                hasCookSourceEvidence: cookSourceEvidenceOf(ownerId),
+            })
             .from(recipes)
             .where(and(eq(recipes.id, id), activeRecipe()))
             .limit(1);
@@ -665,7 +668,7 @@ export class RecipesDal {
         const pageRows = await this.db
             .select({
                 ...getTableColumns(recipes),
-                heldFromReaders: heldFromReadersSql(),
+                ownerHeldFromReaders: ownerHeldFromReadersSql(ownerId),
                 hasCookSourceEvidence: cookSourceEvidenceOf(ownerId),
             })
             .from(recipes)
@@ -685,13 +688,14 @@ export class RecipesDal {
         const holding = ids.length > 0 ? await this.loadHoldingPrivateFood(ids) : new Set<string>();
 
         return {
-            rows: pageRows.map(({ heldFromReaders, hasCookSourceEvidence, ...recipe }) => {
+            rows: pageRows.map((selected) => {
+                const { ownerHeldFromReaders: _held, hasCookSourceEvidence: _evidence, ...recipe } = selected;
                 const coverPhotoKey = coverKeys.get(recipe.id);
 
                 return {
                     recipe,
-                    heldFromReaders,
-                    hasCookSourceEvidence,
+                    ownerHeldFromReaders: selected.ownerHeldFromReaders,
+                    hasCookSourceEvidence: selected.hasCookSourceEvidence,
                     holdsPrivateFood: holding.has(recipe.id),
                     ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}),
                 };

@@ -164,7 +164,7 @@ export interface RecipeResponse {
     coverPhotoUrl?: string;
     /** Whether any line is bound to a private food - the cook's own list only (ADR-0029 section 4). */
     holdsPrivateFood?: boolean;
-    /** Why the read rule hides this PUBLIC recipe from readers (`hiddenReasonOf`). ⛔ OWNER-ONLY, on detail and on the owner's list, search and collection items; absent for everyone else. */
+    /** Why the read rule hides this PUBLIC recipe from readers (`hiddenReasonOf`). ⛔ OWNER-ONLY, on detail and on the owner's list, search and collection items; absent for everyone else. A held public DRAFT carries one too: the client's chip order is Draft, then Hidden. */
     hiddenReason?: HiddenReason;
     createdAt: string;
     updatedAt: string;

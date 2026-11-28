@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 
 import { RecipesDal } from '../dal/recipes.dal.js';
 import type { RecipeDrizzle } from '../../database/client.js';
+import { selectedSql } from '../../__testing__/selectedSql.js';
 import { makeFakeDrizzle, type FakeDrizzle } from '../../__testing__/makeFakeDrizzle.js';
 import { makeRecipeRow, makeRecipeStepRow } from '../../__fixtures__/index.js';
 
@@ -190,8 +191,8 @@ describe('RecipesDal.findAll', () => {
         // findAll: select page → count. The cover keys come from one raw query, which the fake answers with none.
         control.enqueue(
             [
-                { ...rowA, heldFromReaders: true, hasCookSourceEvidence: false },
-                { ...rowB, heldFromReaders: false, hasCookSourceEvidence: true },
+                { ...rowA, ownerHeldFromReaders: true, hasCookSourceEvidence: false },
+                { ...rowB, ownerHeldFromReaders: false, hasCookSourceEvidence: true },
             ],
             [{ count: 7 }],
         );
@@ -203,8 +204,8 @@ describe('RecipesDal.findAll', () => {
         // lines for a list would pay for fields no client receives.
         // The page is asked once which recipes hold a private food; the fake answers none (ADR-0029 section 4).
         expect(result.rows).toStrictEqual([
-            { recipe: rowA, heldFromReaders: true, hasCookSourceEvidence: false, holdsPrivateFood: false },
-            { recipe: rowB, heldFromReaders: false, hasCookSourceEvidence: true, holdsPrivateFood: false },
+            { recipe: rowA, ownerHeldFromReaders: true, hasCookSourceEvidence: false, holdsPrivateFood: false },
+            { recipe: rowB, ownerHeldFromReaders: false, hasCookSourceEvidence: true, holdsPrivateFood: false },
         ]);
         expect(control.calls.filter((call) => call.method === 'select')).toHaveLength(2);
 
@@ -218,13 +219,16 @@ describe('RecipesDal.findAll: the owner-only hidden facts (hiddenViews U2)', () 
         const control = createFakeDb();
         const dal = new RecipesDal(control.db);
         const row = makeRecipeRow({ id: 'held' });
-        control.enqueue([{ ...row, heldFromReaders: true, hasCookSourceEvidence: true }], [{ count: 1 }]);
+        control.enqueue([{ ...row, ownerHeldFromReaders: true, hasCookSourceEvidence: true }], [{ count: 1 }]);
 
         const { rows } = await dal.findAll({ ownerId: 'owner-1', page: 1, pageSize: 20, sortBy: 'updatedAt' });
-        const selected = control.calls.find((call) => call.method === 'select')?.args[0] as Record<string, unknown>;
 
-        expect(Object.keys(selected)).toEqual(expect.arrayContaining(['heldFromReaders', 'hasCookSourceEvidence']));
-        expect(rows[0]).toMatchObject({ heldFromReaders: true, hasCookSourceEvidence: true });
+        // The exact fragments, owner-gated: a hard-coded or ungated select fails here.
+        expect(selectedSql(control.calls, 'ownerHeldFromReaders').sql).toMatch(
+            /^\(case when "recipes"\."owner_id" = \$1 then recipe_held_from_readers\("recipes", \$2::jsonb\) else false end\)$/,
+        );
+        expect(selectedSql(control.calls, 'hasCookSourceEvidence').sql).toContain('recipe_has_cook_source_evidence');
+        expect(rows[0]).toMatchObject({ ownerHeldFromReaders: true, hasCookSourceEvidence: true });
         expect(rows[0]!.recipe).toStrictEqual(row);
     });
 });
@@ -233,16 +237,15 @@ describe('RecipesDal.findOwnerHiddenFacts', () => {
     it('reads the two facts for one active recipe by the database rule', async () => {
         const control = createFakeDb();
         const dal = new RecipesDal(control.db);
-        control.enqueue([{ heldFromReaders: true, hasCookSourceEvidence: false }]);
+        control.enqueue([{ ownerHeldFromReaders: true, hasCookSourceEvidence: false }]);
 
         await expect(dal.findOwnerHiddenFacts('r-1', 'owner-1')).resolves.toStrictEqual({
-            heldFromReaders: true,
+            ownerHeldFromReaders: true,
             hasCookSourceEvidence: false,
         });
 
-        const selected = control.calls.find((call) => call.method === 'select')?.args[0] as Record<string, unknown>;
-
-        expect(Object.keys(selected).sort()).toEqual(['hasCookSourceEvidence', 'heldFromReaders']);
+        expect(selectedSql(control.calls, 'ownerHeldFromReaders').params).toContain('owner-1');
+        expect(selectedSql(control.calls, 'hasCookSourceEvidence').sql).toContain('recipe_has_cook_source_evidence');
     });
 
     it('answers undefined for a recipe that is missing or deleted', async () => {

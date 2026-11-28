@@ -176,7 +176,7 @@ def lines_board(size: str) -> str:
     states = "".join(
         [
             figure(
-                "Owner, hidden after a staff source correction (sourceCorrected). The cook gets one notification with this line",
+                "Owner, hidden after a staff source correction (sourceCorrected)",
                 panel(M["sourceCorrected"]),
             ),
             figure(

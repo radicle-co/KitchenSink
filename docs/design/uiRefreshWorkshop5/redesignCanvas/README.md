@@ -20,7 +20,8 @@ boards. Do not recreate them.
 
 A board must carry only the CSS rules it draws. `boardDeadSelectors.test.ts` in `packages/tools/repoGuards` holds each
 board's count of unused class selectors to a baseline that only falls, and refuses a new board that has any. Boards
-already on `main` when the guard landed were recorded once; after that nothing is admitted. These
+already on `main` when the guard landed were recorded once; after that nothing is admitted and the ratchet runs
+strict, so a new or rebuilt board must enter with zero unused selectors. These
 builders copy a shared stylesheet whole, so a board they draw fails that guard until the unused rules are removed.
 
 These scripts sit outside the repo's Python checks (which cover `packages/`). Run the bug rules by hand after an edit:

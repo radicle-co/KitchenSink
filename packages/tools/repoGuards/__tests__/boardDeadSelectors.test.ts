@@ -101,17 +101,36 @@ const counts: FileCounts = Object.fromEntries(
 
 describe('admitsAtCutover', () => {
     const main = new Set(['a.dc.html']);
+    const pick = (version: { files: FileCounts }): FileCounts => version.files;
+    // A PR's own commit records its row; origin/main's version, appended last, does not.
+    const history = (row: FileCounts) => [
+        { revision: 'pr', baseline: { files: row } },
+        { revision: 'main', baseline: { files: {} as FileCounts } },
+    ];
+    const refused = (file: string, count: number, onMainSet: ReadonlySet<string>, landed: boolean): string[] =>
+        raisedAgainst(history({ [file]: count }), [
+            [{ [file]: count }, pick, undefined, admitsAtCutover(onMainSet, landed)],
+        ]);
 
     it('admits a board on main before the baseline has landed on main', () => {
-        expect(admitsAtCutover(main, false)('a.dc.html')).toBe(true);
+        expect(admitsAtCutover(main, false)?.('a.dc.html')).toBe(true);
+        expect(refused('a.dc.html', 30, main, false)).toEqual([]);
     });
 
     it('refuses a board that is not on main before the baseline has landed', () => {
-        expect(admitsAtCutover(main, false)('new.dc.html')).toBe(false);
+        expect(admitsAtCutover(main, false)?.('new.dc.html')).toBe(false);
     });
 
-    it('refuses every board once the baseline is on main, even one that is on main', () => {
-        expect(admitsAtCutover(main, true)('a.dc.html')).toBe(false);
+    it('runs the ratchet strict once the baseline is on main: no admit rule at all', () => {
+        expect(admitsAtCutover(main, true)).toBeUndefined();
+    });
+
+    it('refuses a clean board on main that gains dead selectors after landing', () => {
+        expect(refused('a.dc.html', 30, main, true)).toHaveLength(1);
+    });
+
+    it('refuses a new board after landing', () => {
+        expect(refused('new.dc.html', 50, main, true)).toHaveLength(1);
     });
 });
 
@@ -151,10 +170,8 @@ describe('dead selectors in the boards only fall', () => {
         const history = baselineHistory<Baseline>(BASELINE_PATH);
 
         expect(history.length, 'no committed baseline found in history').toBeGreaterThan(0);
-        expect(
-            raisedAgainst(history, [
-                [baseline.files, (version) => version.files, countOf, admitsAtCutover(onMain, baselineOnMain)],
-            ]),
-        ).toEqual([]);
+        const admit = admitsAtCutover(onMain, baselineOnMain);
+
+        expect(raisedAgainst(history, [[baseline.files, (version) => version.files, countOf, admit]])).toEqual([]);
     });
 });

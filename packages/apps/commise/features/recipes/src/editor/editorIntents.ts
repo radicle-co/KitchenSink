@@ -14,7 +14,7 @@ import { effectiveVisibility, type PrivateRefusal } from '../actions/privateGate
 import { refusalWhileDrafting } from '../actions/recipePrivateGate.js';
 import type { RecipeFormValues } from '../form/values.js';
 import { derivedVisibility } from '../form/sourceLink.js';
-import { toCreateRecipeInput, toUpdateRecipeInput, type ShownWordings } from '../form/wire.js';
+import { sheetStatementOf, toCreateRecipeInput, toUpdateRecipeInput, type ShownWordings } from '../form/wire.js';
 import type { RecipeLifecycle } from './checkpointPolicy.js';
 import { serverIdOf, type ServerFacts } from './editorCore.js';
 import type { OutstandingWrite } from './writeLane.js';
@@ -95,6 +95,25 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
             },
         },
     };
+}
+
+/**
+ * Whether the Source row's own answer is what the write's body says about the source. The Publish sheet's answer outranks the
+ * row's on the wire (see `wire.ts`), so a write that carried it carried no row answer, and its landing must not clear the
+ * row. Every other write carries the row's answer, or has nothing stored to clear. Pure.
+ */
+export function rowAnswerRidesWrite(input: RecipeWriteInput): boolean {
+    const { server, shown } = input;
+
+    if (shown === undefined) {
+        return true;
+    }
+
+    if (server.kind === 'stored') {
+        return sheetStatementOf(shown, input.publish ? RecipeStatus.PUBLISHED : undefined, server.recipe) === undefined;
+    }
+
+    return sheetStatementOf(shown, input.publish ? RecipeStatus.PUBLISHED : RecipeStatus.DRAFT) === undefined;
 }
 
 /** What {@link discardPlanOf} decides from. */

@@ -111,7 +111,12 @@ import {
 } from '../actions/sourceStatement.js';
 import type { SourceRowSheet } from '../form/sourceFieldProps.js';
 import { statementPlanOf, type StatementPlan } from '../editor/statementGate.js';
-import { createStatementStore, type RowAnswer, type StatementStore } from '../editor/statementStore.js';
+import {
+    createStatementStore,
+    type RowAnswer,
+    type StatementState,
+    type StatementStore,
+} from '../editor/statementStore.js';
 import type { ShownWordings } from '../form/wire.js';
 import { toDraftValues, type DraftMemento, type DraftStore } from '../editor/draftStore.js';
 import {
@@ -129,7 +134,7 @@ import {
     type EditorCoreStore,
 } from '../editor/editorCore.js';
 import { DiscardPromiseBrokenError } from '../editor/discardPromiseBrokenError.js';
-import { recipeWriteIntent, type DiscardExit, type DiscardPlan } from '../editor/editorIntents.js';
+import { recipeWriteIntent, rowAnswerRidesWrite, type DiscardExit, type DiscardPlan } from '../editor/editorIntents.js';
 import {
     conflictInfoOf,
     earlierParkedOf,
@@ -821,9 +826,9 @@ function publishAnswerRowOf(
  * the Public card, and the sheet's answer. The Source row shows no wording of its own, so none is sent for its link. A client
  * sends only what it showed.
  */
-function shownWordingsOf(ctx: EditorContext): ShownWordings {
+function shownWordingsOf(ctx: EditorContext, stated: StatementState): ShownWordings {
     const { locale } = ctx.opts;
-    const { answer, row } = ctx.statement.get();
+    const { answer, row } = stated;
     const statement = answer?.statement;
 
     return {
@@ -859,19 +864,21 @@ function submitWrite(ctx: EditorContext, trigger: CheckpointTrigger, drained: bo
         return;
     }
 
-    const intent = recipeWriteIntent({
+    // The statement state the write is made from, read ONCE: the wire body and the row it carries come from the same read.
+    const stated = ctx.statement.get();
+    const writeInput = {
         server,
         draft,
         ref: ensureRef(ctx),
         publish: write.publish,
         privateRefusal: ctx.opts.privateRefusal,
-        shown: shownWordingsOf(ctx),
-    });
+        shown: shownWordingsOf(ctx, stated),
+    };
+    const intent = recipeWriteIntent(writeInput);
     const kind = intent.intentKind === 'create' ? 'create' : 'update';
     const finishing = isFinishingTrigger(trigger);
 
-    // The row answer the intent carries, read where the intent was made.
-    const { row } = ctx.statement.get();
+    const row = rowAnswerRidesWrite(writeInput) ? stated.row : undefined;
 
     void ctx.opts.port.submitExclusive(intent).then(
         (outcome) => {

@@ -8,7 +8,7 @@ import { describe, expect, it } from 'vitest';
 import { makeRecipeDetail } from '../../__fixtures__/index.js';
 import { toRecipeFormValues } from '../../form/wire.js';
 import { seedEditorCore, type ServerFacts } from '../editorCore.js';
-import { recipeWriteIntent } from '../editorIntents.js';
+import { recipeWriteIntent, rowAnswerRidesWrite } from '../editorIntents.js';
 
 const LOCAL = 'local:recipe:01J0000000000000000000000A';
 const ALLRECIPES = 'https://www.allrecipes.com/recipe/1/soup/';
@@ -137,5 +137,55 @@ describe('an update with a Source', () => {
         );
 
         expect(payload).not.toHaveProperty('input.statement');
+    });
+});
+
+describe('rowAnswerRidesWrite: whether the Source row\u2019s answer is what the write says about the source', () => {
+    const paid = {
+        kind: 'paid_site',
+        citation: 'Sam',
+        wording: { version: 'statementPaidSite.v1', locale: 'en' },
+    } as const;
+    const book = {
+        kind: 'book',
+        citation: 'Salt Fat Acid Heat',
+        wording: { version: 'statementBook.v2', locale: 'en' },
+    } as const;
+    const input = (server: ServerFacts, publish: boolean, shown?: { statement?: typeof paid | typeof book }) => ({
+        server,
+        draft: draft(),
+        ref: LOCAL,
+        publish,
+        privateRefusal: undefined,
+        shown: { rowStatement: book, ...shown },
+    });
+
+    it.each([
+        ['an update, no Publish answer held', storedOf(), false, undefined, true],
+        [
+            'an update, a paid-site Publish answer the server does not hold yet (it outranks the row)',
+            storedOf(),
+            false,
+            paid,
+            false,
+        ],
+        [
+            'an update, a paid-site Publish answer the server already holds (it rides no more)',
+            storedOf({ sourceKind: 'paid_site' }),
+            false,
+            paid,
+            true,
+        ],
+        ['a draft update, a book Publish answer (it rides only a publish)', storedOf(), false, book, true],
+        ['a publishing update, a book Publish answer (it outranks the row)', storedOf(), true, book, false],
+        ['a create, no Publish answer held', unsaved, false, undefined, true],
+        ['a create, a paid-site Publish answer (it outranks the row)', unsaved, false, paid, false],
+        ['a publishing create, a book Publish answer (it outranks the row)', unsaved, true, book, false],
+    ] as const)('%s: %s', (_name, server, publish, statement, rides) => {
+        expect(rowAnswerRidesWrite(input(server, publish, statement === undefined ? {} : { statement }))).toBe(rides);
+    });
+
+    it('a write built from no shown wordings carries the row\u2019s answer (there is nothing that outranks it)', () => {
+        expect(rowAnswerRidesWrite({ ...input(unsaved, false), shown: undefined })).toBe(true);
     });
 });

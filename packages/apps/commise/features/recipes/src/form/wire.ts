@@ -147,7 +147,7 @@ const createRowStatementOf = (shown: ShownWordings): { readonly statement: Recip
     shown.rowStatement === undefined || shown.rowStatement === null ? undefined : { statement: shown.rowStatement };
 
 /** The sheet's statement as a body key, when it rides this write: only one that publishes. Pure. */
-const sheetStatementOf = (
+export const sheetStatementOf = (
     shown: ShownWordings,
     status: RecipeStatus | undefined,
     recipe?: { readonly sourceKind?: string | null },

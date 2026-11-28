@@ -36,7 +36,7 @@ describe('useStatementSheet', () => {
         });
 
         expect(onAnswer).toHaveBeenCalledOnce();
-        expect(onAnswer.mock.calls[0]?.[0]).toMatchObject({ statement: { wording: { version, locale: 'en' } } });
+        expect(onAnswer.mock.calls[0]?.[0]?.statement?.wording).toEqual({ version, locale: 'en' });
     });
 
     it('sends nothing for a Confirm with no answer, and stays choosing', () => {

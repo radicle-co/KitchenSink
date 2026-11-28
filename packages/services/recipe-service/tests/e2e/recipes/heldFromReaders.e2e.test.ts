@@ -83,7 +83,9 @@ describe('held from readers: every non-owner read path (ADR-0105)', () => {
     function headersOf(as: string, init: RequestInit): Headers {
         const headers = new Headers({ 'content-type': 'application/json', authorization: bearerFor(as) });
 
-        new Headers(init.headers).forEach((value, name) => headers.set(name, value));
+        new Headers(init.headers).forEach((value, name) => {
+            headers.set(name, value);
+        });
 
         return headers;
     }

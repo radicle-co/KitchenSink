@@ -23,7 +23,6 @@ import {
     makeRecipeStepRow,
     makeVersionRow,
 } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import type { BoundArm } from '../../../src/database/schema/foodLookupArm.js';
 import type { IngredientRow } from '../../../src/database/schema/index.js';
@@ -32,11 +31,6 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import { ResolutionMappingsDal } from '../../../src/ingredients/resolution/resolutionMappings.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { readableAggregateOf } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
-import {
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { recipesDalDouble } from '../../../tests/support/recipesDalDouble.js';
@@ -137,18 +131,7 @@ beforeAll(async () => {
     booted = await bootMockedRecipeApp({
         foodServiceUrl: food.origin,
         doubles: [
-            recipesDalDouble({
-                findOwnerHiddenFacts: noOwnerHiddenFacts,
-                findById,
-                readConflict,
-                transaction,
-            }),
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
-            },
+            recipesDalDouble({ findOwnerHiddenFacts: noOwnerHiddenFacts, findById, readConflict, transaction }),
             { provide: ResolutionMappingsDal, useValue: { runInTransaction } },
             {
                 provide: FoodLookupsDal,
@@ -163,7 +146,6 @@ beforeAll(async () => {
                         ),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

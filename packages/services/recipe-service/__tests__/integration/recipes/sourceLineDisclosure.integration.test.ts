@@ -31,8 +31,6 @@ import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 import { recipeDetailSchema } from '@kitchensink/schema-recipe';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { CollectionsDal } from '../../../src/collections/dal/collections.dal.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
@@ -41,14 +39,9 @@ import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js'
 import type { IngredientLineInput } from '../../../src/recipes/dal/ingredientLines.dal.js';
 import type { ReadableRecipeAggregate, RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { recipeRowToDomain } from '../../../src/recipes/mappers/recipeRowToDomain.js';
-import {
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
+import { RECIPE_RATINGS_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { RATINGS_DAL } from '../../../src/ratings/ratings.service.js';
 import { SEARCH_DAL } from '../../../src/search/search.service.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import type { Principal } from '../../../src/auth/principal.js';
 import { resolveStatementProvenance } from '../../../src/recipes/domain/provenancePolicy.js';
@@ -254,17 +247,9 @@ beforeAll(async () => {
                     listByRecipe: async () => versionRows,
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => 4 } },
             { provide: RATINGS_DAL, useValue: { upsert } },
-            {
-                provide: RECIPE_LINE_VERIFICATIONS_DAL,
-                useValue: { findBandsByKeys: async () => new Map(), findExistingKeys: async () => new Set() },
-            },
             { provide: FoodLookupsDal, useValue: { findByIds: async () => new Map([[ARM.lookupId, ARM]]) } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

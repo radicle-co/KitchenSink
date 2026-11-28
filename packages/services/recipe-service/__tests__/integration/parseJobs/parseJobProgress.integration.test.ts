@@ -15,7 +15,6 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { parseJobResponseSchema } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import {
     PARSE_JOBS_DAL,
     type ParseJobLineRecord,
@@ -84,7 +83,6 @@ beforeAll(async () => {
                     getJob: async (ownerId: string, jobId: string) => (ownerId === COOK ? JOBS.get(jobId) : undefined),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

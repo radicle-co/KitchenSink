@@ -20,20 +20,13 @@ import { verificationKey } from '@kitchensink/recipe-core/resolution/verificatio
 import type { VerifyIngredientLineMessage } from '@kitchensink/recipe-core/resolution/verification-message';
 
 import { makeIngredientLineRow, makeRecipeRow, makeRecipeStepRow } from '../../../src/__fixtures__/index.js';
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
-import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import { RecipeSourceEvidenceDal } from '../../../src/recipes/dal/recipeSourceEvidence.dal.js';
 import { sha256Hex } from '../../../src/common/sha256.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
-import {
-    RECIPE_LINE_VERIFICATIONS_DAL,
-    RECIPE_PHOTOS_DAL,
-    RECIPE_RATINGS_DAL,
-} from '../../../src/recipes/recipes.tokens.js';
+import { RECIPE_LINE_VERIFICATIONS_DAL } from '../../../src/recipes/recipes.tokens.js';
 import { VERIFICATION_QUEUE } from '../../../src/recipes/verification.queue.js';
-import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
@@ -149,9 +142,6 @@ beforeAll(async () => {
                     }),
                 },
             },
-            { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },
-            { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
-            { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },
             {
                 provide: RECIPE_LINE_VERIFICATIONS_DAL,
                 useValue: { findBandsByKeys: async () => new Map(), findExistingKeys },
@@ -163,8 +153,6 @@ beforeAll(async () => {
                         new Map(ids.includes(MILK.lookupId) ? [[MILK.lookupId, MILK]] : []),
                 },
             },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
-            { provide: AuthorHandlesDal, useValue: { findByline: async () => undefined } },
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

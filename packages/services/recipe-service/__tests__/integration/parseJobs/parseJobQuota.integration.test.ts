@@ -16,7 +16,6 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from 'vites
 import { apiErrorSchema, parseJobResponseSchema, recipeApiErrorSchema } from '@kitchensink/schema-recipe';
 import type { BootedServiceApp } from '@kitchensink/service-test-harness';
 
-import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { PARSE_JOB_QUEUE } from '../../../src/recipes/parseJob.queue.js';
 import { PARSE_JOBS_DAL, type ParseJobsDalPort } from '../../../src/recipes/parseJobs.service.js';
 import { makeParseJobLine, makeParseJobRecord } from '../../../src/recipes/__fixtures__/parseJobMatches.fixture.js';
@@ -55,7 +54,6 @@ beforeAll(async () => {
                 },
             },
             { provide: PARSE_JOB_QUEUE, useValue: { enqueue } },
-            { provide: ErasureJobsDal, useValue: { findActiveJob: async () => undefined } },
         ],
     });
 });

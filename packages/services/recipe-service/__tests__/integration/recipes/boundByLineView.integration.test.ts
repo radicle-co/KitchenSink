@@ -31,6 +31,7 @@ import {
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
@@ -87,7 +88,10 @@ beforeAll(async () => {
         doubles: [
             {
                 provide: RECIPES_DAL,
-                useValue: { findById: async (id: string) => (id === RECIPE_ID ? aggregate() : undefined) },
+                useValue: {
+                    findById: async (id: string) => (id === RECIPE_ID ? aggregate() : undefined),
+                    findOwnerHiddenFacts: noOwnerHiddenFacts,
+                },
             },
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },

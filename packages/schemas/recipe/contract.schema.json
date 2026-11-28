@@ -1207,6 +1207,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "hiddenReason": {
+                    "type": "string"
+                },
                 "holdsPrivateFood": {
                     "type": "boolean"
                 },
@@ -1588,6 +1591,9 @@
                             },
                             "hasSubstantiveEdit": {
                                 "type": "boolean"
+                            },
+                            "hiddenReason": {
+                                "type": "string"
                             },
                             "holdsPrivateFood": {
                                 "type": "boolean"
@@ -11566,6 +11572,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "hiddenReason": {
+                    "type": "string"
+                },
                 "holdsPrivateFood": {
                     "type": "boolean"
                 },
@@ -12976,6 +12985,9 @@
                 "hasSubstantiveEdit": {
                     "type": "boolean"
                 },
+                "hiddenReason": {
+                    "type": "string"
+                },
                 "holdsPrivateFood": {
                     "type": "boolean"
                 },
@@ -13493,6 +13505,9 @@
                                     },
                                     "hasSubstantiveEdit": {
                                         "type": "boolean"
+                                    },
+                                    "hiddenReason": {
+                                        "type": "string"
                                     },
                                     "holdsPrivateFood": {
                                         "type": "boolean"
@@ -14387,6 +14402,9 @@
                         },
                         "hasSubstantiveEdit": {
                             "type": "boolean"
+                        },
+                        "hiddenReason": {
+                            "type": "string"
                         },
                         "holdsPrivateFood": {
                             "type": "boolean"

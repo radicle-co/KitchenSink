@@ -36,6 +36,18 @@ export function heldFromReadersSql(): SQL<boolean> {
     return sql<boolean>`recipe_held_from_readers(${recipes}, ${PRIVATE_ONLY_SOURCE_KEYS_JSON}::jsonb)`;
 }
 
+/**
+ * Whether cook-captured source evidence holds the recipe, selected for the VIEWER'S OWN rows only and `false` for every other
+ * row: the owner's reason line (`hiddenReasonOf`) needs it, and nobody else may learn it. `CASE`, not `AND`, because Postgres
+ * does not promise the order of `AND`, and a non-owner row must never pay for the probe. The evidence predicate has one source,
+ * the database function (migration 0098); there is no TypeScript copy.
+ *
+ * @param viewerId - The requesting principal's app-user ULID, bound as a parameter.
+ */
+export function cookSourceEvidenceOf(viewerId: string): SQL<boolean> {
+    return sql<boolean>`(case when ${recipes.ownerId} = ${viewerId} then recipe_has_cook_source_evidence(${recipes.id}) else false end)`;
+}
+
 /** A recipe row plus the read rule's hold, as selected by {@link readableRecipeColumns}. */
 export type ReadableRecipeRow = RecipeRow & { readonly heldFromReaders: boolean };
 

@@ -92,6 +92,7 @@ import { isContained, type ContainmentSubject } from '../common/containmentPolic
 import { assertNotContained, testPrincipalContained } from '../common/containment.error.js';
 import { isRecipeViewableBy, type ViewableRecipeFields } from './domain/recipeVisibility.js';
 import { recordsVersion } from './domain/versionPolicy.js';
+import { hiddenReasonOfRow } from './mappers/hiddenReasonOfRow.js';
 import { toRecipeSummaryResponse } from './mappers/recipeResponse.js';
 import { resolveCdnUrl } from '../photos/photoView.js';
 import type { CreateRecipeDto, CreateRecipeStepInputDto, RecipeIngredientInputDto } from './dto/createRecipe.dto.js';
@@ -1384,14 +1385,21 @@ export class RecipesService {
             // The published list item — no lines, steps, photos or nutrition, but WITH the derived cover URL
             // resolved from the DAL's cover-photo key (one cover LATERAL for the page; no N+1). The explicit
             // arrow is required (a bare `.map(toRecipeSummaryResponse)` would pass the index as the extras arg).
-            data: rows.map((row) =>
-                toRecipeSummaryResponse(row, {
+            data: rows.map((row) => {
+                const hiddenReason = hiddenReasonOfRow(row.recipe, {
+                    viewerId: ownerId,
+                    heldFromReaders: row.heldFromReaders,
+                    hasCookSourceEvidence: row.hasCookSourceEvidence,
+                });
+
+                return toRecipeSummaryResponse(row, {
+                    ...(hiddenReason !== undefined ? { hiddenReason } : {}),
                     ...(row.holdsPrivateFood !== undefined ? { holdsPrivateFood: row.holdsPrivateFood } : {}),
                     ...(row.coverPhotoKey !== undefined
                         ? { coverPhotoUrl: resolveCdnUrl(this.photosCdnUrl, row.coverPhotoKey) }
                         : {}),
-                }),
-            ),
+                });
+            }),
             ...toPageEnvelope({ total, page, pageSize, rowCount: rows.length }),
         };
     }

@@ -41,6 +41,7 @@ import {
 import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.dal.js';
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
@@ -146,6 +147,7 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    findOwnerHiddenFacts: noOwnerHiddenFacts,
                     create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),

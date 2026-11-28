@@ -188,7 +188,13 @@ describe('RecipesDal.findAll', () => {
         const rowA = makeRecipeRow({ id: 'a' });
         const rowB = makeRecipeRow({ id: 'b' });
         // findAll: select page → count. The cover keys come from one raw query, which the fake answers with none.
-        control.enqueue([rowA, rowB], [{ count: 7 }]);
+        control.enqueue(
+            [
+                { ...rowA, heldFromReaders: true, hasCookSourceEvidence: false },
+                { ...rowB, heldFromReaders: false, hasCookSourceEvidence: true },
+            ],
+            [{ count: 7 }],
+        );
 
         const result = await dal.findAll({ ownerId: 'owner-1', page: 2, pageSize: 2, sortBy: 'updatedAt' });
 
@@ -197,13 +203,54 @@ describe('RecipesDal.findAll', () => {
         // lines for a list would pay for fields no client receives.
         // The page is asked once which recipes hold a private food; the fake answers none (ADR-0029 section 4).
         expect(result.rows).toStrictEqual([
-            { recipe: rowA, holdsPrivateFood: false },
-            { recipe: rowB, holdsPrivateFood: false },
+            { recipe: rowA, heldFromReaders: true, hasCookSourceEvidence: false, holdsPrivateFood: false },
+            { recipe: rowB, heldFromReaders: false, hasCookSourceEvidence: true, holdsPrivateFood: false },
         ]);
         expect(control.calls.filter((call) => call.method === 'select')).toHaveLength(2);
 
         const offsetCall = control.calls.find((call) => call.method === 'offset');
         expect(offsetCall?.args[0]).toBe(2); // (page 2 - 1) * pageSize 2
+    });
+});
+
+describe('RecipesDal.findAll: the owner-only hidden facts (hiddenViews U2)', () => {
+    it('selects the read rule and the cook-evidence term with the page, and keeps them OFF the recipe row', async () => {
+        const control = createFakeDb();
+        const dal = new RecipesDal(control.db);
+        const row = makeRecipeRow({ id: 'held' });
+        control.enqueue([{ ...row, heldFromReaders: true, hasCookSourceEvidence: true }], [{ count: 1 }]);
+
+        const { rows } = await dal.findAll({ ownerId: 'owner-1', page: 1, pageSize: 20, sortBy: 'updatedAt' });
+        const selected = control.calls.find((call) => call.method === 'select')?.args[0] as Record<string, unknown>;
+
+        expect(Object.keys(selected)).toEqual(expect.arrayContaining(['heldFromReaders', 'hasCookSourceEvidence']));
+        expect(rows[0]).toMatchObject({ heldFromReaders: true, hasCookSourceEvidence: true });
+        expect(rows[0]!.recipe).toStrictEqual(row);
+    });
+});
+
+describe('RecipesDal.findOwnerHiddenFacts', () => {
+    it('reads the two facts for one active recipe by the database rule', async () => {
+        const control = createFakeDb();
+        const dal = new RecipesDal(control.db);
+        control.enqueue([{ heldFromReaders: true, hasCookSourceEvidence: false }]);
+
+        await expect(dal.findOwnerHiddenFacts('r-1', 'owner-1')).resolves.toStrictEqual({
+            heldFromReaders: true,
+            hasCookSourceEvidence: false,
+        });
+
+        const selected = control.calls.find((call) => call.method === 'select')?.args[0] as Record<string, unknown>;
+
+        expect(Object.keys(selected).sort()).toEqual(['hasCookSourceEvidence', 'heldFromReaders']);
+    });
+
+    it('answers undefined for a recipe that is missing or deleted', async () => {
+        const control = createFakeDb();
+        const dal = new RecipesDal(control.db);
+        control.enqueue([]);
+
+        await expect(dal.findOwnerHiddenFacts('gone', 'owner-1')).resolves.toBeUndefined();
     });
 });
 

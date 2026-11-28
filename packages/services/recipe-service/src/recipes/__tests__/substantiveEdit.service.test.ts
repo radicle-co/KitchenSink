@@ -82,6 +82,7 @@ function fakeDal(
         privateFoodLines: vi.fn(async () => []),
         // An edit of a PUBLISHED recipe reads its facts under the row lock (the statement rule): the shared double reads the same row.
         lockSlotFacts: sharedFakeRecipesDal({ findById: vi.fn().mockResolvedValue(existing) }).lockSlotFacts,
+        findOwnerHiddenFacts: sharedFakeRecipesDal().findOwnerHiddenFacts,
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 

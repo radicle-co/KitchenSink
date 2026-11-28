@@ -45,6 +45,7 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { generateClerkKeypair, mintToken } from '../../../tests/support/jwt.js';
 import { startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 import type { RecipeStatus, RecipeVisibility } from '@kitchensink/recipe-core';
 
@@ -153,6 +154,7 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    findOwnerHiddenFacts: noOwnerHiddenFacts,
                     create,
                     update,
                     setVisibility,

@@ -151,6 +151,7 @@ function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal {
         lockAndCountPrivateSlots: vi.fn(async () => 0),
         // An edit of a PUBLISHED recipe reads its facts under the row lock (the statement rule): the shared double reads the same row.
         lockSlotFacts: sharedFakeRecipesDal({ findById }).lockSlotFacts,
+        findOwnerHiddenFacts: sharedFakeRecipesDal().findOwnerHiddenFacts,
         privateFoodLines: vi.fn(async () => []),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;

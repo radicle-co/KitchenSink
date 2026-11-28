@@ -9,7 +9,7 @@
  *
  * @sideEffect Every method reads and/or writes Postgres via the injected Drizzle client.
  */
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, getTableColumns, inArray, sql } from 'drizzle-orm';
 
 import type { RecipeDrizzle } from '../../database/client.js';
 import {
@@ -33,7 +33,14 @@ import type {
     RecipeVisibility,
 } from '@kitchensink/recipe-core';
 import type { RecipeListSortBy } from '../dto/listRecipes.query.dto.js';
-import { activeRecipe, readableBy, readableRecipeColumns, type ReadableRecipeRow } from './recipePredicates.js';
+import {
+    activeRecipe,
+    cookSourceEvidenceOf,
+    heldFromReadersSql,
+    readableBy,
+    readableRecipeColumns,
+    type ReadableRecipeRow,
+} from './recipePredicates.js';
 import { IngredientLinesDal, type IngredientLineInput } from './ingredientLines.dal.js';
 import { PrivateSlotsDal } from './privateSlots.dal.js';
 import type { SlotFacts } from '../domain/privateSlotPolicy.js';
@@ -192,6 +199,12 @@ export interface ReadableRecipeAggregate extends RecipeAggregate {
     recipe: ReadableRecipeRow;
 }
 
+/** What {@link RecipesDal.findOwnerHiddenFacts} reads. */
+export interface OwnerHiddenFacts {
+    readonly heldFromReaders: boolean;
+    readonly hasCookSourceEvidence: boolean;
+}
+
 /** A recipe's slot facts, source facts and statement facts, as read under its row lock (`lockSlotFacts`). */
 export interface LockedRecipeFacts extends SlotFacts {
     readonly sourceType: RecipeRow['sourceType'];
@@ -222,6 +235,13 @@ export interface LockedRecipeFacts extends SlotFacts {
  */
 export interface ListRecipeRow {
     recipe: RecipeRow;
+    /**
+     * The read rule's own answer for the row (`recipe_held_from_readers`) and the cook-evidence term, both selected with the page
+     * so the owner's `hiddenReason` is decided from the database's answer and never from a TypeScript copy. REQUIRED: a select
+     * that forgot them does not compile.
+     */
+    heldFromReaders: boolean;
+    hasCookSourceEvidence: boolean;
     coverPhotoKey?: string;
     /** Whether any line is bound to a private food (`recipe_holds_private_food`, migration 0064). */
     holdsPrivateFood?: boolean;
@@ -480,6 +500,26 @@ export class RecipesDal {
     }
 
     /**
+     * The two facts the OWNER's `hiddenReason` is decided from, for one recipe, by the database's own rule: the read function's
+     * answer and the cook-evidence term. One read behind every detail response (create, update and the rest return an aggregate
+     * that never carried the hold), so no caller changes.
+     *
+     * @param id - The recipe id.
+     * @param ownerId - The owner reading it; the evidence term is selected for this id's rows only.
+     * @returns The facts, or `undefined` when no active recipe has that id.
+     * @sideEffect Reads `recipes`.
+     */
+    public async findOwnerHiddenFacts(id: string, ownerId: string): Promise<OwnerHiddenFacts | undefined> {
+        const [facts] = await this.db
+            .select({ heldFromReaders: heldFromReadersSql(), hasCookSourceEvidence: cookSourceEvidenceOf(ownerId) })
+            .from(recipes)
+            .where(and(eq(recipes.id, id), activeRecipe()))
+            .limit(1);
+
+        return facts;
+    }
+
+    /**
      * Load one active (non-tombstoned) recipe + its steps and ingredients.
      *
      * @returns The aggregate, or `undefined` when no active recipe has that id.
@@ -623,7 +663,11 @@ export class RecipesDal {
                   : desc(recipes.updatedAt);
 
         const pageRows = await this.db
-            .select()
+            .select({
+                ...getTableColumns(recipes),
+                heldFromReaders: heldFromReadersSql(),
+                hasCookSourceEvidence: cookSourceEvidenceOf(ownerId),
+            })
             .from(recipes)
             .where(where)
             .orderBy(orderBy)
@@ -641,11 +685,13 @@ export class RecipesDal {
         const holding = ids.length > 0 ? await this.loadHoldingPrivateFood(ids) : new Set<string>();
 
         return {
-            rows: pageRows.map((recipe) => {
+            rows: pageRows.map(({ heldFromReaders, hasCookSourceEvidence, ...recipe }) => {
                 const coverPhotoKey = coverKeys.get(recipe.id);
 
                 return {
                     recipe,
+                    heldFromReaders,
+                    hasCookSourceEvidence,
                     holdsPrivateFood: holding.has(recipe.id),
                     ...(coverPhotoKey !== undefined ? { coverPhotoKey } : {}),
                 };

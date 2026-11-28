@@ -133,6 +133,9 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    // Held by the correction hold the suite seeds, as the database rule would answer.
+                    findOwnerHiddenFacts: () =>
+                        Promise.resolve({ heldFromReaders: stored.sourceCorrectionHold, hasCookSourceEvidence: false }),
                     create,
                     update,
                     findById: readStored,

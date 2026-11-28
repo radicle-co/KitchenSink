@@ -551,3 +551,68 @@ describe('SearchDal.search', () => {
         expect(pageSql).toContain('created_at DESC'); // the all-zero (nothing cloned) case stays deterministic
     });
 });
+
+describe('SearchDal.search: the owner-only hiddenReason (hiddenViews AE3, AE7)', () => {
+    const OTHER_COOK = '01J0000000000000000OTHER00';
+    const heldRow = (overrides: Record<string, unknown> = {}) =>
+        makeRawRecipeSearchRow({ held_from_readers: true, source_correction_hold: true, ...overrides });
+    let execute: ReturnType<typeof vi.fn>;
+    let dal: SearchDal;
+
+    beforeEach(() => {
+        let db: RecipeDrizzle;
+
+        ({ db, execute } = makeDb());
+        dal = new SearchDal(db);
+    });
+
+    it('selects the three facts through the one SQL source, the evidence term for the viewer only', async () => {
+        primeExecute(execute);
+
+        await dal.search(filters());
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).toContain('recipe_held_from_readers("recipes", $');
+        expect(pageSql).toContain('AS held_from_readers');
+        expect(pageSql).toContain('(case when "recipes"."owner_id" = $');
+        expect(pageSql).toContain('recipe_has_cook_source_evidence("recipes"."id")');
+        expect(pageSql).toContain('AS has_cook_source_evidence');
+        expect(pageSql).toContain('recipes.source_correction_hold');
+    });
+
+    it("pays no evidence probe in the community scope, which never returns the viewer's own rows (AE7)", async () => {
+        primeExecute(execute);
+
+        await dal.search(filters({ scope: 'community' }));
+
+        const pageSql = sqlText(execute.mock.calls[0]![0]);
+
+        expect(pageSql).toContain('false AS has_cook_source_evidence');
+        expect(pageSql).not.toContain('recipe_has_cook_source_evidence');
+    });
+
+    it('tells the owner why their held public recipe is hidden', async () => {
+        primeExecute(execute, { rows: [heldRow()] });
+
+        const { results } = await dal.search(filters());
+
+        expect(results[0]!.recipe.hiddenReason).toBe('sourceCorrected');
+    });
+
+    it('tells any other viewer nothing, even when the row reaches them held (the read rule bypassed on purpose)', async () => {
+        primeExecute(execute, { rows: [heldRow()] });
+
+        const { results } = await dal.search(filters({ ownerId: OTHER_COOK }));
+
+        expect(results[0]!.recipe).not.toHaveProperty('hiddenReason');
+    });
+
+    it('tells nobody for a row the read rule does not hold', async () => {
+        primeExecute(execute, { rows: [heldRow({ held_from_readers: false })] });
+
+        const { results } = await dal.search(filters());
+
+        expect(results[0]!.recipe).not.toHaveProperty('hiddenReason');
+    });
+});

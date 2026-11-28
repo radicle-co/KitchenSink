@@ -67,6 +67,11 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    findOwnerHiddenFacts: (id: string) =>
+                        Promise.resolve({
+                            heldFromReaders: stored.get(id)?.recipe.heldFromReaders ?? false,
+                            hasCookSourceEvidence: false,
+                        }),
                     findById: (id: string) => Promise.resolve(stored.get(id)),
                     findRowById: (id: string) => Promise.resolve(stored.get(id)?.recipe),
                     privateFoodLines: () => Promise.resolve([]),

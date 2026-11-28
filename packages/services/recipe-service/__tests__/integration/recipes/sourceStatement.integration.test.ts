@@ -48,6 +48,7 @@ import { resolveStatementProvenance } from '../../../src/recipes/domain/provenan
 import { createRecipeRequestSchema } from '../../../src/recipes/recipes.schema.js';
 import { RecipesService } from '../../../src/recipes/recipes.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
@@ -171,6 +172,7 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    findOwnerHiddenFacts: noOwnerHiddenFacts,
                     create,
                     update,
                     findById: async (id: string) => (id === RECIPE_ID ? aggregateOf(stored) : undefined),

@@ -27,6 +27,7 @@ import {
     RECIPE_RATINGS_DAL,
 } from '../../../src/recipes/recipes.tokens.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
+import { noOwnerHiddenFacts } from '../../../tests/support/ownerHiddenFacts.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
@@ -56,6 +57,7 @@ beforeAll(async () => {
             {
                 provide: RECIPES_DAL,
                 useValue: {
+                    findOwnerHiddenFacts: noOwnerHiddenFacts,
                     findById: async (id: string) =>
                         id === RECIPE_ID
                             ? {

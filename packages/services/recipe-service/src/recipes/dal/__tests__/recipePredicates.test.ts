@@ -12,6 +12,7 @@ import { PRIVATE_ONLY_SOURCE_KEYS } from '@kitchensink/recipe-core';
 import {
     activeRecipe,
     communityOf,
+    cookSourceEvidenceOf,
     heldFromReadersSql,
     publishedOrOwnedBy,
     readableBy,
@@ -110,5 +111,17 @@ describe('the held-from-readers term (ADR-0105)', () => {
             '("recipes"."deleted_at" is null and (("recipes"."visibility" = $1 and not recipe_held_from_readers("recipes", $2::jsonb)) or "recipes"."owner_id" = $3) and ("recipes"."status" = $4 or "recipes"."owner_id" = $5))',
         );
         expect(params).toEqual(['public', KEYS_PARAM, VIEWER, 'published', VIEWER]);
+    });
+});
+
+describe('the cook-evidence select (hiddenViews KTD-2)', () => {
+    it("cookSourceEvidenceOf() probes the database function for the viewer's OWN rows only, and is false for every other row", () => {
+        const { sql, params } = compile(cookSourceEvidenceOf(VIEWER));
+
+        // CASE, not AND: Postgres does not promise AND order, and a non-owner row must never pay (or leak) the probe.
+        expect(sql).toBe(
+            '(case when "recipes"."owner_id" = $1 then recipe_has_cook_source_evidence("recipes"."id") else false end)',
+        );
+        expect(params).toEqual([VIEWER]);
     });
 });

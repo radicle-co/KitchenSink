@@ -120,6 +120,7 @@ function fakeDal(source: RecipeAggregate | undefined): { dal: RecipesDal; create
         update: vi.fn(),
         softDelete: vi.fn(),
         setVisibility: vi.fn(),
+        findOwnerHiddenFacts: vi.fn(async () => ({ heldFromReaders: false, hasCookSourceEvidence: false })),
         transaction: vi.fn(async (fn: (tx: RecipeTx) => Promise<unknown>) => fn(FAKE_TX)),
     } as unknown as RecipesDal;
 

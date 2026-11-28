@@ -31,7 +31,13 @@ import type { RecipeSearchFacets, RecipeSearchQuery } from '../search.schema.js'
 import type { RecipeDrizzle } from '../../database/client.js';
 import { clampPage, clampPageSize, DEFAULT_PAGE_SIZE } from '../../common/pagination.js';
 import { coverPhotoLateral } from '../../recipes/dal/coverPhotoSql.js';
-import { communityOf, readableBy } from '../../recipes/dal/recipePredicates.js';
+import {
+    communityOf,
+    cookSourceEvidenceOf,
+    heldFromReadersSql,
+    readableBy,
+} from '../../recipes/dal/recipePredicates.js';
+import { hiddenReasonOfRow } from '../../recipes/mappers/hiddenReasonOfRow.js';
 import { recipeRowToDomain, type RecipeRowInput } from '../../recipes/mappers/recipeRowToDomain.js';
 import { resolveCdnUrl } from '../../photos/photoView.js';
 import type { FoodFilter } from '../foodFilterExpansion.gateway.js';
@@ -171,6 +177,11 @@ interface RawRecipeSearchRow {
     created_at: Date | string;
     updated_at: Date | string;
     cover_photo_key: string | null;
+    /** The read rule's own answer for the row (`recipe_held_from_readers`), selected by the page read only. */
+    held_from_readers: boolean;
+    /** Cook-evidence term, selected for the viewer's own rows (`false` for every other row). */
+    has_cook_source_evidence: boolean;
+    source_correction_hold: boolean;
     rank: number | string | null;
 }
 
@@ -450,9 +461,13 @@ export class SearchDal {
         const where = this.buildWhere({ ...filters, query });
         const rank = rankExpr(query);
         const orderBy = orderByExpr(filters.sortBy, query);
+        // The community scope never returns the viewer's own rows, so there is no owner to tell: no probe is paid.
+        const evidence = filters.scope === 'community' ? sql`false` : cookSourceEvidenceOf(filters.ownerId);
 
         const pageResult = await this.db.execute<RawRecipeSearchRow>(sql`
-            SELECT ${RECIPE_COLUMNS}, cp.cover_photo_key, ${rank} AS rank
+            SELECT ${RECIPE_COLUMNS}, recipes.source_correction_hold, cp.cover_photo_key, ${rank} AS rank,
+                   ${heldFromReadersSql()} AS held_from_readers,
+                   ${evidence} AS has_cook_source_evidence
             FROM recipes
             LEFT JOIN ${coverPhotoLateral()} ON true
             WHERE ${where}
@@ -510,15 +525,27 @@ export class SearchDal {
         `);
 
         return {
-            results: pageResult.rows.map((row) => this.toSearchResult(row, query)),
+            results: pageResult.rows.map((row) => this.toSearchResult(row, query, filters.ownerId)),
             facets: groupFacets(facetResult.rows),
             total,
         };
     }
 
     /** Map a raw row + query into a ranked {@link RecipeSearchResult} (rank omitted in browse mode). */
-    private toSearchResult(row: RawRecipeSearchRow, query: string | undefined): RecipeSearchResult {
-        const recipe = rowToRecipe(row, this.mediaCdnUrl);
+    private toSearchResult(row: RawRecipeSearchRow, query: string | undefined, viewerId: string): RecipeSearchResult {
+        // `rowToRecipe` stays the ONE row to domain path; the owner-only reason is layered on from the selected facts.
+        const reason = hiddenReasonOfRow(
+            { ...toRecipeRowInput(row), sourceCorrectionHold: row.source_correction_hold },
+            {
+                viewerId,
+                heldFromReaders: row.held_from_readers,
+                hasCookSourceEvidence: row.has_cook_source_evidence,
+            },
+        );
+        const recipe: Recipe = {
+            ...rowToRecipe(row, this.mediaCdnUrl),
+            ...(reason === undefined ? {} : { hiddenReason: reason }),
+        };
 
         if (query === undefined) {
             return { recipe };

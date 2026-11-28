@@ -359,12 +359,21 @@ describe('useCookingTimerDock: the Done title signal', () => {
         return made;
     };
 
+    /** The control a row must have: a missing one fails the row instead of pressing nothing. */
+    const present = <T,>(control: T | undefined): T => {
+        if (control === undefined) {
+            throw new Error('The row has no such control.');
+        }
+
+        return control;
+    };
+
     it('advances when Cancel is pressed on Done, and not before', () => {
         const { dock } = started(true);
 
         expect(dock().doneTitleSignal).toBe(0);
 
-        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(present(dock().rows[0]?.secondary));
 
         expect(dock().doneTitleSignal).toBe(1);
     });
@@ -378,7 +387,7 @@ describe('useCookingTimerDock: the Done title signal', () => {
 
         expect(real.getSnapshot().timers[0]?.kind).toBe('ringing');
 
-        press(dock().rows[0]?.primary ?? { onPress: vi.fn() });
+        press(present(dock().rows[0]?.primary));
 
         expect(dock().doneTitleSignal).toBe(1);
     });
@@ -386,7 +395,7 @@ describe('useCookingTimerDock: the Done title signal', () => {
     it('stays 0 for a Cancel on a step, where Next takes focus', () => {
         const { dock } = started(false);
 
-        press(dock().rows[0]?.secondary ?? { onPress: vi.fn() });
+        press(present(dock().rows[0]?.secondary));
 
         expect(dock().doneTitleSignal).toBe(0);
     });

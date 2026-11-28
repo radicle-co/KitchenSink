@@ -20,15 +20,31 @@ import sys
 CLASS = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
 
 
+class _Used(HTMLParser):
+    """The classes a board uses: every `class` attribute token, and every word in a <script> (the guard's rule)."""
+
+    def __init__(self):
+        super().__init__()
+        self.used, self._in_script = set(), False
+
+    def handle_starttag(self, tag, attrs):
+        self.used |= set((dict(attrs).get('class') or '').split())
+        self._in_script = tag == 'script'
+
+    def handle_endtag(self, tag):
+        if tag == 'script':
+            self._in_script = False
+
+    def handle_data(self, data):
+        if self._in_script:
+            self.used |= set(re.findall(r'[\w-]+', data))
+
+
 def used_classes(html):
-    body = re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.S)
-    used = set()
-    for c in re.findall(r'class(?:Name)?=["\']([^"\']*)["\']', body):
-        used |= set(c.split())
-    # boardDeadSelectors.ts is the authority: any token in a <script> counts as use (the safe mistake is to keep a rule).
-    for script in re.findall(r'<script[^>]*>(.*?)</script>', body, flags=re.S):
-        used |= set(re.findall(r'[\w-]+', script))
-    return used
+    parser = _Used()
+    parser.feed(html)
+    parser.close()
+    return parser.used
 
 
 VOID = {'area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr'}
@@ -202,6 +218,9 @@ def selfcheck():
     )
     out = prune(board)
     assert '.byScript' in out, 'a class set by script lost its rule'
+    upper = '<style>.byUpper{color:red}.bare{color:red}</style><SCRIPT>h("x",{className:"byUpper"})</SCRIPT><div class=bare></div>'
+    assert '.byUpper' in prune(upper), 'a class set by an upper-case script lost its rule'
+    assert '.bare' in prune(upper), 'an unquoted class attribute lost its rule'
     assert '.ghost' not in out, 'a class nothing uses kept its rule'
     assert 'byScript' not in dead_classes(board)
     print('selfcheck ok')

@@ -4868,8 +4868,25 @@ describe("the Source row's own sheet (ADR-0100)", () => {
 
             expect(view.result.current.storedRecipe).toMatchObject({ currentVersion: 5 });
             expect(view.result.current.storedRecipe?.sourceConfirmed).not.toBe(true);
-            // Nothing is adopted from the late read, and the refused answer is not sent again.
-            expect(JSON.stringify(view.port.submitted.slice(sentBefore))).not.toContain('statement');
+            // Nothing is adopted from the late read and nothing is sent after it: the one write is the refused one (its
+            // title, the answer, version 3), and the sync already took the title, so no edit is left to resend.
+            expect(view.port.submitted).toHaveLength(sentBefore);
+            expect(view.port.submitted).toHaveLength(1);
+            expect(view.port.submitted[0]).toMatchObject({
+                payload: { id: 'rec_1', input: { title: 'Renamed soup', expectedVersion: 3 } },
+            });
+
+            // The next edit goes at the version the editor learned (5), not the late read's (3).
+            typeTitle(view.result, 'Third soup');
+            act(() => {
+                view.result.current.saveChanges('');
+            });
+            await settle();
+
+            expect(view.port.submitted).toHaveLength(2);
+            expect(view.port.submitted[1]).toMatchObject({
+                payload: { id: 'rec_1', input: { title: 'Third soup', expectedVersion: 5 } },
+            });
         });
     });
 

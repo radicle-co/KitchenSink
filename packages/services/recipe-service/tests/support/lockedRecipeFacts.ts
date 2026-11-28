@@ -5,6 +5,7 @@ import type { LockedRecipeFacts } from '../../src/recipes/dal/recipes.dal.js';
  * The facts `RecipesDal.lockSlotFacts` returns for a stored row, for a mocked-DAL double. Typed against
  * `LockedRecipeFacts`, so a column the real query adds is a compile error here and not a silent `undefined` in every suite.
  *
+ * @pattern Test Data Builder: the one projection of the DAL's locked facts for every mocked-DAL double.
  * @param row - The recipe row the double holds.
  * @returns The locked facts of that row.
  */

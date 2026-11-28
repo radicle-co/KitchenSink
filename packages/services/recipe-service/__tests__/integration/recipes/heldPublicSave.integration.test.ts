@@ -19,12 +19,13 @@ import {
     makeRecipeStepRow,
     PUBLIC_CONFIRMATION_AS_SHOWN,
 } from '../../../src/__fixtures__/index.js';
+import { FAKE_TX } from '../../../src/recipes/__fixtures__/recipesDal.fixture.js';
 import { ErasureJobsDal } from '../../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../../src/authors/dal/authorHandles.dal.js';
 import type { RecipeRow } from '../../../src/database/schema/index.js';
 import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
-import type { RecipeAggregate, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
+import type { RecipeAggregate, RecipesDal, UpdateRecipeInput } from '../../../src/recipes/dal/recipes.dal.js';
 import {
     RECIPES_DAL,
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -37,7 +38,7 @@ import { PendingArchivesDal } from '../../../src/versions/dal/pendingArchives.da
 import { VERSIONS_DAL } from '../../../src/versions/versions.service.js';
 import { asPrincipal } from '../../../tests/support/asPrincipal.js';
 import { bearerFor, startFoodFake, type FoodFake } from '../../../tests/support/foodFake.js';
-import { lockedFactsOf } from '../../../tests/support/lockedFactsOf.js';
+import { lockedFactsOf } from '../../../tests/support/lockedRecipeFacts.js';
 import { bootMockedRecipeApp } from '../../../tests/support/mockedRecipeApp.js';
 
 const COOK = '01JSOURCESTATEMENTCOOK0001';
@@ -125,8 +126,8 @@ beforeAll(async () => {
                     lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                     setVisibility,
                     clearPublicFoodOwners: () => Promise.resolve(undefined),
-                    transaction: async (work: (tx: unknown) => Promise<unknown>) => work({ __tx: true }),
-                },
+                    transaction: (work) => work(FAKE_TX),
+                } satisfies Partial<RecipesDal>,
             },
             {
                 provide: RecipeSourceEvidenceDal,

@@ -2,7 +2,7 @@
 <html lang="en">
     <head>
         <meta charset="utf-8" />
-        <title>Recipe detail, public version, hidden (reader) (web, 1280)</title>
+        <title>Recipe detail, hidden from readers (owner) (web, 1280)</title>
         <script src="./support.js"></script>
         <link rel="stylesheet" href="ds/commise/tokens.css" />
         <link rel="stylesheet" href="ds/commise/bundle.css" />
@@ -1633,6 +1633,204 @@
                     .rd .sectionSep {
                         margin: 20px 0 8px;
                     }
+                    /* Cooking-mode entry (cooking workshop, owner 2026-10-25): the screen's one primary action. */
+                    .rd .startCook {
+                        margin-top: 16px;
+                        width: 100%;
+                        height: 48px;
+                    }
+                    .rd .startCook + .btnPair {
+                        margin-top: 8px;
+                    }
+                    .rd .topBar.withCook {
+                        grid-template-columns: 44px 1fr auto 44px;
+                    }
+                    .rd .barCook {
+                        height: 36px;
+                        padding: 0 14px;
+                        border-radius: 18px;
+                    }
+                    /* Feature cycle 1 (designer C): Add to plan beside Start cooking, and the attribution row. */
+                    .rd .cookRow {
+                        margin-top: 16px;
+                        display: grid;
+                        grid-template-columns: 1fr auto;
+                        gap: 8px;
+                    }
+                    .rd .cookRow .startCook {
+                        margin-top: 0;
+                        width: auto;
+                    }
+                    .rd .cookRow + .btnPair {
+                        margin-top: 8px;
+                    }
+                    .rd .planBtn {
+                        height: 48px;
+                        padding: 0 16px;
+                    }
+                    .rd .planBtn .ic {
+                        color: var(--action-text);
+                    }
+                    .rd .byRow {
+                        margin-top: 12px;
+                        display: flex;
+                        align-items: center;
+                        gap: 10px;
+                    }
+                    .rd .byRow .av {
+                        width: 32px;
+                        height: 32px;
+                        border-radius: 50%;
+                        flex: none;
+                        display: grid;
+                        place-items: center;
+                        font-size: 14px;
+                        font-weight: 600;
+                        background: var(--paper);
+                        box-shadow:
+                            var(--shadow-sm),
+                            inset 0 0 0 1px var(--line-divider);
+                    }
+                    .rd .byRow .who {
+                        flex: 1;
+                        min-width: 0;
+                        display: flex;
+                        flex-direction: column;
+                    }
+                    .rd .byRow .who .l1 {
+                        font-size: 16px;
+                    }
+                    .rd .byRow .who .l2 {
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .rd .byRow .who a {
+                        color: var(--action-text);
+                    }
+                    .rd .byRow .followBtn {
+                        height: 36px;
+                        padding: 0 14px;
+                        border-radius: 18px;
+                        font-size: 16px;
+                        font-weight: 600;
+                        display: inline-flex;
+                        align-items: center;
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        flex: none;
+                    }
+                    /* Feature cycle 2 (designer C): one primary, quiet secondary actions, one source line. */
+                    .rd .startCook.solo {
+                        margin-top: 16px;
+                        width: 100%;
+                        height: 48px;
+                    }
+                    .rd .quietActs {
+                        margin-top: 6px;
+                        display: flex;
+                        flex-wrap: wrap;
+                        align-items: center;
+                        gap: 4px 18px;
+                    }
+                    .rd .quietActs a {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 6px;
+                        min-height: 44px;
+                        font-size: 16px;
+                        font-weight: 500;
+                        color: var(--action-text);
+                    }
+                    .rd .quietActs a .ic {
+                        width: 16px;
+                        height: 16px;
+                    }
+                    .rd .adapted {
+                        margin-top: 10px;
+                        font-size: 14px;
+                        color: var(--ink-muted);
+                    }
+                    .rd .adapted a {
+                        color: var(--action-text);
+                    }
+                    /* Owner ruling 2026-10-26 (componentFixes.md §2 and §4): buttons are pills, chips are quiet,
+                       display tags are neither. */
+                    .rd .btn {
+                        border-radius: 999px;
+                        font-size: 16px;
+                        font-weight: 600;
+                    }
+                    .rd .btn.sm {
+                        border-radius: 999px;
+                    }
+                    .rd .btn.secondary,
+                    .rd .btn2 {
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        border-radius: 999px;
+                        font-size: 16px;
+                        font-weight: 600;
+                    }
+                    .rd .startCook.solo {
+                        height: 52px;
+                        border-radius: 26px;
+                    }
+                    .rd .timerDock .iconBtn {
+                        border-radius: 22px;
+                    }
+                    .rd .timer {
+                        height: 36px;
+                        border-radius: 18px;
+                        background: var(--paper);
+                        box-shadow: inset 0 0 0 1px var(--line-control);
+                        font-size: 16px;
+                        font-weight: 600;
+                    }
+                    .rd .chipBtn,
+                    .rd .opt {
+                        min-height: 32px;
+                        height: auto;
+                        padding: 0 12px;
+                        border-radius: 16px;
+                        background: var(--surface-muted);
+                        box-shadow: none;
+                        border: 0;
+                        font-size: 14px;
+                        font-weight: 500;
+                        color: var(--ink);
+                    }
+                    .rd .tag {
+                        height: 24px;
+                        padding: 0 8px;
+                        border-radius: 6px;
+                        background: transparent;
+                        box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--line-divider) 50%, var(--line-control));
+                        font-size: 14px;
+                        font-weight: 400;
+                        color: color-mix(in srgb, var(--ink) 35%, var(--ink-muted));
+                    }
+                    .rd .quietActs a {
+                        color: var(--ink);
+                        font-weight: 600;
+                    }
+                    .rd .quietActs a .ic {
+                        color: var(--action-text);
+                    }
+                    .rd .discloseLink {
+                        display: inline-flex;
+                        align-items: center;
+                        gap: 4px;
+                        min-height: 44px;
+                        padding: 0;
+                        background: none;
+                        font-size: 14px;
+                        font-weight: 600;
+                        color: var(--action-text);
+                    }
+                    .rd .discloseLink .ic {
+                        width: 16px;
+                        height: 16px;
+                    }
                 
                     .rd .side .me { height: 64px; margin: -12px 0 12px; color: var(--ink); font-weight: 600; }
                     .rd .side .me.on { background: var(--surface-muted); }
@@ -1641,33 +1839,9 @@
                     .rd .avatar.xs { width: 24px; height: 24px; font-size: 10px; box-shadow: inset 0 0 0 1px var(--line-divider); }
                     .rd .tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
 
-                    .rd .side .me { height: 64px; margin: -12px 0 12px; color: var(--ink); font-weight: 600; }
-                    .rd .side .me.on { background: var(--surface-muted); }
-                    .rd .avatar.sm { width: 32px; height: 32px; font-size: 12px; flex: none; }
-                    .rd .tabbar { grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: 1fr; }
-                    .tab .avatar.xs, .nv-tab .avatar.xs { width: 24px; height: 24px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 600; background: var(--paper); color: var(--ink); box-shadow: inset 0 0 0 1px var(--line-divider); }
-                    .tab.on .avatar.xs, .nv-tab.on .avatar.xs { box-shadow: 0 0 0 2px var(--ink); }
-</style><style>
-.rd .credit { display: grid; gap: 4px; margin: 16px 0 24px; }
-.rd .credit p { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
-.rd .credit a { color: var(--action-text); text-decoration: underline; text-underline-offset: 2px; overflow-wrap: anywhere; }
-.rd .credit a.rep { display: inline-flex; align-items: center; gap: 6px; min-height: 24px; font-weight: 500; text-decoration: none; }
-.rd .credit a.rep .ic { color: var(--ink-muted); }
-.rd .credit.tight { margin: 12px 0 0; }
-.rd .hiddenNote { margin-top: 12px; }
-.rd .sCap { font-size: 14px; line-height: 20px; font-weight: 600; color: var(--ink-muted); margin: 0 0 8px; }
-.rd .sPanel { background: var(--paper); border-radius: var(--radius-lg); box-shadow: inset 0 0 0 1px var(--line-divider); padding: 20px; }
-.rd .sPanel .rTitle { margin: 0; }
-.rd .sStack { display: flex; flex-direction: column; gap: 24px; padding: 24px 16px; }
-.rd .sStack.wide { padding: 32px 40px; max-width: 548px; margin: 0 auto; }
-.rd .sheetLine { padding: 4px 12px 12px; display: grid; gap: 12px; }
-.rd .sheetLine p { font-size: 16px; line-height: 24px; }
-.rd .sheetLine a.lnk { color: var(--action-text); font-weight: 500; text-decoration: underline; }
-.rd .menu.static { position: static; width: 264px; }
-.rd .menu .sheetLine a.lnk { display: inline; height: auto; padding: 0; justify-self: start; }
-.rd .doneBtn { display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--radius-md); background: var(--action); color: var(--on-action); font-weight: 600; }
-.rd .annotNote { font-size: 14px; line-height: 20px; color: var(--ink-muted); }
-.rd .hidTitle { font: 600 24px/32px var(--font-display); margin: 0; }
+.rd .hvLine { margin: 12px 0 0; font: 400 14px/20px var(--font-body); color: var(--ink-muted); }
+.nv-ios .rd > .sStack { padding-top: 63px; }
+.hv-note { margin: 0 0 8px; padding: 6px 10px; border: 1px dashed var(--line-control); border-radius: 8px; font: 500 14px/20px var(--font-body); color: var(--ink-muted); }
 </style></helmet
             >
             <svg width="0" height="0" style="position: absolute" aria-hidden="true">
@@ -1772,11 +1946,376 @@
                     <symbol id="cloudOff" viewBox="0 0 24 24">
                         <path d="M5 15.5a4 4 0 0 1 1.5-7.7 5.5 5.5 0 0 1 10.3 1.4A3.8 3.8 0 0 1 17 17H8M4 4l16 16" />
                     </symbol>
-                <symbol id="calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></symbol><symbol id="eyeOff" viewBox="0 0 24 24"><path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="2.5" /><path d="M4 4l16 16" /></symbol><symbol id="flag" viewBox="0 0 24 24"><path d="M6 20.5V4.5M6 5h10.5l-2 3.5 2 3.5H6" /></symbol></defs>
+                <symbol id="calendar" viewBox="0 0 24 24"><rect x="4" y="5.5" width="16" height="14.5" rx="2.5" /><path d="M4 10h16M8.5 3.5v3.5M15.5 3.5v3.5" /></symbol><symbol id="eyeOff" viewBox="0 0 24 24"><path d="M3 12s3.3-6 9-6 9 6 9 6-3.3 6-9 6-9-6-9-6z" /><circle cx="12" cy="12" r="2.5" /><path d="M4 4l16 16" /></symbol></defs>
             </svg>
-            <div class="rd vp" data-board="RecipePublicVersionHiddenReaderWeb1280" style="width: 1280px; height: 720px"> <div class="web"> <nav class="side" aria-label="Main"><a href="#" class="me" aria-label="Profile, Ana Lima"><span class="avatar sm">AL</span>Ana Lima</a> <a href="#" ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a ><a href="#" class="on" aria-current="page" ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a ><a href="#" ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a ><a href="#" ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a ><span class="grow"></span ><a href="#" ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg> Collapse</a > </nav> <div class="main"><div class="navRow"><a class="crumb" href="#" aria-label="Back"><svg class="ic sm" aria-hidden="true"><use href="#chevL" /></svg> Back</a></div>  <div style=" max-width: 420px; margin: 120px auto 0; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 14px; " > <svg class="ic" aria-hidden="true"><use href="#search" /></svg> <div style="display: flex; flex-direction: column; gap: 4px"> <h1 style="font-size: 16px; font-weight: 600">This recipe isn’t available right now.</h1>  </div>  </div> </div> </div> </div></x-dc
+            <div data-you-tab="1" class="rd" data-board="RecipeDetailHiddenWeb1280" style="width: 1280px; height: 1829px">
+                <div class="web">
+                    <nav class="side" aria-label="Main">
+                        <a href="#" class="me" aria-label="Profile, Eliza Ramirez"><span class="avatar sm">ER</span>Eliza Ramirez</a>
+                        <a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#home" /></svg>Home</a
+                        ><a href="#" class="on" aria-current="page"
+                            ><svg class="ic" aria-hidden="true"><use href="#book" /></svg>Recipes</a
+                        ><a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#compass" /></svg>Discover</a
+                        ><a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#calendar" /></svg>Meal plan</a
+                        ><span class="grow"></span
+                        ><a href="#"
+                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg> Collapse</a
+                        >
+                    </nav>
+                    <div class="main">
+                        <div class="navRow">
+                            <a class="crumb" href="#" aria-label="Back to My recipes"
+                                ><svg class="ic sm" aria-hidden="true"><use href="#chevL" /></svg> My recipes</a
+                            ><a class="moreBtn" href="#" aria-label="More actions"
+                                ><span
+                                    ><svg class="ic" aria-hidden="true"><use href="#dots" /></svg></span
+                            ></a>
+                        </div>
+                        <div class="topCols">
+                            <div>
+                                <div class="sheet flat card">
+                                    <p class="eyebrow">British</p>
+                                    <h1 class="rTitle dish titleGap">Lemon and thyme roast chicken</h1>
+                                    <div class="metaRow2 t15 soft">
+                                        <span class="mi"
+                                            ><svg class="ic sm" aria-hidden="true"><use href="#eyeOff" /></svg
+                                            >Hidden</span
+                                        ><span class="sep" aria-hidden="true">·</span
+                                        ><a class="mi metaLink" href="#"
+                                            ><svg class="ic sm" aria-hidden="true"><use href="#history" /></svg>Version
+                                            history</a
+                                        >
+                                    </div><p class="hvLine">Hidden because its source was corrected. Only you can see it now.</p>
+                                    <p class="adapted">
+                                        From allrecipes.com
+                                    </p>
+                                    <div class="facts tnum">
+                                        <div class="fact">
+                                            <p class="lab t13 soft">
+                                                <svg class="ic" aria-hidden="true"><use href="#clock" /></svg> Total
+                                            </p>
+                                            <p class="v">1 h 50 min</p>
+                                        </div>
+                                        <div class="fact">
+                                            <p class="lab t13 soft">
+                                                <svg class="ic" aria-hidden="true"><use href="#timer" /></svg> Prep
+                                            </p>
+                                            <p class="v">20 min</p>
+                                        </div>
+                                        <div class="fact">
+                                            <p class="lab t13 soft">
+                                                <svg class="ic" aria-hidden="true"><use href="#gauge" /></svg>
+                                                Difficulty
+                                            </p>
+                                            <p class="v">Medium</p>
+                                        </div>
+                                    </div>
+                                    <a class="btn primary startCook solo" href="#">Start cooking</a>
+                                    <div class="quietActs">
+                                        <a href="#"
+                                            ><svg class="ic sm" aria-hidden="true"><use href="#plus" /></svg>Add to
+                                            plan</a
+                                        ><a href="#"
+                                            ><svg class="ic sm" aria-hidden="true"><use href="#pencil" /></svg>Edit
+                                            recipe</a
+                                        ><a href="#" role="switch" aria-checked="false"
+                                            ><svg class="ic sm" aria-hidden="true"><use href="#sun" /></svg>Screen on</a
+                                        >
+                                    </div>
+                                    <p class="desc">
+                                        A Sunday roast that does the work for you: butter, lemon and thyme worked under
+                                        the skin, and everything else cooking in the same tin so the vegetables catch
+                                        the juices. Crisp skin, soft potatoes, and a pan sauce that needs no extra
+                                        effort.
+                                    </p>
+                                    <a class="moreLink" href="#">Read more</a>
+                                    <div class="tags">
+                                        <span class="tag">gluten-free</span><span class="tag">dinner</span
+                                        ><span class="tag">sunday roast</span>
+                                    </div>
+                                </div>
+                            </div>
+                            <div>
+                                <div class="photo p imgHero" role="img" aria-label="Photo 1 of 3: the roast chicken">
+                                    <a class="edge prevImg" href="#" aria-label="Previous photo"
+                                        ><span
+                                            ><svg class="ic" aria-hidden="true"><use href="#chevL" /></svg></span></a
+                                    ><a class="edge nextImg" href="#" aria-label="Next photo"
+                                        ><span
+                                            ><svg class="ic" aria-hidden="true"><use href="#chevR" /></svg></span
+                                    ></a>
+                                    <div class="dots" aria-hidden="true"><i class="on"></i><i></i><i></i></div>
+                                </div>
+                                <div class="card rateCard">
+                                    <div class="rateBlock">
+                                        <div class="rateLine">
+                                            <span class="stars big" aria-hidden="true"
+                                                ><svg class="ic" aria-hidden="true"><use href="#star" /></svg
+                                                ><svg class="ic" aria-hidden="true"><use href="#star" /></svg
+                                                ><svg class="ic" aria-hidden="true"><use href="#star" /></svg
+                                                ><svg class="ic" aria-hidden="true"><use href="#star" /></svg
+                                                ><svg class="ic" aria-hidden="true"><use href="#star" /></svg></span
+                                            ><span class="t17 tnum"
+                                                ><span class="w600">4.8</span>
+                                                <span class="t15 soft">· 12 ratings</span></span
+                                            >
+                                        </div>
+                                        <p class="t13 soft">Only other cooks can rate your recipe.</p>
+                                        <a class="rowLink" href="#"
+                                            >8 comments<svg class="ic sm" aria-hidden="true"><use href="#chevR" /></svg
+                                        ></a>
+                                    </div>
+                                </div>
+                                <a class="card accordion mx" href="#" aria-expanded="false"
+                                    ><span class="grow">Nutrition</span
+                                    ><span class="t15 soft tnum">612 cal per serving</span
+                                    ><svg class="ic sm" aria-hidden="true"><use href="#chevDown" /></svg
+                                ></a>
+                            </div>
+                        </div>
+                        <div style="margin-top: 24px">
+                            <div class="card prep mx">
+                                <div class="head">
+                                    <h3>Before you start</h3>
+                                    <a class="discloseLink" href="#" aria-expanded="true"
+                                        >Hide<svg class="ic" aria-hidden="true"><use href="#chevUp" /></svg
+                                    ></a>
+                                </div>
+                                <div
+                                    class="timeline"
+                                    role="img"
+                                    aria-label="20 minutes hands-on, 1 hour 30 minutes in the oven, 15 minutes resting"
+                                >
+                                    <i class="tl1" style="flex: 20"></i><i class="tl2" style="flex: 90"></i
+                                    ><i class="tl3" style="flex: 15"></i>
+                                </div>
+                                <div class="legend t13 soft tnum">
+                                    <span><b class="tl1"></b>20 min hands-on</span
+                                    ><span><b class="tl2"></b>1 h 30 min in the oven</span
+                                    ><span><b class="tl3"></b>15 min rest</span>
+                                </div>
+                                <p class="t15 tnum" style="margin-top: 10px">
+                                    <span class="w600">About 2 h 05</span>
+                                    <span class="soft">from start to the table. The rest is not in the total.</span>
+                                </p>
+                                <div class="firstUp">
+                                    <p class="t13 soft w600">Do first</p>
+                                    <ul>
+                                        <li>
+                                            <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg
+                                            ><span>Heat the oven to 220°C (200°C fan).</span>
+                                        </li>
+                                        <li>
+                                            <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg
+                                            ><span>Take the chicken out of the fridge while the oven heats.</span>
+                                        </li>
+                                        <li>
+                                            <svg class="ic" aria-hidden="true"><use href="#bullet" /></svg
+                                            ><span
+                                                >Prep the butter and the vegetables before the chicken goes in. Nothing
+                                                needs you while it roasts.</span
+                                            >
+                                        </li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="bodyCols c360">
+                            <div class="pinCol">
+                                <div class="card ingCard mx">
+                                    <div class="ingHeadRow">
+                                        <h2>Ingredients <span class="t15 soft w500">for 4</span></h2>
+                                        <div class="stepper tnum" role="group" aria-label="Servings">
+                                            <a href="#" aria-label="Fewer servings"
+                                                ><svg class="ic sm" aria-hidden="true"><use href="#minus" /></svg></a
+                                            ><span class="n">4</span
+                                            ><a href="#" aria-label="More servings"
+                                                ><svg class="ic sm" aria-hidden="true"><use href="#plus" /></svg
+                                            ></a>
+                                        </div>
+                                    </div>
+                                    <div class="ingEditRow">
+                                        <a class="chipBtn" href="#" aria-label="Edit ingredients"
+                                            ><svg class="ic" aria-hidden="true"><use href="#pencil" /></svg> Edit</a
+                                        >
+                                    </div>
+                                    <p class="group">Chicken</p>
+                                    <ul class="ing tnum">
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1</span> whole chicken
+                                                <span class="note">about 1.8 kg</span></span
+                                            >
+                                        </li>
+                                        <li class="done">
+                                            <span class="box on"
+                                                ><svg class="ic" aria-hidden="true"><use href="#check" /></svg></span
+                                            ><span
+                                                ><span class="q">3 tbsp</span> unsalted butter
+                                                <span class="note">softened</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1</span> lemon
+                                                <span class="note">zested and halved</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">6 sprigs</span> fresh thyme</span>
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">1 head</span> garlic
+                                                <span class="note">halved crosswise</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">1 tsp</span> flaky sea salt</span>
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span>Freshly ground black pepper <span class="note">to taste</span></span>
+                                        </li>
+                                    </ul>
+                                    <p class="group">Vegetables</p>
+                                    <ul class="ing tnum">
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">800 g</span> waxy potatoes
+                                                <span class="note">quartered</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">3</span> carrots
+                                                <span class="note">cut into chunks</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span
+                                                ><span class="q">2</span> red onions
+                                                <span class="note">cut into wedges</span></span
+                                            >
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">2 tbsp</span> olive oil</span>
+                                        </li>
+                                    </ul>
+                                    <p class="group">Gravy</p>
+                                    <ul class="ing tnum">
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">1 tbsp</span> plain flour</span>
+                                        </li>
+                                        <li>
+                                            <span class="box"></span
+                                            ><span><span class="q">300 ml</span> chicken stock</span>
+                                        </li>
+                                    </ul>
+                                </div>
+                                <div class="annot">Stays in view beside the steps.</div>
+                            </div>
+                            <div>
+                                <div class="secHead">
+                                    <h2>Steps</h2>
+                                    <a class="chipBtn" href="#" aria-label="Edit steps"
+                                        ><svg class="ic" aria-hidden="true"><use href="#pencil" /></svg> Edit</a
+                                    >
+                                </div>
+                                <ol class="steps">
+                                    <li class="step card done">
+                                        <span class="num" aria-label="Step 1, done"
+                                            ><svg class="ic" aria-hidden="true"><use href="#check" /></svg
+                                        ></span>
+                                        <div>
+                                            <p>
+                                                Heat the oven to 220°C (200°C fan). Take the chicken out of the fridge,
+                                                pat the skin dry with paper towels, and season it all over with
+                                                <span class="amt">1 tsp</span> salt and some black pepper. Leave it at
+                                                room temperature while the oven heats.
+                                            </p>
+                                        </div>
+                                    </li>
+                                    <li class="step card cur">
+                                        <span class="num">2</span>
+                                        <div>
+                                            <span class="label t13 w600">You’re here</span>
+                                            <p>
+                                                Mash the <span class="amt">3 tbsp</span> butter with the zest of
+                                                <span class="amt">1</span> lemon and half of the thyme leaves (from
+                                                <span class="amt">3 sprigs</span>). Work your fingers under the skin of
+                                                the breast and spread the butter over the meat.
+                                            </p>
+                                        </div>
+                                    </li>
+                                    <li class="step card">
+                                        <span class="num">3</span>
+                                        <div>
+                                            <p>
+                                                Scatter the <span class="amt">800 g</span> potatoes,
+                                                <span class="amt">3</span> carrots and <span class="amt">2</span> onions
+                                                in a large roasting tin and toss with the
+                                                <span class="amt">2 tbsp</span> olive oil. Put the chicken on top with
+                                                the halved lemon, the <span class="amt">1 head</span> garlic and the
+                                                rest of the thyme in the cavity.
+                                            </p>
+                                        </div>
+                                    </li>
+                                    <li class="step card">
+                                        <span class="num">4</span>
+                                        <div>
+                                            <p>
+                                                Roast for 20 minutes, then lower the oven to 190°C (170°C fan) and roast
+                                                for another 1 hour 10 minutes, until the juices run clear.
+                                            </p>
+                                            <a class="timer tnum" href="#"
+                                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg>1 h 30
+                                                min</a
+                                            >
+                                        </div>
+                                    </li>
+                                    <li class="step card">
+                                        <span class="num">5</span>
+                                        <div>
+                                            <p>
+                                                Lift the chicken onto a board and rest it under foil for 15 minutes.
+                                                Meanwhile, spoon the fat off the pan juices and set the tin on the heat.
+                                                Whisk in <span class="amt">1 tbsp</span> flour, then
+                                                <span class="amt">300 ml</span> stock, and simmer for 5 minutes,
+                                                stirring.
+                                            </p>
+                                            <a class="timer tnum" href="#"
+                                                ><svg class="ic" aria-hidden="true"><use href="#timer" /></svg>15 min</a
+                                            >
+                                        </div>
+                                    </li>
+                                    <li class="step card">
+                                        <span class="num">6</span>
+                                        <div>
+                                            <p>Carve the chicken and serve it with the vegetables and the gravy.</p>
+                                        </div>
+                                    </li>
+                                </ol>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div></x-dc
         >
-        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":720}}'>
+        <script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":1280,"height":1829}}'>
             class Component extends DCLogic { renderVals(){ return {}; } }
         </script>
     </body>

@@ -283,7 +283,7 @@ Sample values: spec.md S14 (public title "Baked chicken and vegetable pie", cook
 | RecipePublicVersionStates            | Stacked: signed out, paid-site credit (no line 2), loading, offline cached, +35% credit      | Web1280, Web390 | Iphone390                      |
 | RecipePublicVersionOwner             | Owner, Both path, Checking badge, "See my copy", no Report                                   | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePublicVersionHidden            | Owner: hidden after a report                                                                 | Web1280, Web390 | Iphone390, Ipad820             |
-| RecipePublicVersionHiddenReader      | Reader view of a hidden version                                                              | Web1280, Web390 | Iphone390                      |
+| RecipePublicVersionHiddenReader      | Retired (hiddenViews U7): a reader of a hidden recipe gets RecipeNotFound                    | none            | none                           |
 | RecipePrivateImportMenu              | Private copy with rightsLabel and authorLabel, owner menu open with "Share a public version" | Web1280, Web390 | Iphone390, Android384, Ipad820 |
 | RecipePrivateImportShareLine         | Stacked: loading, privateOnly paidRecent, budget, publicExists published, writing            | Web1280, Web390 | Iphone390, Ipad820             |
 | RecipePublicVersionReaderMenu        | Reader menu open on a public version, item "Report a problem"                                | Web1280, Web390 | Iphone390                      |

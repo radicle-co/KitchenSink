@@ -150,8 +150,8 @@ beforeAll(async () => {
                 update,
                 findById: async (id: string) =>
                     id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined,
-                // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this cook
-                // holds none, so a slot is free.
+                // Publishing a draft reads the row's slot facts under the lock and counts (ADR-0073 section 12); this
+                // cook holds none, so a slot is free.
                 lockAndCountPrivateSlots: async () => 0,
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                 // ADR-0029 section 4: the database holds no private food in these suites.

@@ -68,9 +68,8 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         // needs.
         lockAndCountPrivateSlots: vi.fn<RecipesDal['lockAndCountPrivateSlots']>(async () => 0),
         countPrivateSlots: vi.fn<RecipesDal['countPrivateSlots']>(async () => 0),
-        // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock
-        // unless it
-        // overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never
+        // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock unless
+        // it overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never
         // counted).
         lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(async (_tx, id) => {
             const found: RecipeAggregate | undefined = await findById(id);
@@ -103,8 +102,7 @@ export const FAKE_TX = { __fakeTx: true } as unknown as RecipeTx;
 
 /**
  * A stored row as the read rule's select returns it: the row plus its `heldFromReaders` flag (`false`: not held).
- * `RecipesDal.findRowById` and `findById` answer this shape, so a double that answers a bare `RecipeRow` is a wrong
- * double.
+ * `RecipesDal.findRowById` and `findById` answer this shape, so a double that answers a bare `RecipeRow` is wrong.
  *
  * @param row - The stored recipe row.
  * @param heldFromReaders - Whether a hold keeps it from readers.

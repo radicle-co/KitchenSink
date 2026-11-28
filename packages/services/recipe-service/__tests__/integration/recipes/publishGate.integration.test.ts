@@ -139,7 +139,8 @@ beforeAll(async () => {
                     id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined,
                 // ADR-0029 section 4: the database holds no private food in these suites.
                 privateFoodLines: async () => [],
-                // A write that leaves the recipe published judges it under the row lock (0087): the stored row, unchanged.
+                // A write that leaves the recipe published judges it under the row lock (0087): the stored row,
+                // unchanged.
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                 transaction: (work) => work(FAKE_TX),
             }),

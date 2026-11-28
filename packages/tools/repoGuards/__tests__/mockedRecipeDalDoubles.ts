@@ -1,9 +1,7 @@
 /**
- * Mechanism for the recipe-service DAL-doubles guard (`mockedRecipeDalDoubles.test.ts`): which files it scans and
- * what it
- * reads in them. The rules and their reasons live in the guard; everything here is a pure read of the TypeScript
- * parser's
- * tree, so a comment that names a token is not a use of it.
+ * Mechanism for the recipe-service DAL-doubles guard (`mockedRecipeDalDoubles.test.ts`): which files it scans and what
+ * it reads in them. The rules and their reasons live in the guard; everything here is a pure read of the TypeScript
+ * parser's tree, so a comment that names a token is not a use of it.
  */
 import ts from 'typescript';
 

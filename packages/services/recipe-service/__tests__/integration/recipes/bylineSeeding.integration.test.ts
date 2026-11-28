@@ -71,7 +71,7 @@ beforeAll(async () => {
         doubles: [
             recipesDalDouble({
                 create,
-                transaction: (work) => work(FAKE_TX),
+                transaction: (work) => work(transactionHandle),
             }),
             { provide: VERSIONS_DAL, useValue: { createSnapshot, findVersionsBeyondRetention: async () => [] } },
             { provide: PendingArchivesDal, useValue: { enqueueMany: async () => undefined } },

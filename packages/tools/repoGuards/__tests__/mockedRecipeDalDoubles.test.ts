@@ -4,25 +4,20 @@
  * the integration tier provides `RECIPES_DAL` only through the typed `recipesDalDouble` helper.
  *
  * ⛔ WHY THIS IS A GUARD. The recipe-service integration tier boots the real `AppModule` with a double for each DAL.
- * Each
- * suite once wrote its own `lockSlotFacts` answer, a copy of the 11-column projection of `RecipesDal.lockSlotFacts`.
- * When a
- * migration added a locked fact, every copy kept compiling and answered `undefined` for it, so a policy ran on an input
- * the real DAL never returns, and every suite stayed green. The projection is now written once (`lockedFactsOf`) and
- * the
- * hand-over is typed (`recipesDalDouble`); this guard keeps both true. A type cannot see a literal that bypasses the
- * projection, and a literal is the drift.
+ * Each suite once wrote its own `lockSlotFacts` answer, a copy of the 11-column projection of
+ * `RecipesDal.lockSlotFacts`. When a migration added a locked fact, every copy kept compiling and answered `undefined`
+ * for it, so a policy ran on an input the real DAL never returns, and every suite stayed green. The projection is now
+ * written once (`lockedFactsOf`) and the hand-over is typed (`recipesDalDouble`); this guard keeps both true. A type
+ * cannot see a literal that bypasses the projection, and a literal is the drift.
  *
  * Two rules, both read from the TypeScript parser (a comment is not a node):
  *  1. No integration test names `RECIPES_DAL`. A suite that provided the token itself would skip `recipesDalDouble`,
  *     and with it the check that a member answers the DAL's own type.
  *  2. In every recipe-service test file, an answer for `lockSlotFacts` holds no object literal unless it is inside a
- *     `lockedFactsOf(...)` call. The arguments of a call to a function whose name ends in `fakeRecipesDal` are
- * trusted too,
- *     because the fake's own `lockSlotFacts` member is where the default lives (`recipesDal.fixture.ts`); the suffix
- * match
- *     is for the alias `sharedFakeRecipesDal`. A member given to such a call is still read, so a literal there is
- * reported.
+ *     `lockedFactsOf(...)` call. The arguments of a call to a function whose name ends in `fakeRecipesDal` are trusted
+ *     too, because the fake's own `lockSlotFacts` member is where the default lives (`recipesDal.fixture.ts`); the
+ *     suffix match is for the alias `sharedFakeRecipesDal`. A member given to such a call is still read, so a literal
+ *     there is reported.
  *
  * Known limit: an object held in a `const` and returned by reference is not seen; the guard reads the answer's own
  * text.

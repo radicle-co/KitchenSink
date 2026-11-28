@@ -241,7 +241,7 @@ beforeAll(async () => {
                     provenance?: UpdateRecipeInput['provenance'],
                 ) => (writeFindsNoRow ? undefined : setVisibility(id, visibility, tx, provenance)),
                 clearPublicFoodOwners: async () => undefined,
-                transaction: (work) => work(FAKE_TX),
+                transaction: (work) => work(TX),
                 findNutritionInputs: async () => [],
                 readConflict: async () => ({ current: aggregateOf(stored) }),
             }),

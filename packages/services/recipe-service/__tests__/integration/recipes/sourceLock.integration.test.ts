@@ -145,7 +145,7 @@ beforeAll(async () => {
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                 setVisibility,
                 clearPublicFoodOwners: () => Promise.resolve(undefined),
-                transaction: (work) => work(FAKE_TX),
+                transaction: (work) => work(TX),
             }),
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
             {

@@ -849,7 +849,11 @@ describe('RecipesService.update - heldSave "private" is the cook choosing privat
 
         expect(lockAndCountPrivateSlots).toHaveBeenCalledOnce();
         expect(update).toHaveBeenCalledOnce();
-        expect(update.mock.calls[0]?.[1]).toMatchObject({ visibility: 'private', provenance: { sourceKind: 'book' } });
+        expect(update.mock.calls[0]).toMatchObject([
+            'r-1',
+            { visibility: 'private', provenance: { sourceKind: 'book' } },
+            FAKE_TX,
+        ]);
     });
 
     it.each([

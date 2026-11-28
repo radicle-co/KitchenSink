@@ -28,6 +28,7 @@ import userEvent from '@testing-library/user-event';
 import type { Recipe, RecipeSearchResult } from '@kitchensink/recipe-core';
 
 import { makeRecipe } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import type { SaveCopy } from '../../hooks/useSaveCopy.js';
 import { RecipeDiscoveryResults } from '../RecipeDiscoveryResults.js';
 import type { RecipeDiscoveryResultsProps } from '../model.js';
@@ -479,5 +480,28 @@ describe('RecipeDiscoveryResults (web) — a failed refresh of the rows on scree
 
         expect(regionsWhileBrowsing).toBeGreaterThan(0);
         expect(screen.getAllByText('We couldn’t refresh these results.').length).toBeGreaterThan(0);
+    });
+});
+
+// hiddenViews AE10: owner search results map through the shared card model, so a result that carries the owner's reason
+// is chipped Hidden; a result with none shows no chip.
+describe('RecipeDiscoveryResults (web) — a hidden recipe (hiddenViews AE10)', () => {
+    it('chips only the result that carries a reason', () => {
+        renderResults({
+            results: [
+                makeSearchResult({
+                    id: 'h1',
+                    title: 'Hidden one',
+                    visibility: 'public',
+                    hiddenReason: 'sourceCorrected',
+                }),
+                makeSearchResult({ id: 'p1', title: 'Public one', visibility: 'public' }),
+            ],
+        });
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
+        expect(
+            within(screen.getByRole('article', { name: 'Hidden one' })).getByText(recipeMessages.en.card.hiddenBadge),
+        ).toBeTruthy();
     });
 });

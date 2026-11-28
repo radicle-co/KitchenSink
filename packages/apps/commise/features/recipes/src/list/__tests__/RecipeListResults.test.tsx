@@ -15,10 +15,11 @@ import userEvent from '@testing-library/user-event';
 
 import { LocaleProvider } from '@commise/i18n/react';
 
-import { makeRecipeListItem } from '../../__fixtures__/index.js';
+import { makeRecipe, makeRecipeListItem } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { COMPACT_GRID_CLASS } from '../../card/cardGridClass.js';
 import { RecipeListResults } from '../RecipeListResults.js';
-import type { RecipeListResultsProps } from '../model.js';
+import { toRecipeListItem, type RecipeListResultsProps } from '../model.js';
 
 afterEach(cleanup);
 
@@ -327,5 +328,28 @@ describe('RecipeListResults (web) — the phone grid is the compact tile with it
         render(results({ variant: 'compact', recipes: editedRecipes }));
 
         expect(screen.getByText(/^Edited /u)).toBeTruthy();
+    });
+});
+
+// hiddenViews AE6: the Recipes list (and its search, which narrows the same items) draws the owner's Hidden chip from the
+// wire item, through the one mapper the library hook uses.
+describe('RecipeListResults (web) — a hidden recipe (hiddenViews AE6)', () => {
+    it.each(['row', 'grid'] as const)('chips the hidden recipe as Hidden in the %s arrangement', (variant) => {
+        render(
+            results({
+                variant,
+                recipes: [
+                    toRecipeListItem(
+                        makeRecipe({ id: 'h1', title: 'Hidden one', visibility: 'public', hiddenReason: 'other' }),
+                    ),
+                    toRecipeListItem(makeRecipe({ id: 'p1', title: 'Public one', visibility: 'public' })),
+                ],
+            }),
+        );
+
+        expect(screen.getAllByText(recipeMessages.en.card.hiddenBadge)).toHaveLength(1);
+        expect(
+            within(screen.getByRole('article', { name: 'Hidden one' })).getByText(recipeMessages.en.card.hiddenBadge),
+        ).toBeTruthy();
     });
 });

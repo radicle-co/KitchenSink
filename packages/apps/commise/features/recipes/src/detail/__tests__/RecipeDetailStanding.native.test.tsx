@@ -20,7 +20,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { CookMarksTestProvider } from '../../__fixtures__/cookMarks.js';
 import { idleUnreachableRetry, makeRecipeDetail } from '../../__fixtures__/index.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import type { VisibilityNotice } from '../../actions/visibilityNotice.js';
+import { recipeMessages } from '../../messages.js';
 import { RecipeDetailView } from '../RecipeDetailView.native.js';
 
 const platform = vi.hoisted(
@@ -150,5 +152,51 @@ describe('RecipeDetailView (native) — the standing reason line (P6)', () => {
 
         expect(screen.queryByText(STANDING.text)).toBeNull();
         expect(announced()).toEqual([]);
+    });
+});
+
+// hiddenViews AE1/AE2/AE5b/AE6: the owner's status row says Hidden in Public's place, with the eye-off glyph; the owner
+// line sits in the standing slot, muted, and another cook sees neither.
+describe('RecipeDetailView (native) — the Hidden status and its line (hiddenViews U5)', () => {
+    const LINE: VisibilityNotice = {
+        kind: 'standing',
+        reason: 'hidden',
+        text: recipeActionMessages.en.visibility.hiddenReason.heldSource,
+    };
+    const hiddenView = (viewerIsOwner: boolean, notice?: VisibilityNotice): ReactElement => (
+        <RecipeDetailView
+            unreachableRetry={idleUnreachableRetry}
+            {...(viewerIsOwner ? { viewerIsOwner } : {})}
+            {...(notice === undefined ? {} : { visibilityNotice: notice })}
+            recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, hiddenReason: 'heldSource' })}
+        />
+    );
+
+    it('shows the owner Hidden with the eye-off glyph, and not Public', () => {
+        const { container } = render(hiddenView(true), OwnerScope);
+
+        expect(screen.getByText(recipeMessages.en.card.hiddenBadge)).toBeTruthy();
+        expect(
+            [...container.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')].map(
+                (icon) => icon.dataset['iconName'],
+            ),
+        ).toContain('eye-off');
+        expect(screen.queryByText('Public')).toBeNull();
+    });
+
+    it.each(['light', 'dark'] as const)('shows the owner line in the muted ink role in the %s scheme', (scheme) => {
+        renderWithTamagui(<OwnerScope>{hiddenView(true, LINE)}</OwnerScope>, scheme);
+
+        const line = screen.getByText(LINE.text, { selector: ':not([aria-live])' });
+
+        expect(resolvedColour(line, 'color')).toBe(rgb(rolesFor(scheme).inkMuted));
+        expect(line.closest('[aria-live]')).toBeNull();
+    });
+
+    it('shows another cook neither the chip nor the line', () => {
+        render(hiddenView(false, LINE), OwnerScope);
+
+        expect(screen.queryByText(recipeMessages.en.card.hiddenBadge)).toBeNull();
+        expect(screen.queryByText(LINE.text)).toBeNull();
     });
 });

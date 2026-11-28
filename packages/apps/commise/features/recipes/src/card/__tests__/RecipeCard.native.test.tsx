@@ -20,6 +20,7 @@ import { RecipeDifficulty, RecipeStatus, RecipeVisibility } from '@kitchensink/r
 
 import { makeRecipe } from '../../__fixtures__/index.js';
 import type { CardVariant } from '../cardVariant.js';
+import { recipeMessages } from '../../messages.js';
 import { toRecipeCardModel } from '../model.js';
 // Explicit `.native.js` — tsc and the native config's resolver both map it to the `.native.tsx` leaf.
 import { RecipeCard } from '../RecipeCard.native.js';
@@ -579,3 +580,54 @@ describe.each(['grid', 'compact'] as const)(
         });
     },
 );
+
+/** The glyph each design-system `Icon` inside a node drew (the lane stubs each as `data-commise-stub="icon"`). */
+const glyphsIn = (node: HTMLElement): readonly (string | undefined)[] =>
+    [...node.querySelectorAll<HTMLElement>('[data-commise-stub="icon"]')].map((icon) => icon.dataset['iconName']);
+
+// hiddenViews AE6: Hidden is not the quiet case on any arrangement, and it draws the eye-off glyph beside its word.
+describe.each(VARIANTS)('RecipeCard (native, %s) — the Hidden chip (hiddenViews AE6)', (variant) => {
+    const hidden = (over: Parameters<typeof makeRecipe>[0] = {}) =>
+        model({
+            status: RecipeStatus.PUBLISHED,
+            visibility: RecipeVisibility.PUBLIC,
+            hiddenReason: 'heldSource',
+            ...over,
+        });
+
+    it('shows the Hidden word once, with the eye-off glyph, and no Public mark', () => {
+        const { container } = renderCard(<RecipeCard headingLevel={3} variant={variant} recipe={hidden()} />);
+
+        expect(screen.getByText(recipeMessages.en.card.hiddenBadge)).toBeTruthy();
+        expect(glyphsIn(container)).toContain('eye-off');
+        expect(screen.queryByText('Public')).toBeNull();
+    });
+
+    it('shows Hidden for `other` and for a reason this version does not know', () => {
+        const { unmount } = renderCard(
+            <RecipeCard headingLevel={3} variant={variant} recipe={hidden({ hiddenReason: 'other' })} />,
+        );
+
+        expect(screen.getByText(recipeMessages.en.card.hiddenBadge)).toBeTruthy();
+        unmount();
+        renderCard(
+            <RecipeCard headingLevel={3} variant={variant} recipe={hidden({ hiddenReason: 'fromTheFuture' })} />,
+        );
+        expect(screen.getByText(recipeMessages.en.card.hiddenBadge)).toBeTruthy();
+    });
+
+    it('keeps Public quiet with no reason, and shows Private (not Hidden) for a private recipe with a stale reason', () => {
+        const { container, unmount } = renderCard(
+            <RecipeCard headingLevel={3} variant={variant} recipe={hidden({ hiddenReason: undefined })} />,
+        );
+
+        expect(screen.queryByText(recipeMessages.en.card.hiddenBadge)).toBeNull();
+        expect(glyphsIn(container)).not.toContain('eye-off');
+        unmount();
+        renderCard(
+            <RecipeCard headingLevel={3} variant={variant} recipe={hidden({ visibility: RecipeVisibility.PRIVATE })} />,
+        );
+        expect(screen.queryByText(recipeMessages.en.card.hiddenBadge)).toBeNull();
+        expect(screen.getByText('Private')).toBeTruthy();
+    });
+});

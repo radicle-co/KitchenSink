@@ -45,6 +45,7 @@ import { publicWordingOf, type StatementSheetState } from '../actions/sourceStat
 import { useServerRefusedPrivate } from '../actions/useServerRefusedPrivate.js';
 import { useStatementSheet } from '../actions/useStatementSheet.js';
 import { visibilityNoticeOf, type VisibilityNotice } from '../actions/visibilityNotice.js';
+import { chipOf } from '../recipeState/chipOf.js';
 import { refusedLinesOf } from '../editor/refusedLinesOf.js';
 import { useLeaveWhenClosed } from '../hooks/useLeaveWhenClosed.js';
 import { ratingModeFor } from '../rating/model.js';
@@ -330,6 +331,8 @@ export function useRecipeDetailController(input: RecipeDetailControllerInput): R
             knownRefusal: recipePrivate.refusal,
             writeFailed: genericFailure && !confirmOpen && !statementOpen,
             standing,
+            // Said only while the chip says Hidden: a draft, or a private recipe with a stale reason, says nothing.
+            hiddenReason: chipOf(recipe) === 'hidden' ? recipe.hiddenReason : undefined,
             // The number is the SERVER's: the 403's own `limit`, else the standing it last answered.
             slotLimit:
                 serverRefusedPrivate?.slotLimit ?? (knownStanding.kind === 'full' ? knownStanding.limit : undefined),

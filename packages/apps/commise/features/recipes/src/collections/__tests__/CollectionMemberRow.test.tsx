@@ -16,6 +16,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LocaleProvider } from '@commise/i18n/react';
 
 import { makeCollectionMemberRecipe } from '../../__fixtures__/index.js';
+import { recipeMessages } from '../../messages.js';
 import { CollectionMemberRow } from '../CollectionMemberRow.js';
 import type { CollectionMemberRowProps } from '../detailModel.js';
 
@@ -158,3 +159,25 @@ describe('CollectionMemberRow (web) — the compact tile’s meta line', () => {
         expect(screen.queryByText(/No ratings yet/u)).toBeNull();
     });
 });
+
+// hiddenViews AE7: a collection shows the owner's own hidden recipe with the Hidden chip (the wire item carries the reason).
+describe.each(['row', 'grid', 'compact'] as const)(
+    'CollectionMemberRow (web, %s) — a hidden recipe (hiddenViews AE7)',
+    (variant) => {
+        it('chips the owner’s hidden member as Hidden', () => {
+            renderRow({
+                variant,
+                member: makeCollectionMemberRecipe({
+                    id: 'rec_1',
+                    title: 'Pasta',
+                    visibility: 'public',
+                    hiddenReason: 'heldSource',
+                }),
+            });
+
+            expect(
+                within(screen.getByRole('article', { name: 'Pasta' })).getByText(recipeMessages.en.card.hiddenBadge),
+            ).toBeTruthy();
+        });
+    },
+);

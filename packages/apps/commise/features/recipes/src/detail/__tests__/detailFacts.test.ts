@@ -117,6 +117,55 @@ describe('detailByline', () => {
 });
 
 describe('detailStatusLine', () => {
+    // hiddenViews AE1/AE2/AE5: the one chip rule decides the owner's status, so Hidden takes Public's place.
+    it.each(['sourceCorrected', 'heldSource', 'other', 'aReasonFromANewerServer'])(
+        'shows the owner a public recipe with reason %s as Hidden, with the card copy',
+        (hiddenReason) => {
+            const recipe = makeRecipeDetail({
+                visibility: RecipeVisibility.PUBLIC,
+                status: RecipeStatus.PUBLISHED,
+                hiddenReason,
+            });
+
+            expect(detailStatusLine(recipe, true, { detail, card })).toEqual({
+                kind: 'visibility',
+                visibility: 'hidden',
+                text: card.hiddenBadge,
+            });
+        },
+    );
+
+    it('shows a Draft with a reason as Draft, and a private recipe with a stale reason as Private', () => {
+        expect(
+            detailStatusLine(
+                makeRecipeDetail({
+                    status: RecipeStatus.DRAFT,
+                    visibility: RecipeVisibility.PUBLIC,
+                    hiddenReason: 'heldSource',
+                }),
+                true,
+                { detail, card },
+            ),
+        ).toEqual({ kind: 'draft', text: 'Draft' });
+        expect(
+            detailStatusLine(
+                makeRecipeDetail({
+                    status: RecipeStatus.PUBLISHED,
+                    visibility: RecipeVisibility.PRIVATE,
+                    hiddenReason: 'heldSource',
+                }),
+                true,
+                { detail, card },
+            ),
+        ).toMatchObject({ visibility: 'private', text: 'Private' });
+    });
+
+    it('shows another cook’s viewer nothing even when a reason is on the item', () => {
+        const recipe = makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, hiddenReason: 'heldSource' });
+
+        expect(detailStatusLine(recipe, false, { detail, card })).toBeUndefined();
+    });
+
     it('shows the owner the visibility of a published recipe', () => {
         const recipe = makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, status: RecipeStatus.PUBLISHED });
 

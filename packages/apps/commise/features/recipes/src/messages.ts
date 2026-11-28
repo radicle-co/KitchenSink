@@ -476,6 +476,8 @@ export interface RecipeCardMessages {
     readonly visibilityPrivate: string;
     /** Badge shown on the owner's own draft — REPLACES the visibility badge (never "Public" on a draft). */
     readonly draftBadge: string;
+    /** Status word for the owner's public recipe that readers cannot see (`chipOf`): replaces Public. */
+    readonly hiddenBadge: string;
     /** Relative-timestamp template for a revised recipe (contains `{time}`), e.g. "Edited 2d ago" (CR-002). */
     readonly editedRelative: string;
     /** Relative-timestamp template for a never-revised recipe (contains `{time}`), e.g. "Created 1w ago". */
@@ -1135,6 +1137,7 @@ export const recipeMessages: LocalizedMessages<RecipeMessages> = {
             visibilityPublic: 'Public',
             visibilityPrivate: 'Private',
             draftBadge: 'Draft',
+            hiddenBadge: 'Hidden',
             editedRelative: 'Edited {time}',
             createdRelative: 'Created {time}',
             justNow: 'just now',

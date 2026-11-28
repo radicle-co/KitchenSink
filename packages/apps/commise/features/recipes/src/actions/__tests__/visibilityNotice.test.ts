@@ -166,3 +166,36 @@ describe('visibilityNoticeOf — a recipe held out of Public by a recorded sourc
         expect(noticeOf({ standing: 'sourceConflict', isPublic: true })).toBeUndefined();
     });
 });
+
+// hiddenViews AE1/AE2/AE3c/AE4: a PUBLIC recipe the owner is told is Hidden says why in the standing slot, in the owner's
+// muted words; a moment wins over it; `other`, an unknown reason and a missing one say nothing.
+describe('visibilityNoticeOf — the Hidden line', () => {
+    const standing = (key: 'heldSource' | 'sourceCorrected') =>
+        ({ kind: 'standing', reason: 'hidden', text: copy.hiddenReason[key] }) as const;
+
+    it.each(['heldSource', 'sourceCorrected'] as const)('says the %s line, from its own key', (reason) => {
+        expect(noticeOf({ knownRefusal: undefined, hiddenReason: reason })).toEqual(standing(reason));
+    });
+
+    it('says the two lines in different words', () => {
+        expect(copy.hiddenReason.heldSource).not.toBe(copy.hiddenReason.sourceCorrected);
+    });
+
+    it.each([['other'], ['aReasonFromANewerServer'], ['']])('says no line for %j: the chip alone', (hiddenReason) => {
+        expect(noticeOf({ knownRefusal: undefined, hiddenReason })).toBeUndefined();
+    });
+
+    it('says nothing without a reason, or to a viewer who is not the owner', () => {
+        expect(noticeOf({ knownRefusal: undefined, hiddenReason: undefined })).toBeUndefined();
+        expect(noticeOf({ knownRefusal: undefined, viewerIsOwner: false, hiddenReason: 'heldSource' })).toBeUndefined();
+    });
+
+    it('lets a moment win: a refused Private and a failed write come before the line', () => {
+        expect(noticeOf({ serverRefusal: 'final', hiddenReason: 'heldSource' })).toEqual(moment(FINAL));
+        expect(noticeOf({ writeFailed: true, hiddenReason: 'heldSource' })).toEqual(moment(copy.error));
+    });
+
+    it('says nothing once the recipe is private, whatever reason the caller still holds', () => {
+        expect(noticeOf({ isPublic: false, hiddenReason: 'heldSource' })).toBeUndefined();
+    });
+});

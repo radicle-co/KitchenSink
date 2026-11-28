@@ -20,6 +20,7 @@ import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
+import { recipeActionMessages } from '../../actions/messages.js';
 import { makeIngredientView, makeRecipeDetail } from '../../__fixtures__/index.js';
 import { CookMarksProvider } from '../CookMarksProvider.js';
 import { memoryCookMarksBackend } from '../cookMarksStore.js';
@@ -562,6 +563,54 @@ describe('useRecipeDetailController — the visibility notice', () => {
                 text: 'Not available. All 50 of your private slots are in use.',
             });
         });
+    });
+});
+
+// hiddenViews AE1/AE2/AE3c/AE4: the page asks `chipOf` first, so the owner line follows the chip and nothing else.
+describe('useRecipeDetailController — the Hidden line (hiddenViews U5)', () => {
+    const HIDDEN = (hiddenReason: string, over: Partial<RecipeDetail> = {}) => ({
+        sessionClaims: { external_id: OWNER },
+        profile: settledProfile(OWNER, 'upsell'),
+        recipe: { visibility: RecipeVisibility.PUBLIC, hiddenReason, ...over },
+    });
+    const line = (key: 'heldSource' | 'sourceCorrected') => ({
+        kind: 'standing',
+        reason: 'hidden',
+        text: recipeActionMessages.en.visibility.hiddenReason[key],
+    });
+
+    it.each(['heldSource', 'sourceCorrected'] as const)(
+        'the owner of a public recipe hidden as %s gets its line',
+        (key) => {
+            expect(mount(HIDDEN(key)).result.current.visibilityNotice).toEqual(line(key));
+        },
+    );
+
+    it('says no line for `other` or a reason this app does not know: the chip alone', () => {
+        expect(mount(HIDDEN('other')).result.current.visibilityNotice).toBeUndefined();
+        expect(mount(HIDDEN('fromTheFuture')).result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('says no line for a draft (its chip is Draft) or after Make private (its chip is Private)', () => {
+        expect(
+            mount(HIDDEN('heldSource', { status: RecipeStatus.DRAFT })).result.current.visibilityNotice,
+        ).toBeUndefined();
+        expect(
+            mount(HIDDEN('heldSource', { visibility: RecipeVisibility.PRIVATE })).result.current.visibilityNotice,
+        ).toBeUndefined();
+    });
+
+    it('says nothing to another cook, whatever the item carries', () => {
+        const other = { ...HIDDEN('heldSource'), sessionClaims: { external_id: 'usr_other' } };
+
+        expect(mount(other).result.current.visibilityNotice).toBeUndefined();
+    });
+
+    it('never announces the line: a hold that appears or clears on refetch is not a change the cook made', () => {
+        const { result } = mount(HIDDEN('heldSource'));
+
+        expect(result.current.visibilityNotice).toEqual(line('heldSource'));
+        expect(result.current.visibilityAnnouncement).toBeUndefined();
     });
 });
 

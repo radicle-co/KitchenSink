@@ -6,7 +6,7 @@
  * It serves two kinds of words (board P6, KTD-3). A MOMENT is something that just happened and needs action now: a Private
  * refused, the page's own write failed, the editor's finish claim. A STANDING line says why a private recipe stays private
  * (`publicRefusalOf`); it is always there for the owner while the recipe is private, so it is muted, and a moment line
- * comes before it.
+ * comes before it. The same slot says why a PUBLIC recipe is Hidden (`hiddenReason`), in the same muted words.
  *
  * A moment serves three ways a Private is refused: the editor withheld it because the server would refuse it (the finish
  * CLAIM), the editor's follow-up was refused after the editor left (`useServerRefusedPrivate`), and the page's own Make
@@ -25,6 +25,7 @@
  * @pattern Specification — a pure predicate-and-pick over facts the page already holds
  */
 import { fillTemplate } from '@commise/i18n';
+import { knownHiddenReasonOf } from '@kitchensink/recipe-core/recipe-state';
 import type { PublicRefusalMessages, RecipeVisibilityToggleMessages } from './messages.js';
 import type { PrivateRefusal } from './privateGate.js';
 import { publicRefusalLineOf, type PublicRefusal } from './publicRefusal.js';
@@ -57,6 +58,12 @@ export interface VisibilityNoticeInput {
      * refusal `SOURCE_CONFLICT` a moment ago). Said as a standing line while the recipe is not public; `none` says nothing.
      */
     readonly standing: PublicRefusal;
+    /**
+     * Why the owner's public recipe is Hidden, as the wire states it (an open string), once the chip says Hidden: the caller
+     * passes it only when `chipOf` is `hidden`, so a draft or a private recipe never says it. `other`, a newer server's reason
+     * and an absent one have no line (`knownHiddenReasonOf`).
+     */
+    readonly hiddenReason?: string | undefined;
 }
 
 /**
@@ -65,7 +72,7 @@ export interface VisibilityNoticeInput {
  */
 export type VisibilityNotice =
     | { readonly kind: 'moment'; readonly text: string }
-    | { readonly kind: 'standing'; readonly reason: Exclude<PublicRefusal, 'none'>; readonly text: string };
+    | { readonly kind: 'standing'; readonly reason: Exclude<PublicRefusal, 'none'> | 'hidden'; readonly text: string };
 
 /**
  * The words the page's visibility slot shows, if any.
@@ -80,7 +87,7 @@ export type VisibilityNotice =
  */
 export function visibilityNoticeOf(
     input: VisibilityNoticeInput,
-    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused'> & {
+    messages: Pick<RecipeVisibilityToggleMessages, 'error' | 'privateRefused' | 'hiddenReason'> & {
         /** One line per reason a recipe stays private (`publicRefusalLineOf`). */
         readonly publicRefusal: PublicRefusalMessages;
     },
@@ -119,7 +126,16 @@ export function visibilityNoticeOf(
         return say(claimed);
     }
 
-    if (input.isPublic || input.standing === 'none') {
+    if (input.isPublic) {
+        // Why a PUBLIC recipe is Hidden: a standing line like the private one, never announced (it is not a change the cook made).
+        const known = knownHiddenReasonOf(input.hiddenReason);
+
+        return known === undefined
+            ? undefined
+            : { kind: 'standing', reason: 'hidden', text: messages.hiddenReason[known] };
+    }
+
+    if (input.standing === 'none') {
         return undefined;
     }
 

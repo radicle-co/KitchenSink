@@ -31,6 +31,7 @@ import {
 import { RecipeDetailBody } from '../RecipeDetailBody.js';
 import { RecipeDetailView } from '../RecipeDetailView.js';
 import { resetServingScale } from '../servingScale.js';
+import { recipeActionMessages } from '../../actions/messages.js';
 import { recipeMessages } from '../../messages.js';
 import type { ComponentProps, FC, ReactElement, ReactNode } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -2287,5 +2288,51 @@ describe('RecipeDetailView (web) — the visibility notice', () => {
             expect(screen.queryByText(STANDING.text)).toBeNull();
             expect(screen.queryByRole('alert')).toBeNull();
         });
+    });
+});
+
+// hiddenViews AE1/AE2/AE5b/AE6: the owner's status row says Hidden in Public's place, with the eye-off glyph; the owner
+// line (decided by the controller) sits in the standing slot under it, in muted text, and another cook sees neither.
+describe('RecipeDetailView (web) — the Hidden status and its line (hiddenViews U5)', () => {
+    const LINE = {
+        kind: 'standing',
+        reason: 'hidden',
+        text: recipeActionMessages.en.visibility.hiddenReason.heldSource,
+    } as const satisfies VisibilityNotice;
+    const hiddenView = (viewerIsOwner: boolean, notice?: VisibilityNotice): ReactElement => (
+        <RecipeDetailView
+            dataSourcesHref="/en/legal/sources"
+            unreachableRetry={idleUnreachableRetry}
+            {...(viewerIsOwner ? { viewerIsOwner } : {})}
+            {...(notice === undefined ? {} : { visibilityNotice: notice })}
+            recipe={makeRecipeDetail({ visibility: RecipeVisibility.PUBLIC, hiddenReason: 'heldSource' })}
+        />
+    );
+
+    it('shows the owner Hidden with the eye-off glyph, and not Public', () => {
+        renderAsOwner(hiddenView(true));
+
+        const status = screen.getByText(recipeMessages.en.card.hiddenBadge);
+
+        expect(status.parentElement?.querySelector('svg.lucide-eye-off')).not.toBeNull();
+        expect(screen.queryByText('Public')).toBeNull();
+    });
+
+    it('puts the owner line under the status row as muted text, never in a live region', () => {
+        renderAsOwner(hiddenView(true, LINE));
+
+        const status = screen.getByText(recipeMessages.en.card.hiddenBadge);
+        const line = screen.getByText(LINE.text, { selector: 'p' });
+
+        expect(status.compareDocumentPosition(line) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+        expect(line.className).toContain('text-ink-muted');
+        expect(line.closest('[role="alert"], [role="status"]')).toBeNull();
+    });
+
+    it('shows another cook neither the chip nor the line', () => {
+        renderAsOwner(hiddenView(false, LINE));
+
+        expect(screen.queryByText(recipeMessages.en.card.hiddenBadge)).toBeNull();
+        expect(screen.queryByText(LINE.text)).toBeNull();
     });
 });

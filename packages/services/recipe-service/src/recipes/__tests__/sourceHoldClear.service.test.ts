@@ -81,6 +81,7 @@ function build(setup: Setup = {}) {
     const recordClears = log('record', undefined);
     const releaseHolds = log('release', undefined);
     const beginCount = { n: 0 };
+
     const transaction = async <T>(fn: (tx: RecipeTx) => Promise<T>): Promise<T> => {
         calls.push('begin');
         beginCount.n += 1;

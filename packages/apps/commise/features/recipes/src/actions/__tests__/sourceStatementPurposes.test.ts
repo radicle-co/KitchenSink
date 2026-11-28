@@ -88,7 +88,7 @@ describe('answerLocks: the one rule for whether confirming an answer locks it (d
     });
 
     it('covers every answer on every surface, confirmed or not', () => {
-        const keys = new Set(table.map(([answer, surface, confirmed]) => `${answer}|${surface}|${confirmed}`));
+        const keys = new Set(table.map(([answer, surface, confirmed]) => `${answer}|${surface}|${String(confirmed)}`));
 
         expect(keys.size).toBe(6 * 6 * 2);
     });

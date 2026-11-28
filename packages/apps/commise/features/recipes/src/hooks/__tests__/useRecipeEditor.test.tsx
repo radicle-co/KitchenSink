@@ -5030,6 +5030,44 @@ describe("the Source row's own sheet (ADR-0100)", () => {
         });
     });
 
+    it('a second row answer given while the first write is out is not lost when the first write lands', async () => {
+        const { result, port } = mount({ recipe: makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT }) });
+        const book = {
+            kind: 'book',
+            citation: 'Salt Fat Acid Heat',
+            wording: { version: 'statementBook.v2', locale: 'en' },
+        } as const;
+        const person = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } } as const;
+
+        act(() => {
+            result.current.answerRowStatement({ statement: book, visibility: RecipeVisibility.PRIVATE }, 'firstAnswer');
+        });
+        await settle();
+        const firstSeq = port.lastSeq();
+        act(() => {
+            result.current.answerRowStatement({ statement: person, visibility: RecipeVisibility.PRIVATE }, 'change');
+        });
+        await settle();
+        act(() => {
+            port.sync(firstSeq, makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, currentVersion: 4 }));
+        });
+        await settle();
+
+        // Each answer rides its own write, and only the outstanding write's answer is adopted: the first landing does not clear
+        // the second answer, which the second write carries.
+        expect(port.submitted).toHaveLength(2);
+        expect(port.submitted[0]).toMatchObject({ payload: { input: { statement: { kind: 'book' } } } });
+        expect(port.submitted[1]).toMatchObject({ payload: { input: { statement: { kind: 'fromPerson' } } } });
+        expect(result.current.rowStated?.statement).toEqual(person);
+
+        act(() => {
+            port.sync(port.lastSeq(), makeRecipeDetail({ id: 'rec_1', status: RecipeStatus.DRAFT, currentVersion: 5 }));
+        });
+        await settle();
+
+        expect(result.current.rowStated).toBeUndefined();
+    });
+
     it('⛔ a refused answer is dropped, the refusal is told, and the rest of the draft goes again', async () => {
         const { result, port } = mount();
 

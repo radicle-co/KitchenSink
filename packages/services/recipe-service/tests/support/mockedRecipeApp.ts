@@ -19,7 +19,7 @@ import { RECIPE_HTTP_SETUP } from '../../src/config/httpSetup.js';
 import { ErasureJobsDal } from '../../src/account/dal/erasureJobs.dal.js';
 import { AuthorHandlesDal } from '../../src/authors/dal/authorHandles.dal.js';
 import type { PhotosDal } from '../../src/photos/dal/photos.dal.js';
-import type { LineVerificationsDal } from '../../src/recipes/dal/lineVerifications.dal.js';
+import type { LineVerdictRow, LineVerificationsDal } from '../../src/recipes/dal/lineVerifications.dal.js';
 import { RecipeStatementAttestationsDal } from '../../src/recipes/dal/recipeStatementAttestations.dal.js';
 import {
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -57,7 +57,7 @@ export const DEFAULT_ANSWERS = {
     photos: { findByRecipe: () => Promise.resolve([]) } satisfies Partial<PhotosDal>,
     ratings: { findStars: () => Promise.resolve(undefined) } satisfies Partial<RatingsDal>,
     lineVerifications: {
-        findBandsByKeys: () => Promise.resolve(new Map()),
+        findBandsByKeys: () => Promise.resolve(new Map<string, LineVerdictRow>()),
         findExistingKeys: () => Promise.resolve(new Set()),
     } satisfies Partial<LineVerificationsDal>,
     erasureJobs: { findActiveJob: () => Promise.resolve(undefined) } satisfies Partial<ErasureJobsDal>,

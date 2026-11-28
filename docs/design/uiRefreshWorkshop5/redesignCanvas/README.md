@@ -12,7 +12,8 @@ These scripts drew boards that are now in `docs/design/canvases/`. Board comment
 `themes.css`, `houseTabNative.html`, `houseTabWeb.html` and `houseTabWeb.css` are inputs the scripts read from this
 folder. `doneRowCss.py` and `pruneCss.py` are modules the build scripts import. `pruneCss.py` also runs on its own to
 drop CSS a board does not use, by the same rule as the guard (a class in a `class` attribute or any token in a
-`<script>` is used). It keeps any selector it cannot read plainly (one with `[` or a backslash). `python3 -I pruneCss.py --selfcheck` checks that.
+`<script>` is used). It keeps any rule whose selector it cannot read plainly (an attribute test, `:not()`, `:is()`, an
+escape). `python3 -I pruneCss.py --selfcheck` checks that.
 
 The output is a starting point, not a byte-exact copy of what is on `main`. Only the ingredients boards of
 `buildS2Boards.py` match. The others were edited after they were drawn: by two more scripts, `relabelContinueCooking.py`

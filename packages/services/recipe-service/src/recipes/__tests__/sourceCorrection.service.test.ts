@@ -98,7 +98,7 @@ function build(recipe: CorrectableRecipe | null = BOOK_RECIPE, latestCorrectionI
         return fn(FAKE_TX);
     };
 
-    const readLatestCorrectionId = vi.fn((_id: string) => {
+    const readLatestCorrectionId = vi.fn<(id: string) => Promise<string | null>>(() => {
         calls.push('readLatest');
 
         return Promise.resolve(latestCorrectionId);

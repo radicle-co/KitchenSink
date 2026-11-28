@@ -8,7 +8,7 @@ import { holdClearPolicy, type ChainAnswer, type EarnedHoldClearRefusal } from '
 import type { SourceAnswerKind } from '../sourceCorrectionScopePolicy.js';
 
 const chain = (...answers: SourceAnswerKind[]): ChainAnswer[] =>
-    answers.map((answer, i) => ({ id: `row${i}`, answer }));
+    answers.map((answer, i) => ({ id: `row${String(i)}`, answer }));
 const earned = (answers: SourceAnswerKind[], held = true) =>
     holdClearPolicy({ cause: 'earnedRewrite', held, chain: chain(...answers) });
 

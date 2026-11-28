@@ -57,15 +57,15 @@ interface Setup {
     /** The newest correction id across the whole chain; defaults to the id the request names. */
     readonly latest?: string | null;
     readonly released?: readonly string[];
-    readonly transactionFails?: unknown;
+    readonly transactionFails?: Error;
     /** The body runs and the transaction then rejects, as a failed COMMIT does. */
-    readonly commitFails?: unknown;
+    readonly commitFails?: Error;
 }
 
 function build(setup: Setup = {}) {
     const calls: string[] = [];
     const log = <T>(name: string, value: T) =>
-        vi.fn((..._args: unknown[]) => {
+        vi.fn<(...args: unknown[]) => Promise<T>>(() => {
             calls.push(name);
 
             return Promise.resolve(value);

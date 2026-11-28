@@ -128,9 +128,9 @@ describe('a hold clear under concurrency (e2e, ADR-0106)', () => {
     }
 
     async function holdOf(id: string): Promise<boolean | undefined> {
-        const [row] = await db.select({ h: recipes.sourceCorrectionHold }).from(recipes).where(eq(recipes.id, id));
+        const rows = await db.select({ h: recipes.sourceCorrectionHold }).from(recipes).where(eq(recipes.id, id));
 
-        return row?.h;
+        return rows.at(0)?.h;
     }
 
     const recordsOf = (id: string) =>

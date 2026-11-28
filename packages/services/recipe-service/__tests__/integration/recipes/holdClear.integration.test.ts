@@ -40,10 +40,10 @@ const BOOK_ROW: CorrectionChainRow = {
 let facts: { ownerId: string; held: boolean } | undefined;
 let chain: readonly CorrectionChainRow[] = [];
 const calls: string[] = [];
-const recordClears = vi.fn((..._args: unknown[]) => {
+const recordClears = vi.fn<(...args: unknown[]) => void>(() => {
     calls.push('record');
 });
-const releaseHolds = vi.fn((..._args: unknown[]) => {
+const releaseHolds = vi.fn<(...args: unknown[]) => void>(() => {
     calls.push('release');
 });
 

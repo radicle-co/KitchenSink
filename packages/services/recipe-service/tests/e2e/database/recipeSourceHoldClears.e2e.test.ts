@@ -26,6 +26,17 @@ const CHECK_VIOLATION = '23514';
 const UNIQUE_VIOLATION = '23505';
 const TOKEN = 'erased_0123456789abcdef0123456789abcdef';
 
+/** Awaits a refusal and checks its SQLSTATE and the guard's own message, so a refusal by another guard cannot pass. */
+async function refusedWith(attempt: Promise<unknown>, code: string, text: string): Promise<void> {
+    const error = await attempt.then(
+        () => undefined,
+        (caught: unknown) => caught,
+    );
+
+    expect(error).toMatchObject({ code });
+    expect(error instanceof Error ? error.message : '').toContain(text);
+}
+
 describe('recipe_source_hold_clears (migration 0100)', () => {
     let pool: pg.Pool;
     const created: string[] = [];
@@ -116,10 +127,11 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
         it('refuses a clear with no record, naming the ratchet', async () => {
             const id = await insertRecipe(true);
 
-            await expect(releaseHold(pool, id)).rejects.toMatchObject({
-                code: CHECK_VIOLATION,
-                message: expect.stringContaining('cleared only with a clear record in the same transaction'),
-            });
+            await refusedWith(
+                releaseHold(pool, id),
+                CHECK_VIOLATION,
+                'cleared only with a clear record in the same transaction',
+            );
             expect(await holdOf(id)).toBe(true);
         });
 
@@ -133,10 +145,11 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
             // Held again by a later transaction (false to true needs no record); the earlier record must not clear it twice.
             await pool.query(`UPDATE recipes SET source_correction_hold = true WHERE id = $1`, [id]);
 
-            await expect(releaseHold(pool, id)).rejects.toMatchObject({
-                code: CHECK_VIOLATION,
-                message: expect.stringContaining('cleared only with a clear record in the same transaction'),
-            });
+            await refusedWith(
+                releaseHold(pool, id),
+                CHECK_VIOLATION,
+                'cleared only with a clear record in the same transaction',
+            );
             expect(await holdOf(id)).toBe(true);
         });
 
@@ -161,14 +174,11 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
                          VALUES ($1, 'staff', 'staff01', 'a mistaken correction', ${recordedAt}, ${xact})`,
                             [id],
                         );
-                        await expect(
+                        await refusedWith(
                             client.query(`UPDATE recipes SET source_correction_hold = false WHERE id = $1`, [id]),
-                        ).rejects.toMatchObject({
-                            code: CHECK_VIOLATION,
-                            message: expect.stringContaining(
-                                'cleared only with a clear record in the same transaction',
-                            ),
-                        });
+                            CHECK_VIOLATION,
+                            'cleared only with a clear record in the same transaction',
+                        );
                     } finally {
                         await client.query('ROLLBACK');
                     }
@@ -181,15 +191,14 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
             const id = await insertRecipe(true);
             const other = await insertRecipe(true);
 
-            await expect(
+            await refusedWith(
                 inTx(async (client) => {
                     await recordClear(client, other);
                     await releaseHold(client, id);
                 }),
-            ).rejects.toMatchObject({
-                code: CHECK_VIOLATION,
-                message: expect.stringContaining('cleared only with a clear record in the same transaction'),
-            });
+                CHECK_VIOLATION,
+                'cleared only with a clear record in the same transaction',
+            );
         });
 
         it('refuses a clear whose record is written AFTER the update, in the same transaction', async () => {
@@ -220,16 +229,15 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
         it('refuses a hold after a clear in the same transaction, with the ratchet message', async () => {
             const id = await insertRecipe(true);
 
-            await expect(
+            await refusedWith(
                 inTx(async (client) => {
                     await recordClear(client, id);
                     await releaseHold(client, id);
                     await client.query(`UPDATE recipes SET source_correction_hold = true WHERE id = $1`, [id]);
                 }),
-            ).rejects.toMatchObject({
-                code: CHECK_VIOLATION,
-                message: expect.stringContaining('no hold after a clear in the same transaction'),
-            });
+                CHECK_VIOLATION,
+                'no hold after a clear in the same transaction',
+            );
         });
 
         it('is not fooled by a BEFORE UPDATE trigger that sorts after the ratchet and clears the hold (the ratchet is AFTER)', async () => {
@@ -247,12 +255,11 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
             });
 
             try {
-                await expect(
+                await refusedWith(
                     pool.query(`UPDATE recipes SET title = 'zz-clear-me' WHERE id = $1`, [id]),
-                ).rejects.toMatchObject({
-                    code: CHECK_VIOLATION,
-                    message: expect.stringContaining('cleared only with a clear record in the same transaction'),
-                });
+                    CHECK_VIOLATION,
+                    'cleared only with a clear record in the same transaction',
+                );
                 expect(await holdOf(id)).toBe(true);
             } finally {
                 await roleDb.asOwner(async (client) => {
@@ -281,10 +288,7 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
         it('refuses a record for a recipe that is not held, at insert', async () => {
             const id = await insertRecipe(false);
 
-            await expect(recordClear(pool, id)).rejects.toMatchObject({
-                code: CHECK_VIOLATION,
-                message: expect.stringContaining('the recipe is not held'),
-            });
+            await refusedWith(recordClear(pool, id), CHECK_VIOLATION, 'the recipe is not held');
         });
 
         it('refuses a record for a recipe that does not exist with the foreign key, not the not-held guard (the AND FOUND is deliberate)', async () => {
@@ -400,12 +404,11 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
                     };
 
                     await run(async (client) => {
-                        await expect(
+                        await refusedWith(
                             client.query(`UPDATE recipe_source_hold_clears SET ${sets[column]} WHERE id = $1`, [id]),
-                        ).rejects.toMatchObject({
-                            code: CHECK_VIOLATION,
-                            message: expect.stringContaining('recipe_source_hold_clears is append-only'),
-                        });
+                            CHECK_VIOLATION,
+                            'recipe_source_hold_clears is append-only',
+                        );
                     });
                 },
             );
@@ -414,22 +417,22 @@ describe('recipe_source_hold_clears (migration 0100)', () => {
                 const { id } = await cleared();
 
                 await run(async (client) => {
-                    await expect(
+                    await refusedWith(
                         client.query(`DELETE FROM recipe_source_hold_clears WHERE id = $1`, [id]),
-                    ).rejects.toMatchObject({
-                        code: CHECK_VIOLATION,
-                        message: expect.stringContaining('recipe_source_hold_clears is append-only'),
-                    });
+                        CHECK_VIOLATION,
+                        'recipe_source_hold_clears is append-only',
+                    );
                 });
             });
         });
 
         it('refuses TRUNCATE, naming the table', async () => {
             await roleDb.asOwner(async (client) => {
-                await expect(client.query(`TRUNCATE recipe_source_hold_clears`)).rejects.toMatchObject({
-                    code: CHECK_VIOLATION,
-                    message: expect.stringContaining('recipe_source_hold_clears is append-only'),
-                });
+                await refusedWith(
+                    client.query(`TRUNCATE recipe_source_hold_clears`),
+                    CHECK_VIOLATION,
+                    'recipe_source_hold_clears is append-only',
+                );
             });
         });
 

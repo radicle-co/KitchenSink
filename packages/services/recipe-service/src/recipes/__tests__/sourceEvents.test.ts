@@ -102,7 +102,12 @@ describe('the source lock events', () => {
         });
 
         expect(line).toMatchObject({ event: 'source.holdCleared', Stage: 'prod', 'source.holdCleared': 3 });
-        expect(Object.keys(line).sort()).toEqual(['Stage', '_aws', 'event', 'source.holdCleared']);
+        expect(Object.keys(line).sort((a, b) => a.localeCompare(b))).toEqual([
+            '_aws',
+            'event',
+            'source.holdCleared',
+            'Stage',
+        ]);
         expect(line['_aws']).toMatchObject({
             CloudWatchMetrics: [
                 {

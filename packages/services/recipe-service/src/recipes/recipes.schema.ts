@@ -679,7 +679,7 @@ export type SourceCorrectionPreview = z.infer<typeof sourceCorrectionPreviewSche
  */
 export const sourceHoldClearRequestSchema = z.strictObject({
     ownerAccountId: z.string().min(1).max(255),
-    correctionId: z.string().uuid().nullable(),
+    correctionId: z.uuid().nullable(),
     reason: z
         .string()
         .min(1)

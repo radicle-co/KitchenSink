@@ -16,7 +16,7 @@ const REASONS = [
     ...readFileSync(path.join(repoRoot, 'packages/shared/recipe-core/src/recipe.types.ts'), 'utf8').matchAll(
         /HOLD_CLEAR_CONFLICT_REASONS\s*=\s*\[([^\]]*)\]/g,
     ),
-].flatMap((match) => [...(match[1] ?? '').matchAll(/'([A-Z_]+)'/g)].map((reason) => reason[1] ?? ''));
+].flatMap((match) => [...match[1].matchAll(/'([A-Z_]+)'/g)].map((reason) => reason[1]));
 /** The alarm threshold is read from its one declaration, so a changed number leaves the runbook red until it is updated. */
 const THRESHOLD = /SOURCE_HOLD_CLEARED_DAILY_THRESHOLD\s*=\s*(\d+)/.exec(
     readFileSync(path.join(repoRoot, 'packages/shared/recipe-core/src/sourceEventNames.ts'), 'utf8'),

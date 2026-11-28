@@ -106,7 +106,7 @@ export class SourceHoldClearsDal {
         `);
 
         // Parsed, not cast: a stored value outside the vocabulary throws here and never reads as a third-party answer.
-        return (result.rows ?? []).map((row) => ({
+        return result.rows.map((row) => ({
             id: row.id,
             recipeId: row.recipe_id,
             newSourceType: recipeSourceTypeSchema.parse(row.new_source_type),
@@ -137,7 +137,7 @@ export class SourceHoldClearsDal {
              LIMIT 1
         `);
 
-        return result.rows?.[0]?.id ?? null;
+        return result.rows[0]?.id ?? null;
     }
 
     /**
@@ -186,7 +186,7 @@ export class SourceHoldClearsDal {
              ORDER BY r.id
         `);
 
-        return (result.rows ?? []).map((row) => row.id);
+        return result.rows.map((row) => row.id);
     }
 
     /**

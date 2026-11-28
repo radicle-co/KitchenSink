@@ -24,7 +24,7 @@
  *
  * @sideEffect Writes held recipes to the service under test, draws from the CSPRNG and writes files next to this script.
  */
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
@@ -35,7 +35,8 @@ import { sourceCorrectionPreviewSchema, SOURCE_CORRECT_SCOPE } from '../../src/r
 import { generateClerkKeypair, mintToken } from '../support/jwt.js';
 
 const outDir = dirname(fileURLToPath(import.meta.url));
-const BASE_URL = (process.env['RECIPE_API_BASE_URL'] ?? 'http://localhost:3000').replace(/\/+$/u, '');
+const RAW_BASE_URL = process.env['RECIPE_API_BASE_URL'] ?? 'http://localhost:3000';
+const BASE_URL = RAW_BASE_URL.endsWith('/') ? RAW_BASE_URL.slice(0, -1) : RAW_BASE_URL;
 const AZP = process.env['HOLD_CLEAR_AZP'] ?? 'http://localhost:3000';
 const CLEAR_COUNT = Math.max(1, Number(process.env['HOLD_CLEAR_POOL_SIZE'] ?? 500));
 const STALE_COUNT = Math.max(1, Number(process.env['HOLD_CLEAR_STALE_POOL_SIZE'] ?? 20));
@@ -53,11 +54,31 @@ const privateKeyFile = join(outDir, 'holdClearPrivateKey.pem');
 
 // The service must trust the key BEFORE any recipe can be created, so the first run only writes the pair and stops;
 // later runs reuse it. Delete both files to rotate.
-if (!existsSync(privateKeyFile) || !existsSync(publicKeyFile)) {
+/**
+ * Write the pair if it is not there yet. The `wx` flag creates each file exclusively, so a check and a write cannot race and an
+ * existing key is never overwritten.
+ *
+ * @returns `true` when this call wrote a new pair.
+ * @sideEffect Creates the two key files.
+ */
+function writeKeypairOnce(): boolean {
     const generated = generateClerkKeypair();
 
-    writeFileSync(publicKeyFile, generated.publicKeyPem, 'utf-8');
-    writeFileSync(privateKeyFile, generated.privateKeyPem, { encoding: 'utf-8', mode: 0o600 });
+    try {
+        writeFileSync(privateKeyFile, generated.privateKeyPem, { encoding: 'utf-8', mode: 0o600, flag: 'wx' });
+        writeFileSync(publicKeyFile, generated.publicKeyPem, { encoding: 'utf-8', flag: 'wx' });
+    } catch (error) {
+        if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+            return false;
+        }
+
+        throw error;
+    }
+
+    return true;
+}
+
+if (writeKeypairOnce()) {
     console.log(
         `prepareHoldClearFixture: wrote a new keypair to ${outDir}. Boot the service with ` +
             'CLERK_JWT_KEY="$(cat tests/load/holdClearPublicKey.pem)" and re-run this step to build the pool.',
@@ -93,13 +114,15 @@ async function call(method: string, path: string, bearer: string, body?: unknown
         const text = await res.text();
 
         if (!res.ok) {
-            throw new Error(`${method} ${path} -> ${res.status} ${text}`);
+            throw new Error(`${method} ${path} -> ${String(res.status)} ${text}`);
         }
 
         return text === '' ? {} : JSON.parse(text);
     }
 
-    throw new Error(`${method} ${path} stayed throttled after ${MAX_THROTTLE_WAITS} waits; raise RATE_LIMIT_WRITE`);
+    throw new Error(
+        `${method} ${path} stayed throttled after ${String(MAX_THROTTLE_WAITS)} waits; raise RATE_LIMIT_WRITE`,
+    );
 }
 
 const correction = (owner: string, answer: unknown): unknown => ({
@@ -115,7 +138,7 @@ async function heldRecipe(index: number, flourId: string): Promise<Record<string
     const ownerBearer = bearerFor(owner, { roles: ['premium'] });
     const { id } = idResponse.parse(
         await call('POST', '/api/v1/recipes', ownerBearer, {
-            title: `Hold Clear Load ${index}`,
+            title: `Hold Clear Load ${String(index)}`,
             visibility: 'private',
             statement: { kind: 'authored', wording: { version: 'statementAuthored.v1', locale: 'en' } },
             ingredients: [{ ingredientId: flourId, quantity: { kind: 'exact', value: 2 }, unit: 'cup' }],
@@ -156,6 +179,6 @@ for (let i = 0; i < CLEAR_COUNT + STALE_COUNT; i += 1) {
 writeFileSync(join(outDir, 'holdClearPool.json'), JSON.stringify({ staffToken, clear, stale }, null, 2), 'utf-8');
 
 console.log(
-    `prepareHoldClearFixture: wrote ${clear.length} clear + ${stale.length} stale held recipes (token ttl ${TTL_SECONDS}s) ` +
+    `prepareHoldClearFixture: wrote ${String(clear.length)} clear + ${String(stale.length)} stale held recipes (token ttl ${String(TTL_SECONDS)}s) ` +
         `and holdClearPublicKey.pem to ${outDir}`,
 );

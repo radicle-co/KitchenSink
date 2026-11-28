@@ -40,7 +40,7 @@ describe('waysOutOf, save door', () => {
             ['slotsFull'],
         ],
     ])('%s', (_name, input, ways, lines) => {
-        expect(waysOutOf(input)).toEqual({ ways, lines });
+        expect(waysOutOf(input)).toStrictEqual({ ways, lines });
     });
 
     it('never offers Make private without a free slot', () => {
@@ -73,11 +73,11 @@ describe('waysOutOf, publish door (AE8)', () => {
             ['draftKept', 'slotsFull'],
         ],
     ])('%s', (_name, input, ways, lines) => {
-        expect(waysOutOf(input)).toEqual({ ways, lines });
+        expect(waysOutOf(input)).toStrictEqual({ ways, lines });
     });
 
     it('no slot and no rewrite: an empty set that keeps the draft, and is valid', () => {
-        expect(waysOutOf(facts({ door: 'publish', slots: 'none' }))).toEqual({
+        expect(waysOutOf(facts({ door: 'publish', slots: 'none' }))).toStrictEqual({
             ways: [],
             lines: ['draftKept', 'slotsFull'],
         });
@@ -111,12 +111,12 @@ describe('the Pro line', () => {
 
     it.each(doors)('shows on a FREE-slot row for a free cook, exactly, %s door', (door) => {
         const { lines } = waysOutOf(facts({ door, slots: 'free', plan: 'free', subscriptionEntryPointsOn: true }));
-        expect(lines).toEqual(['pro']);
+        expect(lines).toStrictEqual(['pro']);
     });
 
     it('is never counted as a way', () => {
         const { ways } = waysOutOf(facts({ plan: 'free', subscriptionEntryPointsOn: true }));
-        expect(ways).toEqual([{ kind: 'discard' }, { kind: 'makePrivate' }]);
+        expect(ways).toStrictEqual([{ kind: 'discard' }, { kind: 'makePrivate' }]);
     });
 });
 
@@ -127,7 +127,7 @@ describe('the rewrite way', () => {
             wayLineKey: 'keepPublicInOwnWords',
             link: { href: 'https://example.com/', host: 'example.com' },
         };
-        expect(waysOutOf(facts({ rewrite })).ways[0]).toEqual({
+        expect(waysOutOf(facts({ rewrite })).ways[0]).toStrictEqual({
             kind: 'rewrite',
             wayLineKey: 'keepPublicInOwnWords',
             link: { href: 'https://example.com/', host: 'example.com' },
@@ -139,7 +139,7 @@ describe('the rewrite way', () => {
         const [first, ...rest] = kinds.map((kind) => waysOutOf(facts({ cause: { kind }, rewrite: OFFERED })));
 
         for (const other of rest) {
-            expect(other).toEqual(first);
+            expect(other).toStrictEqual(first);
         }
     });
 });

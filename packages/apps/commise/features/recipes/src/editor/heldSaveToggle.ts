@@ -6,7 +6,7 @@
  * no env var, remote config or user-reachable switch, and turning it on is one change to this value with a qse
  * TEST-CHANGE on its pin test. Annotated `boolean` so both branches stay typed and no linter calls one dead.
  *
- * @pattern Feature Toggle — one release toggle read in one module
+ * @pattern Feature Toggle — one release toggle defined in one module
  */
 
 export const HELD_SAVE_WAYS_OUT_ON: boolean = false;

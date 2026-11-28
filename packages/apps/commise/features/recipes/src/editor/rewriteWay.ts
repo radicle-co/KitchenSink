@@ -2,12 +2,12 @@
  * @module @commise/features-recipes/editor — the rewrite seam (heldPublicSave U2, "Rewrite seam contract").
  *
  * Decides only whether the blocked-save sheet OFFERS the rewrite way and which line from a closed set it shows. The
- * server decides the outcome at Save. The stub is the production binding until P4b's signed plan replaces `adapter`
- * below; nothing else turns the way on.
+ * server decides the outcome at Save. The stub is the production binding until P4b's signed plan replaces the inner
+ * port of `rewriteWay` below; nothing else turns the way on.
  *
- * @pattern Port — `RewriteWay` is the seam P4b binds an adapter to
  * @pattern Null Object — `unavailableRewriteWay` always answers unavailable
- * @pattern Decorator — `failClosedRewriteWay` adds the deadline and fail-closed reading to any adapter
+ * @pattern Anti-Corruption Layer — `failClosedRewriteWay` parses the untrusted answer into the sheet's own type
+ * @pattern Timeout + Fail-Safe Fallback — a late, failed or malformed answer reads as unavailable
  */
 import { safeHttpUrl, type SafeHttpUrl } from '@kitchensink/recipe-core/external-url';
 import type { SaveRefusalCause } from '@kitchensink/recipe-core/recipe-state';
@@ -36,7 +36,11 @@ export type RewriteWayAnswer =
     | { readonly kind: 'unavailable' }
     | { readonly kind: 'available'; readonly wayLineKey: RewriteWayLineKey; readonly link?: SafeHttpUrl };
 
-/** What an adapter hands back: untrusted until the wrapper parses it. */
+/**
+ * What an adapter hands back: untrusted until the wrapper parses it.
+ *
+ * @pattern Port — the seam P4b binds an adapter to
+ */
 export interface RewriteWayPort {
     readonly answer: (input: RewriteWayInput, signal: AbortSignal) => Promise<unknown>;
 }
@@ -52,7 +56,7 @@ export const rewriteWayRawSchema = z.discriminatedUnion('kind', [
     z.object({
         kind: z.literal('available'),
         wayLineKey: z.enum(REWRITE_WAY_LINE_KEYS),
-        sourceUrl: z.string().optional(),
+        sourceUrl: z.string().nullish(),
     }),
 ]);
 
@@ -66,7 +70,8 @@ export function parseRewriteWayAnswer(raw: unknown): RewriteWayAnswer {
         return UNAVAILABLE;
     }
 
-    const link = parsed.data.sourceUrl === undefined ? null : safeHttpUrl(parsed.data.sourceUrl);
+    const sourceUrl = parsed.data.sourceUrl ?? null;
+    const link = sourceUrl === null ? null : safeHttpUrl(sourceUrl);
 
     return { kind: 'available', wayLineKey: parsed.data.wayLineKey, ...(link === null ? {} : { link }) };
 }
@@ -83,7 +88,7 @@ export const REWRITE_WAY_DEADLINE_MS = 1000;
  *
  * @sideEffect starts and clears a timer and listens on the caller's signal.
  */
-export function failClosedRewriteWay(port: RewriteWayPort, deadlineMs: number = REWRITE_WAY_DEADLINE_MS): RewriteWay {
+export function failClosedRewriteWay(port: RewriteWayPort): RewriteWay {
     return {
         answer: async (input, signal) => {
             if (signal.aborted) {
@@ -94,7 +99,7 @@ export function failClosedRewriteWay(port: RewriteWayPort, deadlineMs: number = 
             let timer: ReturnType<typeof setTimeout> | undefined;
             let onAbort: (() => void) | undefined;
             const stop = new Promise<RewriteWayAnswer>((resolve) => {
-                timer = setTimeout(() => resolve(UNAVAILABLE), deadlineMs);
+                timer = setTimeout(() => resolve(UNAVAILABLE), REWRITE_WAY_DEADLINE_MS);
                 onAbort = () => resolve(UNAVAILABLE);
                 signal.addEventListener('abort', onAbort, { once: true });
             });
@@ -116,5 +121,5 @@ export function failClosedRewriteWay(port: RewriteWayPort, deadlineMs: number = 
     };
 }
 
-/** The production binding, one for both apps. P4b replaces the inner adapter here. */
+/** The production binding, one for both apps. P4b replaces `unavailableRewriteWay` here. */
 export const rewriteWay: RewriteWay = failClosedRewriteWay(unavailableRewriteWay);

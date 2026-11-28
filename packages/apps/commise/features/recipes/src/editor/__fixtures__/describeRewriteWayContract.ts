@@ -72,20 +72,20 @@ export const BLOCKED_INPUTS: readonly RewriteWayInput[] = CAUSES.flatMap((cause)
 
 /**
  * @param name what is under test.
- * @param expected `unavailable` for the stub, `available` for an adapter that offers the way for every blocked input.
+ * @param expected what the adapter must answer for one blocked input (a real adapter answers per cause).
  * @param makeAdapter builds the adapter from the recording doubles.
  */
 export function describeRewriteWayContract(
     name: string,
-    expected: 'unavailable' | 'available',
+    expected: (input: RewriteWayInput) => 'unavailable' | 'available',
     makeAdapter: (io: RewriteWayIo) => RewriteWayPort,
 ): void {
     describe(`rewrite way contract: ${name}`, () => {
         it.each(BLOCKED_INPUTS.map((input) => [`${input.door}/${input.cause.kind}`, input] as const))(
-            'answers %s as %s expects',
+            'answers %s as expected',
             async (_label, input) => {
                 const answer = await makeAdapter(makeRecordingIo().io).answer(input, new AbortController().signal);
-                expect(parseRewriteWayAnswer(answer).kind).toBe(expected);
+                expect(parseRewriteWayAnswer(answer).kind).toBe(expected(input));
             },
         );
 
@@ -110,7 +110,7 @@ export function describeRewriteWayContract(
             }
         });
 
-        it('rule 3: an answer is inside the closed raw shape, line key from the closed set', async () => {
+        it('rule 3: an answer is inside the raw shape, line key from the closed set', async () => {
             const adapter = makeAdapter(makeRecordingIo().io);
 
             for (const input of BLOCKED_INPUTS) {

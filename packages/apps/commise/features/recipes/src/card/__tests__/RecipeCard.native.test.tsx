@@ -1,8 +1,9 @@
 /**
  * The native recipe card's three variants (`docs/design/uiOverhaul/buildSpec.md` §4.1), rendered through
  * react-native-web: the same invariants as the web leaf — one control named by the title, a decorative cover, no
- * fabricated difficulty or rating, a level-1 card that is never glass (owner ruling D12) — plus the theme: every colour
- * is read from `useTheme()` at render, so the card follows the system scheme (D15).
+ * fabricated difficulty or rating, a level-1 card that is never glass (owner ruling D12) — plus the theme: the surface fill and
+ * edge are `$paper` and `$lineDivider` tokens, the text and chip colours are read from `useTheme()` at render, so the
+ * card follows the system scheme (D15).
  *
  * ⚠️ REWRITTEN for slice 4 of the UI overhaul, with `RecipeCard.glass.native.test.tsx` deleted: D12 takes glass off
  * cards. The iOS shadow-clipping invariants (shadow and clip never on one node) are kept, because the level-1 card

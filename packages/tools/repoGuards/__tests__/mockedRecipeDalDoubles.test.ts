@@ -176,12 +176,12 @@ describe('scanning a tree', () => {
         const root = mkdtempSync(path.join(tmpdir(), 'recipeDalDoublesGuard-'));
 
         scratch.push(root);
-        execFileSync('git', ['init', '--quiet'], { cwd: root });
+        execFileSync('/usr/bin/git', ['init', '--quiet'], { cwd: root });
 
         for (const [file, text] of Object.entries(files)) {
             mkdirSync(path.dirname(path.join(root, file)), { recursive: true });
             writeFileSync(path.join(root, file), text);
-            execFileSync('git', ['add', '--', file], { cwd: root });
+            execFileSync('/usr/bin/git', ['add', '--', file], { cwd: root });
         }
 
         return root;

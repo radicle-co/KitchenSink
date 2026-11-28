@@ -293,14 +293,16 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
         const found = aggregate({ visibility: currentVisibility, sourceType, status });
         const setVisibility = vi.fn().mockResolvedValue(aggregate({ visibility: 'private', sourceType }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(async () =>
-            lockedFactsOf(
-                makeRecipeRow({
-                    visibility: currentVisibility,
-                    status,
-                    sourceType,
-                    sourceConfirmedAt: status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-                }),
+        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(() =>
+            Promise.resolve(
+                lockedFactsOf(
+                    makeRecipeRow({
+                        visibility: currentVisibility,
+                        status,
+                        sourceType,
+                        sourceConfirmedAt: status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                    }),
+                ),
             ),
         );
         const dal = fakeRecipesDal({
@@ -365,8 +367,8 @@ describe('RecipesService.setVisibility - private slots (ADR-0073)', () => {
     });
 
     it('answers 404 when the row vanished under the lock (a concurrent tombstone)', async () => {
-        const { dal } = holding(0, 'public');
-        vi.mocked(dal.lockSlotFacts).mockResolvedValue(undefined);
+        const { dal, lockSlotFacts } = holding(0, 'public');
+        lockSlotFacts.mockResolvedValue(undefined);
 
         const error = await refusalOf(
             serviceOver(dal).setVisibility(principal(), 'r-1', RecipeVisibility.PRIVATE, undefined),
@@ -558,13 +560,15 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
         });
         const update = vi.fn().mockResolvedValue(aggregate({ visibility: facts.visibility, status: 'published' }));
         const lockAndCountPrivateSlots = vi.fn(async () => used);
-        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(async () =>
-            lockedFactsOf(
-                makeRecipeRow({
-                    ...facts,
-                    sourceType,
-                    sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
-                }),
+        const lockSlotFacts = vi.fn<RecipesDal['lockSlotFacts']>(() =>
+            Promise.resolve(
+                lockedFactsOf(
+                    makeRecipeRow({
+                        ...facts,
+                        sourceType,
+                        sourceConfirmedAt: facts.status === 'published' ? new Date('2026-11-10T00:00:00.000Z') : null,
+                    }),
+                ),
             ),
         );
         const dal = fakeRecipesDal({
@@ -639,8 +643,10 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
             findById: vi.fn().mockResolvedValue(found),
             update,
             lockAndCountPrivateSlots: vi.fn(async () => 50),
-            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(async () =>
-                lockedFactsOf(makeRecipeRow({ visibility: 'private', status: 'draft', sourceConfirmedAt: null })),
+            lockSlotFacts: vi.fn<RecipesDal['lockSlotFacts']>(() =>
+                Promise.resolve(
+                    lockedFactsOf(makeRecipeRow({ visibility: 'private', status: 'draft', sourceConfirmedAt: null })),
+                ),
             ),
         });
 
@@ -704,8 +710,8 @@ describe('RecipesService.update - publishing a private draft takes a slot (ADR-0
     });
 
     it('answers a vanished row under the lock as the version conflict path (nothing written)', async () => {
-        const { dal, update } = draftHolding(0, { visibility: 'private', status: 'draft' });
-        vi.mocked(dal.lockSlotFacts).mockResolvedValue(undefined);
+        const { dal, update, lockSlotFacts } = draftHolding(0, { visibility: 'private', status: 'draft' });
+        lockSlotFacts.mockResolvedValue(undefined);
         (dal.readConflict as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
 
         const error = await refusalOf(serviceOver(dal).update(principal(), 'r-1', PATCH, undefined));

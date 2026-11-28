@@ -39,7 +39,7 @@ import type { FoodLookupArm } from '../../../src/database/schema/foodLookupArm.j
 import type { RecipeVersionRow } from '../../../src/database/schema/index.js';
 import { FoodLookupsDal } from '../../../src/ingredients/dal/foodLookups.dal.js';
 import type { IngredientLineInput } from '../../../src/recipes/dal/ingredientLines.dal.js';
-import type { RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
+import type { ReadableRecipeAggregate, RecipeAggregate } from '../../../src/recipes/dal/recipes.dal.js';
 import { recipeRowToDomain } from '../../../src/recipes/mappers/recipeRowToDomain.js';
 import {
     RECIPE_LINE_VERIFICATIONS_DAL,
@@ -152,6 +152,16 @@ const createSnapshot = vi.fn(
  * asked to write. The returned row is clone-shaped either way.
  */
 let cloned: RecipeAggregate | undefined;
+
+/** What `findById` answers: the stored recipe, the clone once one exists, else nothing. */
+function readableById(id: string): ReadableRecipeAggregate | undefined {
+    if (id === RECIPE_ID) {
+        return readableAggregateOf(aggregateOf());
+    }
+
+    return id === CLONE_ID && cloned !== undefined ? readableAggregateOf(cloned) : undefined;
+}
+
 const create = vi.fn(
     async (input: { readonly ownerId: string; readonly ingredients: readonly IngredientLineInput[] }) => {
         const recipe = makeRecipeRow({
@@ -208,28 +218,24 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
-                findById: async (id: string) =>
-                    id === RECIPE_ID
-                        ? readableAggregateOf(aggregateOf())
-                        : id === CLONE_ID && cloned !== undefined
-                          ? readableAggregateOf(cloned)
-                          : undefined,
+                findById: (id: string) => Promise.resolve(readableById(id)),
                 create,
-                findRowById: async (id: string) => (id === RECIPE_ID ? readableRowOf(stored) : undefined),
+                findRowById: (id: string) => Promise.resolve(id === RECIPE_ID ? readableRowOf(stored) : undefined),
                 // The list row is poisoned with the lines: a mapper that ever projected them would leak here.
-                findAll: async () => ({
-                    rows: [{ recipe: stored, ingredients: aggregateOf().ingredients }],
-                    total: 1,
-                }),
+                findAll: () =>
+                    Promise.resolve({
+                        rows: [{ recipe: stored, ingredients: aggregateOf().ingredients }],
+                        total: 1,
+                    }),
                 update,
                 setVisibility,
                 transaction: (work) => work(FAKE_TX),
-                lockAndCountPrivateSlots: async () => 0,
-                countPrivateSlots: async () => 0,
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                countPrivateSlots: () => Promise.resolve(0),
                 // The row lock reads the slot AND source facts (#212): the same stored row findRowById holds.
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
-                clearPublicFoodOwners: async () => undefined,
-                privateFoodLines: async () => [],
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
+                privateFoodLines: () => Promise.resolve([]),
             }),
             {
                 provide: VERSIONS_DAL,

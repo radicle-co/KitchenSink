@@ -159,10 +159,10 @@ beforeAll(async () => {
                 lockAndCountPrivateSlots,
                 countPrivateSlots,
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
-                findById: async (id: string) =>
-                    id === stored.id ? readableAggregateOf(aggregateOf(stored)) : undefined,
+                findById: (id: string) =>
+                    Promise.resolve(id === stored.id ? readableAggregateOf(aggregateOf(stored)) : undefined),
                 // ADR-0029 section 4: the database holds no private food in these suites.
-                privateFoodLines: async () => [],
+                privateFoodLines: () => Promise.resolve([]),
                 transaction: (work) => work(FAKE_TX),
             }),
             {

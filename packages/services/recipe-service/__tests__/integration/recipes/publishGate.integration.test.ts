@@ -66,7 +66,7 @@ function aggregateOf(recipe: RecipeRow): RecipeAggregate {
     };
 }
 
-const create = vi.fn(async (input: { readonly status?: RecipeStatus; readonly cuisine?: string }) => {
+const create = vi.fn((input: { readonly status?: RecipeStatus; readonly cuisine?: string }) => {
     stored = makeRecipeRow({
         id: RECIPE_ID,
         ownerId: COOK,
@@ -75,7 +75,7 @@ const create = vi.fn(async (input: { readonly status?: RecipeStatus; readonly cu
         firstPublishedAt: input.status === 'published' ? AT : null,
     });
 
-    return aggregateOf(stored);
+    return Promise.resolve(aggregateOf(stored));
 });
 const update = vi.fn(
     async (
@@ -135,10 +135,10 @@ beforeAll(async () => {
             recipesDalDouble({
                 create,
                 update,
-                findById: async (id: string) =>
-                    id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
                 // ADR-0029 section 4: the database holds no private food in these suites.
-                privateFoodLines: async () => [],
+                privateFoodLines: () => Promise.resolve([]),
                 // A write that leaves the recipe published judges it under the row lock (0087): the stored row,
                 // unchanged.
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),

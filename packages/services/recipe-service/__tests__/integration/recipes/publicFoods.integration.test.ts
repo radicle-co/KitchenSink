@@ -167,14 +167,14 @@ beforeAll(async () => {
                 create,
                 update,
                 setVisibility,
-                lockAndCountPrivateSlots: async () => 0,
-                countPrivateSlots: async () => 0,
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
+                countPrivateSlots: () => Promise.resolve(0),
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
-                findById: async (id: string) =>
-                    id === stored.id ? readableAggregateOf(aggregateOf(stored)) : undefined,
+                findById: (id: string) =>
+                    Promise.resolve(id === stored.id ? readableAggregateOf(aggregateOf(stored)) : undefined),
                 // The database's own last check finds nothing: the policy alone must refuse here.
-                privateFoodLines: async () => [],
-                clearPublicFoodOwners: async () => undefined,
+                privateFoodLines: () => Promise.resolve([]),
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
                 transaction: (work) => work(FAKE_TX),
             }),
             {

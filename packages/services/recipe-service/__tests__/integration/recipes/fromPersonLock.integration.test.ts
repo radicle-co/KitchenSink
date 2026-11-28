@@ -122,21 +122,23 @@ beforeAll(async () => {
             recipesDalDouble({
                 create,
                 update,
-                findById: async (id: string) =>
-                    id === RECIPE_ID
-                        ? readableAggregateOf(
-                              aggregateOf(
-                                  preLockStatementKind === undefined
-                                      ? stored
-                                      : { ...stored, statementKind: preLockStatementKind },
-                              ),
-                          )
-                        : undefined,
-                privateFoodLines: async () => [],
-                lockAndCountPrivateSlots: async () => 0,
+                findById: (id: string) =>
+                    Promise.resolve(
+                        id === RECIPE_ID
+                            ? readableAggregateOf(
+                                  aggregateOf(
+                                      preLockStatementKind === undefined
+                                          ? stored
+                                          : { ...stored, statementKind: preLockStatementKind },
+                                  ),
+                              )
+                            : undefined,
+                    ),
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(stored)),
                 setVisibility,
-                clearPublicFoodOwners: async () => undefined,
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
                 transaction: (work) => work(TX),
             }),
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: async () => [] } },

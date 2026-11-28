@@ -38,7 +38,7 @@ const lineText = (file: ts.SourceFile, node: ts.Node): string => `line ${String(
 export function recipeServiceTestFiles(root: string = repoRoot): readonly string[] {
     return presentFiles([`${SERVICE}/**/*.ts`], root)
         .filter((file) => file.includes('/__tests__/'))
-        .sort();
+        .sort((a, b) => a.localeCompare(b));
 }
 
 /**
@@ -105,7 +105,7 @@ function namesMember(expression: ts.Expression): boolean {
     ) {
         const [, name] = inner.arguments;
 
-        return name !== undefined && ts.isStringLiteralLike(name) && name.text === MEMBER;
+        return inner.arguments.length > 1 && ts.isStringLiteralLike(name) && name.text === MEMBER;
     }
 
     // `vi.mocked(dal.lockSlotFacts)`: the mock helper hands the same function back, typed as a mock.
@@ -114,7 +114,7 @@ function namesMember(expression: ts.Expression): boolean {
         ts.isPropertyAccessExpression(inner.expression) &&
         inner.expression.name.text === 'mocked' &&
         inner.arguments.length === 1 &&
-        namesMember(inner.arguments[0] as ts.Expression)
+        namesMember(inner.arguments[0])
     );
 }
 

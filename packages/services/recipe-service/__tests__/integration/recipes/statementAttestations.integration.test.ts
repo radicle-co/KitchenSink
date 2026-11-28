@@ -229,10 +229,10 @@ beforeAll(async () => {
                 create,
                 update: async (id: string, patch: UpdateRecipeInput, tx?: unknown) =>
                     writeFindsNoRow ? undefined : update(id, patch, tx),
-                findById: async (id: string) =>
-                    id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined,
-                privateFoodLines: async () => [],
-                lockAndCountPrivateSlots: async () => 0,
+                findById: (id: string) =>
+                    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateOf(stored)) : undefined),
+                privateFoodLines: () => Promise.resolve([]),
+                lockAndCountPrivateSlots: () => Promise.resolve(0),
                 lockSlotFacts: () => Promise.resolve(lockedFactsOf(underLock ?? stored)),
                 setVisibility: async (
                     id: string,
@@ -240,10 +240,10 @@ beforeAll(async () => {
                     tx?: unknown,
                     provenance?: UpdateRecipeInput['provenance'],
                 ) => (writeFindsNoRow ? undefined : setVisibility(id, visibility, tx, provenance)),
-                clearPublicFoodOwners: async () => undefined,
+                clearPublicFoodOwners: () => Promise.resolve(undefined),
                 transaction: (work) => work(TX),
-                findNutritionInputs: async () => [],
-                readConflict: async () => ({ current: aggregateOf(stored) }),
+                findNutritionInputs: () => Promise.resolve([]),
+                readConflict: () => Promise.resolve({ current: aggregateOf(stored) }),
             }),
             { provide: RecipeStatementAttestationsDal, useValue: { insertMany, hasFromPerson, hasWordedAttestation } },
             {

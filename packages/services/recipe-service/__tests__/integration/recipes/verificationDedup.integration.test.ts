@@ -128,8 +128,8 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
-                create: vi.fn(async () => aggregateOf()),
-                findById: async () => readableAggregateOf(aggregateOf()),
+                create: vi.fn(() => Promise.resolve(aggregateOf())),
+                findById: () => Promise.resolve(readableAggregateOf(aggregateOf())),
                 transaction: (work) => work(FAKE_TX),
             }),
             {

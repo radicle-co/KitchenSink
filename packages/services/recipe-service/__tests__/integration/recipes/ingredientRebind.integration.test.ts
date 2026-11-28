@@ -78,8 +78,8 @@ function aggregateAt(version: number): RecipeAggregate {
     };
 }
 
-const findById = vi.fn(async (id: string) =>
-    id === RECIPE_ID ? readableAggregateOf(aggregateAt(storedVersion)) : undefined,
+const findById = vi.fn((id: string) =>
+    Promise.resolve(id === RECIPE_ID ? readableAggregateOf(aggregateAt(storedVersion)) : undefined),
 );
 const readConflict = vi.fn(async (_id: string, expectedVersion: number) => ({
     current: aggregateAt(storedVersion),

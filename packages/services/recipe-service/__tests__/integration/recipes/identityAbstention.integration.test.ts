@@ -55,23 +55,25 @@ beforeAll(async () => {
         foodServiceUrl: food.origin,
         doubles: [
             recipesDalDouble({
-                findById: async (id: string) =>
-                    id === RECIPE_ID
-                        ? readableAggregateOf({
-                              recipe: makeRecipeRow({ id: RECIPE_ID, ownerId: VIEWER, servings: 1 }),
-                              steps: [makeRecipeStepRow({ recipeId: RECIPE_ID })],
-                              ingredients: [
-                                  makeIngredientLineRow({
-                                      id: '00000000-0000-4000-8000-00000000e001',
-                                      recipeId: RECIPE_ID,
-                                      foodLookupId: ARM.lookupId,
-                                      quantity: '1',
-                                      unit: 'cup',
-                                      sourceLine: '1 cup milk',
-                                  }),
-                              ],
-                          })
-                        : undefined,
+                findById: (id: string) =>
+                    Promise.resolve(
+                        id === RECIPE_ID
+                            ? readableAggregateOf({
+                                  recipe: makeRecipeRow({ id: RECIPE_ID, ownerId: VIEWER, servings: 1 }),
+                                  steps: [makeRecipeStepRow({ recipeId: RECIPE_ID })],
+                                  ingredients: [
+                                      makeIngredientLineRow({
+                                          id: '00000000-0000-4000-8000-00000000e001',
+                                          recipeId: RECIPE_ID,
+                                          foodLookupId: ARM.lookupId,
+                                          quantity: '1',
+                                          unit: 'cup',
+                                          sourceLine: '1 cup milk',
+                                      }),
+                                  ],
+                              })
+                            : undefined,
+                    ),
             }),
             { provide: RECIPE_PHOTOS_DAL, useValue: { findByRecipe: async () => [] } },
             { provide: RECIPE_RATINGS_DAL, useValue: { findStars: async () => undefined } },

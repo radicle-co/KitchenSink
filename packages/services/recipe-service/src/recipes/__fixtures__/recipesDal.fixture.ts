@@ -66,8 +66,8 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
         readConflict: vi.fn<RecipesDal['readConflict']>(),
         // ADR-0073: a cook with no private recipes by default. A suite about slots overrides these with the count it
         // needs.
-        lockAndCountPrivateSlots: vi.fn<RecipesDal['lockAndCountPrivateSlots']>(async () => 0),
-        countPrivateSlots: vi.fn<RecipesDal['countPrivateSlots']>(async () => 0),
+        lockAndCountPrivateSlots: vi.fn<RecipesDal['lockAndCountPrivateSlots']>(() => Promise.resolve(0)),
+        countPrivateSlots: vi.fn<RecipesDal['countPrivateSlots']>(() => Promise.resolve(0)),
         // The row lock reads the row `findById` holds, so a suite sees the same recipe before and under the lock unless
         // it overrides this to stage a race. With no row staged: a public, cook-written DRAFT (publishing one is never
         // counted).
@@ -77,8 +77,8 @@ export function fakeRecipesDal(overrides: Partial<RecipesDal> = {}): RecipesDal 
             return lockedFactsOf(found?.recipe ?? makeRecipeRow({ visibility: 'public', status: 'draft' }));
         }),
         // ADR-0029 section 4: no captured owners to clear and no private lines by default.
-        clearPublicFoodOwners: vi.fn<RecipesDal['clearPublicFoodOwners']>(async () => undefined),
-        privateFoodLines: vi.fn<RecipesDal['privateFoodLines']>(async () => []),
+        clearPublicFoodOwners: vi.fn<RecipesDal['clearPublicFoodOwners']>(() => Promise.resolve(undefined)),
+        privateFoodLines: vi.fn<RecipesDal['privateFoodLines']>(() => Promise.resolve([])),
         setVisibility: vi.fn<RecipesDal['setVisibility']>(),
     } satisfies Partial<RecipesDal>;
 

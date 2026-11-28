@@ -57,7 +57,7 @@ export function recipeWriteIntent(input: RecipeWriteInput): Intent {
     const status = writeStatusOf(input);
 
     if (server.kind !== 'stored') {
-        const create = toCreateRecipeInput(draft, status ?? RecipeStatus.DRAFT, input.shown);
+        const create = toCreateRecipeInput(draft, status, input.shown);
 
         return {
             entity: 'recipe',

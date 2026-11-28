@@ -25,6 +25,14 @@ const draft = (over = {}) => ({
 });
 const payloadOf = (intent: ReturnType<typeof recipeWriteIntent>) => intent.payload;
 
+/** The body's `statement`, read without a cast: the payload is opaque to the log. */
+const bodyStatementOf = (input: Parameters<typeof recipeWriteIntent>[0]): unknown => {
+    const { payload } = recipeWriteIntent(input);
+    const body = typeof payload === 'object' && payload !== null && 'input' in payload ? payload.input : undefined;
+
+    return typeof body === 'object' && body !== null && 'statement' in body ? body.statement : undefined;
+};
+
 describe('a create with a Source', () => {
     it('carries the statement, and goes out Private although the cook chose Public', () => {
         const payload = payloadOf(
@@ -151,16 +159,17 @@ describe('rowAnswerRidesWrite: whether the Source row\u2019s answer is what the 
         citation: 'Salt Fat Acid Heat',
         wording: { version: 'statementBook.v2', locale: 'en' },
     } as const;
+    const person = { kind: 'fromPerson', wording: { version: 'statementFromPerson.v2', locale: 'en' } } as const;
     const input = (server: ServerFacts, publish: boolean, shown?: { statement?: typeof paid | typeof book }) => ({
         server,
         draft: draft(),
         ref: LOCAL,
         publish,
         privateRefusal: undefined,
-        shown: { rowStatement: book, ...shown },
+        shown: { rowStatement: person, ...shown },
     });
 
-    it.each([
+    const cases = [
         ['an update, no Publish answer held', storedOf(), false, undefined, true],
         [
             'an update, a paid-site Publish answer the server does not hold yet (it outranks the row)',
@@ -181,8 +190,29 @@ describe('rowAnswerRidesWrite: whether the Source row\u2019s answer is what the 
         ['a create, no Publish answer held', unsaved, false, undefined, true],
         ['a create, a paid-site Publish answer (it outranks the row)', unsaved, false, paid, false],
         ['a publishing create, a book Publish answer (it outranks the row)', unsaved, true, book, false],
-    ] as const)('%s: %s', (_name, server, publish, statement, rides) => {
-        expect(rowAnswerRidesWrite(input(server, publish, statement === undefined ? {} : { statement }))).toBe(rides);
+    ] as const;
+    const inputOf = (server: ServerFacts, publish: boolean, statement: typeof paid | typeof book | undefined) =>
+        input(server, publish, statement === undefined ? {} : { statement });
+
+    it.each(cases)('%s: %s', (_name, server, publish, statement, rides) => {
+        expect(rowAnswerRidesWrite(inputOf(server, publish, statement))).toBe(rides);
+    });
+
+    // Ties the rule to the wire's own precedence chains: reorder one and this goes red.
+    it.each(cases)(
+        '%s: the body says the row\u2019s statement exactly when the rule says so',
+        (_name, server, publish, statement) => {
+            const x = inputOf(server, publish, statement);
+
+            expect(bodyStatementOf(x) === person).toBe(rowAnswerRidesWrite(x));
+        },
+    );
+
+    it('the one exception: a cleared row (null) on a create sends nothing, and still rides', () => {
+        const x = { ...input(unsaved, false), shown: { rowStatement: null } };
+
+        expect(bodyStatementOf(x)).toBeUndefined();
+        expect(rowAnswerRidesWrite(x)).toBe(true);
     });
 
     it('a write built from no shown wordings carries the row\u2019s answer (there is nothing that outranks it)', () => {

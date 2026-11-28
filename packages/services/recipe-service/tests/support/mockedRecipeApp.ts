@@ -35,8 +35,8 @@ const CLOSED = 'http://127.0.0.1:9';
 
 /**
  * What each defaulted DAL answers when a suite does not stage it: nothing found, and every write accepted and
- * forgotten. Each is checked against the real DAL's own member types, so a
- * signature change fails `tsc` here rather than going quietly stale.
+ * forgotten. Each is checked against the real DAL's own member types, so a signature change fails `tsc` here rather
+ * than going quietly stale.
  */
 export const DEFAULT_ANSWERS = {
     // The attestation record: an append accepted and forgotten, and no attestation on file. A suite that asserts on the

@@ -154,12 +154,6 @@
             "en": { "VIEW_CHECKING": "Checking" }
         },
         {
-            "name": "VIEW_NOT_APPROVED",
-            "viewer": "owner",
-            "keys": ["VIEW_NOT_APPROVED"],
-            "en": { "VIEW_NOT_APPROVED": "Not approved to be public." }
-        },
-        {
             "name": "VIEW_ADAPTED_BY_COOK",
             "viewer": "both",
             "keys": [
@@ -216,102 +210,82 @@
                 "VIEW_HIDDEN_AFTER_REPORT.reader": "This recipe isn’t available right now."
             }
         },
+        { "name": "VIEW_HIDDEN", "viewer": "owner", "keys": ["VIEW_HIDDEN"], "en": { "VIEW_HIDDEN": "Hidden" } },
         {
-            "name": "VIEW_TOO_CLOSE_SAVED_PRIVATE",
+            "name": "VIEW_HIDDEN_REASON",
             "viewer": "owner",
             "keys": [
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.title",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.body",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.link",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.primary",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.secondary",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellLine",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellAction"
+                "VIEW_HIDDEN_REASON.heldSource",
+                "VIEW_HIDDEN_REASON.tooClose",
+                "VIEW_HIDDEN_REASON.afterCheck",
+                "VIEW_HIDDEN_REASON.notApproved",
+                "VIEW_HIDDEN_REASON.sourceCorrected"
             ],
             "en": {
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.title": "Saved as private",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.body": "Your steps are still too close to the source’s wording to share, so we saved this recipe as private. Change the steps in your own words to make it public.",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.link": "See the source",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.primary": "Edit steps",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.secondary": "Dismiss",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellLine": "Let AI rewrite the steps in new words with Pro.",
-                "VIEW_TOO_CLOSE_SAVED_PRIVATE.upsellAction": "Edit with AI"
+                "VIEW_HIDDEN_REASON.heldSource": "Hidden because it was saved with a source. Only you can see it now.",
+                "VIEW_HIDDEN_REASON.tooClose": "Hidden because its steps are too close to the source’s wording. Only you can see it now.",
+                "VIEW_HIDDEN_REASON.afterCheck": "Hidden after a check. Only you can see it now.",
+                "VIEW_HIDDEN_REASON.notApproved": "Hidden because it wasn’t approved to be public. Only you can see it now.",
+                "VIEW_HIDDEN_REASON.sourceCorrected": "Hidden because its source was corrected. Only you can see it now."
             }
         },
         {
-            "name": "VIEW_TOO_CLOSE_NO_SLOT",
+            "name": "VIEW_SAVE_REFUSED",
             "viewer": "owner",
             "keys": [
-                "VIEW_TOO_CLOSE_NO_SLOT.title",
-                "VIEW_TOO_CLOSE_NO_SLOT.body",
-                "VIEW_TOO_CLOSE_NO_SLOT.link",
-                "VIEW_TOO_CLOSE_NO_SLOT.primary",
-                "VIEW_TOO_CLOSE_NO_SLOT.manageAction",
-                "VIEW_TOO_CLOSE_NO_SLOT.upgradeAction",
-                "VIEW_TOO_CLOSE_NO_SLOT.upsellAction"
+                "VIEW_SAVE_REFUSED.title",
+                "VIEW_SAVE_REFUSED.why.heldSource",
+                "VIEW_SAVE_REFUSED.why.tooClose",
+                "VIEW_SAVE_REFUSED.why.notApproved",
+                "VIEW_SAVE_REFUSED.why.sourceCorrected",
+                "VIEW_SAVE_REFUSED.wayRewrite",
+                "VIEW_SAVE_REFUSED.wayRewriteAction",
+                "VIEW_SAVE_REFUSED.wayDiscard",
+                "VIEW_SAVE_REFUSED.wayHide",
+                "VIEW_SAVE_REFUSED.wayHideAction"
             ],
             "en": {
-                "VIEW_TOO_CLOSE_NO_SLOT.title": "Not saved yet",
-                "VIEW_TOO_CLOSE_NO_SLOT.body": "Your steps are too close to the source’s wording to share, and all {total} of your private recipes are in use. To save it, change the steps, delete a private recipe, or upgrade to Pro. Your changes are saved on this device.",
-                "VIEW_TOO_CLOSE_NO_SLOT.link": "See the source",
-                "VIEW_TOO_CLOSE_NO_SLOT.primary": "Edit steps",
-                "VIEW_TOO_CLOSE_NO_SLOT.manageAction": "Manage private recipes",
-                "VIEW_TOO_CLOSE_NO_SLOT.upgradeAction": "Upgrade to Pro",
-                "VIEW_TOO_CLOSE_NO_SLOT.upsellAction": "Edit with AI"
+                "VIEW_SAVE_REFUSED.title": "This recipe can’t stay public",
+                "VIEW_SAVE_REFUSED.why.heldSource": "It was saved with a source, such as a web page or a book, so it can’t be public.",
+                "VIEW_SAVE_REFUSED.why.tooClose": "Its steps are too close to the source’s wording to share.",
+                "VIEW_SAVE_REFUSED.why.notApproved": "It wasn’t approved to be public.",
+                "VIEW_SAVE_REFUSED.why.sourceCorrected": "Its source was corrected, so it can’t be public as it is.",
+                "VIEW_SAVE_REFUSED.wayRewrite": "Change the steps in your own words to keep it public.",
+                "VIEW_SAVE_REFUSED.wayRewriteAction": "Edit steps",
+                "VIEW_SAVE_REFUSED.wayDiscard": "Discard your changes to keep the public recipe as it is.",
+                "VIEW_SAVE_REFUSED.wayHide": "Or save your changes and hide this recipe. Only you will be able to see it, and it won’t use one of your private recipes.",
+                "VIEW_SAVE_REFUSED.wayHideAction": "Save and hide"
             }
         },
         {
-            "name": "VIEW_TOO_CLOSE_AFTER_REVIEW",
+            "name": "VIEW_CARD_CANNOT_STAY_PUBLIC",
             "viewer": "owner",
             "keys": [
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.title",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.body",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.link",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.primary",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.secondary",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.upsellLine",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.upsellAction"
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.heldSource",
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.tooClose",
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected"
             ],
             "en": {
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.title": "Made private after a check",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.body": "We checked this recipe, and its steps are too close to the source’s wording to share. Only you can see it now. Change the steps in your own words to make it public again.",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.link": "See the source",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.primary": "Edit steps",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.secondary": "Delete recipe",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.upsellLine": "Let AI rewrite the steps in new words with Pro.",
-                "VIEW_TOO_CLOSE_AFTER_REVIEW.upsellAction": "Edit with AI"
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.heldSource": "This recipe can’t stay public because it was saved with a source.",
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.tooClose": "This recipe can’t stay public because its steps are too close to the source’s wording.",
+                "VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected": "This recipe can’t be public because its source was corrected."
             }
         },
         {
-            "name": "VIEW_SOURCE_HOLD_SAVED_PRIVATE",
+            "name": "VIEW_SAVE_REFUSED_LATE",
             "viewer": "owner",
-            "keys": [
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.title",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.body",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.link",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.primary"
-            ],
+            "keys": ["VIEW_SAVE_REFUSED_LATE"],
             "en": {
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.title": "Saved as private",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.body": "This recipe was saved with a source, such as a web page or a book, so it can’t be public. We saved it as private, so only you can see it now.",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.link": "See the source",
-                "VIEW_SOURCE_HOLD_SAVED_PRIVATE.primary": "Dismiss"
+                "VIEW_SAVE_REFUSED_LATE": "Your changes weren’t saved because this recipe can’t stay public. Open the editor to choose what to do."
             }
         },
         {
-            "name": "VIEW_SOURCE_HOLD_AFTER_CHECK",
+            "name": "VIEW_DRAFT_DOOR",
             "viewer": "owner",
-            "keys": [
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.title",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.body",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.link",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.primary"
-            ],
+            "keys": ["VIEW_DRAFT_DOOR.title", "VIEW_DRAFT_DOOR.publishPrivateOnly"],
             "en": {
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.title": "Made private after a check",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.body": "We checked this recipe’s source. It comes from a web page or a book, so it can’t be public. Only you can see it now.",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.link": "See the source",
-                "VIEW_SOURCE_HOLD_AFTER_CHECK.primary": "Dismiss"
+                "VIEW_DRAFT_DOOR.title": "This recipe can’t be public",
+                "VIEW_DRAFT_DOOR.publishPrivateOnly": "Publish this recipe as private instead."
             }
         },
         {
@@ -475,11 +449,11 @@
             "known": true
         },
         {
-            "reason": "detectedNoPrivateSlot",
-            "name": "REFUSAL_DETECTED_NO_PRIVATE_SLOT",
+            "reason": "saveCannotStayPublic",
+            "name": "REFUSAL_SAVE_CANNOT_STAY_PUBLIC",
             "computedBy": "server",
-            "wire": "403 `SOURCE_DETECTED_NO_PRIVATE_SLOT`",
-            "built": "pending: 020 (ADR-0074 §3a)",
+            "wire": "400 `INVALID_VISIBILITY`, `details.reason` 'REFUSAL_SAVE_CANNOT_STAY_PUBLIC', `details.cause`: a `SaveRefusalCause` string (P10 wraps it as `{kind}` at its seam)",
+            "built": "pending: P10 (held source), 020 (too close, not approved)",
             "known": true
         },
         {
@@ -513,8 +487,8 @@
             "stored": "`recipes.source_correction_hold`",
             "enforcement": "CHECK `recipes_held_is_not_public`. A clone copies the hold at insert, by trigger",
             "setBy": "staff correction (`STAFF_CORRECT`)",
-            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1). Never the cook",
-            "ownerLabel": "none. `REFUSAL_SOURCE_CORRECTED` carries the copy",
+            "clearedBy": "staff, `CLEAR_SOURCE_HOLD`, audited (4.6.1); or the system on an earned rewrite when the corrected answer is third-party (`EARNED_REWRITE_CLEARS_HOLD`, planned), never a cook declaration",
+            "ownerLabel": "none. `REFUSAL_SOURCE_CORRECTED` carries the wire cause. `VIEW_SAVE_REFUSED.why.sourceCorrected` is the refused-save sheet line and `VIEW_CARD_CANNOT_STAY_PUBLIC.sourceCorrected` the editor card (4.8.2)",
             "built": "set: yes. Clear: PR 5"
         },
         {
@@ -578,14 +552,6 @@
             "event": "MAKE_PRIVATE",
             "actors": ["cook"],
             "guard": "privateSlotFree",
-            "moves": [{ "from": "PPu", "to": "PPr" }]
-        },
-        {
-            "id": "FORCE_PRIVATE",
-            "axis": "lifecycleAudience",
-            "event": "FORCE_PRIVATE",
-            "actors": ["system", "staff"],
-            "guard": "forcesPrivate",
             "moves": [{ "from": "PPu", "to": "PPr" }]
         },
         {
@@ -827,7 +793,7 @@
             "event": "`CLEAR_SOURCE_HOLD`",
             "actor": "staff",
             "guard": "5.4",
-            "to": "unset",
+            "to": "unset. Readable again if the audience is public and nothing else hides it (ADR-0105)",
             "pending": "PR 5"
         },
         {
@@ -866,61 +832,6 @@
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
-            "eventId": "SAVE_TOO_CLOSE",
-            "from": "PPu (third-party origin, `ORIGIN_COMMISE_WRITTEN` included)",
-            "event": "`SAVE`",
-            "actor": "cook",
-            "guard": "the sync check finds the wording too close (`detected` in the save), and a private slot is free",
-            "to": "PPr, saved, with `VIEW_TOO_CLOSE_SAVED_PRIVATE`",
-            "pending": "020 (ADR-0074 §3a), P4"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
-            "eventId": "SAVE_TOO_CLOSE_NO_SLOT",
-            "from": "PPu (same)",
-            "event": "`SAVE`",
-            "actor": "cook",
-            "guard": "too close, and no free private slot",
-            "to": "refused `REFUSAL_DETECTED_NO_PRIVATE_SLOT`. Nothing saved. `VIEW_TOO_CLOSE_NO_SLOT`",
-            "pending": "020, P4"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
-            "eventId": "MAKE_PUBLIC_TOO_CLOSE",
-            "from": "DPr, DPu, PPr (same origins)",
-            "event": "`MAKE_PUBLIC` / `PUBLISH` to public",
-            "actor": "cook",
-            "guard": "too close",
-            "to": "the recipe is saved private (a slot as for any private recipe), with `VIEW_TOO_CLOSE_SAVED_PRIVATE`. No slot: as the row above",
-            "pending": "020, P4"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
-            "eventId": "REVIEW_FOUND_TOO_CLOSE",
-            "from": "PPu",
-            "event": "`REVIEW_FOUND_TOO_CLOSE`",
-            "actor": "system",
-            "guard": "the async review of a public recipe",
-            "to": "PPr at once, as ADR-0074 §3a says. Owner notified, `VIEW_TOO_CLOSE_AFTER_REVIEW`. With no free private slot it still goes private, over the limit (`FORCE_PRIVATE`, ADR-0073). The box offers editing to make it public again",
-            "pending": "the review feature"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
-            "eventId": "FORCE_PRIVATE_AFTER_REVIEW",
-            "from": "PPu, PPr in review",
-            "event": "`FORCE_PRIVATE`",
-            "actor": "system, staff",
-            "guard": "review ended without approval (ADR-0074 §3a)",
-            "to": "PPr",
-            "pending": "020"
-        },
-        {
-            "axis": "lifecycleAudience",
-            "axisLabel": "lifecycle × audience",
             "eventId": "MAKE_PUBLIC_NOT_APPROVED",
             "from": "PPr",
             "event": "`MAKE_PUBLIC`",
@@ -932,46 +843,123 @@
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
-            "eventId": "SAVE_SOURCE_HELD",
-            "from": "PPu, with the source evidence holding it off Public (`publicNeedsCheck`)",
+            "eventId": "SAVE_CANNOT_STAY_PUBLIC",
+            "from": "PPu, readable",
             "event": "editor `SAVE`",
             "actor": "cook",
-            "guard": "the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Planned: Solar P10. Today a save in this state gets 400 `SOURCE_CONFLICT` before the editor sends it private, so #412 is latent, not live. P10 saves the held recipe private, shows `VIEW_SOURCE_HOLD_SAVED_PRIVATE`, and removes the private-send code of the editor",
-            "to": "PPu, with the check rerun",
-            "pending": "pending: P10 (#412)"
+            "guard": "the new content cannot stay public: a recorded source holds it, its steps are too close, or it was not approved",
+            "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC`. Nothing saved. The edit stays on the device. The refused-save sheet",
+            "pending": "P10 (held source), 020 (too close, not approved)"
         },
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
-            "eventId": "RERUN_CHECK_FAILS_IN_SAVE",
-            "from": "same",
-            "event": "`RERUN_CHECK_FAILS_IN_SAVE`",
-            "actor": "system",
-            "guard": "the check on the new text fails",
-            "to": "PPr, with `VIEW_SOURCE_HOLD_SAVED_PRIVATE`",
-            "pending": "pending: P10 (#412)"
+            "eventId": "SAVE_AS_PRIVATE",
+            "from": "PPu, readable, refused as above",
+            "event": "`SAVE_AS_PRIVATE`",
+            "actor": "cook",
+            "guard": "a private slot is free",
+            "to": "PPr, saved",
+            "pending": "P10"
         },
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
-            "eventId": "RERUN_CHECK_FAILS_LATER",
-            "from": "same",
-            "event": "`RERUN_CHECK_FAILS_LATER`",
-            "actor": "system",
-            "guard": "the check fails after the cook left the editor. With no free private slot it still goes private, over the limit (`FORCE_PRIVATE`, ADR-0073), and is not refused",
-            "to": "PPr, with `VIEW_SOURCE_HOLD_AFTER_CHECK`",
-            "pending": "pending: P10 (#412)"
+            "eventId": "SAVE_AND_HIDE",
+            "from": "PPu, readable, refused as above",
+            "event": "`SAVE_AND_HIDE`",
+            "actor": "cook",
+            "guard": "no free private slot, and the cook chose it",
+            "to": "PPu, saved, hidden by the read rule. Chip `VIEW_HIDDEN`",
+            "pending": "P10"
         },
         {
             "axis": "lifecycleAudience",
             "axisLabel": "lifecycle × audience",
-            "eventId": "SITE_CLAIM_NOT_CONFIRMED",
-            "from": "same",
-            "event": "`SITE_CLAIM_NOT_CONFIRMED` (once 016 FR-069 site claims exist)",
+            "eventId": "SAVE_WHILE_HIDDEN",
+            "from": "PPu, already held from readers",
+            "event": "editor `SAVE`",
+            "actor": "cook",
+            "guard": "none: the sheet opens as for any save that cannot stay public. The sheet’s why line is the cause that hides the recipe: `heldSource`, `sourceCorrected`, `tooClose` or `notApproved`",
+            "to": "refused `REFUSAL_SAVE_CANNOT_STAY_PUBLIC` with a free private slot, so the cook picks a way. With no free private slot only an explicit Save and hide saves it: PPu, saved, still hidden",
+            "pending": "P10"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
+            "eventId": "CREATE_CANNOT_GO_PUBLIC",
+            "from": "none (create) or DPu",
+            "event": "`CREATE` / `PUBLISH` to public",
+            "actor": "cook",
+            "guard": "the content cannot go public",
+            "to": "DPu, saved as a draft. The draft door",
+            "pending": "P10, 020"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
+            "eventId": "CREATE_PRIVATE_NO_SLOT",
+            "from": "none (create)",
+            "event": "`CREATE` private",
+            "actor": "cook",
+            "guard": "no free private slot",
+            "to": "DPr, saved as a draft. The draft door",
+            "pending": "P10"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
+            "eventId": "PUBLISH_DRAFT_NO_SLOT",
+            "from": "DPr",
+            "event": "`PUBLISH`",
+            "actor": "cook",
+            "guard": "no free private slot",
+            "to": "DPr, unchanged. The draft door",
+            "pending": "P10"
+        },
+        {
+            "axis": "holds",
+            "axisLabel": "holds",
+            "eventId": "HIDE_AFTER_CHECK",
+            "from": "unset, PPu",
+            "event": "`CHECK_FAILS_LATER` / `NOT_APPROVED` / `APPEAL_UPHELD` / `SITE_CLAIM_NOT_CONFIRMED`",
+            "actor": "system, staff",
+            "guard": "ADR-0074's outcome, or the evidence rule, for the current content",
+            "to": "hidden by the read rule. Audience unchanged. Notification",
+            "pending": "020, 016 FR-069"
+        },
+        {
+            "axis": "holds",
+            "axisLabel": "holds",
+            "eventId": "SOURCE_HOLD_LIFTED_BY_REWRITE",
+            "from": "evidence holds the recipe",
+            "event": "`REWRITE_EARNS_FACT`",
             "actor": "system",
-            "guard": "the claim to the site is not confirmed",
-            "to": "PPr, with the box line \"We couldn’t confirm that {site} is your site, so this recipe can’t be public.\"",
-            "pending": "pending: 016 FR-069"
+            "guard": "ADR-0097 D3, in order: the P4a check passes, the source re-run passes, 020 allows. Any origin, own and unstated included (G1)",
+            "to": "the evidence rule no longer holds it. Readable if nothing else hides it",
+            "pending": "P10 (seam, stubbed), P4b, 020"
+        },
+        {
+            "axis": "holds",
+            "axisLabel": "holds",
+            "eventId": "EARNED_REWRITE_CLEARS_HOLD",
+            "from": "`HOLD_SOURCE_CORRECTED` set",
+            "event": "`REWRITE_EARNS_FACT`",
+            "actor": "system",
+            "guard": "the corrected answer is third-party (book, paid site, web page). ADR-0097 D3, in order. A system clear record in the same transaction (4.6.1)",
+            "to": "unset. The correction record stays. Clears exactly this recipe, and no clone: each clone clears on its own earned rewrite or by staff. Readable again if the audience is public and nothing else hides it",
+            "pending": "B10b, PR 5"
+        },
+        {
+            "axis": "lifecycleAudience",
+            "axisLabel": "lifecycle × audience",
+            "eventId": "MAKE_PUBLIC_TOO_CLOSE_PRIVATE",
+            "from": "PPr (third-party origin, `ORIGIN_COMMISE_WRITTEN` included)",
+            "event": "`MAKE_PUBLIC`",
+            "actor": "cook",
+            "guard": "too close",
+            "to": "PPr, refused. Nothing changes",
+            "pending": "020"
         },
         {
             "axis": "lifecycleAudience",
@@ -1002,7 +990,7 @@
             "from": "`REWRITTEN_ABSENT`",
             "event": "`COOK_EDIT_PASSES` (cook edit passes the difference check)",
             "actor": "system",
-            "guard": "third-party origin",
+            "guard": "third-party origin, or own or unstated with the evidence rule holding it (the unblock of ADR-0097 D3)",
             "to": "`REWRITTEN_BY_COOK` (shows `VIEW_ADAPTED_BY_COOK`)",
             "pending": "P4"
         },
@@ -1013,7 +1001,7 @@
             "from": "`REWRITTEN_ABSENT`",
             "event": "`KEEP_AI_REWRITE` (cook keeps an AI rewrite that passes)",
             "actor": "system",
-            "guard": "third-party origin",
+            "guard": "third-party origin, or own or unstated with the evidence rule holding it (the unblock of ADR-0097 D3)",
             "to": "`REWRITTEN_BY_AI` + `STEPS_BY_AI`",
             "pending": "P4"
         },
@@ -1187,8 +1175,32 @@
         {
             "group": "checkAndRefusals",
             "old": "\"Not approved\" (bare, as a chip)",
-            "replacement": "`VIEW_NOT_APPROVED`, a line under Private",
+            "replacement": "`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.notApproved` when public; on a private recipe, nothing (the refusal explains it at the public door)",
             "note": ""
+        },
+        {
+            "group": "checkAndRefusals",
+            "old": "`VIEW_NOT_APPROVED`, \"Not approved to be public.\"",
+            "replacement": "`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.notApproved`",
+            "note": "a not-approved recipe is hidden, never made private"
+        },
+        {
+            "group": "checkAndRefusals",
+            "old": "`VIEW_TOO_CLOSE_SAVED_PRIVATE`, `VIEW_SOURCE_HOLD_SAVED_PRIVATE`, \"Saved as private\"",
+            "replacement": "`VIEW_SAVE_REFUSED` + its cause (`VIEW_SAVE_REFUSED.title` for the box title)",
+            "note": "a save that cannot stay public is refused, never saved private"
+        },
+        {
+            "group": "checkAndRefusals",
+            "old": "`VIEW_TOO_CLOSE_NO_SLOT`",
+            "replacement": "`VIEW_SAVE_REFUSED` + cause, with \"Save and hide\" when no private slot is free",
+            "note": ""
+        },
+        {
+            "group": "checkAndRefusals",
+            "old": "`VIEW_TOO_CLOSE_AFTER_REVIEW`, `VIEW_SOURCE_HOLD_AFTER_CHECK`, \"Made private after a check\"",
+            "replacement": "`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.*`",
+            "note": "a later check hides the recipe and leaves its audience"
         },
         {
             "group": "checkAndRefusals",
@@ -1223,8 +1235,14 @@
         {
             "group": "checkAndRefusals",
             "old": "`RESTRICTION_*`, `REFUSAL_ADAPTATION_TOO_CLOSE`",
-            "replacement": "`HOLD_*`, `REFUSAL_DETECTED_NO_PRIVATE_SLOT`",
+            "replacement": "`HOLD_*`",
             "note": "names never used in code"
+        },
+        {
+            "group": "checkAndRefusals",
+            "old": "`REFUSAL_DETECTED_NO_PRIVATE_SLOT`",
+            "replacement": "none: a create saves a draft, and an edit is refused (`REFUSAL_SAVE_CANNOT_STAY_PUBLIC`) or saved and hidden",
+            "note": "never sent by a built route (ADR-0105)"
         }
     ]
 }

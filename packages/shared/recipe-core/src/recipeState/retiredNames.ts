@@ -86,8 +86,33 @@ export const RETIRED_NAMES: readonly RetiredName[] = [
     {
         group: 'checkAndRefusals',
         old: '"Not approved" (bare, as a chip)',
-        replacement: '`VIEW_NOT_APPROVED`, a line under Private',
+        replacement:
+            '`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.notApproved` when public; on a private recipe, nothing (the refusal explains it at the public door)',
         note: '',
+    },
+    {
+        group: 'checkAndRefusals',
+        old: '`VIEW_NOT_APPROVED`, "Not approved to be public."',
+        replacement: '`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.notApproved`',
+        note: 'a not-approved recipe is hidden, never made private',
+    },
+    {
+        group: 'checkAndRefusals',
+        old: '`VIEW_TOO_CLOSE_SAVED_PRIVATE`, `VIEW_SOURCE_HOLD_SAVED_PRIVATE`, "Saved as private"',
+        replacement: '`VIEW_SAVE_REFUSED` + its cause (`VIEW_SAVE_REFUSED.title` for the box title)',
+        note: 'a save that cannot stay public is refused, never saved private',
+    },
+    {
+        group: 'checkAndRefusals',
+        old: '`VIEW_TOO_CLOSE_NO_SLOT`',
+        replacement: '`VIEW_SAVE_REFUSED` + cause, with "Save and hide" when no private slot is free',
+        note: '',
+    },
+    {
+        group: 'checkAndRefusals',
+        old: '`VIEW_TOO_CLOSE_AFTER_REVIEW`, `VIEW_SOURCE_HOLD_AFTER_CHECK`, "Made private after a check"',
+        replacement: '`VIEW_HIDDEN` + `VIEW_HIDDEN_REASON.*`',
+        note: 'a later check hides the recipe and leaves its audience',
     },
     {
         group: 'checkAndRefusals',
@@ -117,7 +142,14 @@ export const RETIRED_NAMES: readonly RetiredName[] = [
     {
         group: 'checkAndRefusals',
         old: '`RESTRICTION_*`, `REFUSAL_ADAPTATION_TOO_CLOSE`',
-        replacement: '`HOLD_*`, `REFUSAL_DETECTED_NO_PRIVATE_SLOT`',
+        replacement: '`HOLD_*`',
         note: 'names never used in code',
+    },
+    {
+        group: 'checkAndRefusals',
+        old: '`REFUSAL_DETECTED_NO_PRIVATE_SLOT`',
+        replacement:
+            'none: a create saves a draft, and an edit is refused (`REFUSAL_SAVE_CANNOT_STAY_PUBLIC`) or saved and hidden',
+        note: 'never sent by a built route (ADR-0105)',
     },
 ];

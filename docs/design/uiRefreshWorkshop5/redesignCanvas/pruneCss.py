@@ -18,6 +18,12 @@ import subprocess
 import sys
 
 CLASS = re.compile(r'\.(-?[A-Za-z_][\w-]*)')
+STYLE = re.compile(r'(<style[^>]*>)(.*?)(</style\s*>)', flags=re.S | re.I)
+
+
+def classes_of(selector):
+    """The classes a selector names; a dot inside an attribute selector or a string is not one."""
+    return CLASS.findall(re.sub(r'\[[^\]]*\]|"[^"]*"|\'[^\']*\'', '', selector))
 
 
 class _Used(HTMLParser):
@@ -73,7 +79,7 @@ class _Tree(HTMLParser):
 
 def element_tree(html):
     t = _Tree()
-    t.feed(re.sub(r'<style[^>]*>.*?</style>', '', html, flags=re.S))
+    t.feed(STYLE.sub('', html))
     return t.nodes
 
 
@@ -90,8 +96,8 @@ def nested_match(sel, nodes):
     last = comps[-1]
     need_anc = set()
     for c in comps[:-1]:
-        need_anc |= set(CLASS.findall(c.group(2)))
-    last_cls = set(CLASS.findall(last.group(2)))
+        need_anc |= set(classes_of(c.group(2)))
+    last_cls = set(classes_of(last.group(2)))
     return any(
         (last.group(1) in (None, tag)) and last_cls <= cls and need_anc <= anc for tag, cls, anc in nodes
     )
@@ -149,7 +155,7 @@ def _prune_css(css, used, keep, nodes=None):
             sels = [
                 s
                 for s in _split_selectors(it[1])
-                if all(c in used or c in keep for c in CLASS.findall(s)) and (nodes is None or nested_match(s, nodes))
+                if all(c in used or c in keep for c in classes_of(s)) and (nodes is None or nested_match(s, nodes))
             ]
             if not sels:
                 kept.append(None)
@@ -187,24 +193,19 @@ def prune(html, keep=frozenset(), nested=False):
     boards use it; the CLI over edited base boards does not, so a base board's own dead combinations stay."""
     used = used_classes(html)
     nodes = element_tree(html) if nested else None
-    return re.sub(
-        r'(<style[^>]*>)(.*?)(</style>)',
-        lambda m: m.group(1) + _prune_css(m.group(2), used, keep, nodes) + m.group(3),
-        html,
-        flags=re.S,
-    )
+    return STYLE.sub(lambda m: m.group(1) + _prune_css(m.group(2), used, keep, nodes) + m.group(3), html)
 
 
 def dead_classes(html):
     """Classes named in a selector that the markup does not use (the audit's unit)."""
     used = used_classes(html)
     dead = set()
-    for m in re.finditer(r'<style[^>]*>(.*?)</style>', html, flags=re.S):
-        stack = [m.group(1)]
+    for m in STYLE.finditer(html):
+        stack = [m.group(2)]
         while stack:
             for it in _tokens(stack.pop()):
                 if it[0] == 'rule':
-                    dead |= {c for c in CLASS.findall(it[1]) if c not in used}
+                    dead |= {c for c in classes_of(it[1]) if c not in used}
                 elif it[0] == 'at':
                     stack.append(it[2])
     return dead
@@ -221,6 +222,9 @@ def selfcheck():
     upper = '<style>.byUpper{color:red}.bare{color:red}</style><SCRIPT>h("x",{className:"byUpper"})</SCRIPT><div class=bare></div>'
     assert '.byUpper' in prune(upper), 'a class set by an upper-case script lost its rule'
     assert '.bare' in prune(upper), 'an unquoted class attribute lost its rule'
+    attr = '<style>[data-x=".foo"]{color:red}.ghost{color:blue}</style><div class="shown"></div>'
+    assert '[data-x' in prune(attr), 'a dot inside an attribute selector read as a class'
+    assert '.ghost' not in prune(attr), 'a class nothing uses kept its rule'
     assert '.ghost' not in out, 'a class nothing uses kept its rule'
     assert 'byScript' not in dead_classes(board)
     print('selfcheck ok')
@@ -234,7 +238,7 @@ if __name__ == '__main__':
     def git(*a):
         return subprocess.run(['git', '-C', wt, *a], capture_output=True, text=True)
 
-    files = [f for f in git('diff', '--cached', '--name-only', base).stdout.split() if f.endswith('.dc.html')]
+    files = [f for f in git('diff', '--cached', '--name-only', base).stdout.splitlines() if f.endswith('.dc.html')]
     for f in files:
         b = git('show', f'{base}:{f}')
         keep = frozenset(dead_classes(b.stdout)) if b.returncode == 0 else frozenset()

@@ -6,6 +6,9 @@
  * A class counts as used when it appears in any `class` attribute, or anywhere in a `<script>`: every board carries a
  * script, and a class that script sets at run time is not dead. Missing a dead rule is the safe mistake; failing a
  * live one is not.
+ *
+ * `docs/design/uiRefreshWorkshop5/redesignCanvas/pruneCss.py` is the Python copy of this rule, which the board builders
+ * use to emit only the rules a board draws. A change to the rule here changes it there too.
  */
 import { parse as parseCss, walk } from 'css-tree';
 import { defaultTreeAdapter, parse, type DefaultTreeAdapterMap } from 'parse5';

@@ -70,3 +70,10 @@ PREPARED` and logical apply run no trigger. An owner or master role bypasses eve
   own rewrite or to staff; a chain with an own or from-person row is staff-only; a broken chain (an erased ancestor) can make
   a clone earned-eligible on its own rows; a 40P01 becomes a 409.
 - Until P8h, nothing calls the earned clear in production; a test caller proves it.
+- Rollback: restoring the ratchet of migration 0092 is safe, because it refuses every clear and so strands no record. The table
+  can be dropped after its rows are exported (`\copy recipe_source_hold_clears TO ...`). The read function cannot go back to
+  three terms while the repoGuards check requires the from-person call, so the fourth term is forward-only. Its effect at
+  deploy is that every from-person recipe is hidden from readers, public ones included; the PR records the counts before and
+  after.
+- Deploy order: the erasure worker is deployed before the service that writes clear records, so no record names an account
+  the worker does not yet relabel.

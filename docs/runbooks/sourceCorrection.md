@@ -70,7 +70,7 @@ The exit code is 1 when any id failed or was skipped.
 | Any answer, when the old answer was a paid site | Held                                                                                       |
 | Any other change                                | Not held. The recipe meets the same rules as a recipe whose cook stated that answer first. |
 
-A held recipe refuses Public with the reason `SOURCE_CORRECTED`. A hold lifts in two ways, both recorded and both described in ADR-0106. A staff member can clear it (see "Clear a hold"). The cook can also earn it back by rewriting the recipe, when every answer in its correction chain came from a third party.
+A held recipe refuses Public with the reason `SOURCE_CORRECTED`. A hold lifts in two ways, both recorded and both described in ADR-0106. A staff member can clear it (see "Clear a hold"). The cook can also earn it back by rewriting the recipe, when every answer in its correction chain came from a third party. That second way is not live yet: it starts when the rewrite path ships.
 
 ## Clear a hold
 
@@ -90,11 +90,11 @@ a log line or in any response a cook or a reader sees.
 
 If the route answers `409 HOLD_CLEAR_CONFLICT`, read `details.reason`.
 
-| `details.reason`        | Meaning and next step                                                                                           |
-| ----------------------- | --------------------------------------------------------------------------------------------------------------- |
-| `HOLD_NOT_SET`          | The recipe has no hold now. Nothing to clear. Check that you used the right recipe id.                          |
-| `CORRECTION_NOT_LATEST` | Someone corrected the recipe after your preview. Run the preview again and read the new chain before you clear. |
-| `LOCK_CONFLICT`         | Another clear or correction was running on the same recipes. Wait a moment and send the request again.          |
+| `details.reason`        | Meaning and next step                                                                                                               |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `HOLD_NOT_SET`          | The recipe has no hold now. Nothing to clear. Check that you used the right recipe id.                                              |
+| `CORRECTION_NOT_LATEST` | Someone corrected the recipe after your preview. Run the preview again and read the new chain before you clear.                     |
+| `LOCK_CONFLICT`         | The database stopped the clear because two transactions waited on each other (a deadlock). Nothing changed. Send the request again. |
 
 An alarm fires when the metric `source.holdCleared` sums to more than 10 in one day. The metric counts holds released, so one
 clear of a recipe with two clones counts three. Clears are rare and manual. More than 10 means a leaked grant or a runaway

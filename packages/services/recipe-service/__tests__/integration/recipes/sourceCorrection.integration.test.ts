@@ -125,7 +125,6 @@ beforeAll(async () => {
                     holdOwnersClones,
                 },
             },
-            // The erasure lock reads the CALLER's job on every write; no job here.
             { provide: RecipeSourceEvidenceDal, useValue: { insert: insertEvidence, list: () => Promise.resolve([]) } },
         ],
     });

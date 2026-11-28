@@ -160,7 +160,6 @@ beforeAll(async () => {
                         new Map(ids.includes(BRISKET.lookupId) ? [[BRISKET.lookupId, BRISKET]] : []),
                 },
             },
-            // The byline read model (plan 2026-10-15-010 D8): a cook it has never seen, so writes use the claims.
             {
                 provide: RecipeSourceEvidenceDal,
                 useValue: {

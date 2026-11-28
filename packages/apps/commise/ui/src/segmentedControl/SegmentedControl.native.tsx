@@ -57,7 +57,7 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
     // Only a ROUTE control chooses its width (a view switch is sized by its glyphs on web and fills a row here).
     const routeWidth = props.form === 'route' ? (props.width ?? 'share') : 'share';
     const compactTrack = routeWidth === 'content' || (routeWidth === 'adaptive' && windowWidth >= ADAPTIVE_FROM);
-    const faces: readonly SegmentEntry[] =
+    const entries: readonly SegmentEntry[] =
         props.form === 'route'
             ? props.segments.map((segment) => ({
                   id: segment.id,
@@ -86,15 +86,15 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
             aria-label={props.label}
             style={[styles.track, compactTrack ? styles.trackContent : null, { minHeight: touchFloor() }]}
         >
-            {faces.map((face) => (
+            {entries.map((entry) => (
                 <Pressable
-                    key={face.id}
+                    key={entry.id}
                     role={roles.segment}
                     {...(props.form === 'route'
-                        ? { 'aria-selected': face.selected }
-                        : { 'aria-checked': face.selected })}
-                    aria-label={face.label}
-                    onPress={face.onPress}
+                        ? { 'aria-selected': entry.selected }
+                        : { 'aria-checked': entry.selected })}
+                    aria-label={entry.label}
+                    onPress={entry.onPress}
                     // The track pads each segment by TRACK_INSET; the slop gives the target back that band, so it spans the track.
                     hitSlop={SEGMENT_HIT_SLOP}
                     style={[styles.slot, compactTrack ? styles.slotContent : null]}
@@ -102,14 +102,14 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                     <SegmentFace
                         // The press owner is the Pressable above: a Tamagui press handler adds a second responder view.
                         // Only the selected segment is lifted: the unselected one carries no shadow field at all.
-                        selected={face.selected}
-                        {...(face.selected ? { level: 'sm' as const } : {})}
+                        selected={entry.selected}
+                        {...(entry.selected ? { level: 'sm' as const } : {})}
                     >
-                        {face.icon === undefined ? null : (
+                        {entry.icon === undefined ? null : (
                             <Icon
-                                name={face.icon}
+                                name={entry.icon}
                                 size={SEGMENT_ICON}
-                                tone={face.selected ? 'ink' : 'inkMuted'}
+                                tone={entry.selected ? 'ink' : 'inkMuted'}
                                 {...glyphScale}
                             />
                         )}
@@ -117,9 +117,9 @@ export const SegmentedControl: FC<SegmentedControlProps> = (props) => {
                             <Text
                                 typeRole={SEGMENT_LABEL_ROLE}
                                 chromeCap={SEGMENT_CHROME_CAP}
-                                color={face.selected ? '$ink' : '$inkMuted'}
+                                color={entry.selected ? '$ink' : '$inkMuted'}
                             >
-                                {face.label}
+                                {entry.label}
                             </Text>
                         )}
                     </SegmentFace>

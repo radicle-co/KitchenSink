@@ -1,5 +1,5 @@
 /**
- * @module @commise/ui/segmented-control/face — the face of one native segment: the `Elevated` that carries the
+ * @module @commise/ui/segmented-control — the face of one native segment: the `Elevated` that carries the
  * segment's fill and edge.
  *
  * Presentational: props → JSX. Styled with Tamagui only (ADR-0080), in a file of its own because a module that imports

@@ -23,9 +23,8 @@ describe('LABELLED_NAMES', () => {
         expect(labelKeysOf('ORIGIN_WEB_PAGE')).toEqual(['ORIGIN_WEB_PAGE', 'ORIGIN_WEB_PAGE.withSite']);
         expect(labelKeysOf('ORIGIN_OWN')).toEqual(['ORIGIN_OWN.owner', 'ORIGIN_OWN.reader']);
         expect(labelKeysOf('AUDIENCE_PUBLIC')).toEqual(['AUDIENCE_PUBLIC']);
-        const key: LabelKey = 'REPORT_SIGN_IN.body';
 
-        expect(key).toBe('REPORT_SIGN_IN.body');
+        expect(labelKeysOf('REPORT_SIGN_IN')).toContain('REPORT_SIGN_IN.body' satisfies LabelKey);
     });
 
     it('keeps every key unique across the registry', () => {

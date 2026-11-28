@@ -1,44 +1,37 @@
 /**
- * The generator over the real document and the real module. The committed files are the golden: regenerating them must
- * change nothing, which is what CI checks. Failing here means the module and the document disagree, and the fix is
- * `npm run recipeState:generate` (or, if the document was edited by hand, to move the edit into the module).
+ * The generator over the real document and the real module. The byte-for-byte check (regenerating changes nothing) is
+ * CI's `npm run recipeState:verify` step and is not repeated here. These cases hold what the generated files must say.
  */
-import { readFileSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { PUBLIC_REFUSALS } from '@commise/features-recipes/public-refusal';
 import { describe, expect, it } from 'vitest';
 
-import { generateFiles } from '../src/generate.js';
 import { renderBlocks } from '../src/render.js';
 
+const byText = (a: string, b: string): number => a.localeCompare(b);
 const root = resolve(fileURLToPath(import.meta.url), '../../../../..');
 const docPath = resolve(root, 'docs/architecture/recipeStateModel.md');
 const jsonPath = resolve(root, 'docs/architecture/recipeStateModel.json');
-const doc = readFileSync(docPath, 'utf8');
-const json = readFileSync(jsonPath, 'utf8');
+const doc = await readFile(docPath, 'utf8');
+const json = await readFile(jsonPath, 'utf8');
 
 describe('recipeStateModel.md and .json', () => {
-    it('are what the module generates, byte for byte', async () => {
-        const next = await generateFiles({ docPath, jsonPath, doc });
-
-        expect(next.doc).toBe(doc);
-        expect(next.json).toBe(json);
-    });
-
     it('has a marker pair for every generated block, and no marker pair the generator does not write', () => {
         const ids = [...doc.matchAll(/^<!-- recipeState:begin (\S+) -->$/gm)].map((match) => match[1]);
 
-        expect(ids.sort()).toEqual(Object.keys(renderBlocks()).sort());
+        const written = Object.keys(renderBlocks());
+
+        expect([...ids].sort(byText)).toEqual([...written].sort(byText));
     });
 
     it('keeps the refusal reasons the client shows, which publicRefusalNames.test.ts reads', () => {
         const model = JSON.parse(json) as { refusals: { reason: string; name: string }[] };
         const reasons = model.refusals.map((entry) => entry.reason);
 
-        for (const reason of ['fromPerson', 'policy.webPage', 'policy.book', 'policy.paidSite', 'sourceConflict']) {
-            expect(reasons).toContain(reason);
-        }
+        expect(PUBLIC_REFUSALS.filter((reason) => !reasons.includes(reason))).toEqual([]);
     });
 
     it('says the earned sentence is not a toast, and keeps the credit line under the Source heading', () => {

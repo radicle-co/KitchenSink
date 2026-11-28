@@ -75,6 +75,9 @@ const ANSWERS = [
 /** Every origin a cook or staff can reach or leave: `ORIGIN_COMMISE_WRITTEN` exists only by creation (5.2). */
 const EDITABLE_ORIGINS = (Object.keys(Origin) as OriginName[]).filter((name) => name !== 'ORIGIN_COMMISE_WRITTEN');
 
+/** The origins a cook's answer can leave. Public domain is a curator's declaration, so no answer starts there. */
+const ANSWER_FROM = EDITABLE_ORIGINS.filter((name) => name !== 'ORIGIN_PUBLIC_DOMAIN');
+
 /** The enforced edges, in the order the document lists them. */
 export const TRANSITIONS: readonly TransitionRow[] = [
     row({
@@ -168,7 +171,7 @@ export const TRANSITIONS: readonly TransitionRow[] = [
             event,
             actors: ['cook'],
             guard: 'sourceLockOpen',
-            moves: EDITABLE_ORIGINS.filter((from) => from !== to).map((from) => ({ from, to })),
+            moves: ANSWER_FROM.filter((from) => from !== to).map((from) => ({ from, to })),
         }),
     ),
     row({
@@ -209,7 +212,7 @@ export const TRANSITIONS: readonly TransitionRow[] = [
         moves: [{ from: 'ORIGIN_OWN', to: 'ORIGIN_PAID_SITE' }],
     }),
     // One row per target the staff's answer can name, because an event names one target. The document shows them as `STAFF_CORRECT`.
-    ...EDITABLE_ORIGINS.map((to) =>
+    ...ANSWERS.map(([, to]) =>
         row({
             id: `STAFF_CORRECT_TO_${to.replace('ORIGIN_', '')}`,
             group: 'STAFF_CORRECT',

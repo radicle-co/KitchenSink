@@ -156,23 +156,23 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
     {
         name: 'REFUSAL_POLICY_WEB_PAGE',
         computedBy: 'both',
-        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2)',
-        en: 'existing key `policyWebPage` ("This recipe stays private because it’s from a web page.")',
-        built: 'client yes. The server split into three reasons is PR 2 work, not built (the client derives the three from the stored source until then)',
+        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2b (wire))',
+        en: 'existing key `policyWebPage` ("{line}")',
+        built: 'client yes. The server split into three reasons is PR 2b (wire) work, not built (the client derives the three from the stored source until then)',
     },
     {
         name: 'REFUSAL_POLICY_BOOK',
         computedBy: 'both',
-        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2)',
+        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2b (wire))',
         en: 'existing key `policyBook`',
-        built: 'client yes. The server split into three reasons is PR 2 work, not built (the client derives the three from the stored source until then)',
+        built: 'client yes. The server split into three reasons is PR 2b (wire) work, not built (the client derives the three from the stored source until then)',
     },
     {
         name: 'REFUSAL_POLICY_PAID_SITE',
         computedBy: 'both',
-        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2)',
+        wire: '400 `INVALID_VISIBILITY`, no reason today (reason: PR 2b (wire))',
         en: 'existing key `policyPaidSite`',
-        built: 'client yes. The server split into three reasons is PR 2 work, not built (the client derives the three from the stored source until then)',
+        built: 'client yes. The server split into three reasons is PR 2b (wire) work, not built (the client derives the three from the stored source until then)',
     },
     {
         name: 'REFUSAL_FROM_PERSON',
@@ -192,14 +192,14 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
         name: 'REFUSAL_SOURCE_CORRECTED',
         computedBy: 'both',
         wire: 'reason `SOURCE_CORRECTED`',
-        en: 'This recipe stays private because its source was corrected. (planned in the open source-lock change, #488)',
+        en: '{line} (planned in the open source-lock change, #488)',
         built: 'pending: #488, open',
     },
     {
         name: 'REFUSAL_STATEMENT_REQUIRED',
         computedBy: 'both',
         wire: 'reason `STATEMENT_REQUIRED`',
-        en: 'Say where this recipe is from before making it public.',
+        en: '{line}',
         built: 'new client key',
     },
     {
@@ -219,14 +219,14 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
     {
         name: 'REFUSAL_NO_PRIVATE_SLOT',
         computedBy: 'both',
-        wire: '403 `PRIVATE_SLOTS_FULL`, no reason (reason: PR 2)',
+        wire: '403 `PRIVATE_SLOTS_FULL`, no reason (reason: PR 2b (wire))',
         en: 'one key, ICU plural on `{total}` (4.9)',
         built: 'merges A `privateRefused.slots` and E `slotsFull`',
     },
     {
         name: 'REFUSAL_SOURCE_LOCKED',
         computedBy: 'server',
-        wire: '403 `FORBIDDEN`, `details.reason` `SOURCE_LOCKED`. The pair maps to the name. In PR 2 the reason value becomes `REFUSAL_SOURCE_LOCKED` under the same code',
+        wire: '403 `FORBIDDEN`, `details.reason` `SOURCE_LOCKED`. The pair maps to the name. In PR 2b (wire) the reason value becomes `REFUSAL_SOURCE_LOCKED` under the same code',
         en: 'the source-lock change (#488, open) adds `lockedRefused`',
         built: 'pending: #488, open',
     },
@@ -247,7 +247,7 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
     {
         name: 'REFUSAL_CONTAINED',
         computedBy: 'server',
-        wire: '403 `TEST_PRINCIPAL_CONTAINED`, no reason (reason: PR 2)',
+        wire: '403 `TEST_PRINCIPAL_CONTAINED`, no reason (reason: PR 2b (wire))',
         en: 'none (no cook meets it)',
         built: 'yes',
     },
@@ -255,7 +255,7 @@ export const REFUSAL_ROWS: readonly RefusalDocRow[] = [
         name: 'REFUSAL_CONTENT_NOT_APPROVED',
         computedBy: 'server',
         wire: '403 `SOURCE_CHECK_NOT_APPROVED`',
-        en: 'This recipe stays private because it wasn’t approved to be public.',
+        en: '{line}',
         built: 'pending: 020 (ADR-0074 §3a)',
     },
     {
@@ -305,7 +305,7 @@ export const HOLD_ROWS: readonly HoldDocRow[] = [
         setBy: 'any signed-in cook, `REPORT`, at once (020-FR-082)',
         clearedBy: 'staff, on a decision',
         ownerLabel:
-            '`publicPage.hiddenOwner` "Hidden after a report. Only you can see it now." Reader: `publicPage.hiddenReader`',
+            '`VIEW_HIDDEN_AFTER_REPORT.owner` "{label:VIEW_HIDDEN_AFTER_REPORT.owner}". Reader: `VIEW_HIDDEN_AFTER_REPORT.reader`',
         built: 'pending: 020, 003B',
     },
     {
@@ -383,7 +383,7 @@ export const ORIGIN_ROWS: readonly EdgeDocRow[] = [
     {
         group: 'ANSWER',
         from: '`ORIGIN_UNSTATED`, or any origin while `SOURCE_UNCONFIRMED`',
-        guard: '`sourceLockOf` = `open` (`open` holds for an unconfirmed answer that is not from a person, stored or attested). Web, book and paid need a link or citation, which appends evidence and forces private',
+        guard: '`sourceLockOf` = `open` (`open` holds for an unconfirmed answer that is not from a person, stored or attested). Web, book and paid need a link or citation (the wire schema enforces the citation rule, and the guard reads its result), which appends evidence and forces private',
         to: "the answer's origin",
         event: '`ANSWER_*`',
     },
@@ -506,7 +506,7 @@ export const CREATION_ROWS: readonly CreationDocRow[] = [
         holds: 'copies `HOLD_SOURCE_CORRECTED` at insert',
         evidence: "the source's evidence",
         cloneLink: 'set. Shows `VIEW_COPY_OF`',
-        built: 'yes. PR 2 records its exact lifecycle',
+        built: 'yes. The clone route sets the lifecycle and the visibility (`defaultCloneVisibility`). This row does not state them, and PR 2b checks it against the route',
     },
     {
         id: 'CLONE_OF_PUBLIC_VERSION',
@@ -539,6 +539,6 @@ export const CHECK_DIAGRAM =
     "\n```mermaid\nstateDiagram-v2\n    [*] --> CHECK_STATE_CHECKING: content first headed for public view, or any bulk-import save\n    CHECK_STATE_CHECKING --> CHECK_STATE_DECIDED: worker or rule writes the outcome\n    CHECK_STATE_DECIDED --> CHECK_STATE_DECIDED: a person's decision record sets cleared_* or review_ended_at\n```\n";
 
 /** Table 4.8's notes on a heading shape, in the document's own words. */
-export const ADAPTED_SHAPE_NOTES: Readonly<Record<string, string>> = {
-    '.heading': ' (over the citation and link)',
-};
+export const ADAPTED_SHAPE_NOTES: ReadonlyMap<string, string> = new Map([
+    ['.heading', ' (over the citation and link)'],
+]);

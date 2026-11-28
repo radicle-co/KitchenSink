@@ -6,6 +6,7 @@
  * module's tables, and the document's own words (guards, sentences, "built" notes) come from `docProse.ts`, keyed by the
  * module's names so neither can drift from the other.
  */
+import { REFUSALS_OF_SOURCE } from '@commise/features-recipes/public-refusal';
 import { recipeStateMessages } from '@commise/features-recipes/recipe-state-messages';
 import {
     Audience,
@@ -20,20 +21,17 @@ import {
     LIFECYCLE_AUDIENCE_STATES,
     Lifecycle,
     Origin,
-    PLANNED,
     REFUSAL,
-    REFUSALS_OF_SOURCE,
     RETIRED_NAMES,
     RewrittenFact,
     SourceConfirmation,
     StepsCredit,
     TRANSITIONS,
-    type LabelKey,
     type LabelledNameKey,
-    type LifecycleAudienceState,
     type RetiredGroup,
     type TransitionRow,
-} from '@kitchensink/recipe-core';
+} from '@kitchensink/recipe-core/recipe-state';
+import { PLANNED } from '@kitchensink/recipe-core/recipe-state/planned';
 
 import {
     ADAPTED_SHAPE_NOTES,
@@ -51,7 +49,7 @@ import {
 } from './docProse.js';
 
 /** The origin diagram's rows: each draws its first move. The document's table lists every move. */
-export const ORIGIN_DIAGRAM_ROWS: readonly string[] = [
+const ORIGIN_DIAGRAM_ROWS: readonly string[] = [
     'ANSWER_OWN',
     'ANSWER_WEB_PAGE',
     'ANSWER_BOOK',
@@ -74,7 +72,9 @@ export function markdownTable(header: readonly string[], rows: readonly (readonl
 
     for (const cells of rows) {
         if (cells.length !== header.length) {
-            throw new Error(`A row has ${cells.length} cells and the table has ${header.length} columns: ${cells[0]}`);
+            throw new Error(
+                `A row has ${String(cells.length)} cells and the table has ${String(header.length)} columns: ${cells[0]}`,
+            );
         }
 
         if (cells.some((cell) => cell.includes('|'))) {
@@ -101,8 +101,7 @@ const mermaid = (body: string): string => `\`\`\`mermaid\n${body}\n\`\`\``;
  * @returns The diagram text, without its fence. Pure.
  */
 export function lifecycleDiagram(rows: readonly TransitionRow[]): string {
-    const states = (Object.keys(LIFECYCLE_AUDIENCE_STATES) as LifecycleAudienceState[]).map((id) => {
-        const state = LIFECYCLE_AUDIENCE_STATES[id];
+    const states = Object.entries(LIFECYCLE_AUDIENCE_STATES).map(([id, state]) => {
         const name = state.audience === null ? state.lifecycle : `${state.lifecycle}, ${state.audience}`;
 
         return `    state "${name}" as ${id}`;
@@ -180,7 +179,7 @@ export function adaptedTable(shapes: readonly string[], textOf: (shape: string) 
             throw new Error(`The heading ${base} has an owner form and no reader form`);
         }
 
-        rows.push([`\`${base}\`${ADAPTED_SHAPE_NOTES[base] ?? ''}`, textOf(shape), textOf(`${base}.reader`)]);
+        rows.push([`\`${base}\`${ADAPTED_SHAPE_NOTES.get(base) ?? ''}`, textOf(shape), textOf(`${base}.reader`)]);
     }
 
     if (shapes.includes('.earnedSentence')) {
@@ -188,6 +187,54 @@ export function adaptedTable(shapes: readonly string[], textOf: (shape: string) 
     }
 
     return markdownTable(['Name', 'Owner (en)', 'Reader (en)'], rows);
+}
+
+/**
+ * The `en` cell of a refusal row. A `{line}` in the row's words stands for the refusal's sentence in the messages file, so
+ * the document quotes the string and never keeps a second copy of it.
+ *
+ * @param row - The refusal's row.
+ * @returns The cell text. Throws when a row has `{line}` and the messages have no sentence for the name. Pure.
+ */
+export function enCellOf(row: { readonly name: string; readonly en: string }): string {
+    if (!row.en.includes('{line}')) {
+        return row.en;
+    }
+
+    const line = new Map<string, string>(Object.entries(recipeStateMessages.en.refusals)).get(row.name);
+
+    if (line === undefined) {
+        throw new Error(`The refusal row ${row.name} quotes a sentence, and the messages have none`);
+    }
+
+    return row.en.replace('{line}', line);
+}
+
+/**
+ * Fill each `{label:KEY}` in a cell with the label's English string from the messages file, so the document quotes the
+ * string and never keeps a second copy of it.
+ *
+ * @param text - The cell text.
+ * @returns The text with each placeholder replaced. Throws when a key is not in the messages. Pure.
+ */
+export function labelsIn(text: string): string {
+    return text.replace(/\{label:([^}]+)\}/gu, (_match, key: string) => labelOf(key));
+}
+
+const LABELS = new Map<string, string>(Object.entries(recipeStateMessages.en.labels));
+
+/**
+ * @param key - A label key.
+ * @returns The key's English string from the messages file. Throws when the messages have no such key. Pure.
+ */
+function labelOf(key: string): string {
+    const label = LABELS.get(key);
+
+    if (label === undefined) {
+        throw new Error(`The document quotes the label ${key}, and the messages have no such key`);
+    }
+
+    return label;
 }
 
 const VALUE_OBJECTS: Readonly<Record<ValueObjectName, Readonly<Record<string, string>>>> = {
@@ -202,7 +249,7 @@ const groupOf = (row: TransitionRow): string => row.group ?? row.id;
 
 function edgeCells(axisRows: readonly TransitionRow[], doc: EdgeDocRow): { event: string; actor: string } {
     const rows = axisRows.filter((row) => groupOf(row) === doc.group);
-    const first = rows[0];
+    const first = rows.at(0);
 
     if (first === undefined) {
         throw new Error(`The document row ${doc.group} covers no TRANSITIONS row`);
@@ -262,7 +309,7 @@ export function renderBlocks(): Record<string, string> {
         ),
         '4.5-1': markdownTable(
             ['Internal name', 'Computed by', 'Wire today', 'en (whole sentence)', 'Built'],
-            REFUSAL_ROWS.map((row) => [code(row.name), row.computedBy, row.wire, row.en, row.built]),
+            REFUSAL_ROWS.map((row) => [code(row.name), row.computedBy, row.wire, enCellOf(row), row.built]),
         ),
         '4.6-1': markdownTable(
             ['Internal name', 'Stored', 'Enforcement', 'Set by', 'Cleared by', 'Owner label', 'Built'],
@@ -272,7 +319,7 @@ export function renderBlocks(): Record<string, string> {
                 row.enforcement,
                 row.setBy,
                 row.clearedBy,
-                row.ownerLabel,
+                labelsIn(row.ownerLabel),
                 row.built,
             ]),
         ),
@@ -280,7 +327,7 @@ export function renderBlocks(): Record<string, string> {
             LABELLED_NAMES.VIEW_ADAPTED_BY_COOK.shapes.filter(
                 (shape) => shape.startsWith('.heading') || shape === '.earnedSentence',
             ),
-            (shape) => recipeStateMessages.en.labels[`VIEW_ADAPTED_BY_COOK${shape}` as LabelKey],
+            (shape) => labelOf(`VIEW_ADAPTED_BY_COOK${shape}`),
         ),
         '5.1-1': mermaid(lifecycleDiagram(lifecycle)),
         '5.1-2': edgeTable('lifecycleAudience', LIFECYCLE_ROWS, true),
@@ -318,7 +365,7 @@ export function renderBlocks(): Record<string, string> {
         ),
         '5.8-1': markdownTable(
             ['Axis', 'From', 'Event', 'Actor', 'Guard', 'To', 'Pending'],
-            PLANNED.map((row) => [row.axis, row.from, row.event, row.actor, row.guard, row.to, row.pending]),
+            PLANNED.map((row) => [row.axisLabel, row.from, row.event, row.actor, row.guard, row.to, row.pending]),
         ),
         '6-1': retiredTable('audience'),
         '6-2': retiredTable('originAndCopies'),
@@ -326,40 +373,67 @@ export function renderBlocks(): Record<string, string> {
     };
 }
 
-const MARKERS = /<!-- recipeState:begin (\S+) -->\n[\s\S]*?\n<!-- recipeState:end \1 -->/g;
+const BEGIN_MARKER = /^<!-- recipeState:begin (\S+) -->$/u;
 
 /**
- * Put the generated blocks into the document between their markers, leaving every other byte alone.
+ * Put the generated blocks into the document between their markers, leaving every other byte alone. The markers are
+ * found line by line, so a long document costs time in proportion to its length.
  *
  * @param markdown - The document.
  * @param blocks - Block id to block text.
- * @returns The document with each block replaced. Throws when a block has no markers or a marker pair has no block. Pure.
+ * @returns The document with each block replaced. Throws when a block has no markers, a marker pair has no block, or a
+ * begin marker has no end marker. Pure.
  */
 export function applyBlocks(markdown: string, blocks: Readonly<Record<string, string>>): string {
+    const byId = new Map(Object.entries(blocks));
     const seen = new Set<string>();
-    const result = markdown.replace(MARKERS, (_whole, id: string) => {
-        const block = blocks[id];
+    const out: string[] = [];
+    let endMarker: string | undefined;
+
+    for (const line of markdown.split('\n')) {
+        if (endMarker !== undefined) {
+            if (line === endMarker) {
+                out.push(line);
+                endMarker = undefined;
+            }
+
+            continue;
+        }
+
+        out.push(line);
+
+        const id = BEGIN_MARKER.exec(line)?.[1];
+
+        if (id === undefined) {
+            continue;
+        }
+
+        const block = byId.get(id);
 
         if (block === undefined) {
             throw new Error(`The document has markers for ${id}, and the generator has no block of that id`);
         }
 
         seen.add(id);
+        out.push('', block, '');
+        endMarker = `<!-- recipeState:end ${id} -->`;
+    }
 
-        return `<!-- recipeState:begin ${id} -->\n\n${block}\n\n<!-- recipeState:end ${id} -->`;
-    });
+    if (endMarker !== undefined) {
+        throw new Error(`The document has a begin marker and no end marker: ${endMarker}`);
+    }
 
-    for (const id of Object.keys(blocks)) {
+    for (const id of byId.keys()) {
         if (!seen.has(id)) {
             throw new Error(`The generator has a block ${id}, and the document has no markers for it`);
         }
     }
 
-    return result;
+    return out.join('\n');
 }
 
 /** The refusal `reason` the model JSON carries: the client's own reason for a name it shows today, else the camel-cased name. */
-export function reasonOf(name: string): string {
+function reasonOf(name: string): string {
     const known = REFUSALS_OF_SOURCE.find(([candidate]) => candidate === name);
 
     if (known !== undefined) {
@@ -392,20 +466,18 @@ const AXES = {
  * @returns The object `recipeStateModel.json` holds. Pure.
  */
 export function renderModel(): Record<string, unknown> {
-    const strings = recipeStateMessages.en;
-
     return {
         note: 'Generated from recipe-core by packages/tools/recipeStateDoc. Do not edit by hand: change the module or docProse.ts and run npm run recipeState:generate.',
         axes: Object.entries(AXES).map(([name, values]) => ({ name, values: Object.keys(values) })),
         storedValues: Object.fromEntries(
             Object.values(AXES).flatMap((values) => Object.entries(values).filter(([name, value]) => name !== value)),
         ),
-        labels: (Object.keys(LABELLED_NAMES) as LabelledNameKey[]).map((name) => ({
-            name,
-            viewer: LABELLED_NAMES[name].viewer,
-            keys: labelKeysOf(name),
-            en: Object.fromEntries(labelKeysOf(name).map((key) => [key, strings.labels[key]])),
-        })),
+        labels: Object.entries(LABELLED_NAMES).map(([name, { viewer }]) => {
+            // `Object.entries` widens the registry's names to `string`; they are its own keys.
+            const keys = labelKeysOf(name as LabelledNameKey);
+
+            return { name, viewer, keys, en: Object.fromEntries(keys.map((key) => [key, labelOf(key)])) };
+        }),
         refusals: REFUSAL_ROWS.map((row) => ({
             reason: reasonOf(row.name),
             name: row.name,

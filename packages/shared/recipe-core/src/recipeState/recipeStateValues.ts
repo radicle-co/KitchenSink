@@ -9,6 +9,7 @@
  * @pattern Registry — `as const` value objects, one per axis. TypeScript's `keyof`/`typeof` unions make a missing key a build failure.
  */
 import { RecipeStatus, RecipeVisibility } from '../recipe.types.js';
+import type { SourceLock } from '../sourceRules.js';
 
 /** `recipes.status`. A deleted recipe is `deleted_at IS NOT NULL` and has no stored value here. */
 export const Lifecycle = {
@@ -99,13 +100,7 @@ export const SOURCE_LOCK = {
     SOURCE_LOCK_OPEN: 'open',
     SOURCE_LOCK_DOWNGRADE_ONLY: 'downgradeOnly',
     SOURCE_LOCK_LOCKED: 'locked',
-} as const;
-
-/** What `privateRuleOf` answers (4.3), derived and never stored. */
-export const PRIVATE_RULE = {
-    PRIVATE_RULE_SLOTS: 'slots',
-    PRIVATE_RULE_PRIVATE_ONLY: 'privateOnly',
-} as const;
+} as const satisfies Record<string, SourceLock>;
 
 /**
  * The lifecycle and audience pair a recipe is in (5.1), under the document's short ids, each side named by its internal

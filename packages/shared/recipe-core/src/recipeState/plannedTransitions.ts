@@ -1,13 +1,22 @@
 /**
  * PLANNED: the edges the recipe state model names that are NOT built (5.8). Nothing at runtime reads this list, and
- * `nextState` and `canTransition` never do. Each row names the work that builds it, and the edge moves into
+ * `nextState` and `canTransition` never do. It is a subpath export (`@kitchensink/recipe-core/recipe-state/planned`) that only
+ * the doc generator imports, so a runtime module cannot read it by accident (repoGuards holds that). Each row names the work that builds it, and the edge moves into
  * `TRANSITIONS` in the change that enforces it (ADR-0103). The cells are the document's own words, so the generated
  * table (`packages/tools/recipeStateDoc`) reads them straight.
  */
 
+/** The axes a planned edge can be on. */
+export type PlannedAxis = 'holds' | 'lifecycleAudience' | 'origin' | 'rewrittenFact' | 'stepsCredit' | 'bulk';
+
 /** One planned edge. The cells are documentation, not state names a guard could read. */
 export interface PlannedTransition {
-    readonly axis: string;
+    /** The axis, as a key. `holds` covers every hold, and the rest are the keys of the document's axes. */
+    readonly axis: PlannedAxis;
+    /** The axis as the document's table words it. */
+    readonly axisLabel: string;
+    /** The event as a name. Unique within the axis, and never an event of the enforced table on that axis. */
+    readonly eventId: string;
     readonly from: string;
     readonly event: string;
     readonly actor: string;
@@ -20,6 +29,8 @@ export interface PlannedTransition {
 export const PLANNED: readonly PlannedTransition[] = [
     {
         axis: 'holds',
+        axisLabel: 'holds',
+        eventId: 'CLEAR_SOURCE_HOLD',
         from: '`HOLD_SOURCE_CORRECTED` set',
         event: '`CLEAR_SOURCE_HOLD`',
         actor: 'staff',
@@ -29,6 +40,8 @@ export const PLANNED: readonly PlannedTransition[] = [
     },
     {
         axis: 'holds',
+        axisLabel: 'holds',
+        eventId: 'REPORT',
         from: 'unset, on a public `ORIGIN_COMMISE_WRITTEN` page',
         event: '`REPORT`',
         actor: 'any signed-in cook',
@@ -38,6 +51,8 @@ export const PLANNED: readonly PlannedTransition[] = [
     },
     {
         axis: 'holds',
+        axisLabel: 'holds',
+        eventId: 'CLEAR_REPORT_HIDE',
         from: '`HOLD_HIDDEN_AFTER_REPORT` set',
         event: '`CLEAR_REPORT_HIDE`',
         actor: 'staff',
@@ -47,6 +62,8 @@ export const PLANNED: readonly PlannedTransition[] = [
     },
     {
         axis: 'holds',
+        axisLabel: 'holds',
+        eventId: 'REMOVE',
         from: 'unset',
         event: '`REMOVE` / `RESTORE_AFTER_APPEAL`',
         actor: 'staff',
@@ -55,7 +72,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '016',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'SAVE_TOO_CLOSE',
         from: 'PPu (third-party origin, `ORIGIN_COMMISE_WRITTEN` included)',
         event: '`SAVE`',
         actor: 'cook',
@@ -64,7 +83,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '020 (ADR-0074 §3a), P4',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'SAVE_TOO_CLOSE_NO_SLOT',
         from: 'PPu (same)',
         event: '`SAVE`',
         actor: 'cook',
@@ -73,7 +94,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '020, P4',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'MAKE_PUBLIC_TOO_CLOSE',
         from: 'DPr, DPu, PPr (same origins)',
         event: '`MAKE_PUBLIC` / `PUBLISH` to public',
         actor: 'cook',
@@ -82,7 +105,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '020, P4',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'REVIEW_FOUND_TOO_CLOSE',
         from: 'PPu',
         event: '`REVIEW_FOUND_TOO_CLOSE`',
         actor: 'system',
@@ -91,7 +116,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'the review feature',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'FORCE_PRIVATE_AFTER_REVIEW',
         from: 'PPu, PPr in review',
         event: '`FORCE_PRIVATE`',
         actor: 'system, staff',
@@ -100,7 +127,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '020',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'MAKE_PUBLIC_NOT_APPROVED',
         from: 'PPr',
         event: '`MAKE_PUBLIC`',
         actor: 'cook',
@@ -109,16 +138,20 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: '020',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'SAVE_SOURCE_HELD',
         from: 'PPu, with the source evidence holding it off Public (`publicNeedsCheck`)',
         event: 'editor `SAVE`',
         actor: 'cook',
-        guard: 'the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Today the editor sends it private (#412), which this replaces',
+        guard: 'the cook saves an edit. The recipe stays public and the check reruns on the new text (owner ruling, 2026-11-27). Planned: Solar P10. Today a save in this state gets 400 `SOURCE_CONFLICT` before the editor sends it private, so #412 is latent, not live. P10 saves the held recipe private, shows `VIEW_SOURCE_HOLD_SAVED_PRIVATE`, and removes the private-send code of the editor',
         to: 'PPu, with the check rerun',
         pending: 'pending: P10 (#412)',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'RERUN_CHECK_FAILS_IN_SAVE',
         from: 'same',
         event: '`RERUN_CHECK_FAILS_IN_SAVE`',
         actor: 'system',
@@ -127,7 +160,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'pending: P10 (#412)',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'RERUN_CHECK_FAILS_LATER',
         from: 'same',
         event: '`RERUN_CHECK_FAILS_LATER`',
         actor: 'system',
@@ -136,7 +171,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'pending: P10 (#412)',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'SITE_CLAIM_NOT_CONFIRMED',
         from: 'same',
         event: '`SITE_CLAIM_NOT_CONFIRMED` (once 016 FR-069 site claims exist)',
         actor: 'system',
@@ -145,7 +182,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'pending: 016 FR-069',
     },
     {
-        axis: 'lifecycle × audience',
+        axis: 'lifecycleAudience',
+        axisLabel: 'lifecycle × audience',
+        eventId: 'MAKE_PUBLIC_OF_COPY',
         from: 'a copy of a public version, private',
         event: '`MAKE_PUBLIC`',
         actor: 'cook',
@@ -155,6 +194,8 @@ export const PLANNED: readonly PlannedTransition[] = [
     },
     {
         axis: 'origin',
+        axisLabel: 'origin',
+        eventId: 'MOVE_TO_BOOK',
         from: '`ORIGIN_PAID_SITE`',
         event: '`MOVE_TO_BOOK`',
         actor: 'staff, or system for a known cookbook site',
@@ -163,7 +204,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'P4',
     },
     {
-        axis: 'rewritten fact',
+        axis: 'rewrittenFact',
+        axisLabel: 'rewritten fact',
+        eventId: 'COOK_EDIT_PASSES',
         from: '`REWRITTEN_ABSENT`',
         event: '`COOK_EDIT_PASSES` (cook edit passes the difference check)',
         actor: 'system',
@@ -172,7 +215,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'P4',
     },
     {
-        axis: 'rewritten fact',
+        axis: 'rewrittenFact',
+        axisLabel: 'rewritten fact',
+        eventId: 'KEEP_AI_REWRITE',
         from: '`REWRITTEN_ABSENT`',
         event: '`KEEP_AI_REWRITE` (cook keeps an AI rewrite that passes)',
         actor: 'system',
@@ -181,7 +226,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'P4',
     },
     {
-        axis: 'rewritten fact',
+        axis: 'rewrittenFact',
+        axisLabel: 'rewritten fact',
+        eventId: 'COOK_REWRITES',
         from: '`REWRITTEN_BY_AI`',
         event: '`COOK_REWRITES` (cook rewrites, passes against the source and the AI text)',
         actor: 'system',
@@ -190,7 +237,9 @@ export const PLANNED: readonly PlannedTransition[] = [
         pending: 'P4',
     },
     {
-        axis: 'steps credit',
+        axis: 'stepsCredit',
+        axisLabel: 'steps credit',
+        eventId: 'KEEP_AI_REWRITE_STEPS',
         from: 'any',
         event: 'cook keeps an AI rewrite (own, person, public domain)',
         actor: 'cook',
@@ -200,6 +249,8 @@ export const PLANNED: readonly PlannedTransition[] = [
     },
     {
         axis: 'bulk',
+        axisLabel: 'bulk',
+        eventId: 'MAKE_THE_REST_PUBLIC',
         from: 'each item of a 003B job',
         event: '`MAKE_THE_REST_PUBLIC`',
         actor: 'cook',

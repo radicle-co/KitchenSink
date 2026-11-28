@@ -6,15 +6,18 @@ import { describe, expect, it } from 'vitest';
 
 import { RecipeSourceType } from '../recipe.types.js';
 import { canTransition, nextState, type TransitionFacts } from '../recipeState/nextState.js';
-import { PLANNED } from '../recipeState/plannedTransitions.js';
+import type { ServerRefusalFacts } from '../recipeState/refusalOf.js';
 import { TRANSITIONS } from '../recipeState/transitions.js';
 
-const clean = {
+const clean: ServerRefusalFacts = {
     sourceType: RecipeSourceType.USER_CREATED,
     sourceKind: null,
     statementKind: null,
     held: false,
-} as const;
+    sourceCorrected: false,
+    statementRequired: false,
+    attestedFromPerson: false,
+};
 const cook = (overrides: Partial<TransitionFacts> = {}): TransitionFacts => ({
     actor: 'cook',
     source: clean,
@@ -301,19 +304,7 @@ describe('nextState: confirmation and the hold', () => {
     });
 });
 
-describe('TRANSITIONS and PLANNED', () => {
-    it('keeps a planned edge out of the enforced table', () => {
-        const enforced = new Set(TRANSITIONS.map((row) => `${row.axis}:${row.event}`));
-
-        expect(PLANNED.length).toBeGreaterThan(0);
-
-        for (const planned of PLANNED) {
-            expect(planned.pending).not.toBe('');
-        }
-
-        expect(enforced.has('holdSourceCorrected:CLEAR_SOURCE_HOLD')).toBe(false);
-    });
-
+describe('TRANSITIONS', () => {
     it('has at most one enforced row for an axis, a from-state and an event', () => {
         const seen = new Set<string>();
 
@@ -325,5 +316,175 @@ describe('TRANSITIONS and PLANNED', () => {
                 seen.add(key);
             }
         }
+    });
+});
+
+describe('nextState: who may take which edge (each row of the table)', () => {
+    it('lets the erasure actor DELETE, and nobody outside the row', () => {
+        expect(canTransition('lifecycleAudience', 'PPu', 'DELETE', { ...cook(), actor: 'erasure' })).toBe(true);
+        expect(canTransition('lifecycleAudience', 'PPu', 'DELETE', { ...cook(), actor: 'import' })).toBe(false);
+        expect(canTransition('lifecycleAudience', 'PPu', 'DELETE', { ...cook(), actor: 'staff' })).toBe(false);
+    });
+
+    it('lets staff FORCE_PRIVATE as well as the system, and no cook', () => {
+        const forced = { ...cook(), forcesPrivate: true };
+
+        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'staff' })).toBe(true);
+        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'system' })).toBe(true);
+        expect(canTransition('lifecycleAudience', 'PPu', 'FORCE_PRIVATE', { ...forced, actor: 'curator' })).toBe(false);
+    });
+
+    it('lets the cook, the system and staff CONFIRM_SOURCE, and no curator', () => {
+        for (const actor of ['cook', 'system', 'staff'] as const) {
+            expect(
+                canTransition('sourceConfirmation', 'SOURCE_UNCONFIRMED', 'CONFIRM_SOURCE', { ...cook(), actor }),
+            ).toBe(true);
+        }
+
+        expect(
+            canTransition('sourceConfirmation', 'SOURCE_UNCONFIRMED', 'CONFIRM_SOURCE', {
+                ...cook(),
+                actor: 'curator',
+            }),
+        ).toBe(false);
+    });
+
+    it('sets the correction hold only with the staff grant, and only when the new answer can open Public', () => {
+        const staff = { ...cook(), actor: 'staff', staffGrant: true, newAnswerCanOpenPublic: true } as const;
+
+        expect(canTransition('holdSourceCorrected', 'unset', 'STAFF_CORRECT', staff)).toBe(true);
+        expect(canTransition('holdSourceCorrected', 'unset', 'STAFF_CORRECT', { ...staff, staffGrant: false })).toBe(
+            false,
+        );
+        expect(
+            canTransition('holdSourceCorrected', 'unset', 'STAFF_CORRECT', {
+                ...cook(),
+                actor: 'staff',
+                newAnswerCanOpenPublic: true,
+            }),
+        ).toBe(false);
+        expect(
+            canTransition('holdSourceCorrected', 'unset', 'STAFF_CORRECT', { ...staff, newAnswerCanOpenPublic: false }),
+        ).toBe(false);
+    });
+});
+
+describe('nextState: the staff correction targets (ORIGIN_PUBLIC_DOMAIN and ORIGIN_UNSTATED are not answers)', () => {
+    const staff = { ...cook(), actor: 'staff', staffGrant: true, sourceConfirmed: true } as const;
+    const events = (axis: string): string[] => TRANSITIONS.filter((row) => row.axis === axis).map((row) => row.event);
+
+    it('has a target for exactly the five answers the wire accepts', () => {
+        expect(
+            events('origin')
+                .filter((event) => event.startsWith('STAFF_CORRECT_TO_'))
+                .sort((a, b) => a.localeCompare(b)),
+        ).toEqual([
+            'STAFF_CORRECT_TO_BOOK',
+            'STAFF_CORRECT_TO_OWN',
+            'STAFF_CORRECT_TO_PAID_SITE',
+            'STAFF_CORRECT_TO_PERSON',
+            'STAFF_CORRECT_TO_WEB_PAGE',
+        ]);
+    });
+
+    it('has no STAFF_CORRECT_TO_UNSTATED or STAFF_CORRECT_TO_PUBLIC_DOMAIN, and refuses them if asked', () => {
+        expect(events('origin')).not.toContain('STAFF_CORRECT_TO_UNSTATED');
+        expect(events('origin')).not.toContain('STAFF_CORRECT_TO_PUBLIC_DOMAIN');
+        expect(canTransition('origin', 'ORIGIN_BOOK', 'STAFF_CORRECT_TO_UNSTATED', staff)).toBe(false);
+        expect(canTransition('origin', 'ORIGIN_BOOK', 'STAFF_CORRECT_TO_PUBLIC_DOMAIN', staff)).toBe(false);
+    });
+
+    it('corrects from public domain and from unstated, which are from-states', () => {
+        expect(canTransition('origin', 'ORIGIN_PUBLIC_DOMAIN', 'STAFF_CORRECT_TO_BOOK', staff)).toBe(true);
+        expect(canTransition('origin', 'ORIGIN_UNSTATED', 'STAFF_CORRECT_TO_OWN', staff)).toBe(true);
+    });
+
+    it('never lets a cook answer over public domain (the edge is unreachable), but lets the curator declare it', () => {
+        const open = cook({ sourceLock: 'open' });
+
+        expect(canTransition('origin', 'ORIGIN_PUBLIC_DOMAIN', 'ANSWER_OWN', open)).toBe(false);
+        expect(canTransition('origin', 'ORIGIN_UNSTATED', 'ANSWER_OWN', open)).toBe(true);
+        expect(
+            TRANSITIONS.filter((row) => row.id.startsWith('ANSWER_'))
+                .flatMap((row) => row.moves)
+                .some((move) => move.from === 'ORIGIN_PUBLIC_DOMAIN'),
+        ).toBe(false);
+    });
+});
+
+describe('nextState: a failure says why', () => {
+    const ready = { requirementsMet: true, publishSheetAccepted: true, privateSlotFree: true } as const;
+
+    it('answers noEdge for an edge that is not in the table, and actor for the wrong actor', () => {
+        expect(nextState('lifecycleAudience', 'Del', 'MAKE_PUBLIC', cook())).toEqual({ ok: false, cause: 'noEdge' });
+        expect(nextState('lifecycleAudience', 'DPr', 'MAKE_PUBLIC', { ...cook(), actor: 'staff' })).toEqual({
+            ok: false,
+            cause: 'actor',
+        });
+    });
+
+    it.each([
+        [
+            'publish without the requirements',
+            { ...ready, requirementsMet: false },
+            'DPu',
+            'PUBLISH',
+            'REFUSAL_PUBLISH_REQUIREMENTS',
+        ],
+        [
+            'publish without the sheet',
+            { ...ready, publishSheetAccepted: false },
+            'DPu',
+            'PUBLISH',
+            'REFUSAL_PUBLIC_CONFIRMATION_REQUIRED',
+        ],
+        [
+            'publish private with no slot',
+            { ...ready, privateSlotFree: false },
+            'DPr',
+            'PUBLISH',
+            'REFUSAL_NO_PRIVATE_SLOT',
+        ],
+        [
+            'make a published recipe public without the sheet',
+            { ...ready, publishSheetAccepted: false },
+            'PPr',
+            'MAKE_PUBLIC',
+            'REFUSAL_PUBLIC_CONFIRMATION_REQUIRED',
+        ],
+        [
+            'make a published recipe private with no slot',
+            { privateSlotFree: false },
+            'PPu',
+            'MAKE_PRIVATE',
+            'REFUSAL_NO_PRIVATE_SLOT',
+        ],
+    ] as const)('names the refusal when you %s', (_label, extra, from, event, refusal) => {
+        expect(nextState('lifecycleAudience', from, event, cook(extra))).toEqual({ ok: false, refusal });
+    });
+
+    it('names REFUSAL_SOURCE_LOCKED when the source lock is not open', () => {
+        expect(nextState('origin', 'ORIGIN_UNSTATED', 'ANSWER_BOOK', cook({ sourceLock: 'locked' }))).toEqual({
+            ok: false,
+            refusal: 'REFUSAL_SOURCE_LOCKED',
+        });
+    });
+
+    it('names no refusal for a guard the model has no refusal for, and says it was the guard', () => {
+        expect(nextState('lifecycleAudience', 'PPr', 'ERASE_DONATE', { ...cook(), actor: 'system' })).toEqual({
+            ok: false,
+            cause: 'guard',
+        });
+        expect(nextState('origin', 'ORIGIN_UNSTATED', 'CURATOR_DECLARE', { ...cook(), actor: 'curator' })).toEqual({
+            ok: false,
+            cause: 'guard',
+        });
+    });
+
+    it('prefers the refusalOf refusal to a guard failure for an edge into Public', () => {
+        expect(nextState('lifecycleAudience', 'DPu', 'PUBLISH', cook({ source: { ...clean, held: true } }))).toEqual({
+            ok: false,
+            refusal: 'REFUSAL_SOURCE_CONFLICT',
+        });
     });
 });

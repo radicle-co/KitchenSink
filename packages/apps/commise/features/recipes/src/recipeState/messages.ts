@@ -12,7 +12,7 @@
  *
  * Attested wording (`statement*.v1`, `publicConfirm.v1`, the lock notes) is not here and stays byte-identical where it is.
  */
-import type { LabelKey, Refusal } from '@kitchensink/recipe-core';
+import type { LabelKey, Refusal } from '@kitchensink/recipe-core/recipe-state';
 import type { LocalizedMessages } from '@commise/i18n';
 
 import { recipeActionMessages } from '../actions/messages.js';
@@ -76,11 +76,11 @@ export const recipeStateMessages: LocalizedMessages<RecipeStateMessages> = {
             'VIEW_ADAPTED_BY_COOK.heading.owner': 'Adapted by you from',
             'VIEW_ADAPTED_BY_COOK.heading.reader': 'Adapted by {cook} from',
             'VIEW_ADAPTED_BY_COOK.headingNoCitation.book.owner': `Adapted by you from ${ADAPTED_FROM_BOOK}`,
-            'VIEW_ADAPTED_BY_COOK.headingNoCitation.book.reader': `Adapted by {cook} from ${ADAPTED_FROM_BOOK}`,
+            'VIEW_ADAPTED_BY_COOK.headingNoCitation.book.reader': 'Adapted by {cook} from ' + ADAPTED_FROM_BOOK,
             'VIEW_ADAPTED_BY_COOK.headingNoCitation.paidSite.owner': `Adapted by you from ${ADAPTED_FROM_PAID}`,
-            'VIEW_ADAPTED_BY_COOK.headingNoCitation.paidSite.reader': `Adapted by {cook} from ${ADAPTED_FROM_PAID}`,
+            'VIEW_ADAPTED_BY_COOK.headingNoCitation.paidSite.reader': 'Adapted by {cook} from ' + ADAPTED_FROM_PAID,
             'VIEW_ADAPTED_BY_COOK.headingNoCitation.webPage.owner': `Adapted by you from ${ADAPTED_FROM_WEB}`,
-            'VIEW_ADAPTED_BY_COOK.headingNoCitation.webPage.reader': `Adapted by {cook} from ${ADAPTED_FROM_WEB}`,
+            'VIEW_ADAPTED_BY_COOK.headingNoCitation.webPage.reader': 'Adapted by {cook} from ' + ADAPTED_FROM_WEB,
             'VIEW_ADAPTED_BY_COOK.earnedSentence': 'This recipe is now marked Adapted by you.',
             VIEW_COPY_OF: 'Copied from {name}',
             VIEW_COPY_OF_COMMISE_PAGE: 'Copied from a recipe Commise wrote',

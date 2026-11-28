@@ -6,7 +6,9 @@
  * `refusalOf` judges the source facts a client and the server both hold. It keeps the order the recipe page uses today,
  * so a client that switches to it answers the same. The server judges the same facts in its own order (containment,
  * private-only, source conflict, from another person, correction) and is not wired to this yet (ADR-0103's wire window).
- * The two orders differ only when two refusals hold at once.
+ * The two orders cannot both apply: a recipe with a private-only label and a "from another person" statement is not a state the
+ * database allows (migration 0087's fromPerson shape, and ADR-0104's CHECK on the one origin column), so the order is not observable.
+ * PR 3 adds the test that this shape is refused.
  *
  * @pattern Specification — a pure predicate-and-pick over facts the caller already holds
  */
@@ -49,20 +51,6 @@ export type Refusal = keyof typeof REFUSAL;
 /** Where a refusal is computed (4.5). */
 export type RefusalComputedBy = 'both' | 'server' | 'client';
 
-/**
- * The refusals `refusalOf` can answer, and the client's `PUBLIC_REFUSALS` reason string for each of the ones it shows
- * today. The reason strings are the model JSON's `reason`, held to the client by `publicRefusalNames.test.ts`.
- */
-export const REFUSALS_OF_SOURCE = [
-    ['REFUSAL_POLICY_WEB_PAGE', 'policy.webPage'],
-    ['REFUSAL_POLICY_BOOK', 'policy.book'],
-    ['REFUSAL_POLICY_PAID_SITE', 'policy.paidSite'],
-    ['REFUSAL_FROM_PERSON', 'fromPerson'],
-    ['REFUSAL_SOURCE_CONFLICT', 'sourceConflict'],
-    ['REFUSAL_UNRECOGNISED', 'unrecognised'],
-    ['REFUSAL_NONE', 'none'],
-] as const satisfies readonly (readonly [Refusal, string])[];
-
 /** The facts that decide it. Optional facts are absent for a client that cannot see them, and absent reads false. */
 export interface RefusalFacts {
     readonly sourceType: RecipeSourceType;
@@ -78,6 +66,17 @@ export interface RefusalFacts {
     readonly sourceCorrected?: boolean;
     /** Whether the cook must still say where the recipe is from (`publicNeedsStatement`). */
     readonly statementRequired?: boolean;
+}
+
+/**
+ * The facts the SERVER holds. Every flag is REQUIRED and stated, so a caller that forgot one does not compile: an absent
+ * `sourceCorrected` would otherwise read false and allow a recipe the correction holds. A client, which cannot see the
+ * owner-only flags, keeps {@link RefusalFacts} and its optional shape.
+ */
+export interface ServerRefusalFacts extends RefusalFacts {
+    readonly sourceCorrected: boolean;
+    readonly statementRequired: boolean;
+    readonly attestedFromPerson: boolean;
 }
 
 function privateOnlyRefusalOf(sourceType: RecipeSourceType, sourceKind: RecipeSourceKindView | null): Refusal {

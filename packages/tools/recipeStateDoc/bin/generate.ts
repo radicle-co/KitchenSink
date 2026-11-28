@@ -29,10 +29,10 @@ if (check) {
         process.stderr.write(
             `Stale generated files (run \`npm run recipeState:generate\` and commit):\n${stale.join('\n')}\n`,
         );
-        process.exit(1);
+        process.exitCode = 1;
+    } else {
+        process.stdout.write('recipeState: the document and the JSON match the module.\n');
     }
-
-    process.stdout.write('recipeState: the document and the JSON match the module.\n');
 } else {
     await Promise.all([writeFile(docPath, next.doc), writeFile(jsonPath, next.json)]);
     process.stdout.write(

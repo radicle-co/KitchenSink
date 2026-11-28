@@ -2,7 +2,13 @@
  * The recipe state model's English strings (docs/architecture/recipeStateModel.md 4.4, 4.5, 4.8). Every key the registry
  * requires has a string, no other key exists, and a string the model says to reuse IS the existing one, not a copy.
  */
-import { REFUSAL, labelKeysOf, LABELLED_NAMES, noticeWithEarned, type LabelledNameKey } from '@kitchensink/recipe-core';
+import {
+    REFUSAL,
+    labelKeysOf,
+    LABELLED_NAMES,
+    noticeWithEarned,
+    type LabelledNameKey,
+} from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
 
 import { recipeActionMessages } from '../../actions/messages.js';
@@ -11,15 +17,16 @@ import { recipeMessages } from '../../messages.js';
 import { RECIPE_STATE_REFUSAL_LINES, recipeStateMessages } from '../messages.js';
 
 const en = recipeStateMessages.en;
+const byText = (a: string, b: string): number => a.localeCompare(b);
 
 describe('recipeStateMessages', () => {
     it('has exactly the keys the registry requires', () => {
         const required = (Object.keys(LABELLED_NAMES) as LabelledNameKey[]).flatMap((name) => labelKeysOf(name));
 
-        expect(Object.keys(en.labels).sort()).toEqual([...required].sort());
+        expect(Object.keys(en.labels).sort(byText)).toEqual([...required].sort(byText));
 
-        for (const key of required) {
-            expect(en.labels[key].length).toBeGreaterThan(0);
+        for (const [key, text] of Object.entries(en.labels)) {
+            expect(text.length, key).toBeGreaterThan(0);
         }
     });
 
@@ -60,7 +67,7 @@ describe('recipeStateMessages', () => {
             expect(name).not.toBe('REFUSAL_NONE');
         }
 
-        expect(Object.keys(en.refusals).sort()).toEqual([...RECIPE_STATE_REFUSAL_LINES].sort());
+        expect(Object.keys(en.refusals).sort(byText)).toEqual([...RECIPE_STATE_REFUSAL_LINES].sort(byText));
     });
 
     it('never says "Adapted from" or "Cloned", which the model retired', () => {

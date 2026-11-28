@@ -2,7 +2,7 @@
  * The pure renderers of the recipe state doc. The golden comparison against the committed document is the integration
  * test; here each rule is pinned on small inputs, so a broken rule fails with a small diff.
  */
-import { CREATIONS, Hold, REFUSAL, TRANSITIONS, type TransitionRow } from '@kitchensink/recipe-core';
+import { CREATIONS, Hold, REFUSAL, TRANSITIONS, type TransitionRow } from '@kitchensink/recipe-core/recipe-state';
 import { describe, expect, it } from 'vitest';
 
 import {
@@ -13,7 +13,15 @@ import {
     ORIGIN_ROWS,
     REFUSAL_ROWS,
 } from '../src/docProse.js';
-import { adaptedTable, applyBlocks, lifecycleDiagram, markdownTable, originDiagram } from '../src/render.js';
+import {
+    adaptedTable,
+    applyBlocks,
+    enCellOf,
+    labelsIn,
+    lifecycleDiagram,
+    markdownTable,
+    originDiagram,
+} from '../src/render.js';
 
 describe('markdownTable', () => {
     it('writes a header, a rule and one line per row', () => {
@@ -125,28 +133,36 @@ describe('applyBlocks', () => {
         expect(() => applyBlocks(doc, { a: 'x', b: 'y' })).toThrow(/b/);
         expect(() => applyBlocks(doc, {})).toThrow(/a/);
     });
+
+    it('throws for a begin marker that has no end marker, rather than leaving the stale block in place', () => {
+        expect(() => applyBlocks('<!-- recipeState:begin a -->\n\nold\n', { a: 'new' })).toThrow(/end marker/);
+    });
 });
+
+const byText = (a: string, b: string): number => a.localeCompare(b);
 
 describe('the prose is keyed by the module', () => {
     const groups = (axis: string): string[] =>
-        [...new Set(TRANSITIONS.filter((candidate) => candidate.axis === axis).map((r) => r.group ?? r.id))].sort();
+        [...new Set(TRANSITIONS.filter((candidate) => candidate.axis === axis).map((r) => r.group ?? r.id))].sort(
+            byText,
+        );
 
     it('has a refusal row for every refusal name that has one, and no other', () => {
         const names = REFUSAL_ROWS.map((entry) => entry.name);
 
         expect(new Set(names).size).toBe(names.length);
-        expect([...names].sort()).toEqual(Object.keys(REFUSAL).sort());
+        expect([...names].sort(byText)).toEqual(Object.keys(REFUSAL).sort(byText));
     });
 
     it('has a hold row for every hold, and a creation row for every creation', () => {
-        expect(HOLD_ROWS.map((entry) => entry.name).sort()).toEqual(Object.keys(Hold).sort());
+        expect(HOLD_ROWS.map((entry) => entry.name).sort(byText)).toEqual(Object.keys(Hold).sort(byText));
         expect(CREATION_ROWS.map((entry) => entry.id)).toEqual(CREATIONS.map((entry) => entry.id));
     });
 
     it('has a table row for every group of the lifecycle, origin and confirmation edges, and no other', () => {
-        expect(LIFECYCLE_ROWS.map((entry) => entry.group).sort()).toEqual(groups('lifecycleAudience'));
-        expect(ORIGIN_ROWS.map((entry) => entry.group).sort()).toEqual(groups('origin'));
-        expect(CONFIRMATION_ROWS.map((entry) => entry.group).sort()).toEqual(groups('sourceConfirmation'));
+        expect(LIFECYCLE_ROWS.map((entry) => entry.group).sort(byText)).toEqual(groups('lifecycleAudience'));
+        expect(ORIGIN_ROWS.map((entry) => entry.group).sort(byText)).toEqual(groups('origin'));
+        expect(CONFIRMATION_ROWS.map((entry) => entry.group).sort(byText)).toEqual(groups('sourceConfirmation'));
     });
 });
 
@@ -168,7 +184,7 @@ describe('adaptedTable (4.8)', () => {
                 '.headingNoCitation.book.reader',
                 '.earnedSentence',
             ],
-            (shape) => labels[`VIEW_ADAPTED_BY_COOK${shape}` as keyof typeof labels] ?? '',
+            (shape) => labels[`VIEW_ADAPTED_BY_COOK${shape}` as keyof typeof labels],
         );
 
         expect(text).toContain(
@@ -188,5 +204,38 @@ describe('adaptedTable (4.8)', () => {
 
     it('throws for a shape that is neither a heading with owner and reader forms nor the earned sentence', () => {
         expect(() => adaptedTable(['.owner'], () => 'x')).toThrow(/\.owner/);
+    });
+});
+
+describe('enCellOf', () => {
+    it('leaves a cell that quotes nothing as it is', () => {
+        expect(enCellOf({ name: 'REFUSAL_POLICY_BOOK', en: 'existing key `policyBook`' })).toBe(
+            'existing key `policyBook`',
+        );
+    });
+
+    it('quotes the sentence of the messages file for {line}, so the document keeps no copy', () => {
+        expect(enCellOf({ name: 'REFUSAL_STATEMENT_REQUIRED', en: '{line}' })).toBe(
+            'Say where this recipe is from before making it public.',
+        );
+        expect(enCellOf({ name: 'REFUSAL_SOURCE_CORRECTED', en: '{line} (planned)' })).toBe(
+            'This recipe stays private because its source was corrected. (planned)',
+        );
+    });
+
+    it('throws for {line} on a refusal the messages have no sentence for', () => {
+        expect(() => enCellOf({ name: 'REFUSAL_NONE', en: '{line}' })).toThrow(/REFUSAL_NONE/);
+    });
+});
+
+describe('labelsIn', () => {
+    it('fills a {label:KEY} from the messages and leaves other text alone', () => {
+        expect(labelsIn('Owner "{label:VIEW_HIDDEN_AFTER_REPORT.owner}" only')).toBe(
+            'Owner "Hidden after a report. Only you can see it now." only',
+        );
+    });
+
+    it('throws on a key the messages do not have, so a drifted cell fails the generator', () => {
+        expect(() => labelsIn('{label:publicPage.hiddenOwner}')).toThrow(/publicPage\.hiddenOwner/u);
     });
 });

@@ -21,12 +21,6 @@ interface LabelledName {
 /** The parts of a too-close or source-hold box. */
 const BOX = ['.title', '.body', '.link', '.primary'] as const;
 const OWNER_READER = ['.owner', '.reader'] as const;
-const HEADINGS = [
-    '.heading',
-    '.headingNoCitation.book',
-    '.headingNoCitation.paidSite',
-    '.headingNoCitation.webPage',
-] as const;
 
 export const LABELLED_NAMES = {
     LIFECYCLE_DRAFT: { shapes: [''], viewer: 'owner' },
@@ -43,9 +37,17 @@ export const LABELLED_NAMES = {
     VIEW_CHECKING: { shapes: [''], viewer: 'owner' },
     VIEW_NOT_APPROVED: { shapes: [''], viewer: 'owner' },
     VIEW_ADAPTED_BY_COOK: {
+        // Written out, not built with `flatMap`: a computed list widens to `string` and `LabelKey` stops being checked.
         shapes: [
             ...OWNER_READER,
-            ...HEADINGS.flatMap((heading) => OWNER_READER.map((who) => `${heading}${who}`)),
+            '.heading.owner',
+            '.heading.reader',
+            '.headingNoCitation.book.owner',
+            '.headingNoCitation.book.reader',
+            '.headingNoCitation.paidSite.owner',
+            '.headingNoCitation.paidSite.reader',
+            '.headingNoCitation.webPage.owner',
+            '.headingNoCitation.webPage.reader',
             '.earnedSentence',
         ],
         viewer: 'both',
@@ -85,12 +87,17 @@ export type LabelKey = {
     [N in LabelledNameKey]: `${N}${(typeof LABELLED_NAMES)[N]['shapes'][number]}`;
 }[LabelledNameKey];
 
+const ALL_LABEL_KEYS: readonly LabelKey[] = Object.entries(LABELLED_NAMES).flatMap(([name, { shapes }]) =>
+    shapes.map((shape) => `${name}${shape}` as LabelKey),
+);
+
 /**
- * The message keys of one name, in the order its shapes are written.
+ * The message keys of one name, in the order its shapes are written. A name holds no dot, so a key belongs to the name
+ * that is the whole key or the text before its first dot.
  *
  * @param name - A labelled name.
  * @returns Its keys. Pure.
  */
 export function labelKeysOf(name: LabelledNameKey): readonly LabelKey[] {
-    return LABELLED_NAMES[name].shapes.map((shape) => `${name}${shape}` as LabelKey);
+    return ALL_LABEL_KEYS.filter((key) => key.split('.', 1)[0] === name);
 }

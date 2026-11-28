@@ -60,6 +60,8 @@
             // Repo-root automation, invoked by CI and npm scripts rather than imported.
             "entry": ["scripts/*.{mjs,ts}"],
             "project": ["scripts/**/*.{mjs,ts}"],
+            // ruff and mypy are Python tools that the `python-checks` job installs with pip, so no npm manifest can declare them.
+            "ignoreBinaries": ["ruff", "mypy"],
         },
         // ⛔ NESTED CDK `infra/` PACKAGES. Their toolchain is invoked through `cdk.json`
         // (`"app": "npx tsx bin/app.ts"`) and the `cdk` CLI — a JSON string and a shell command, neither of

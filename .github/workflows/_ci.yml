@@ -1078,7 +1078,10 @@ jobs:
         name: Contract drift (generated artifacts are current)
         timeout-minutes: 15
         runs-on: ubuntu-latest
-        needs: [install]
+        needs: [install, select-checks]
+        env:
+            CHECK_SCOPE_FULL: ${{ needs.select-checks.outputs.full }}
+            CHECK_SCOPE_FILES: ${{ needs.select-checks.outputs.files }}
         steps:
             - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
               with:
@@ -1120,7 +1123,12 @@ jobs:
             # step above: run the tool that OWNS the files, fail on a difference. It is read-only here (`--check`).
             - name: Verify the recipe state model document matches the module
               run: npm run recipeState:verify
+            # ADR-0091: the packages this change selects for the integration tier, read by the step's `if:` below.
+            - name: Select the packages this change affects
+              id: scope
+              run: npm run -s scope -- list test:integration
             - name: Recipe state model generator (integration)
+              if: ${{ contains(fromJSON(steps.scope.outputs.packages), '@kitchensink/recipe-state-doc') }}
               run: npm run test:integration --workspace=@kitchensink/recipe-state-doc
 
     test:

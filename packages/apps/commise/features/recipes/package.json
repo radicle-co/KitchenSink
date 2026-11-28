@@ -21,6 +21,7 @@
         "./versions": "./src/versions/index.ts",
         "./import": "./src/import/index.ts",
         "./ingredient-matching": "./src/ingredientMatching/index.ts",
+        "./public-refusal": "./src/actions/publicRefusal.ts",
         "./recipe-state-messages": "./src/recipeState/messages.ts",
         "./widget/web": "./src/widget/RecipeHomeWidget.tsx",
         "./widget/mobile": "./src/widget/RecipeHomeWidget.native.tsx",

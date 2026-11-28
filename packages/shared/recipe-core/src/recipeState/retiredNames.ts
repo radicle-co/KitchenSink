@@ -106,7 +106,7 @@ export const RETIRED_NAMES: readonly RetiredName[] = [
         group: 'checkAndRefusals',
         old: 'the `details.reason` values `FROM_PERSON_PRIVATE_ONLY`, `SOURCE_CONFLICT`, `SOURCE_CORRECTED`, `STATEMENT_REQUIRED`, `PUBLIC_CONFIRMATION_REQUIRED`, `API_WRITER_CONFIRMATION_FORBIDDEN`, and the code names `privateSlots`, `policy`',
         replacement: 'the `REFUSAL_*` names',
-        note: 'PR 2. Top-level error codes stay',
+        note: 'PR 2b (wire). Top-level error codes stay',
     },
     {
         group: 'checkAndRefusals',

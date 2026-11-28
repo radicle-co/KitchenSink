@@ -10,7 +10,7 @@ Boards: RecipeEditorSourceLock and RecipeEditorSourceSheet (recipeEditorWeb at w
 at iPhone 390, Android 384 and iPad 820), RecipeSourceLockDetail (recipeDetailWeb and recipeDetailMobile, same sizes),
 and RecipeEditorStatementPaidSite, which P8 redrew with the `.p8` rules.
 
-Run once from the repository root on its parent commit 94878b99f (branch docs/p8DeadSelectors):
+Run once from the repository root on its parent commit 94878b99f:
 python3 docs/design/canvasScripts/draw20261128P8DeadCss.py
 """
 
